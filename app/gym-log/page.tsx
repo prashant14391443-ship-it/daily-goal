@@ -4,7 +4,8 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
+  import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 type Workout = {
   id: string;
@@ -260,6 +261,12 @@ export default function GymLog() {
         </div>
       </div>
 
+      <Link
+        href="/calorie"
+        className="block bg-green-600/20 border border-green-500/40 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-green-600/30"
+      >
+        📷 Calorie Scanner — check any food photo
+      </Link>
       <form
         onSubmit={addLog}
         className="bg-slate-900 p-6 rounded-lg mb-8 grid gap-4"
