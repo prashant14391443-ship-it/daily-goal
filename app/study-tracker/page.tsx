@@ -212,7 +212,10 @@ export default function StudyTracker() {
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-4 md:p-4 md:p-4 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold">📚 Study Tracker</h1>
+          <h1 className="text-3xl font-bold flex items-center gap-3">
+  <span className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-xl">📚</span>
+  Study Tracker
+</h1>
           <p className="text-slate-400">
             {date === today ? "Today" : date} • Total:{" "}
             {Math.floor(totalMinutes / 60)}h {totalMinutes % 60}m

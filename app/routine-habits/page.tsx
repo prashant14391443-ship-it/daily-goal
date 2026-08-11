@@ -216,7 +216,10 @@ export default function RoutineHabits() {
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold">✅ Routine & Habits</h1>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+  <span className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-xl">✅</span>
+  Routine & Habits
+</h1>
           <p className="text-slate-400">{date === today ? "Today" : date}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
