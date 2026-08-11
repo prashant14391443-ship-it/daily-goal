@@ -47,6 +47,10 @@ export default function GymLog() {
   const [workout, setWorkout] = useState("");
   const [minutes, setMinutes] = useState("");
   const [reminderTime, setReminderTime] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editWorkout, setEditWorkout] = useState("");
+  const [editMinutes, setEditMinutes] = useState("");
+  const [editTime, setEditTime] = useState("");
   const notified = useRef<Set<string>>(new Set());
   const router = useRouter();
 
@@ -149,16 +153,34 @@ export default function GymLog() {
   };
 
   const toggleLog = async (id: string, completed: boolean) => {
-    await supabase
-      .from("gym_logs")
-      .update({ completed: !completed })
-      .eq("id", id);
+    await supabase.from("gym_logs").update({ completed: !completed }).eq("id", id);
     setLogs(logs.map((l) => (l.id === id ? { ...l, completed: !completed } : l)));
   };
 
   const deleteLog = async (id: string) => {
     await supabase.from("gym_logs").delete().eq("id", id);
     setLogs(logs.filter((l) => l.id !== id));
+  };
+
+  const startEdit = (l: Workout) => {
+    setEditingId(l.id);
+    setEditWorkout(l.workout_type);
+    setEditMinutes(String(l.duration_minutes));
+    setEditTime(l.reminder_time ? l.reminder_time.slice(0, 5) : "");
+  };
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    await supabase
+      .from("gym_logs")
+      .update({
+        workout_type: editWorkout,
+        duration_minutes: Number(editMinutes) || 0,
+        reminder_time: editTime || null,
+      })
+      .eq("id", editingId);
+    setEditingId(null);
+    await load(date);
   };
 
   const total = logs.reduce((s, r) => s + r.duration_minutes, 0);
@@ -285,35 +307,80 @@ export default function GymLog() {
             key={l.id}
             className="bg-slate-900 p-4 rounded-lg flex items-center justify-between gap-4 flex-wrap"
           >
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => toggleLog(l.id, l.completed)}
-                className={`w-5 h-5 rounded border flex items-center justify-center ${
-                  l.completed
-                    ? "bg-green-500 border-green-500"
-                    : "bg-slate-800 border-slate-600"
-                }`}
-              >
-                {l.completed && <span className="text-xs text-white font-bold">✓</span>}
-              </button>
-              <div>
-                <p className={`font-semibold ${l.completed ? "line-through text-slate-500" : ""}`}>
-                  {l.workout_type}
-                </p>
-                <p className="text-sm text-slate-400">
-                  {l.duration_minutes} min
-                  {l.reminder_time && (
-                    <span className="ml-2">⏰ {l.reminder_time.slice(0, 5)}</span>
-                  )}
-                </p>
+            {editingId === l.id ? (
+              <div className="flex flex-wrap gap-2 flex-1">
+                <input
+                  value={editWorkout}
+                  onChange={(e) => setEditWorkout(e.target.value)}
+                  className="flex-1 min-w-[120px] p-2 rounded bg-slate-800 border border-slate-700"
+                />
+                <input
+                  type="number"
+                  min="1"
+                  value={editMinutes}
+                  onChange={(e) => setEditMinutes(e.target.value)}
+                  className="w-20 p-2 rounded bg-slate-800 border border-slate-700"
+                />
+                <input
+                  type="time"
+                  value={editTime}
+                  onChange={(e) => setEditTime(e.target.value)}
+                  className="p-2 rounded bg-slate-800 border border-slate-700"
+                />
+                <button
+                  onClick={saveEdit}
+                  className="px-4 py-2 rounded bg-yellow-600 hover:bg-yellow-500 text-sm font-semibold"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => setEditingId(null)}
+                  className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm"
+                >
+                  Cancel
+                </button>
               </div>
-            </div>
-            <button
-              onClick={() => deleteLog(l.id)}
-              className="text-red-400 hover:text-red-300 text-sm"
-            >
-              Delete
-            </button>
+            ) : (
+              <>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => toggleLog(l.id, l.completed)}
+                    className={`w-5 h-5 rounded border flex items-center justify-center ${
+                      l.completed
+                        ? "bg-green-500 border-green-500"
+                        : "bg-slate-800 border-slate-600"
+                    }`}
+                  >
+                    {l.completed && <span className="text-xs text-white font-bold">✓</span>}
+                  </button>
+                  <div>
+                    <p className={`font-semibold ${l.completed ? "line-through text-slate-500" : ""}`}>
+                      {l.workout_type}
+                    </p>
+                    <p className="text-sm text-slate-400">
+                      {l.duration_minutes} min
+                      {l.reminder_time && (
+                        <span className="ml-2">⏰ {l.reminder_time.slice(0, 5)}</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => startEdit(l)}
+                    className="text-yellow-400 hover:text-yellow-300 text-sm"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => deleteLog(l.id)}
+                    className="text-red-400 hover:text-red-300 text-sm"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         ))}
         {logs.length === 0 && (

@@ -49,6 +49,11 @@ export default function StudyTracker() {
   const [topic, setTopic] = useState("");
   const [minutes, setMinutes] = useState("");
   const [reminderTime, setReminderTime] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editSubject, setEditSubject] = useState("");
+  const [editTopic, setEditTopic] = useState("");
+  const [editMinutes, setEditMinutes] = useState("");
+  const [editTime, setEditTime] = useState("");
   const notified = useRef<Set<string>>(new Set());
   const router = useRouter();
 
@@ -165,6 +170,29 @@ export default function StudyTracker() {
   const deleteSession = async (id: string) => {
     await supabase.from("study_sessions").delete().eq("id", id);
     setSessions(sessions.filter((s) => s.id !== id));
+  };
+
+  const startEdit = (s: Session) => {
+    setEditingId(s.id);
+    setEditSubject(s.subject);
+    setEditTopic(s.topic || "");
+    setEditMinutes(String(s.duration_minutes));
+    setEditTime(s.reminder_time ? s.reminder_time.slice(0, 5) : "");
+  };
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    await supabase
+      .from("study_sessions")
+      .update({
+        subject: editSubject,
+        topic: editTopic || null,
+        duration_minutes: Number(editMinutes) || 0,
+        reminder_time: editTime || null,
+      })
+      .eq("id", editingId);
+    setEditingId(null);
+    await load(date);
   };
 
   const total = sessions.reduce((s, r) => s + r.duration_minutes, 0);
@@ -299,36 +327,87 @@ export default function StudyTracker() {
             key={s.id}
             className="bg-slate-900 p-4 rounded-lg flex items-center justify-between gap-4 flex-wrap"
           >
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => toggleSession(s.id, s.completed)}
-                className={`w-5 h-5 rounded border flex items-center justify-center ${
-                  s.completed
-                    ? "bg-green-500 border-green-500"
-                    : "bg-slate-800 border-slate-600"
-                }`}
-              >
-                {s.completed && <span className="text-xs text-white font-bold">✓</span>}
-              </button>
-              <div>
-                <p className={`font-semibold ${s.completed ? "line-through text-slate-500" : ""}`}>
-                  {s.subject}
-                  {s.topic && <span className="text-slate-400"> — {s.topic}</span>}
-                </p>
-                <p className="text-sm text-slate-400">
-                  {s.duration_minutes} min
-                  {s.reminder_time && (
-                    <span className="ml-2">⏰ {s.reminder_time.slice(0, 5)}</span>
-                  )}
-                </p>
+            {editingId === s.id ? (
+              <div className="flex flex-wrap gap-2 flex-1">
+                <input
+                  value={editSubject}
+                  onChange={(e) => setEditSubject(e.target.value)}
+                  className="flex-1 min-w-[120px] p-2 rounded bg-slate-800 border border-slate-700"
+                />
+                <input
+                  value={editTopic}
+                  onChange={(e) => setEditTopic(e.target.value)}
+                  placeholder="Topic"
+                  className="flex-1 min-w-[120px] p-2 rounded bg-slate-800 border border-slate-700"
+                />
+                <input
+                  type="number"
+                  min="1"
+                  value={editMinutes}
+                  onChange={(e) => setEditMinutes(e.target.value)}
+                  className="w-20 p-2 rounded bg-slate-800 border border-slate-700"
+                />
+                <input
+                  type="time"
+                  value={editTime}
+                  onChange={(e) => setEditTime(e.target.value)}
+                  className="p-2 rounded bg-slate-800 border border-slate-700"
+                />
+                <button
+                  onClick={saveEdit}
+                  className="px-4 py-2 rounded bg-yellow-600 hover:bg-yellow-500 text-sm font-semibold"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => setEditingId(null)}
+                  className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm"
+                >
+                  Cancel
+                </button>
               </div>
-            </div>
-            <button
-              onClick={() => deleteSession(s.id)}
-              className="text-red-400 hover:text-red-300 text-sm"
-            >
-              Delete
-            </button>
+            ) : (
+              <>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => toggleSession(s.id, s.completed)}
+                    className={`w-5 h-5 rounded border flex items-center justify-center ${
+                      s.completed
+                        ? "bg-green-500 border-green-500"
+                        : "bg-slate-800 border-slate-600"
+                    }`}
+                  >
+                    {s.completed && <span className="text-xs text-white font-bold">✓</span>}
+                  </button>
+                  <div>
+                    <p className={`font-semibold ${s.completed ? "line-through text-slate-500" : ""}`}>
+                      {s.subject}
+                      {s.topic && <span className="text-slate-400"> — {s.topic}</span>}
+                    </p>
+                    <p className="text-sm text-slate-400">
+                      {s.duration_minutes} min
+                      {s.reminder_time && (
+                        <span className="ml-2">⏰ {s.reminder_time.slice(0, 5)}</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => startEdit(s)}
+                    className="text-yellow-400 hover:text-yellow-300 text-sm"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => deleteSession(s.id)}
+                    className="text-red-400 hover:text-red-300 text-sm"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         ))}
         {sessions.length === 0 && (
