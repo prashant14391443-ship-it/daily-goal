@@ -348,7 +348,7 @@ export default function Dashboard() {
   const unit = chartMode === "habits" ? "done" : "min";
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-8">
+    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
       <div className="flex flex-wrap justify-between items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-extrabold">

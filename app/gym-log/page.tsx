@@ -203,7 +203,7 @@ export default function GymLog() {
   const pct = logs.length ? Math.round((doneCount / logs.length) * 100) : 0;
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-8">
+    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold">🏋️ Gym Log</h1>
