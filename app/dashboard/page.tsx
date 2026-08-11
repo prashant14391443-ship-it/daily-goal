@@ -363,9 +363,13 @@ export default function Dashboard() {
           <Link href="/gym-log" className="text-slate-300 hover:text-white">
             Gym
           </Link>
-          <Link href="/routine-habits" className="text-slate-300 hover:text-white">
+                  <Link href="/routine-habits" className="text-slate-300 hover:text-white">
             Habits
           </Link>
+          <Link href="/todo" className="text-slate-300 hover:text-white">
+            ToDo
+          </Link>
+         
           <Link href="/pricing" className="text-slate-300 hover:text-white">
             Pricing
           </Link>

@@ -13,11 +13,12 @@ export default function BottomNav() {
     { href: "/study-tracker", label: "Study", icon: "📚" },
     { href: "/gym-log", label: "Gym", icon: "🏋️" },
     { href: "/routine-habits", label: "Habits", icon: "✅" },
+    { href: "/todo", label: "ToDo", icon: "📝" },
   ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900 border-t border-slate-800 md:hidden">
-      <div className="grid grid-cols-4">
+      <div className="grid grid-cols-5">
         {tabs.map((t) => (
           <Link
             key={t.href}
