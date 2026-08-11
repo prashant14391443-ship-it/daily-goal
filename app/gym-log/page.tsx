@@ -267,6 +267,12 @@ export default function GymLog() {
       >
         📷 Calorie Scanner — check any food photo
       </Link>
+      <Link
+        href="/calculator"
+        className="block bg-blue-600/20 border border-blue-500/40 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-blue-600/30"
+      >
+        🎯 Goal & Calorie Calculator — plan your transformation
+      </Link>
       <form
         onSubmit={addLog}
         className="bg-slate-900 p-6 rounded-lg mb-8 grid gap-4"
