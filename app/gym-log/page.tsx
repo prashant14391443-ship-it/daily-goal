@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-  import { useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 type Workout = {
@@ -39,7 +39,7 @@ function calcStreak(dates: Set<string>, today: string) {
   return streak;
 }
 
-export default function GymLog() {
+export default function WorkoutPage() {
   const today = toLocalISO(new Date());
   const [date, setDate] = useState(today);
   const [logs, setLogs] = useState<Workout[]>([]);
@@ -194,7 +194,7 @@ export default function GymLog() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <span className="w-10 h-10 rounded-xl bg-green-600/20 border border-green-500/40 flex items-center justify-center text-xl">🏋️</span>
-            Gym Log
+            Workout Log
           </h1>
           <p className="text-slate-400">
             {date === today ? "Today" : date} • Total: {total} min
@@ -261,18 +261,6 @@ export default function GymLog() {
         </div>
       </div>
 
-      <Link
-        href="/calorie"
-        className="block bg-green-600/20 border border-green-500/40 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-green-600/30"
-      >
-        📷 Calorie Scanner — check any food photo
-      </Link>
-      <Link
-        href="/calculator"
-        className="block bg-blue-600/20 border border-blue-500/40 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-blue-600/30"
-      >
-        🎯 Goal & Calorie Calculator — plan your transformation
-      </Link>
       <form
         onSubmit={addLog}
         className="bg-slate-900 p-6 rounded-lg mb-8 grid gap-4"
@@ -400,6 +388,13 @@ export default function GymLog() {
           <p className="text-slate-400">No workouts on this date.</p>
         )}
       </div>
+
+      <Link
+        href="/gym-log"
+        className="inline-block mt-6 text-sm text-slate-400 hover:text-white"
+      >
+        ← Back to Gym
+      </Link>
     </main>
   );
 }
