@@ -210,10 +210,10 @@ export default function GymLog() {
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-  <span className="w-10 h-10 rounded-xl bg-green-600/20 border border-green-500/40 flex items-center justify-center text-xl">🏋️</span>
-  Gym Log
-</h1>
+          <h1 className="text-3xl font-bold flex items-center gap-3">
+            <span className="w-10 h-10 rounded-xl bg-green-600/20 border border-green-500/40 flex items-center justify-center text-xl">🏋️</span>
+            Gym Log
+          </h1>
           <p className="text-slate-400">
             {date === today ? "Today" : date} • Total:{" "}
             {Math.floor(totalMinutes / 60)}h {totalMinutes % 60}m
@@ -279,7 +279,7 @@ export default function GymLog() {
 
       <form
         onSubmit={submit}
-        className="bg-slate-900 p-6 rounded-lg mb-8 grid grid-cols-1 md:grid-cols-5 gap-4"
+        className="bg-slate-900 p-6 rounded-lg mb-8 grid grid-cols-1 md:grid-cols-4 gap-4"
       >
         <input
           value={workoutType}
@@ -303,9 +303,9 @@ export default function GymLog() {
           placeholder="Notes (optional)"
           className="p-3 rounded bg-slate-800 border border-slate-700"
         />
-          <div className="relative">
+        <div className="relative flex flex-col justify-center">
           {reminderTime === "" && (
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
+            <span className="absolute left-3 text-slate-500 pointer-events-none">
               ⏰ Reminder time
             </span>
           )}
@@ -319,7 +319,7 @@ export default function GymLog() {
             title="Reminder time (optional)"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="md:col-span-4 flex gap-2 pt-2">
           <button
             type="submit"
             disabled={loading}

@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = "force-dynamic";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
@@ -251,9 +252,9 @@ export default function TodoPage() {
           required
           className="flex-1 min-w-[200px] p-3 rounded bg-slate-800 border border-slate-700"
         />
-        <div className="relative">
+        <div className="relative flex items-center">
           {newTime === "" && (
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
+            <span className="absolute left-3 text-slate-500 pointer-events-none">
               ⏰ Reminder time
             </span>
           )}

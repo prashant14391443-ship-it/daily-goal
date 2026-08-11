@@ -363,13 +363,13 @@ export default function Dashboard() {
           <Link href="/gym-log" className="text-slate-300 hover:text-white">
             Gym
           </Link>
-                  <Link href="/routine-habits" className="text-slate-300 hover:text-white">
+          <Link href="/routine-habits" className="text-slate-300 hover:text-white">
             Habits
           </Link>
+          {/* Fixed from /todos to /todo */}
           <Link href="/todo" className="text-slate-300 hover:text-white">
             ToDo
           </Link>
-         
           <Link href="/pricing" className="text-slate-300 hover:text-white">
             Pricing
           </Link>
@@ -655,9 +655,9 @@ export default function Dashboard() {
                   className="p-2 rounded bg-slate-800 border border-slate-700"
                 >
                   <option value="📚">📚</option>
-                  <option value="🏋️">️</option>
+                  <option value="🏋️">️🏋️</option>
                   <option value="✅">✅</option>
-                  <option value="🎯"></option>
+                  <option value="🎯">🎯</option>
                   <option value="💼">💼</option>
                 </select>
                 <button className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-semibold">
