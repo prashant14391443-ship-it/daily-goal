@@ -115,13 +115,8 @@ export default function TodoPage() {
         const key = `${t.id}-${todayStr}-${time}`;
         if (time === nowHM && !notified.current.has(key)) {
           notified.current.add(key);
-          if (
-            "Notification" in window &&
-            Notification.permission === "granted"
-          ) {
-            new Notification("DAILY GOAL ⏰", {
-              body: `Time to: ${t.title}`,
-            });
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("DAILY GOAL ⏰", { body: `Time to: ${t.title}` });
           } else {
             alert(`DAILY GOAL ⏰ Time to: ${t.title}`);
           }
@@ -153,13 +148,8 @@ export default function TodoPage() {
   };
 
   const toggleTodo = async (id: string, completed: boolean) => {
-    await supabase
-      .from("tasks")
-      .update({ completed: !completed })
-      .eq("id", id);
-    setTodos(
-      todos.map((t) => (t.id === id ? { ...t, completed: !completed } : t))
-    );
+    await supabase.from("tasks").update({ completed: !completed }).eq("id", id);
+    setTodos(todos.map((t) => (t.id === id ? { ...t, completed: !completed } : t)));
   };
 
   const deleteTodo = async (id: string) => {
@@ -184,9 +174,7 @@ export default function TodoPage() {
   };
 
   const doneCount = todos.filter((t) => t.completed).length;
-  const pct = todos.length
-    ? Math.round((doneCount / todos.length) * 100)
-    : 0;
+  const pct = todos.length ? Math.round((doneCount / todos.length) * 100) : 0;
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
@@ -207,9 +195,7 @@ export default function TodoPage() {
           <button
             onClick={toggleReminders}
             className={`px-3 py-2 rounded text-sm font-semibold ${
-              remindersOn
-                ? "bg-green-700"
-                : "bg-slate-800 hover:bg-slate-700"
+              remindersOn ? "bg-green-700" : "bg-slate-800 hover:bg-slate-700"
             }`}
           >
             {remindersOn ? "🔔 Reminders ON" : "🔕 Reminders OFF"}
@@ -251,10 +237,7 @@ export default function TodoPage() {
           </span>
         </div>
         <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-amber-600 transition-all"
-            style={{ width: `${pct}%` }}
-          />
+          <div className="h-full bg-amber-600 transition-all" style={{ width: `${pct}%` }} />
         </div>
       </div>
 
@@ -333,24 +316,16 @@ export default function TodoPage() {
                         : "bg-slate-800 border-slate-600"
                     }`}
                   >
-                    {t.completed && (
-                      <span className="text-xs text-white font-bold">✓</span>
-                    )}
+                    {t.completed && <span className="text-xs text-white font-bold">✓</span>}
                   </button>
                   <div>
-                    <p
-                      className={`font-semibold ${
-                        t.completed ? "line-through text-slate-500" : ""
-                      }`}
-                    >
+                    <p className={`font-semibold ${t.completed ? "line-through text-slate-500" : ""}`}>
                       {t.title}
                     </p>
                     <p className="text-sm text-slate-400">
                       {t.task_date}
                       {t.reminder_time && (
-                        <span className="ml-2">
-                          ⏰ {t.reminder_time.slice(0, 5)}
-                        </span>
+                        <span className="ml-2">⏰ {t.reminder_time.slice(0, 5)}</span>
                       )}
                     </p>
                   </div>
@@ -374,9 +349,7 @@ export default function TodoPage() {
           </div>
         ))}
         {todos.length === 0 && (
-          <p className="text-slate-400">
-            No plans for this date yet. Write your daily plan above!
-          </p>
+          <p className="text-slate-400">No plans for this date yet. Write your daily plan above!</p>
         )}
       </div>
     </main>
