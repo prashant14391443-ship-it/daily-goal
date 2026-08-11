@@ -13,7 +13,7 @@ export default function GymHub() {
         <p className="text-slate-400">Choose your tool</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Link
           href="/workout"
           className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-center hover:bg-slate-800"
@@ -44,6 +44,17 @@ export default function GymHub() {
           <h3 className="font-bold mt-3">Goal Calculator</h3>
           <p className="text-xs text-slate-400 mt-1">
             BMR, TDEE & daily calorie plan
+          </p>
+        </Link>
+
+        <Link
+          href="/running"
+          className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-center hover:bg-slate-800"
+        >
+          <span className="text-4xl">🏃</span>
+          <h3 className="font-bold mt-3">Running Calculator</h3>
+          <p className="text-xs text-slate-400 mt-1">
+            Speed, pace & race predictions
           </p>
         </Link>
       </div>
