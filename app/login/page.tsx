@@ -29,8 +29,8 @@ export default function Login() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-8">
-      <form onSubmit={handleLogin} className="bg-slate-900 p-8 rounded-lg w-full max-w-md flex flex-col gap-4">
+    <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4 md:p-4 md:p-4 md:p-4 md:p-4 md:p-8">
+      <form onSubmit={handleLogin} className="bg-slate-900 p-4 md:p-4 md:p-4 md:p-4 md:p-4 md:p-8 rounded-lg w-full max-w-md flex flex-col gap-4">
         <h1 className="text-3xl font-bold text-center mb-4">Login</h1>
         {error && <p className="text-red-500 text-sm">{error}</p>}
         <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required className="p-3 rounded bg-slate-800 border border-slate-700 focus:outline-none focus:border-blue-500" />

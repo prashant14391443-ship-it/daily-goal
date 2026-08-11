@@ -272,7 +272,7 @@ export default function RoutineHabits() {
         <div className="relative">
           {newTime === "" && (
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
-              ⏰ Reminder time
+                                time
             </span>
           )}
           <input

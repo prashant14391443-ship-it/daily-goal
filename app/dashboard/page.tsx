@@ -1,4 +1,5 @@
 "use client";
+
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
@@ -97,6 +98,8 @@ export default function Dashboard() {
   const [studyMinutes, setStudyMinutes] = useState(0);
   const [workouts, setWorkouts] = useState(0);
   const [habitsDone, setHabitsDone] = useState(0);
+  const [todoDone, setTodoDone] = useState(0);
+  const [todoTotal, setTodoTotal] = useState(0);
   const [goals, setGoals] = useState<Goals>({
     study_target: 120,
     workout_target: 1,
@@ -136,7 +139,7 @@ export default function Dashboard() {
 
     const weekStart = addDays(today, -6);
 
-    const [study, studyW, gym, gymW, habits, habitLogs, tasksRes, goalsRes, cdRes] =
+    const [study, studyW, gym, gymW, habits, habitLogs, tasksRes, goalsRes, cdRes, todoRes] =
       await Promise.all([
         supabase
           .from("study_sessions")
@@ -181,6 +184,12 @@ export default function Dashboard() {
           .select("*")
           .eq("user_id", userId)
           .order("target_date"),
+        supabase
+          .from("tasks")
+          .select("id, completed")
+          .eq("user_id", userId)
+          .eq("category", "todo")
+          .eq("task_date", today),
       ]);
 
     setStudyMinutes(
@@ -206,6 +215,10 @@ export default function Dashboard() {
           .map((l) => l.habit_id)
       ).size
     );
+
+    const todoRows = todoRes.data || [];
+    setTodoTotal(todoRows.length);
+    setTodoDone(todoRows.filter((t) => t.completed).length);
 
     setHabitStreaks(
       (habits.data || []).map((h) => {
@@ -351,12 +364,12 @@ export default function Dashboard() {
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
       <div className="flex flex-wrap justify-between items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-extrabold">
+          <h1 className="text-2xl md:text-3xl font-extrabold">
             {greeting}, {userName}! 👋
           </h1>
           <p className="text-slate-400">Here is your day at a glance — {today}</p>
         </div>
-        <nav className="flex flex-wrap gap-4 text-sm items-center">
+        <nav className="hidden md:flex flex-wrap gap-4 text-sm items-center">
           <Link href="/study-tracker" className="text-slate-300 hover:text-white">
             Study
           </Link>
@@ -366,12 +379,8 @@ export default function Dashboard() {
           <Link href="/routine-habits" className="text-slate-300 hover:text-white">
             Habits
           </Link>
-          {/* Fixed from /todos to /todo */}
           <Link href="/todo" className="text-slate-300 hover:text-white">
             ToDo
-          </Link>
-          <Link href="/pricing" className="text-slate-300 hover:text-white">
-            Pricing
           </Link>
           <button
             onClick={handleLogout}
@@ -380,52 +389,69 @@ export default function Dashboard() {
             Logout
           </button>
         </nav>
+        <button
+          onClick={handleLogout}
+          className="md:hidden bg-red-600 hover:bg-red-500 px-4 py-1.5 rounded font-semibold text-sm"
+        >
+          Logout
+        </button>
       </div>
 
       {loading ? (
         <p className="text-slate-400">Loading your day...</p>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6 mb-8">
             <Link
               href="/study-tracker"
-              className="bg-slate-900 p-6 rounded-xl hover:bg-slate-800"
+              className="bg-slate-900 p-4 md:p-6 rounded-xl hover:bg-slate-800"
             >
-              <h3 className="text-lg font-bold text-blue-400 mb-2">📚 Study</h3>
-              <p className="text-3xl font-extrabold">
+              <h3 className="text-base md:text-lg font-bold text-blue-400 mb-2">📚 Study</h3>
+              <p className="text-2xl md:text-3xl font-extrabold">
                 {Math.floor(studyMinutes / 60)}h {studyMinutes % 60}m
               </p>
-              <p className="text-sm text-slate-400 mt-1">today</p>
+              <p className="text-xs md:text-sm text-slate-400 mt-1">today</p>
             </Link>
 
             <Link
               href="/gym-log"
-              className="bg-slate-900 p-6 rounded-xl hover:bg-slate-800"
+              className="bg-slate-900 p-4 md:p-6 rounded-xl hover:bg-slate-800"
             >
-              <h3 className="text-lg font-bold text-green-400 mb-2">🏋️ Gym</h3>
-              <p className="text-3xl font-extrabold">{workouts}</p>
-              <p className="text-sm text-slate-400 mt-1">workouts today</p>
+              <h3 className="text-base md:text-lg font-bold text-green-400 mb-2">🏋️ Gym</h3>
+              <p className="text-2xl md:text-3xl font-extrabold">{workouts}</p>
+              <p className="text-xs md:text-sm text-slate-400 mt-1">workouts today</p>
             </Link>
 
             <Link
               href="/routine-habits"
-              className="bg-slate-900 p-6 rounded-xl hover:bg-slate-800"
+              className="bg-slate-900 p-4 md:p-6 rounded-xl hover:bg-slate-800"
             >
-              <h3 className="text-lg font-bold text-purple-400 mb-2">✅ Habits</h3>
-              <p className="text-3xl font-extrabold">
+              <h3 className="text-base md:text-lg font-bold text-purple-400 mb-2">✅ Habits</h3>
+              <p className="text-2xl md:text-3xl font-extrabold">
                 {habitsDone} / {goals.habits_target}
               </p>
-              <p className="text-sm text-slate-400 mt-1">completed today</p>
+              <p className="text-xs md:text-sm text-slate-400 mt-1">completed today</p>
             </Link>
 
-            <div className="bg-slate-900 p-6 rounded-xl">
-              <h3 className="text-lg font-bold text-orange-400 mb-2">🔥 Streaks</h3>
+            <Link
+              href="/todo"
+              className="bg-slate-900 p-4 md:p-6 rounded-xl hover:bg-slate-800"
+            >
+              <h3 className="text-base md:text-lg font-bold text-amber-400 mb-2">📝 ToDo</h3>
+              <p className="text-2xl md:text-3xl font-extrabold">
+                {todoDone} / {todoTotal}
+              </p>
+              <p className="text-xs md:text-sm text-slate-400 mt-1">done today</p>
+            </Link>
+
+            <div className="bg-slate-900 p-4 md:p-6 rounded-xl col-span-2 md:col-span-1">
+              <h3 className="text-base md:text-lg font-bold text-orange-400 mb-2">🔥 Streaks</h3>
               {habitStreaks.length === 0 ? (
-                <p className="text-sm text-slate-500">Add habits to build streaks.</p>
+                <p className="text-xs text-slate-500">Add habits to build streaks.</p>
               ) : (
                 <div className="grid gap-2 max-h-28 overflow-y-auto">
                   {habitStreaks.map((h) => (
-                    <div key={h.name} className="flex justify-between text-sm">
+                    <div key={h.name} className="flex justify-between text-xs md:text-sm">
                       <span className={h.streak > 0 ? "" : "text-slate-500"}>
                         {h.name}
                       </span>
@@ -631,10 +657,7 @@ export default function Dashboard() {
 
             <div className="bg-slate-900 p-6 rounded-xl">
               <h3 className="text-lg font-bold mb-4">⏳ Countdowns</h3>
-              <form
-                onSubmit={addCountdown}
-                className="flex flex-wrap gap-2 mb-4"
-              >
+              <form onSubmit={addCountdown} className="flex flex-wrap gap-2 mb-4">
                 <input
                   value={cdTitle}
                   onChange={(e) => setCdTitle(e.target.value)}
@@ -655,9 +678,9 @@ export default function Dashboard() {
                   className="p-2 rounded bg-slate-800 border border-slate-700"
                 >
                   <option value="📚">📚</option>
-                  <option value="🏋️">️🏋️</option>
+                  <option value="🏋️">🏋️</option>
                   <option value="✅">✅</option>
-                  <option value="🎯">🎯</option>
+                  <option value="🎯"></option>
                   <option value="💼">💼</option>
                 </select>
                 <button className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-semibold">

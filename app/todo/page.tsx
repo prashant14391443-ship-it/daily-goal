@@ -255,7 +255,7 @@ export default function TodoPage() {
         <div className="relative flex items-center">
           {newTime === "" && (
             <span className="absolute left-3 text-slate-500 pointer-events-none">
-              ⏰ Reminder time
+                                time
             </span>
           )}
           <input
