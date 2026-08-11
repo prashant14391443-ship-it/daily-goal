@@ -88,7 +88,7 @@ export default function RoutineHabits() {
   }, []);
 
   const enableReminders = async () => {
-        if (remindersOn) {
+    if (remindersOn) {
       localStorage.removeItem("dg-reminders");
       setRemindersOn(false);
       return;
@@ -129,12 +129,12 @@ export default function RoutineHabits() {
         const key = `${h.id}-${todayStr}-${t}`;
         if (t === nowHM && !doneToday.has(h.id) && !notified.current.has(key)) {
           notified.current.add(key);
-                    if ("Notification" in window && Notification.permission === "granted") {
+          if ("Notification" in window && Notification.permission === "granted") {
             new Notification("DAILY GOAL ⏰", {
-              body: `Time to: ${l.workout_type}`,
+              body: `Time for habit: ${h.habit_name}`,
             });
           } else {
-            alert(`DAILY GOAL ⏰ Time to: ${l.workout_type}`);
+            alert(`DAILY GOAL ⏰ Time for habit: ${h.habit_name}`);
           }
         }
       });
@@ -222,7 +222,6 @@ export default function RoutineHabits() {
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={enableReminders}
-            
             className={`px-3 py-2 rounded text-sm font-semibold ${
               remindersOn
                 ? "bg-green-700 cursor-default"
@@ -300,7 +299,7 @@ export default function RoutineHabits() {
                   <input
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="p-2 rounded bg-slate-800 border border-slate-700"
+                    className="p-2 rounded bg-slate-800 border border-slate-700 flex-1"
                   />
                   <input
                     type="time"

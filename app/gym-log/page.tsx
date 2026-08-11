@@ -124,10 +124,10 @@ export default function GymLog() {
         const key = `${l.id}-${todayStr}-${time}`;
         if (time === nowHM && !notified.current.has(key)) {
           notified.current.add(key);
-                    if ("Notification" in window && Notification.permission === "granted") {
-            new Notification("DAILY GOAL ⏰", { body: `Time to: ${s.subject}` });
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("DAILY GOAL ⏰", { body: `Time to: ${l.workout_type}` });
           } else {
-            alert(`DAILY GOAL ⏰ Time to: ${s.subject}`);
+            alert(`DAILY GOAL ⏰ Time to: ${l.workout_type}`);
           }
         }
       });
