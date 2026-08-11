@@ -5,6 +5,13 @@ import { supabase } from "@/lib/supabase";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 
+function toLocalISO(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export default function ProfileMenu() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
@@ -24,6 +31,9 @@ export default function ProfileMenu() {
       setLight(true);
       document.documentElement.classList.add("light");
     }
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
   }, [pathname]);
 
   useEffect(() => {
@@ -35,6 +45,91 @@ export default function ProfileMenu() {
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
+
+  useEffect(() => {
+    if (pathname === "/login" || pathname === "/signup") return;
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    if (!isAndroid || !("serviceWorker" in navigator)) return;
+
+    const notified = new Set<string>();
+
+    const check = async () => {
+      const { data } = await supabase.auth.getSession();
+      const userId = data.session?.user.id;
+      if (!userId) return;
+
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      const nowHM = `${hh}:${mm}`;
+      const todayStr = toLocalISO(now);
+
+      const [s, g, h, t, hl] = await Promise.all([
+        supabase
+          .from("study_sessions")
+          .select("id, subject, reminder_time")
+          .eq("user_id", userId)
+          .eq("session_date", todayStr),
+        supabase
+          .from("gym_logs")
+          .select("id, workout_type, reminder_time")
+          .eq("user_id", userId)
+          .eq("session_date", todayStr),
+        supabase
+          .from("habits")
+          .select("id, habit_name, reminder_time")
+          .eq("user_id", userId),
+        supabase
+          .from("tasks")
+          .select("id, title, reminder_time, completed")
+          .eq("user_id", userId)
+          .eq("category", "todo")
+          .eq("task_date", todayStr),
+        supabase
+          .from("habit_logs")
+          .select("habit_id")
+          .eq("user_id", userId)
+          .eq("log_date", todayStr)
+          .eq("completed", true),
+      ]);
+
+      const items: { key: string; label: string; time: string }[] = [];
+      (s.data || []).forEach((r) => {
+        if (r.reminder_time)
+          items.push({ key: `s${r.id}`, label: r.subject, time: r.reminder_time.slice(0, 5) });
+      });
+      (g.data || []).forEach((r) => {
+        if (r.reminder_time)
+          items.push({ key: `g${r.id}`, label: r.workout_type, time: r.reminder_time.slice(0, 5) });
+      });
+      const doneHabits = new Set((hl.data || []).map((x) => x.habit_id));
+      (h.data || []).forEach((r) => {
+        if (r.reminder_time && !doneHabits.has(r.id))
+          items.push({ key: `h${r.id}`, label: r.habit_name, time: r.reminder_time.slice(0, 5) });
+      });
+      (t.data || []).forEach((r) => {
+        if (r.reminder_time && !r.completed)
+          items.push({ key: `t${r.id}`, label: r.title, time: r.reminder_time.slice(0, 5) });
+      });
+
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (!reg) return;
+        items.forEach((it) => {
+          if (it.time === nowHM && !notified.has(it.key)) {
+            notified.add(it.key);
+            reg.showNotification("DAILY GOAL ⏰", { body: `Time to: ${it.label}` });
+          }
+        });
+      } catch {
+        // notifications not allowed yet
+      }
+    };
+
+    check();
+    const id = setInterval(check, 30000);
+    return () => clearInterval(id);
+  }, [pathname]);
 
   if (pathname === "/login" || pathname === "/signup") return null;
 
