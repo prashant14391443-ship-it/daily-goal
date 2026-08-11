@@ -35,3 +35,14 @@ html.light .text-slate-400,
 html.light .text-slate-500 { color: #64748b; }
 html.light .border-slate-700,
 html.light .border-slate-800 { border-color: #e2e8f0; }
+input[type="date"] {
+  font-size: 14px;
+}
+
+@media (max-width: 767px) {
+  input[type="date"] {
+    width: 125px;
+    font-size: 13px;
+    padding: 8px 6px;
+  }
+}

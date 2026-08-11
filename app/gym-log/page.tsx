@@ -231,7 +231,8 @@ export default function GymLog() {
                 : "bg-slate-800 hover:bg-slate-700"
             }`}
           >
-            {remindersOn ? "🔔 Reminders ON" : "🔕 Reminders OFF"}
+            <span className="hidden md:inline">{remindersOn ? "🔔 Reminders ON" : "🔕 Reminders OFF"}</span>
+            <span className="md:hidden">{remindersOn ? "🔔" : "🔕"}</span>
           </button>
           <button
             onClick={() => setDate(addDays(date, -1))}
