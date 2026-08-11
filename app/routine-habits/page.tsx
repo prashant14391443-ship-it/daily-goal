@@ -1,5 +1,5 @@
 "use client";
-export const dynamic = "force-dynamic";
+
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
@@ -38,7 +38,9 @@ export default function RoutineHabits() {
   const [date, setDate] = useState(today);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [doneOnDate, setDoneOnDate] = useState<string[]>([]);
-  const [allLogs, setAllLogs] = useState<{ habit_id: string; log_date: string }[]>([]);
+  const [allLogs, setAllLogs] = useState<
+    { habit_id: string; log_date: string }[]
+  >([]);
   const [newHabit, setNewHabit] = useState("");
   const [newTime, setNewTime] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -57,7 +59,11 @@ export default function RoutineHabits() {
     }
 
     const [h, logs, done] = await Promise.all([
-      supabase.from("habits").select("*").eq("user_id", userId).order("created_at"),
+      supabase
+        .from("habits")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at"),
       supabase
         .from("habit_logs")
         .select("habit_id, log_date")
@@ -80,32 +86,19 @@ export default function RoutineHabits() {
   }, [date]);
 
   useEffect(() => {
-    setRemindersOn(
-      "Notification" in window &&
-        Notification.permission === "granted" &&
-        localStorage.getItem("dg-reminders") === "1"
-    );
+    setRemindersOn(localStorage.getItem("dg-reminders") === "1");
   }, []);
 
-  const enableReminders = async () => {
+  const toggleReminders = () => {
     if (remindersOn) {
       localStorage.removeItem("dg-reminders");
       setRemindersOn(false);
       return;
     }
-    if (!("Notification" in window)) {
-      localStorage.setItem("dg-reminders", "1");
-      setRemindersOn(true);
-      alert("Reminders ON! (in-app mode on this browser)");
-      return;
-    }
-    const perm = await Notification.requestPermission();
-    if (perm === "granted") {
-      localStorage.setItem("dg-reminders", "1");
-      setRemindersOn(true);
-      new Notification("DAILY GOAL 🔔", {
-        body: "Reminders are ON. We will notify you when it is time!",
-      });
+    localStorage.setItem("dg-reminders", "1");
+    setRemindersOn(true);
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
     }
   };
 
@@ -129,12 +122,15 @@ export default function RoutineHabits() {
         const key = `${h.id}-${todayStr}-${t}`;
         if (t === nowHM && !doneToday.has(h.id) && !notified.current.has(key)) {
           notified.current.add(key);
-          if ("Notification" in window && Notification.permission === "granted") {
+          if (
+            "Notification" in window &&
+            Notification.permission === "granted"
+          ) {
             new Notification("DAILY GOAL ⏰", {
-              body: `Time for habit: ${h.habit_name}`,
+              body: `Time to: ${h.habit_name}`,
             });
           } else {
-            alert(`DAILY GOAL ⏰ Time for habit: ${h.habit_name}`);
+            alert(`DAILY GOAL ⏰ Time to: ${h.habit_name}`);
           }
         }
       });
@@ -216,22 +212,22 @@ export default function RoutineHabits() {
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
         <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-  <span className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-xl">✅</span>
-  Routine & Habits
-</h1>
+          <h1 className="text-3xl font-bold flex items-center gap-3">
+            <span className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-xl">✅</span>
+            Routine & Habits
+          </h1>
           <p className="text-slate-400">{date === today ? "Today" : date}</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={enableReminders}
+            onClick={toggleReminders}
             className={`px-3 py-2 rounded text-sm font-semibold ${
               remindersOn
-                ? "bg-green-700 cursor-default"
-                : "bg-purple-600 hover:bg-purple-500"
+                ? "bg-green-700"
+                : "bg-slate-800 hover:bg-slate-700"
             }`}
           >
-            {remindersOn ? "🔔 Reminders ON" : "🔕 Enable Reminders"}
+            {remindersOn ? "🔔 Reminders ON" : "🔕 Reminders OFF"}
           </button>
           <button
             onClick={() => setDate(addDays(date, -1))}
@@ -273,13 +269,22 @@ export default function RoutineHabits() {
           required
           className="flex-1 min-w-[200px] p-3 rounded bg-slate-800 border border-slate-700"
         />
-        <input
-          type="time"
-          value={newTime}
-          onChange={(e) => setNewTime(e.target.value)}
-          className="p-3 rounded bg-slate-800 border border-slate-700"
-          title="Reminder time (optional)"
-        />
+        <div className="relative">
+          {newTime === "" && (
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
+              ⏰ Reminder time
+            </span>
+          )}
+          <input
+            type="time"
+            value={newTime}
+            onChange={(e) => setNewTime(e.target.value)}
+            className={`p-3 rounded bg-slate-800 border border-slate-700 w-full ${
+              newTime === "" ? "text-transparent" : ""
+            }`}
+            title="Reminder time (optional)"
+          />
+        </div>
         <button
           type="submit"
           className="px-6 rounded bg-purple-600 font-semibold hover:bg-purple-500"
@@ -302,7 +307,7 @@ export default function RoutineHabits() {
                   <input
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="p-2 rounded bg-slate-800 border border-slate-700 flex-1"
+                    className="p-2 rounded bg-slate-800 border border-slate-700"
                   />
                   <input
                     type="time"
@@ -380,7 +385,9 @@ export default function RoutineHabits() {
           );
         })}
         {habits.length === 0 && (
-          <p className="text-slate-400">No habits yet. Add your first one above!</p>
+          <p className="text-slate-400">
+            No habits yet. Add your first one above!
+          </p>
         )}
       </div>
     </main>

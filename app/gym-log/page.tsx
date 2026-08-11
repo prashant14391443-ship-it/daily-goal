@@ -303,13 +303,22 @@ export default function GymLog() {
           placeholder="Notes (optional)"
           className="p-3 rounded bg-slate-800 border border-slate-700"
         />
-        <input
-          type="time"
-          value={reminderTime}
-          onChange={(e) => setReminderTime(e.target.value)}
-          className="p-3 rounded bg-slate-800 border border-slate-700"
-          title="Reminder time (optional)"
-        />
+          <div className="relative">
+          {reminderTime === "" && (
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
+              ⏰ Reminder time
+            </span>
+          )}
+          <input
+            type="time"
+            value={reminderTime}
+            onChange={(e) => setReminderTime(e.target.value)}
+            className={`p-3 rounded bg-slate-800 border border-slate-700 w-full ${
+              reminderTime === "" ? "text-transparent" : ""
+            }`}
+            title="Reminder time (optional)"
+          />
+        </div>
         <div className="flex gap-2">
           <button
             type="submit"
