@@ -16,22 +16,24 @@ type Result = {
   paceMin: number;
   paceSec: number;
   calories: number;
+  distance?: number;
   preds: { label: string; text: string }[];
 };
 
 export default function RunningPage() {
   const [mode, setMode] = useState<"manual" | "live">("manual");
 
-  // Manual inputs
+  // Manual inputs (Untouched)
   const [distance, setDistance] = useState("");
   const [mins, setMins] = useState("");
   const [secs, setSecs] = useState("");
   
   // Live tracker inputs & states
-  const [liveDistance, setLiveDistance] = useState("");
   const [weight, setWeight] = useState("70");
   const [isRunning, setIsRunning] = useState(false);
+  const [isFinished, setIsFinished] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [stepCount, setStepCount] = useState("");
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [result, setResult] = useState<Result | null>(null);
@@ -78,6 +80,7 @@ export default function RunningPage() {
       paceMin,
       paceSec,
       calories,
+      distance: Math.round(dNum * 100) / 100, // Round to 2 decimals
       preds,
     });
   };
@@ -90,20 +93,28 @@ export default function RunningPage() {
   };
 
   const handleStartLive = () => {
-    const d = Number(liveDistance);
-    if (d <= 0) {
-      alert("Please enter a valid distance before starting!");
-      return;
-    }
     setElapsedSeconds(0);
     setIsRunning(true);
+    setIsFinished(false);
     setResult(null);
+    setStepCount("");
   };
 
   const handleStopLive = () => {
     setIsRunning(false);
-    const d = Number(liveDistance);
-    computeResults(d, elapsedSeconds, Number(weight) || 70);
+    setIsFinished(true); // Prompts the user to enter their step count
+  };
+
+  const calculateLiveResults = (e: React.FormEvent) => {
+    e.preventDefault();
+    const steps = Number(stepCount);
+    if (steps <= 0) return;
+
+    // Estimate distance based on step count (Average stride length ~0.762 meters)
+    const estimatedDistanceKm = (steps * 0.762) / 1000;
+    
+    computeResults(estimatedDistanceKm, elapsedSeconds, Number(weight) || 70);
+    setIsFinished(false);
   };
 
   const inputCls = "p-3 rounded bg-slate-800 border border-slate-700 w-full text-white";
@@ -123,7 +134,7 @@ export default function RunningPage() {
       {/* Mode Switcher Tabs */}
       <div className="flex gap-2 mb-6 bg-slate-900 p-1.5 rounded-lg w-fit border border-slate-800">
         <button
-          onClick={() => { setMode("manual"); setIsRunning(false); }}
+          onClick={() => { setMode("manual"); setIsRunning(false); setIsFinished(false); }}
           className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
             mode === "manual" ? "bg-orange-600 text-white" : "text-slate-400 hover:text-white"
           }`}
@@ -131,7 +142,7 @@ export default function RunningPage() {
           📝 Manual Entry
         </button>
         <button
-          onClick={() => { setMode("live"); setResult(null); }}
+          onClick={() => { setMode("live"); setResult(null); setIsFinished(false); }}
           className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
             mode === "live" ? "bg-orange-600 text-white" : "text-slate-400 hover:text-white"
           }`}
@@ -140,7 +151,7 @@ export default function RunningPage() {
         </button>
       </div>
 
-      {/* MANUAL MODE FORM */}
+      {/* MANUAL MODE FORM (Untouched) */}
       {mode === "manual" && (
         <form
           onSubmit={calculateManual}
@@ -189,29 +200,18 @@ export default function RunningPage() {
         </form>
       )}
 
-      {/* LIVE STOPWATCH MODE FORM */}
+      {/* LIVE STOPWATCH MODE FORM (Updated) */}
       {mode === "live" && (
         <div className="bg-slate-900 p-6 rounded-lg mb-8 grid gap-4 md:grid-cols-2">
-          <input
-            type="number"
-            min="0.1"
-            step="0.1"
-            value={liveDistance}
-            disabled={isRunning}
-            onChange={(e) => setLiveDistance(e.target.value)}
-            placeholder="Target/Planned Distance (km)"
-            required
-            className={`${inputCls} ${isRunning ? "opacity-50 cursor-not-allowed" : ""}`}
-          />
           <input
             type="number"
             min="0"
             max="200"
             value={weight}
-            disabled={isRunning}
+            disabled={isRunning || isFinished}
             onChange={(e) => setWeight(e.target.value)}
             placeholder="Your weight (kg)"
-            className={`${inputCls} ${isRunning ? "opacity-50 cursor-not-allowed" : ""}`}
+            className={`${inputCls} md:col-span-2 ${isRunning || isFinished ? "opacity-50 cursor-not-allowed" : ""}`}
           />
 
           <div className="md:col-span-2 bg-slate-800 p-6 rounded-lg text-center flex flex-col items-center justify-center gap-2 border border-slate-700">
@@ -221,7 +221,7 @@ export default function RunningPage() {
             </span>
           </div>
 
-          {!isRunning ? (
+          {!isRunning && !isFinished && (
             <button
               type="button"
               onClick={handleStartLive}
@@ -229,14 +229,36 @@ export default function RunningPage() {
             >
               🟢 Start Run
             </button>
-          ) : (
+          )}
+          
+          {isRunning && (
             <button
               type="button"
               onClick={handleStopLive}
               className="md:col-span-2 py-3 rounded bg-red-600 hover:bg-red-500 font-semibold transition-colors animate-pulse"
             >
-              🛑 Stop & Calculate Run
+              🛑 Stop Run
             </button>
+          )}
+
+          {isFinished && (
+            <form onSubmit={calculateLiveResults} className="md:col-span-2 grid gap-4 bg-slate-800 p-4 rounded-lg border border-slate-700 mt-2">
+              <p className="text-sm text-green-400 font-semibold text-center">
+                Run finished! Enter your total steps to calculate your stats.
+              </p>
+              <input
+                type="number"
+                min="1"
+                value={stepCount}
+                onChange={(e) => setStepCount(e.target.value)}
+                placeholder="Total Steps (e.g. 2500)"
+                required
+                className={inputCls}
+              />
+              <button className="py-3 rounded bg-orange-600 hover:bg-orange-500 font-semibold transition-colors">
+                📊 Calculate Metrics
+              </button>
+            </form>
           )}
         </div>
       )}
@@ -244,6 +266,14 @@ export default function RunningPage() {
       {/* RESULTS DISPLAY */}
       {result && (
         <div className="bg-slate-900 rounded-xl p-6 grid gap-5 border border-slate-800">
+          
+          {mode === "live" && result.distance && (
+            <div className="bg-slate-800 p-4 rounded text-center border border-slate-700">
+               <p className="text-xs text-slate-400">Estimated Distance</p>
+               <p className="text-2xl font-bold text-white">{result.distance} km</p>
+            </div>
+          )}
+
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="bg-slate-800 rounded p-4">
               <p className="text-xs text-slate-400">Speed</p>
