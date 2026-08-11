@@ -22,3 +22,16 @@
 html {
   color-scheme: dark;
 }
+html.light {
+  color-scheme: light;
+}
+html.light .bg-slate-950 { background-color: #f8fafc; }
+html.light .bg-slate-900 { background-color: #ffffff; }
+html.light .bg-slate-800 { background-color: #e2e8f0; }
+html.light .bg-slate-700 { background-color: #cbd5e1; }
+html.light .text-white { color: #0f172a; }
+html.light .text-slate-300,
+html.light .text-slate-400,
+html.light .text-slate-500 { color: #64748b; }
+html.light .border-slate-700,
+html.light .border-slate-800 { border-color: #e2e8f0; }

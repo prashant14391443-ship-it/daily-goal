@@ -430,22 +430,10 @@ export default function Dashboard() {
           <Link href="/routine-habits" className="text-slate-300 hover:text-white">
             Habits
           </Link>
-          <Link href="/todo" className="text-slate-300 hover:text-white">
+                            <Link href="/todo" className="text-slate-300 hover:text-white">
             ToDo
           </Link>
-          <button
-            onClick={handleLogout}
-            className="bg-red-600 hover:bg-red-500 px-4 py-1.5 rounded font-semibold"
-          >
-            Logout
-          </button>
         </nav>
-        <button
-          onClick={handleLogout}
-          className="md:hidden bg-red-600 hover:bg-red-500 px-4 py-1.5 rounded font-semibold text-sm"
-        >
-          Logout
-        </button>
       </div>
 
       {loading ? (
