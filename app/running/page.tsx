@@ -16,7 +16,8 @@ type Result = {
   paceMin: number;
   paceSec: number;
   calories: number;
-  distance?: number;
+  distance: number;
+  steps: number;
   preds: { label: string; text: string }[];
 };
 
@@ -28,17 +29,16 @@ export default function RunningPage() {
   const [mins, setMins] = useState("");
   const [secs, setSecs] = useState("");
   
-  // Live tracker inputs & states
+  // Live Auto-Tracker states
   const [weight, setWeight] = useState("70");
   const [isRunning, setIsRunning] = useState(false);
-  const [isFinished, setIsFinished] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [stepCount, setStepCount] = useState("");
+  const [liveSteps, setLiveSteps] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [result, setResult] = useState<Result | null>(null);
 
-  // Handle live stopwatch ticker
+  // 1. Timer Effect
   useEffect(() => {
     if (isRunning) {
       timerRef.current = setInterval(() => {
@@ -52,7 +52,41 @@ export default function RunningPage() {
     };
   }, [isRunning]);
 
-  const computeResults = (dNum: number, totalSec: number, userWeight: number) => {
+  // 2. Motion Sensor Effect (Pedometer)
+  useEffect(() => {
+    let lastStepTime = 0;
+
+    const handleMotion = (event: DeviceMotionEvent) => {
+      if (!event.accelerationIncludingGravity) return;
+
+      const { x, y, z } = event.accelerationIncludingGravity;
+      if (x === null || y === null || z === null) return;
+
+      // Calculate the magnitude of the 3D acceleration vector
+      const magnitude = Math.sqrt(x * x + y * y + z * z);
+
+      // Gravity is 9.8. A spike above 12 typically means a running/walking step impact.
+      if (magnitude > 12) {
+        const now = Date.now();
+        // Prevent double counting (minimum 330ms between steps)
+        if (now - lastStepTime > 330) {
+          setLiveSteps((prev) => prev + 1);
+          lastStepTime = now;
+        }
+      }
+    };
+
+    if (isRunning) {
+      window.addEventListener("devicemotion", handleMotion);
+    }
+
+    return () => {
+      window.removeEventListener("devicemotion", handleMotion);
+    };
+  }, [isRunning]);
+
+  // Math calculation logic
+  const computeResults = (dNum: number, totalSec: number, userWeight: number, steps: number) => {
     if (dNum <= 0 || totalSec <= 0) return;
 
     const hours = totalSec / 3600;
@@ -81,6 +115,7 @@ export default function RunningPage() {
       paceSec,
       calories,
       distance: Math.round(dNum * 100) / 100, // Round to 2 decimals
+      steps,
       preds,
     });
   };
@@ -89,32 +124,39 @@ export default function RunningPage() {
     e.preventDefault();
     const d = Number(distance);
     const totalSec = (Number(mins) || 0) * 60 + (Number(secs) || 0);
-    computeResults(d, totalSec, Number(weight) || 70);
+    computeResults(d, totalSec, Number(weight) || 70, 0); // 0 steps for manual
   };
 
-  const handleStartLive = () => {
+  // Start the tracker and ask for sensor permissions
+  const handleStartLive = async () => {
+    // iOS Safari requires explicit permission to use the accelerometer
+    if (typeof window !== "undefined" && typeof (DeviceMotionEvent as any).requestPermission === "function") {
+      try {
+        const permissionState = await (DeviceMotionEvent as any).requestPermission();
+        if (permissionState !== "granted") {
+          alert("We need motion access to count your steps automatically!");
+          return;
+        }
+      } catch (error) {
+        console.error(error);
+        alert("Error requesting motion permission.");
+        return;
+      }
+    }
+
     setElapsedSeconds(0);
+    setLiveSteps(0);
     setIsRunning(true);
-    setIsFinished(false);
     setResult(null);
-    setStepCount("");
   };
 
   const handleStopLive = () => {
     setIsRunning(false);
-    setIsFinished(true); // Prompts the user to enter their step count
-  };
-
-  const calculateLiveResults = (e: React.FormEvent) => {
-    e.preventDefault();
-    const steps = Number(stepCount);
-    if (steps <= 0) return;
-
-    // Estimate distance based on step count (Average stride length ~0.762 meters)
-    const estimatedDistanceKm = (steps * 0.762) / 1000;
     
-    computeResults(estimatedDistanceKm, elapsedSeconds, Number(weight) || 70);
-    setIsFinished(false);
+    // Average stride length is roughly 0.762 meters per step
+    const estimatedDistanceKm = (liveSteps * 0.762) / 1000;
+    
+    computeResults(estimatedDistanceKm, elapsedSeconds, Number(weight) || 70, liveSteps);
   };
 
   const inputCls = "p-3 rounded bg-slate-800 border border-slate-700 w-full text-white";
@@ -127,14 +169,14 @@ export default function RunningPage() {
           Running Speed Calculator
         </h1>
         <p className="text-slate-400">
-          Calculate speed, pace, calories & race predictions manually or via live tracker
+          Calculate speed, pace, calories manually or use the auto-pedometer tracker
         </p>
       </div>
 
       {/* Mode Switcher Tabs */}
       <div className="flex gap-2 mb-6 bg-slate-900 p-1.5 rounded-lg w-fit border border-slate-800">
         <button
-          onClick={() => { setMode("manual"); setIsRunning(false); setIsFinished(false); }}
+          onClick={() => { setMode("manual"); setIsRunning(false); }}
           className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
             mode === "manual" ? "bg-orange-600 text-white" : "text-slate-400 hover:text-white"
           }`}
@@ -142,12 +184,12 @@ export default function RunningPage() {
           📝 Manual Entry
         </button>
         <button
-          onClick={() => { setMode("live"); setResult(null); setIsFinished(false); }}
+          onClick={() => { setMode("live"); setResult(null); }}
           className={`px-4 py-2 rounded-md text-sm font-semibold transition-all ${
             mode === "live" ? "bg-orange-600 text-white" : "text-slate-400 hover:text-white"
           }`}
         >
-          ⏱️ Live Stopwatch
+          📱 Auto Step Tracker
         </button>
       </div>
 
@@ -200,7 +242,7 @@ export default function RunningPage() {
         </form>
       )}
 
-      {/* LIVE STOPWATCH MODE FORM (Updated) */}
+      {/* LIVE Auto-Tracker MODE */}
       {mode === "live" && (
         <div className="bg-slate-900 p-6 rounded-lg mb-8 grid gap-4 md:grid-cols-2">
           <input
@@ -208,69 +250,60 @@ export default function RunningPage() {
             min="0"
             max="200"
             value={weight}
-            disabled={isRunning || isFinished}
+            disabled={isRunning}
             onChange={(e) => setWeight(e.target.value)}
-            placeholder="Your weight (kg)"
-            className={`${inputCls} md:col-span-2 ${isRunning || isFinished ? "opacity-50 cursor-not-allowed" : ""}`}
+            placeholder="Your weight (kg) - helps calculate calories"
+            className={`${inputCls} md:col-span-2 ${isRunning ? "opacity-50 cursor-not-allowed" : ""}`}
           />
 
-          <div className="md:col-span-2 bg-slate-800 p-6 rounded-lg text-center flex flex-col items-center justify-center gap-2 border border-slate-700">
-            <span className="text-xs uppercase tracking-wider text-slate-400">Live Elapsed Time</span>
+          <div className="bg-slate-800 p-6 rounded-lg text-center flex flex-col items-center justify-center gap-2 border border-slate-700">
+            <span className="text-xs uppercase tracking-wider text-slate-400">Time Elapsed</span>
             <span className="text-4xl md:text-5xl font-mono font-extrabold text-orange-400">
               {fmtTime(elapsedSeconds)}
             </span>
           </div>
 
-          {!isRunning && !isFinished && (
+          <div className="bg-slate-800 p-6 rounded-lg text-center flex flex-col items-center justify-center gap-2 border border-slate-700">
+            <span className="text-xs uppercase tracking-wider text-slate-400">Auto Steps</span>
+            <span className="text-4xl md:text-5xl font-mono font-extrabold text-blue-400">
+              {liveSteps} 👟
+            </span>
+          </div>
+
+          {!isRunning ? (
             <button
               type="button"
               onClick={handleStartLive}
               className="md:col-span-2 py-3 rounded bg-green-600 hover:bg-green-500 font-semibold transition-colors"
             >
-              🟢 Start Run
+              🟢 Start Tracking Run
             </button>
-          )}
-          
-          {isRunning && (
+          ) : (
             <button
               type="button"
               onClick={handleStopLive}
               className="md:col-span-2 py-3 rounded bg-red-600 hover:bg-red-500 font-semibold transition-colors animate-pulse"
             >
-              🛑 Stop Run
+              🛑 Stop & Calculate Stats
             </button>
-          )}
-
-          {isFinished && (
-            <form onSubmit={calculateLiveResults} className="md:col-span-2 grid gap-4 bg-slate-800 p-4 rounded-lg border border-slate-700 mt-2">
-              <p className="text-sm text-green-400 font-semibold text-center">
-                Run finished! Enter your total steps to calculate your stats.
-              </p>
-              <input
-                type="number"
-                min="1"
-                value={stepCount}
-                onChange={(e) => setStepCount(e.target.value)}
-                placeholder="Total Steps (e.g. 2500)"
-                required
-                className={inputCls}
-              />
-              <button className="py-3 rounded bg-orange-600 hover:bg-orange-500 font-semibold transition-colors">
-                📊 Calculate Metrics
-              </button>
-            </form>
           )}
         </div>
       )}
 
       {/* RESULTS DISPLAY */}
       {result && (
-        <div className="bg-slate-900 rounded-xl p-6 grid gap-5 border border-slate-800">
+        <div className="bg-slate-900 rounded-xl p-6 grid gap-5 border border-slate-800 animate-in fade-in zoom-in duration-300">
           
-          {mode === "live" && result.distance && (
-            <div className="bg-slate-800 p-4 rounded text-center border border-slate-700">
-               <p className="text-xs text-slate-400">Estimated Distance</p>
-               <p className="text-2xl font-bold text-white">{result.distance} km</p>
+          {mode === "live" && (
+            <div className="grid grid-cols-2 gap-3 text-center mb-2">
+               <div className="bg-slate-800 p-4 rounded border border-slate-700">
+                 <p className="text-xs text-slate-400">Total Steps</p>
+                 <p className="text-2xl font-bold text-white">{result.steps}</p>
+               </div>
+               <div className="bg-slate-800 p-4 rounded border border-slate-700">
+                 <p className="text-xs text-slate-400">Distance Run</p>
+                 <p className="text-2xl font-bold text-white">{result.distance} km</p>
+               </div>
             </div>
           )}
 
@@ -295,23 +328,6 @@ export default function RunningPage() {
                 {result.calories}
               </p>
               <p className="text-[10px] text-slate-400">kcal</p>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-sm text-slate-400 mb-2">
-              🔮 Predicted race times (Riegel formula)
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {result.preds.map((p) => (
-                <div
-                  key={p.label}
-                  className="bg-slate-800 rounded p-3 flex justify-between text-sm"
-                >
-                  <span className="text-slate-400">{p.label}</span>
-                  <span className="font-bold">{p.text}</span>
-                </div>
-              ))}
             </div>
           </div>
         </div>
