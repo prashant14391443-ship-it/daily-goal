@@ -100,6 +100,9 @@ export default function Dashboard() {
   const [habitsDone, setHabitsDone] = useState(0);
   const [todoDone, setTodoDone] = useState(0);
   const [todoTotal, setTodoTotal] = useState(0);
+  const [studyStreak, setStudyStreak] = useState(0);
+  const [gymStreak, setGymStreak] = useState(0);
+  const [todoStreak, setTodoStreak] = useState(0);
   const [goals, setGoals] = useState<Goals>({
     study_target: 120,
     workout_target: 1,
@@ -139,58 +142,87 @@ export default function Dashboard() {
 
     const weekStart = addDays(today, -6);
 
-    const [study, studyW, gym, gymW, habits, habitLogs, tasksRes, goalsRes, cdRes, todoRes] =
-      await Promise.all([
-        supabase
-          .from("study_sessions")
-          .select("duration_minutes")
-          .eq("user_id", userId)
-          .eq("session_date", today),
-        supabase
-          .from("study_sessions")
-          .select("duration_minutes, session_date")
-          .eq("user_id", userId)
-          .gte("session_date", weekStart),
-        supabase
-          .from("gym_logs")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("session_date", today),
-        supabase
-          .from("gym_logs")
-          .select("duration_minutes, session_date")
-          .eq("user_id", userId)
-          .gte("session_date", weekStart),
-        supabase.from("habits").select("id, habit_name").eq("user_id", userId),
-        supabase
-          .from("habit_logs")
-          .select("habit_id, log_date")
-          .eq("user_id", userId)
-          .eq("completed", true),
-        supabase
-          .from("tasks")
-          .select("*")
-          .eq("user_id", userId)
-          .eq("category", "general")
-          .eq("task_date", today)
-          .order("created_at"),
-        supabase
-          .from("user_goals")
-          .select("*")
-          .eq("user_id", userId)
-          .maybeSingle(),
-        supabase
-          .from("countdowns")
-          .select("*")
-          .eq("user_id", userId)
-          .order("target_date"),
-        supabase
-          .from("tasks")
-          .select("id, completed")
-          .eq("user_id", userId)
-          .eq("category", "todo")
-          .eq("task_date", today),
-      ]);
+    const [
+      study,
+      studyW,
+      gym,
+      gymW,
+      habits,
+      habitLogs,
+      tasksRes,
+      goalsRes,
+      cdRes,
+      todoRes,
+      studyDoneRes,
+      gymDoneRes,
+      todoDoneRes,
+    ] = await Promise.all([
+      supabase
+        .from("study_sessions")
+        .select("duration_minutes")
+        .eq("user_id", userId)
+        .eq("session_date", today),
+      supabase
+        .from("study_sessions")
+        .select("duration_minutes, session_date")
+        .eq("user_id", userId)
+        .gte("session_date", weekStart),
+      supabase
+        .from("gym_logs")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("session_date", today),
+      supabase
+        .from("gym_logs")
+        .select("duration_minutes, session_date")
+        .eq("user_id", userId)
+        .gte("session_date", weekStart),
+      supabase.from("habits").select("id, habit_name").eq("user_id", userId),
+      supabase
+        .from("habit_logs")
+        .select("habit_id, log_date")
+        .eq("user_id", userId)
+        .eq("completed", true),
+      supabase
+        .from("tasks")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("category", "general")
+        .eq("task_date", today)
+        .order("created_at"),
+      supabase
+        .from("user_goals")
+        .select("*")
+        .eq("user_id", userId)
+        .maybeSingle(),
+      supabase
+        .from("countdowns")
+        .select("*")
+        .eq("user_id", userId)
+        .order("target_date"),
+      supabase
+        .from("tasks")
+        .select("id, completed")
+        .eq("user_id", userId)
+        .eq("category", "todo")
+        .eq("task_date", today),
+      supabase
+        .from("study_sessions")
+        .select("session_date")
+        .eq("user_id", userId)
+        .eq("completed", true),
+      supabase
+        .from("gym_logs")
+        .select("session_date")
+        .eq("user_id", userId)
+        .eq("completed", true),
+      supabase
+        .from("tasks")
+        .select("task_date")
+        .eq("user_id", userId)
+        .eq("category", "todo")
+        .eq("completed", true),
+    ]);
 
     setStudyMinutes(
       (study.data || []).reduce((s, r) => s + r.duration_minutes, 0)
@@ -219,6 +251,25 @@ export default function Dashboard() {
     const todoRows = todoRes.data || [];
     setTodoTotal(todoRows.length);
     setTodoDone(todoRows.filter((t) => t.completed).length);
+
+    setStudyStreak(
+      calcStreak(
+        new Set((studyDoneRes.data || []).map((r) => r.session_date)),
+        today
+      )
+    );
+    setGymStreak(
+      calcStreak(
+        new Set((gymDoneRes.data || []).map((r) => r.session_date)),
+        today
+      )
+    );
+    setTodoStreak(
+      calcStreak(
+        new Set((todoDoneRes.data || []).map((r) => r.task_date)),
+        today
+      )
+    );
 
     setHabitStreaks(
       (habits.data || []).map((h) => {
@@ -446,22 +497,28 @@ export default function Dashboard() {
 
             <div className="bg-slate-900 p-4 md:p-6 rounded-xl col-span-2 md:col-span-1">
               <h3 className="text-base md:text-lg font-bold text-orange-400 mb-2">🔥 Streaks</h3>
-              {habitStreaks.length === 0 ? (
-                <p className="text-xs text-slate-500">Add habits to build streaks.</p>
-              ) : (
-                <div className="grid gap-2 max-h-28 overflow-y-auto">
-                  {habitStreaks.map((h) => (
-                    <div key={h.name} className="flex justify-between text-xs md:text-sm">
-                      <span className={h.streak > 0 ? "" : "text-slate-500"}>
-                        {h.name}
-                      </span>
-                      <span className="text-orange-400 font-semibold">
-                        {h.streak} 🔥
-                      </span>
-                    </div>
-                  ))}
+              <div className="grid gap-2 max-h-40 overflow-y-auto">
+                <div className="flex justify-between text-xs md:text-sm">
+                  <span>📚 Study</span>
+                  <span className="text-orange-400 font-semibold">{studyStreak} 🔥</span>
                 </div>
-              )}
+                <div className="flex justify-between text-xs md:text-sm">
+                  <span>🏋️ Gym</span>
+                  <span className="text-orange-400 font-semibold">{gymStreak} 🔥</span>
+                </div>
+                <div className="flex justify-between text-xs md:text-sm">
+                  <span>📝 ToDo</span>
+                  <span className="text-orange-400 font-semibold">{todoStreak} 🔥</span>
+                </div>
+                {habitStreaks.map((h) => (
+                  <div key={h.name} className="flex justify-between text-xs md:text-sm">
+                    <span className={h.streak > 0 ? "" : "text-slate-500"}>
+                      ✅ {h.name}
+                    </span>
+                    <span className="text-orange-400 font-semibold">{h.streak} 🔥</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -680,7 +737,7 @@ export default function Dashboard() {
                   <option value="📚">📚</option>
                   <option value="🏋️">🏋️</option>
                   <option value="✅">✅</option>
-                  <option value="🎯"></option>
+                  <option value="🎯">🎯</option>
                   <option value="💼">💼</option>
                 </select>
                 <button className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-semibold">
