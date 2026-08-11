@@ -218,7 +218,7 @@ export default function RoutineHabits() {
           </h1>
           <p className="text-slate-400">{date === today ? "Today" : date}</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <button
             onClick={toggleReminders}
             className={`px-3 py-2 rounded text-sm font-semibold ${
@@ -228,12 +228,12 @@ export default function RoutineHabits() {
             }`}
           >
             <span className="hidden md:inline"><span className="hidden md:inline">{remindersOn ? "🔔 Reminders ON" : "🔕 Reminders OFF"}</span>
-            <span className="md:hidden">{remindersOn ? "🔔" : "🔕"}</span></span>
-            <span className="md:hidden">{remindersOn ? "🔔" : "🔕"}</span>
+            <span className="md:hidden">{remindersOn ? "🔔 Reminder" : "🔕 Reminder"}</span></span>
+            <span className="md:hidden">{remindersOn ? "🔔 Reminder" : "🔕 Reminder"}</span>
           </button>
           <button
             onClick={() => setDate(addDays(date, -1))}
-            className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700"
+            className="px-2 py-2 rounded bg-slate-800 hover:bg-slate-700"
           >
             ←
           </button>
@@ -245,7 +245,7 @@ export default function RoutineHabits() {
           />
           <button
             onClick={() => setDate(addDays(date, 1))}
-            className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700"
+            className="px-2 py-2 rounded bg-slate-800 hover:bg-slate-700"
           >
             →
           </button>
