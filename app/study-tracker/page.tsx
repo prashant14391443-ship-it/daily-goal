@@ -1,5 +1,7 @@
 "use client";
+
 export const dynamic = "force-dynamic";
+
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
@@ -9,9 +11,9 @@ type Session = {
   subject: string;
   topic: string | null;
   duration_minutes: number;
-  session_date: string;
   completed: boolean;
   reminder_time: string | null;
+  session_date: string;
 };
 
 function toLocalISO(d: Date) {
@@ -45,20 +47,10 @@ export default function StudyTracker() {
   const [remindersOn, setRemindersOn] = useState(false);
   const [subject, setSubject] = useState("");
   const [topic, setTopic] = useState("");
-  const [duration, setDuration] = useState("");
+  const [minutes, setMinutes] = useState("");
   const [reminderTime, setReminderTime] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const notified = useRef<Set<string>>(new Set());
   const router = useRouter();
-
-  useEffect(() => {
-    setRemindersOn(
-      "Notification" in window &&
-        Notification.permission === "granted" &&
-        localStorage.getItem("dg-reminders") === "1"
-    );
-  }, []);
 
   const load = async (selectedDate: string) => {
     const { data } = await supabase.auth.getSession();
@@ -67,13 +59,13 @@ export default function StudyTracker() {
       router.push("/login");
       return;
     }
-    const [rows, allDone] = await Promise.all([
+    const [rows, all] = await Promise.all([
       supabase
         .from("study_sessions")
         .select("*")
         .eq("user_id", userId)
         .eq("session_date", selectedDate)
-        .order("created_at", { ascending: false }),
+        .order("created_at"),
       supabase
         .from("study_sessions")
         .select("session_date")
@@ -81,29 +73,29 @@ export default function StudyTracker() {
         .eq("completed", true),
     ]);
     setSessions(rows.data || []);
-    setStreak(calcStreak(new Set((allDone.data || []).map((r) => r.session_date)), today));
+    setStreak(
+      calcStreak(new Set((all.data || []).map((r) => r.session_date)), today)
+    );
   };
 
   useEffect(() => {
     load(date);
   }, [date]);
 
-  const toggleReminders = async () => {
+  useEffect(() => {
+    setRemindersOn(localStorage.getItem("dg-reminders") === "1");
+  }, []);
+
+  const toggleReminders = () => {
     if (remindersOn) {
       localStorage.removeItem("dg-reminders");
       setRemindersOn(false);
       return;
     }
-    if (!("Notification" in window)) {
-      localStorage.setItem("dg-reminders", "1");
-      setRemindersOn(true);
-      alert("Reminders ON! (in-app mode on this browser)");
-      return;
-    }
-    const perm = await Notification.requestPermission();
-    if (perm === "granted") {
-      localStorage.setItem("dg-reminders", "1");
-      setRemindersOn(true);
+    localStorage.setItem("dg-reminders", "1");
+    setRemindersOn(true);
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
     }
   };
 
@@ -124,7 +116,7 @@ export default function StudyTracker() {
         const key = `${s.id}-${todayStr}-${time}`;
         if (time === nowHM && !notified.current.has(key)) {
           notified.current.add(key);
-            if ("Notification" in window && Notification.permission === "granted") {
+          if ("Notification" in window && Notification.permission === "granted") {
             new Notification("DAILY GOAL ⏰", { body: `Time to: ${s.subject}` });
           } else {
             alert(`DAILY GOAL ⏰ Time to: ${s.subject}`);
@@ -138,7 +130,29 @@ export default function StudyTracker() {
     return () => clearInterval(id);
   }, [sessions, remindersOn]);
 
-  const toggleComplete = async (id: string, completed: boolean) => {
+  const addSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { data } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+    if (!userId) return;
+
+    await supabase.from("study_sessions").insert({
+      user_id: userId,
+      subject,
+      topic: topic || null,
+      duration_minutes: Number(minutes) || 0,
+      session_date: date,
+      reminder_time: reminderTime || null,
+      completed: false,
+    });
+    setSubject("");
+    setTopic("");
+    setMinutes("");
+    setReminderTime("");
+    await load(date);
+  };
+
+  const toggleSession = async (id: string, completed: boolean) => {
     await supabase
       .from("study_sessions")
       .update({ completed: !completed })
@@ -148,77 +162,27 @@ export default function StudyTracker() {
     );
   };
 
-  const resetForm = () => {
-    setSubject("");
-    setTopic("");
-    setDuration("");
-    setReminderTime("");
-    setEditingId(null);
-  };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const { data } = await supabase.auth.getSession();
-    const userId = data.session?.user.id;
-    if (!userId) return;
-
-    if (editingId) {
-      await supabase
-        .from("study_sessions")
-        .update({
-          subject,
-          topic,
-          duration_minutes: Number(duration),
-          session_date: date,
-          reminder_time: reminderTime || null,
-        })
-        .eq("id", editingId);
-    } else {
-      await supabase.from("study_sessions").insert({
-        user_id: userId,
-        subject,
-        topic,
-        duration_minutes: Number(duration),
-        session_date: date,
-        reminder_time: reminderTime || null,
-      });
-    }
-    resetForm();
-    await load(date);
-    setLoading(false);
-  };
-
-  const startEdit = (s: Session) => {
-    setEditingId(s.id);
-    setSubject(s.subject);
-    setTopic(s.topic || "");
-    setDuration(String(s.duration_minutes));
-    setReminderTime(s.reminder_time ? s.reminder_time.slice(0, 5) : "");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   const deleteSession = async (id: string) => {
     await supabase.from("study_sessions").delete().eq("id", id);
-    if (editingId === id) resetForm();
-    await load(date);
+    setSessions(sessions.filter((s) => s.id !== id));
   };
 
-  const totalMinutes = sessions.reduce((sum, s) => sum + s.duration_minutes, 0);
+  const total = sessions.reduce((s, r) => s + r.duration_minutes, 0);
   const doneCount = sessions.filter((s) => s.completed).length;
-  const pct = sessions.length ? Math.round((doneCount / sessions.length) * 100) : 0;
+  const pct = sessions.length
+    ? Math.round((doneCount / sessions.length) * 100)
+    : 0;
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-4 md:p-4 md:p-4 md:p-8">
+    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
-  <span className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-xl">📚</span>
-  Study Tracker
-</h1>
+            <span className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-xl">📚</span>
+            Study Tracker
+          </h1>
           <p className="text-slate-400">
-            {date === today ? "Today" : date} • Total:{" "}
-            {Math.floor(totalMinutes / 60)}h {totalMinutes % 60}m
+            {date === today ? "Today" : date} • Total: {Math.floor(total / 60)}h {total % 60}m
             {streak > 0 && (
               <span className="text-orange-400"> • 🔥 {streak} day streak</span>
             )}
@@ -227,17 +191,16 @@ export default function StudyTracker() {
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
             onClick={toggleReminders}
-            className={`px-3 py-2 rounded text-sm font-semibold ${
-              remindersOn
-                ? "bg-green-700 cursor-pointer"
-                : "bg-slate-800 hover:bg-slate-700"
+            className={`px-2.5 py-2 rounded text-sm font-semibold whitespace-nowrap ${
+              remindersOn ? "bg-green-700" : "bg-slate-800 hover:bg-slate-700"
             }`}
           >
-            <span className="hidden md:inline"><span className="hidden md:inline"><span className="hidden md:inline"><span className="hidden md:inline">{remindersOn ? "🔔 Reminders ON" : "🔕 Reminders OFF"}</span>
-            <span className="md:hidden">{remindersOn ? "🔔 Reminder" : "🔕 Reminder"}</span></span>
-            <span className="md:hidden">{remindersOn ? "🔔 Reminder" : "🔕 Reminder"}</span></span>
-            <span className="md:hidden">{remindersOn ? "🔔 Reminder" : "🔕 Reminder"}</span></span>
-            <span className="md:hidden">{remindersOn ? "🔔 Reminder" : "🔕 Reminder"}</span>
+            <span className="hidden md:inline">
+              {remindersOn ? "🔔 Reminders ON" : "🔕 Reminders OFF"}
+            </span>
+            <span className="md:hidden">
+              {remindersOn ? "🔔 Reminder" : "🔕 Reminder"}
+            </span>
           </button>
           <button
             onClick={() => setDate(addDays(date, -1))}
@@ -249,7 +212,7 @@ export default function StudyTracker() {
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="p-2 rounded bg-slate-800 border border-slate-700"
+            className="p-2 rounded bg-slate-800 border border-slate-700 text-sm"
           />
           <button
             onClick={() => setDate(addDays(date, 1))}
@@ -260,7 +223,7 @@ export default function StudyTracker() {
           {date !== today && (
             <button
               onClick={() => setDate(today)}
-              className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm"
+              className="px-2.5 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm"
             >
               Today
             </button>
@@ -284,8 +247,8 @@ export default function StudyTracker() {
       </div>
 
       <form
-        onSubmit={submit}
-        className="bg-slate-900 p-6 rounded-lg mb-8 grid grid-cols-1 md:grid-cols-5 gap-4"
+        onSubmit={addSession}
+        className="bg-slate-900 p-6 rounded-lg mb-8 grid gap-4"
       >
         <input
           value={subject}
@@ -301,18 +264,18 @@ export default function StudyTracker() {
           className="p-3 rounded bg-slate-800 border border-slate-700"
         />
         <input
-          value={duration}
-          onChange={(e) => setDuration(e.target.value)}
           type="number"
           min="1"
+          value={minutes}
+          onChange={(e) => setMinutes(e.target.value)}
           placeholder="Minutes"
           required
           className="p-3 rounded bg-slate-800 border border-slate-700"
         />
-          <div className="relative">
+        <div className="relative">
           {reminderTime === "" && (
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
-                                time
+              Time
             </span>
           )}
           <input
@@ -325,82 +288,47 @@ export default function StudyTracker() {
             title="Reminder time (optional)"
           />
         </div>
-        <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={loading}
-            className={`flex-1 p-3 rounded font-semibold disabled:opacity-50 ${
-              editingId
-                ? "bg-yellow-600 hover:bg-yellow-500"
-                : "bg-blue-600 hover:bg-blue-500"
-            }`}
-          >
-            {loading ? "Saving..." : editingId ? "Save Changes" : "Add Session"}
-          </button>
-          {editingId && (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="p-3 rounded bg-slate-700 hover:bg-slate-600"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
+        <button className="px-6 py-3 rounded bg-blue-600 font-semibold hover:bg-blue-500">
+          Add Session
+        </button>
       </form>
 
       <div className="grid gap-4">
         {sessions.map((s) => (
           <div
             key={s.id}
-            className={`bg-slate-900 p-4 rounded-lg flex items-center justify-between gap-4 ${
-              editingId === s.id ? "ring-2 ring-yellow-500" : ""
-            }`}
+            className="bg-slate-900 p-4 rounded-lg flex items-center justify-between gap-4 flex-wrap"
           >
             <div className="flex items-center gap-3">
               <button
-                onClick={() => toggleComplete(s.id, s.completed)}
+                onClick={() => toggleSession(s.id, s.completed)}
                 className={`w-5 h-5 rounded border flex items-center justify-center ${
                   s.completed
                     ? "bg-green-500 border-green-500"
                     : "bg-slate-800 border-slate-600"
                 }`}
               >
-                {s.completed && (
-                  <span className="text-xs text-white font-bold">✓</span>
-                )}
+                {s.completed && <span className="text-xs text-white font-bold">✓</span>}
               </button>
               <div>
-                <p
-                  className={`font-semibold ${
-                    s.completed ? "line-through text-slate-500" : ""
-                  }`}
-                >
-                  {s.subject}{" "}
-                  {s.topic && <span className="text-slate-400">— {s.topic}</span>}
+                <p className={`font-semibold ${s.completed ? "line-through text-slate-500" : ""}`}>
+                  {s.subject}
+                  {s.topic && <span className="text-slate-400"> — {s.topic}</span>}
                 </p>
                 <p className="text-sm text-slate-400">
-                  {s.session_date} • {s.duration_minutes} min
+                  {s.duration_minutes} min
                   {s.reminder_time && (
                     <span className="ml-2">⏰ {s.reminder_time.slice(0, 5)}</span>
                   )}
                 </p>
               </div>
             </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => startEdit(s)}
-                className="text-yellow-400 hover:text-yellow-300 text-sm"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => deleteSession(s.id)}
-                className="text-red-400 hover:text-red-300 text-sm"
-              >
-                Delete
-              </button>
-            </div>
+            <button
+              onClick={() => deleteSession(s.id)}
+              className="text-red-400 hover:text-red-300 text-sm"
+            >
+              Delete
+            </button>
           </div>
         ))}
         {sessions.length === 0 && (

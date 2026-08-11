@@ -1,17 +1,18 @@
 "use client";
+
 export const dynamic = "force-dynamic";
+
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
-type Log = {
+type Workout = {
   id: string;
   workout_type: string;
   duration_minutes: number;
-  notes: string | null;
-  session_date: string;
   completed: boolean;
   reminder_time: string | null;
+  session_date: string;
 };
 
 function toLocalISO(d: Date) {
@@ -40,25 +41,14 @@ function calcStreak(dates: Set<string>, today: string) {
 export default function GymLog() {
   const today = toLocalISO(new Date());
   const [date, setDate] = useState(today);
-  const [logs, setLogs] = useState<Log[]>([]);
+  const [logs, setLogs] = useState<Workout[]>([]);
   const [streak, setStreak] = useState(0);
   const [remindersOn, setRemindersOn] = useState(false);
-  const [workoutType, setWorkoutType] = useState("");
-  const [duration, setDuration] = useState("");
-  const [notes, setNotes] = useState("");
+  const [workout, setWorkout] = useState("");
+  const [minutes, setMinutes] = useState("");
   const [reminderTime, setReminderTime] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const notified = useRef<Set<string>>(new Set());
   const router = useRouter();
-
-  useEffect(() => {
-    setRemindersOn(
-      "Notification" in window &&
-        Notification.permission === "granted" &&
-        localStorage.getItem("dg-reminders") === "1"
-    );
-  }, []);
 
   const load = async (selectedDate: string) => {
     const { data } = await supabase.auth.getSession();
@@ -67,13 +57,13 @@ export default function GymLog() {
       router.push("/login");
       return;
     }
-    const [rows, allDone] = await Promise.all([
+    const [rows, all] = await Promise.all([
       supabase
         .from("gym_logs")
         .select("*")
         .eq("user_id", userId)
         .eq("session_date", selectedDate)
-        .order("created_at", { ascending: false }),
+        .order("created_at"),
       supabase
         .from("gym_logs")
         .select("session_date")
@@ -81,29 +71,29 @@ export default function GymLog() {
         .eq("completed", true),
     ]);
     setLogs(rows.data || []);
-    setStreak(calcStreak(new Set((allDone.data || []).map((r) => r.session_date)), today));
+    setStreak(
+      calcStreak(new Set((all.data || []).map((r) => r.session_date)), today)
+    );
   };
 
   useEffect(() => {
     load(date);
   }, [date]);
 
-  const toggleReminders = async () => {
+  useEffect(() => {
+    setRemindersOn(localStorage.getItem("dg-reminders") === "1");
+  }, []);
+
+  const toggleReminders = () => {
     if (remindersOn) {
       localStorage.removeItem("dg-reminders");
       setRemindersOn(false);
       return;
     }
-    if (!("Notification" in window)) {
-      localStorage.setItem("dg-reminders", "1");
-      setRemindersOn(true);
-      alert("Reminders ON! (in-app mode on this browser)");
-      return;
-    }
-    const perm = await Notification.requestPermission();
-    if (perm === "granted") {
-      localStorage.setItem("dg-reminders", "1");
-      setRemindersOn(true);
+    localStorage.setItem("dg-reminders", "1");
+    setRemindersOn(true);
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
     }
   };
 
@@ -138,7 +128,27 @@ export default function GymLog() {
     return () => clearInterval(id);
   }, [logs, remindersOn]);
 
-  const toggleComplete = async (id: string, completed: boolean) => {
+  const addLog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { data } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+    if (!userId) return;
+
+    await supabase.from("gym_logs").insert({
+      user_id: userId,
+      workout_type: workout,
+      duration_minutes: Number(minutes) || 0,
+      session_date: date,
+      reminder_time: reminderTime || null,
+      completed: false,
+    });
+    setWorkout("");
+    setMinutes("");
+    setReminderTime("");
+    await load(date);
+  };
+
+  const toggleLog = async (id: string, completed: boolean) => {
     await supabase
       .from("gym_logs")
       .update({ completed: !completed })
@@ -146,63 +156,12 @@ export default function GymLog() {
     setLogs(logs.map((l) => (l.id === id ? { ...l, completed: !completed } : l)));
   };
 
-  const resetForm = () => {
-    setWorkoutType("");
-    setDuration("");
-    setNotes("");
-    setReminderTime("");
-    setEditingId(null);
-  };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const { data } = await supabase.auth.getSession();
-    const userId = data.session?.user.id;
-    if (!userId) return;
-
-    if (editingId) {
-      await supabase
-        .from("gym_logs")
-        .update({
-          workout_type: workoutType,
-          duration_minutes: Number(duration),
-          notes,
-          session_date: date,
-          reminder_time: reminderTime || null,
-        })
-        .eq("id", editingId);
-    } else {
-      await supabase.from("gym_logs").insert({
-        user_id: userId,
-        workout_type: workoutType,
-        duration_minutes: Number(duration),
-        notes,
-        session_date: date,
-        reminder_time: reminderTime || null,
-      });
-    }
-    resetForm();
-    await load(date);
-    setLoading(false);
-  };
-
-  const startEdit = (l: Log) => {
-    setEditingId(l.id);
-    setWorkoutType(l.workout_type);
-    setDuration(String(l.duration_minutes));
-    setNotes(l.notes || "");
-    setReminderTime(l.reminder_time ? l.reminder_time.slice(0, 5) : "");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
   const deleteLog = async (id: string) => {
     await supabase.from("gym_logs").delete().eq("id", id);
-    if (editingId === id) resetForm();
-    await load(date);
+    setLogs(logs.filter((l) => l.id !== id));
   };
 
-  const totalMinutes = logs.reduce((sum, l) => sum + l.duration_minutes, 0);
+  const total = logs.reduce((s, r) => s + r.duration_minutes, 0);
   const doneCount = logs.filter((l) => l.completed).length;
   const pct = logs.length ? Math.round((doneCount / logs.length) * 100) : 0;
 
@@ -215,8 +174,7 @@ export default function GymLog() {
             Gym Log
           </h1>
           <p className="text-slate-400">
-            {date === today ? "Today" : date} • Total:{" "}
-            {Math.floor(totalMinutes / 60)}h {totalMinutes % 60}m
+            {date === today ? "Today" : date} • Total: {total} min
             {streak > 0 && (
               <span className="text-orange-400"> • 🔥 {streak} day streak</span>
             )}
@@ -225,14 +183,16 @@ export default function GymLog() {
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
             onClick={toggleReminders}
-            className={`px-3 py-2 rounded text-sm font-semibold ${
-              remindersOn
-                ? "bg-green-700 cursor-pointer"
-                : "bg-slate-800 hover:bg-slate-700"
+            className={`px-2.5 py-2 rounded text-sm font-semibold whitespace-nowrap ${
+              remindersOn ? "bg-green-700" : "bg-slate-800 hover:bg-slate-700"
             }`}
           >
-            <span className="hidden md:inline">{remindersOn ? "🔔 Reminders ON" : "🔕 Reminders OFF"}</span>
-            <span className="md:hidden">{remindersOn ? "🔔 Reminder" : "🔕 Reminder"}</span>
+            <span className="hidden md:inline">
+              {remindersOn ? "🔔 Reminders ON" : "🔕 Reminders OFF"}
+            </span>
+            <span className="md:hidden">
+              {remindersOn ? "🔔 Reminder" : "🔕 Reminder"}
+            </span>
           </button>
           <button
             onClick={() => setDate(addDays(date, -1))}
@@ -244,7 +204,7 @@ export default function GymLog() {
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="p-2 rounded bg-slate-800 border border-slate-700"
+            className="p-2 rounded bg-slate-800 border border-slate-700 text-sm"
           />
           <button
             onClick={() => setDate(addDays(date, 1))}
@@ -255,7 +215,7 @@ export default function GymLog() {
           {date !== today && (
             <button
               onClick={() => setDate(today)}
-              className="px-3 py-2 rounded bg-green-600 hover:bg-green-500 text-sm"
+              className="px-2.5 py-2 rounded bg-green-600 hover:bg-green-500 text-sm"
             >
               Today
             </button>
@@ -279,35 +239,29 @@ export default function GymLog() {
       </div>
 
       <form
-        onSubmit={submit}
-        className="bg-slate-900 p-6 rounded-lg mb-8 grid grid-cols-1 md:grid-cols-4 gap-4"
+        onSubmit={addLog}
+        className="bg-slate-900 p-6 rounded-lg mb-8 grid gap-4"
       >
         <input
-          value={workoutType}
-          onChange={(e) => setWorkoutType(e.target.value)}
-          placeholder="Workout (e.g. Chest)"
+          value={workout}
+          onChange={(e) => setWorkout(e.target.value)}
+          placeholder="Workout (e.g. Pushups)"
           required
           className="p-3 rounded bg-slate-800 border border-slate-700"
         />
         <input
-          value={duration}
-          onChange={(e) => setDuration(e.target.value)}
           type="number"
           min="1"
+          value={minutes}
+          onChange={(e) => setMinutes(e.target.value)}
           placeholder="Minutes"
           required
           className="p-3 rounded bg-slate-800 border border-slate-700"
         />
-        <input
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Notes (optional)"
-          className="p-3 rounded bg-slate-800 border border-slate-700"
-        />
-        <div className="relative flex flex-col justify-center">
+        <div className="relative">
           {reminderTime === "" && (
-            <span className="absolute left-3 text-slate-500 pointer-events-none">
-              ⏰ Reminder time
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
+              Time
             </span>
           )}
           <input
@@ -320,87 +274,50 @@ export default function GymLog() {
             title="Reminder time (optional)"
           />
         </div>
-        <div className="md:col-span-4 flex gap-2 pt-2">
-          <button
-            type="submit"
-            disabled={loading}
-            className={`flex-1 p-3 rounded font-semibold disabled:opacity-50 ${
-              editingId
-                ? "bg-yellow-600 hover:bg-yellow-500"
-                : "bg-green-600 hover:bg-green-500"
-            }`}
-          >
-            {loading ? "Saving..." : editingId ? "Save Changes" : "Add Workout"}
-          </button>
-          {editingId && (
-            <button
-              type="button"
-              onClick={resetForm}
-              className="p-3 rounded bg-slate-700 hover:bg-slate-600"
-            >
-              Cancel
-            </button>
-          )}
-        </div>
+        <button className="px-6 py-3 rounded bg-green-600 font-semibold hover:bg-green-500">
+          Add Workout
+        </button>
       </form>
 
       <div className="grid gap-4">
         {logs.map((l) => (
           <div
             key={l.id}
-            className={`bg-slate-900 p-4 rounded-lg flex items-center justify-between gap-4 ${
-              editingId === l.id ? "ring-2 ring-yellow-500" : ""
-            }`}
+            className="bg-slate-900 p-4 rounded-lg flex items-center justify-between gap-4 flex-wrap"
           >
             <div className="flex items-center gap-3">
               <button
-                onClick={() => toggleComplete(l.id, l.completed)}
+                onClick={() => toggleLog(l.id, l.completed)}
                 className={`w-5 h-5 rounded border flex items-center justify-center ${
                   l.completed
                     ? "bg-green-500 border-green-500"
                     : "bg-slate-800 border-slate-600"
                 }`}
               >
-                {l.completed && (
-                  <span className="text-xs text-white font-bold">✓</span>
-                )}
+                {l.completed && <span className="text-xs text-white font-bold">✓</span>}
               </button>
               <div>
-                <p
-                  className={`font-semibold ${
-                    l.completed ? "line-through text-slate-500" : ""
-                  }`}
-                >
-                  {l.workout_type}{" "}
-                  <span className="text-slate-400">({l.duration_minutes} min)</span>
+                <p className={`font-semibold ${l.completed ? "line-through text-slate-500" : ""}`}>
+                  {l.workout_type}
                 </p>
                 <p className="text-sm text-slate-400">
-                  {l.session_date}
-                  {l.notes && <span className="italic"> • {l.notes}</span>}
+                  {l.duration_minutes} min
                   {l.reminder_time && (
                     <span className="ml-2">⏰ {l.reminder_time.slice(0, 5)}</span>
                   )}
                 </p>
               </div>
             </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => startEdit(l)}
-                className="text-yellow-400 hover:text-yellow-300 text-sm"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => deleteLog(l.id)}
-                className="text-red-400 hover:text-red-300 text-sm"
-              >
-                Delete
-              </button>
-            </div>
+            <button
+              onClick={() => deleteLog(l.id)}
+              className="text-red-400 hover:text-red-300 text-sm"
+            >
+              Delete
+            </button>
           </div>
         ))}
         {logs.length === 0 && (
-          <p className="text-slate-400">No workouts on this date. Get moving! 💪</p>
+          <p className="text-slate-400">No workouts on this date.</p>
         )}
       </div>
     </main>
