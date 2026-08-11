@@ -5,6 +5,34 @@ import { supabase } from "@/lib/supabase";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 
+function playBeep() {
+  try {
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext;
+    const ctx = new Ctx();
+    ctx.resume();
+    const note = (freq: number, start: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = freq;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      const t = ctx.currentTime + start;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.5, t + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+      osc.start(t);
+      osc.stop(t + 0.45);
+    };
+    note(880, 0);
+    note(1175, 0.25);
+  } catch {
+    // audio not available
+  }
+}
+
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -118,6 +146,7 @@ export default function ProfileMenu() {
         items.forEach((it) => {
           if (it.time === nowHM && !notified.has(it.key)) {
             notified.add(it.key);
+            playBeep();
             reg.showNotification("DAILY GOAL ⏰", { body: `Time to: ${it.label}` });
           }
         });
