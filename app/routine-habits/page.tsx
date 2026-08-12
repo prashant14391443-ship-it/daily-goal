@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { recordNotification } from "@/lib/notify";
 import { useRouter } from "next/navigation";
 
 type Habit = {
@@ -122,6 +123,7 @@ export default function RoutineHabits() {
         const key = `${h.id}-${todayStr}-${t}`;
         if (t === nowHM && !doneToday.has(h.id) && !notified.current.has(key)) {
           notified.current.add(key);
+          recordNotification("DAILY GOAL ⏰", `Time to: ${h.habit_name}`);
           if (
             "Notification" in window &&
             Notification.permission === "granted"

@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { recordNotification } from "@/lib/notify";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -119,6 +120,7 @@ export default function WorkoutPage() {
         const key = `${l.id}-${todayStr}-${time}`;
         if (time === nowHM && !notified.current.has(key)) {
           notified.current.add(key);
+          recordNotification("DAILY GOAL ⏰", `Time to: ${l.workout_type}`);
           if ("Notification" in window && Notification.permission === "granted") {
             new Notification("DAILY GOAL ⏰", { body: `Time to: ${l.workout_type}` });
           } else {

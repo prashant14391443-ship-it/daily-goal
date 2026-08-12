@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { recordNotification } from "@/lib/notify";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 
@@ -147,6 +148,7 @@ export default function ProfileMenu() {
           if (it.time === nowHM && !notified.has(it.key)) {
             notified.add(it.key);
             playBeep();
+            recordNotification("DAILY GOAL ⏰", `Time to: ${it.label}`);
             reg.showNotification("DAILY GOAL ⏰", { body: `Time to: ${it.label}` });
           }
         });

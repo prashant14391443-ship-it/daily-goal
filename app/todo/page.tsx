@@ -2,6 +2,7 @@
 export const dynamic = "force-dynamic";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { recordNotification } from "@/lib/notify";
 import { useRouter } from "next/navigation";
 
 type Todo = {
@@ -114,7 +115,8 @@ export default function TodoPage() {
         const time = t.reminder_time.slice(0, 5);
         const key = `${t.id}-${todayStr}-${time}`;
         if (time === nowHM && !notified.current.has(key)) {
-          notified.current.add(key);
+                    notified.current.add(key);
+          recordNotification("DAILY GOAL ⏰", `Time to: ${t.title}`);
           if ("Notification" in window && Notification.permission === "granted") {
             new Notification("DAILY GOAL ⏰", { body: `Time to: ${t.title}` });
           } else {
