@@ -207,6 +207,20 @@ export default function ProfileMenu() {
           >
             🎯 Settings / Goals
           </Link>
+          <Link
+            href="/badges"
+            onClick={() => setOpen(false)}
+            className="text-sm bg-slate-800 hover:bg-slate-700 p-2 rounded text-white"
+          >
+            🏆 Badges
+          </Link>
+          <Link
+            href="/report"
+            onClick={() => setOpen(false)}
+            className="text-sm bg-slate-800 hover:bg-slate-700 p-2 rounded text-white"
+          >
+            📊 Weekly Report
+          </Link>
           <button
             onClick={logout}
             className="text-sm bg-red-600 hover:bg-red-500 p-2 rounded font-semibold text-white"
