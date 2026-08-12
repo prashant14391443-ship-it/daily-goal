@@ -125,20 +125,20 @@ export default function ProfileMenu() {
       const items: { key: string; label: string; time: string }[] = [];
       (s.data || []).forEach((r) => {
         if (r.reminder_time)
-          items.push({ key: `s${r.id}`, label: r.subject, time: r.reminder_time.slice(0, 5) });
+          items.push({ key: `s${r.id}-${r.reminder_time.slice(0, 5)}`, label: r.subject, time: r.reminder_time.slice(0, 5) });
       });
       (g.data || []).forEach((r) => {
         if (r.reminder_time)
-          items.push({ key: `g${r.id}`, label: r.workout_type, time: r.reminder_time.slice(0, 5) });
+          items.push({ key: `g${r.id}-${r.reminder_time.slice(0, 5)}`, label: r.workout_type, time: r.reminder_time.slice(0, 5) });
       });
       const doneHabits = new Set((hl.data || []).map((x) => x.habit_id));
       (h.data || []).forEach((r) => {
         if (r.reminder_time && !doneHabits.has(r.id))
-          items.push({ key: `h${r.id}`, label: r.habit_name, time: r.reminder_time.slice(0, 5) });
+          items.push({ key: `h${r.id}-${r.reminder_time.slice(0, 5)}`, label: r.habit_name, time: r.reminder_time.slice(0, 5) });
       });
       (t.data || []).forEach((r) => {
         if (r.reminder_time && !r.completed)
-          items.push({ key: `t${r.id}`, label: r.title, time: r.reminder_time.slice(0, 5) });
+          items.push({ key: `t${r.id}-${r.reminder_time.slice(0, 5)}`, label: r.title, time: r.reminder_time.slice(0, 5) });
       });
 
       try {
