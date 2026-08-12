@@ -44,7 +44,9 @@ export default function CommunityRoomPage() {
   const [me, setMe] = useState("");
   const [myName, setMyName] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
   const [sending, setSending] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const id = typeof window !== "undefined" ? localStorage.getItem("dg-community") : null;
@@ -74,12 +76,10 @@ export default function CommunityRoomPage() {
     setPending(
       rows.filter((r) => r.status === "pending").map((r) => ({ user_id: r.user_id, user_name: r.user_name || "member" }))
     );
-    setMyStatus(uid === c.data?.owner_id ? "approved" : my.data?.status || "");
+    setMyStatus(uid === c.data.owner_id ? "approved" : my?.status || "");
 
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
     const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString();
-
-    // files die after 2 days
     const { data: oldFiles } = await supabase
       .from("community_messages")
       .select("id, file_url")
@@ -92,14 +92,7 @@ export default function CommunityRoomPage() {
     if (paths.length) {
       await supabase.storage.from("community-files").remove(paths);
     }
-    await supabase
-      .from("community_messages")
-      .delete()
-      .eq("community_id", id)
-      .not("file_url", "is", null)
-      .lt("created_at", twoDaysAgo);
-
-    // text dies after 7 days
+    await supabase.from("community_messages").delete().eq("community_id", id).not("file_url", "is", null).lt("created_at", twoDaysAgo);
     await supabase.from("community_messages").delete().eq("community_id", id).lt("created_at", weekAgo);
 
     const { data: msgs } = await supabase
@@ -124,6 +117,17 @@ export default function CommunityRoomPage() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "community_messages", filter: `community_id=eq.${id}` },
         (payload) => setMessages((m) => [...m, payload.new as Msg])
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "community_messages", filter: `community_id=eq.${id}` },
+        (payload) =>
+          setMessages((m) => m.map((x) => (x.id === (payload.new as Msg).id ? (payload.new as Msg) : x)))
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "community_messages", filter: `community_id=eq.${id}` },
+        (payload) => setMessages((m) => m.filter((x) => x.id !== (payload.old as Msg).id))
       )
       .subscribe();
     return () => {
@@ -159,8 +163,7 @@ export default function CommunityRoomPage() {
           canvas.height = height;
           canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
           canvas.toBlob(
-            (blob) =>
-              resolve(new File([blob || new Blob()], "photo.jpg", { type: "image/jpeg" })),
+            (blob) => resolve(new File([blob || new Blob()], "photo.jpg", { type: "image/jpeg" })),
             "image/jpeg",
             0.7
           );
@@ -178,21 +181,39 @@ export default function CommunityRoomPage() {
         alert("Image too big! Max 8 MB.");
         return;
       }
-      setFile(await compressImage(f));
+      const small = await compressImage(f);
+      setFile(small);
+      setPreview(URL.createObjectURL(small));
     } else if (f.type === "application/pdf") {
       if (f.size > 5 * 1024 * 1024) {
         alert("PDF too big! Max 5 MB.");
         return;
       }
       setFile(f);
+      setPreview("");
     } else {
       alert("Only images or PDF allowed!");
     }
   };
 
+  const clearFile = () => {
+    setFile(null);
+    setPreview("");
+  };
+
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!text.trim() && !file) || !id || sending) return;
+    if (!id) return;
+
+    if (editingId) {
+      if (!text.trim()) return;
+      await supabase.from("community_messages").update({ text: text.trim() }).eq("id", editingId);
+      setEditingId(null);
+      setText("");
+      return;
+    }
+
+    if ((!text.trim() && !file) || sending) return;
     setSending(true);
 
     let fileUrl: string | null = null;
@@ -206,7 +227,7 @@ export default function CommunityRoomPage() {
         fileUrl = urlData.publicUrl;
         fileType = file.type === "application/pdf" ? "pdf" : "image";
       }
-      setFile(null);
+      clearFile();
     }
 
     await supabase.from("community_messages").insert({
@@ -219,6 +240,20 @@ export default function CommunityRoomPage() {
     });
     setText("");
     setSending(false);
+  };
+
+  const del = async (m: Msg) => {
+    if (m.file_url) {
+      const p = String(m.file_url).split("/community-files/")[1];
+      if (p) await supabase.storage.from("community-files").remove([p]);
+    }
+    await supabase.from("community_messages").delete().eq("id", m.id);
+    setMessages((msgs) => msgs.filter((x) => x.id !== m.id));
+  };
+
+  const startEdit = (m: Msg) => {
+    setEditingId(m.id);
+    setText(m.text);
   };
 
   const approve = async (uid: string) => {
@@ -274,25 +309,41 @@ export default function CommunityRoomPage() {
     );
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8 flex flex-col">
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold">🏘️ {community?.name || "..."}</h1>
-        <p className="text-slate-400 text-sm">👥 {memberCount} members</p>
+    <main className="h-screen bg-slate-950 text-white p-3 md:p-6 flex flex-col">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold">🏘️ {community?.name || "..."}</h1>
+          <p className="text-slate-400 text-xs">👥 {memberCount} members</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setVoiceOn(!voiceOn)}
+            className={`px-3 py-2 rounded font-semibold text-sm ${voiceOn ? "bg-red-600" : "bg-green-600"}`}
+          >
+            {voiceOn ? "🔴 Voice" : "🎙️ Voice"}
+          </button>
+          <button onClick={invite} className="px-3 py-2 rounded bg-pink-600 text-sm font-semibold">
+            ➕
+          </button>
+          <button onClick={leave} className="px-3 py-2 rounded bg-slate-800 text-sm">
+            ←
+          </button>
+        </div>
       </div>
 
       {community && me === community.owner_id && pending.length > 0 && (
-        <div className="bg-amber-600/10 border border-amber-500/40 rounded-xl p-4 mb-4">
-          <p className="font-bold text-amber-400 mb-2">🙏 Join Requests ({pending.length})</p>
+        <div className="bg-amber-600/10 border border-amber-500/40 rounded-xl p-3 mb-3">
+          <p className="font-bold text-amber-400 mb-2 text-sm">🙏 Join Requests ({pending.length})</p>
           <div className="grid gap-2">
             {pending.map((p) => (
               <div key={p.user_id} className="flex items-center justify-between bg-slate-900 rounded p-2">
                 <span className="text-sm">{p.user_name}</span>
                 <div className="flex gap-2">
-                  <button onClick={() => approve(p.user_id)} className="px-3 py-1 rounded bg-green-600 hover:bg-green-500 text-xs font-bold">
-                    ✅ Approve
+                  <button onClick={() => approve(p.user_id)} className="px-3 py-1 rounded bg-green-600 text-xs font-bold">
+                    ✅
                   </button>
-                  <button onClick={() => reject(p.user_id)} className="px-3 py-1 rounded bg-red-600 hover:bg-red-500 text-xs font-bold">
-                    ❌ Reject
+                  <button onClick={() => reject(p.user_id)} className="px-3 py-1 rounded bg-red-600 text-xs font-bold">
+                    ❌
                   </button>
                 </div>
               </div>
@@ -301,28 +352,13 @@ export default function CommunityRoomPage() {
         </div>
       )}
 
-      <div className="flex gap-2 mb-4 flex-wrap">
-        <button
-          onClick={() => setVoiceOn(!voiceOn)}
-          className={`flex-1 min-w-[140px] py-3 rounded font-semibold ${voiceOn ? "bg-red-600 hover:bg-red-500" : "bg-green-600 hover:bg-green-500"}`}
-        >
-          {voiceOn ? "🔴 Leave Voice Room" : "🎙️ Join Voice Room"}
-        </button>
-        <button onClick={invite} className="px-4 py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold">
-          ➕ Invite
-        </button>
-        <button onClick={leave} className="px-4 py-3 rounded bg-slate-800 hover:bg-slate-700 text-sm">
-          Leave
-        </button>
-      </div>
-
       {voiceOn && community && (
-        <div className="mb-4">
+        <div className="mb-3">
           <LivekitRoom roomName={community.room_code} identity={myName} onLeave={() => setVoiceOn(false)} />
         </div>
       )}
 
-      <div className="flex-1 bg-slate-900 rounded-xl p-4 overflow-y-auto grid gap-2" style={{ maxHeight: "45vh" }}>
+      <div className="flex-1 min-h-0 bg-slate-900 rounded-xl p-3 overflow-y-auto grid gap-2 content-start">
         {messages.map((m) => {
           const own = m.user_id === me;
           return (
@@ -342,9 +378,20 @@ export default function CommunityRoomPage() {
                   </a>
                 )}
                 <p className="text-sm whitespace-pre-wrap">{m.text}</p>
-                <p className={`text-[10px] mt-0.5 text-right ${own ? "text-green-200" : "text-slate-400"}`}>
-                  {timeOf(m.created_at)}
-                </p>
+                <div className={`flex items-center gap-2 mt-0.5 ${own ? "justify-end" : "justify-between"}`}>
+                  {!own && <span />}
+                  <span className={`text-[10px] ${own ? "text-green-200" : "text-slate-400"}`}>{timeOf(m.created_at)}</span>
+                </div>
+                {own && (
+                  <div className="flex justify-end gap-3 mt-1">
+                    <button onClick={() => startEdit(m)} className="text-[11px] text-green-200 underline">
+                      ✏️ edit
+                    </button>
+                    <button onClick={() => del(m)} className="text-[11px] text-red-300 underline">
+                      🗑️ delete
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -354,31 +401,58 @@ export default function CommunityRoomPage() {
       </div>
 
       {file && (
-        <p className="text-xs text-sky-300 mt-2">
-          📎 {file.name} attached
-          <button onClick={() => setFile(null)} className="ml-2 text-red-400">✕ remove</button>
-        </p>
+        <div className="mt-2 bg-slate-900 border border-sky-500/40 rounded-xl p-3 flex items-center gap-3">
+          {preview ? (
+            <img src={preview} alt="preview" className="w-16 h-16 rounded-lg object-cover" />
+          ) : (
+            <span className="text-4xl">📄</span>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate">{file.name || "photo.jpg"}</p>
+            <p className="text-xs text-green-400">
+              {(file.size / 1024).toFixed(0)} KB — attached ✅ ready to send
+            </p>
+          </div>
+          <button type="button" onClick={clearFile} className="text-red-400 text-xl px-2">
+            ✕
+          </button>
+        </div>
       )}
 
-      <form onSubmit={send} className="flex gap-2 mt-2">
-        <label className="px-3 py-3 rounded bg-slate-800 hover:bg-slate-700 cursor-pointer text-lg">
+      {editingId && (
+        <div className="mt-2 bg-slate-900 border border-amber-500/40 rounded-xl p-2 flex items-center justify-between px-3">
+          <span className="text-xs text-amber-400 font-semibold">✏️ Editing message</span>
+          <button
+            type="button"
+            onClick={() => {
+              setEditingId(null);
+              setText("");
+            }}
+            className="text-xs text-red-400"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      <form onSubmit={send} className="flex gap-2 mt-2 items-center">
+        <label className="w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-700 cursor-pointer text-xl flex items-center justify-center shrink-0">
           📎
           <input type="file" accept="image/*,application/pdf" onChange={onFile} className="hidden" />
         </label>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Type a message..."
-          className="flex-1 p-3 rounded bg-slate-800 border border-slate-700"
+          placeholder={editingId ? "Edit your message..." : "Type a message..."}
+          className="flex-1 h-12 px-4 rounded-full bg-slate-800 border border-slate-700 text-base"
         />
-        <button disabled={sending} className="px-5 py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold disabled:opacity-50">
+        <button
+          disabled={sending}
+          className="w-12 h-12 rounded-full bg-pink-600 hover:bg-pink-500 font-semibold shrink-0 disabled:opacity-50"
+        >
           ➤
         </button>
       </form>
-
-      <Link href="/community" className="inline-block mt-4 text-sm text-slate-400 hover:text-white">
-        ← Back to Communities
-      </Link>
     </main>
   );
 }
