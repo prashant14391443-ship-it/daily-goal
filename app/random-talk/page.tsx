@@ -26,7 +26,6 @@ export default function RandomTalkPage() {
     };
     init();
     
-    // Cleanup: Remove user from queue if they close the tab or navigate away
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
       if (meRef.current) {
@@ -43,10 +42,8 @@ export default function RandomTalkPage() {
   };
 
   const matchWith = async (otherId: string) => {
-    // Generate a random 6-character room code
     const newRoom = "TALK-" + Math.random().toString(36).slice(2, 8).toUpperCase();
     
-    // Update both users in the database to 'matched' and assign the room
     const { data } = await supabase
       .from("talk_queue")
       .update({ status: "matched", room_code: newRoom })
@@ -61,7 +58,6 @@ export default function RandomTalkPage() {
       return;
     }
     
-    // Fallback: Check if I was matched by someone else at the exact same millisecond
     const { data: mine } = await supabase
       .from("talk_queue")
       .select("*")
@@ -77,12 +73,10 @@ export default function RandomTalkPage() {
 
   const start = async () => {
     setState("waiting");
-    // Put myself in the waiting room
     await supabase
       .from("talk_queue")
       .upsert({ user_id: me, status: "waiting", room_code: null });
 
-    // Look for someone else who is already waiting
     const { data } = await supabase
       .from("talk_queue")
       .select("*")
@@ -95,9 +89,7 @@ export default function RandomTalkPage() {
       return;
     }
 
-    // If nobody is waiting, poll every 2.5 seconds
     pollRef.current = setInterval(async () => {
-      // 1. Check if someone else matched with me
       const { data: mine } = await supabase
         .from("talk_queue")
         .select("*")
@@ -111,7 +103,6 @@ export default function RandomTalkPage() {
         return;
       }
       
-      // 2. Check if a new person joined the waiting room
       const { data: others } = await supabase
         .from("talk_queue")
         .select("*")
@@ -137,9 +128,10 @@ export default function RandomTalkPage() {
     setTimeout(start, 300);
   };
 
-  // MAGIC URL: This bypasses the pre-join screen, deep-link prompts, and sets default names.
+  // 1. Changed server to meet.ffmuc.net (No moderator block)
+  // 2. Forced audio on, video off, and skipped all setup pages
   const jitsiUrl = room 
-    ? `https://meet.jit.si/${room}#config.prejoinPageEnabled=false&config.disableDeepLinking=true&config.startWithVideoMuted=true&userInfo.displayName=Member` 
+    ? `https://meet.ffmuc.net/${room}#config.prejoinPageEnabled=false&config.disableDeepLinking=true&config.startWithVideoMuted=true&config.startWithAudioMuted=false` 
     : "";
 
   return (
@@ -152,13 +144,14 @@ export default function RandomTalkPage() {
         <p className="text-slate-400">Instant 1-on-1 voice with a random member</p>
       </div>
 
-      <div className="flex-1 flex flex-col justify-center max-w-2xl mx-auto w-full">
+      <div className="flex-1 flex flex-col justify-center max-w-md mx-auto w-full">
+        
         {state === "idle" && (
           <div className="bg-slate-900 rounded-xl p-8 text-center border border-slate-800 shadow-2xl">
             <p className="text-6xl mb-6">🎙️</p>
             <h2 className="text-2xl font-bold mb-2">Ready to talk?</h2>
             <p className="text-slate-400 mb-8">
-              Press the button to instantly connect with another online member. No setup required.
+              Press the button to instantly connect. No setup required.
             </p>
             <button
               onClick={start}
@@ -189,18 +182,19 @@ export default function RandomTalkPage() {
         )}
 
         {state === "talk" && (
-          <div className="bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-2xl flex flex-col h-[500px]">
-            <div className="bg-green-600 text-white text-center py-2 font-bold text-sm">
-              ✅ Connected! You are live.
+          <div className="bg-slate-900 rounded-xl p-8 text-center border border-slate-800 shadow-2xl flex flex-col items-center">
+            
+            {/* YOUR CUSTOM UI (Replaces Jitsi UI) */}
+            <div className="w-32 h-32 rounded-full bg-green-500/10 border-2 border-green-500/50 flex items-center justify-center animate-pulse mb-6">
+              <span className="text-5xl">🎙️</span>
             </div>
             
-            <iframe
-              src={jitsiUrl}
-              className="w-full flex-1 bg-black"
-              allow="camera; microphone; fullscreen; autoplay; display-capture"
-            />
-            
-            <div className="p-4 bg-slate-900 border-t border-slate-800 flex gap-3">
+            <h2 className="text-2xl font-bold text-green-400 mb-2">Connected!</h2>
+            <p className="text-slate-400 mb-8 text-sm">
+              Your microphone is open. Say hello! (Accept browser mic permissions if asked).
+            </p>
+
+            <div className="flex gap-3 w-full">
               <button
                 onClick={next}
                 className="flex-1 py-3 rounded-lg bg-pink-600 hover:bg-pink-500 font-semibold transition-colors"
@@ -209,16 +203,25 @@ export default function RandomTalkPage() {
               </button>
               <button
                 onClick={end}
-                className="flex-1 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 font-semibold transition-colors"
+                className="flex-1 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 font-semibold text-red-400 transition-colors"
               >
                 End Call
               </button>
             </div>
+
+            {/* THE INVISIBLE BACKEND ENGINE */}
+            {/* We make it 1x1 pixel and opacity 0 so the user NEVER sees it, but the audio still plays */}
+            <iframe
+              src={jitsiUrl}
+              allow="microphone; autoplay"
+              className="absolute w-[1px] h-[1px] opacity-0 pointer-events-none"
+            />
           </div>
         )}
+
       </div>
 
-      <div className="mt-8">
+      <div className="mt-8 text-center">
         <Link
           href="/community"
           className="inline-block text-sm text-slate-400 hover:text-white transition-colors"
