@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import LivekitRoom from "@/app/LivekitRoom";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -115,10 +116,7 @@ export default function RandomTalkPage() {
     setTimeout(start, 300);
   };
 
-  const jitsiUrl = (r: string) =>
-    `https://meet.ffmuc.net/${r}#config.prejoinConfig.enabled=false&config.requireDisplayName=false&userInfo.displayName=${encodeURIComponent(
-      displayName
-    )}`;
+
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
@@ -171,12 +169,7 @@ export default function RandomTalkPage() {
           <p className="text-center text-xs text-slate-400 mb-3">
             Allow microphone 🎤 when the browser asks — then talk!
           </p>
-          <iframe
-            src={jitsiUrl(room)}
-            className="w-full rounded-xl border border-slate-700"
-            style={{ height: 480 }}
-            allow="camera; microphone; fullscreen; autoplay; display-capture"
-          />
+          <LivekitRoom roomName={room} identity={displayName} onLeave={end} />
           <div className="flex gap-3 mt-4">
             <button
               onClick={next}
