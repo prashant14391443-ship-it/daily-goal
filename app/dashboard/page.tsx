@@ -433,6 +433,9 @@ export default function Dashboard() {
                             <Link href="/todo" className="text-slate-300 hover:text-white">
             ToDo
           </Link>
+          <Link href="/community" className="text-slate-300 hover:text-white">
+            Social
+          </Link>
         </nav>
       </div>
 
@@ -440,7 +443,7 @@ export default function Dashboard() {
         <p className="text-slate-400">Loading your day...</p>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6 mb-8">
             <Link
               href="/study-tracker"
               className="bg-slate-900 p-4 md:p-6 rounded-xl hover:bg-slate-800"
@@ -481,6 +484,15 @@ export default function Dashboard() {
                 {todoDone} / {todoTotal}
               </p>
               <p className="text-xs md:text-sm text-slate-400 mt-1">done today</p>
+            </Link>
+
+            <Link
+              href="/community"
+              className="bg-slate-900 p-4 md:p-6 rounded-xl hover:bg-slate-800"
+            >
+              <h3 className="text-base md:text-lg font-bold text-pink-400 mb-2">🏘️ Social</h3>
+              <p className="text-2xl md:text-3xl font-extrabold">💬</p>
+              <p className="text-xs md:text-sm text-slate-400 mt-1">chat & talk live</p>
             </Link>
 
             <div className="bg-slate-900 p-4 md:p-6 rounded-xl col-span-2 md:col-span-1">
