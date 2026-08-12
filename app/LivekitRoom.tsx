@@ -58,6 +58,16 @@ export default function LivekitRoom({
         r.on(RoomEvent.TrackMuted, update);
         r.on(RoomEvent.TrackUnmuted, update);
         r.on(RoomEvent.Disconnected, () => onLeave());
+
+        // 🔊 PLUG IN THE SPEAKERS (this was missing!)
+        r.on(RoomEvent.TrackSubscribed, (track) => {
+          const el = track.attach();
+          el.classList.add("lk-audio-el");
+          document.body.appendChild(el);
+        });
+        r.on(RoomEvent.TrackUnsubscribed, (track) => {
+          track.detach().forEach((el) => el.remove());
+        });
         update();
         setStatus("live");
 
@@ -75,6 +85,7 @@ export default function LivekitRoom({
     return () => {
       cancelled = true;
       roomRef.current?.disconnect();
+      document.querySelectorAll(".lk-audio-el").forEach((el) => el.remove());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomName, identity]);
