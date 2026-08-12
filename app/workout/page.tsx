@@ -214,10 +214,10 @@ export default function WorkoutPage() {
             }`}
           >
             <span className="hidden md:inline">
-              {remindersOn ? "🔔 Reminders ON" : "🔕 Reminders OFF"}
+              {remindersOn ? "⏰ Reminders ON" : "⏰ Reminders OFF"}
             </span>
             <span className="md:hidden">
-              {remindersOn ? "🔔 Reminder" : "🔕 Reminder"}
+              {remindersOn ? "⏰ Reminder" : "⏰ Reminder"}
             </span>
           </button>
           <button

@@ -79,7 +79,7 @@ export default function NotificationCenter() {
     <div className="fixed top-3 right-14 z-50" ref={boxRef}>
       <button
         onClick={toggle}
-        className="relative w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-lg"
+        className="relative w-9 h-9 rounded-full bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center text-lg"
       >
         🔔
         {unread > 0 && (
