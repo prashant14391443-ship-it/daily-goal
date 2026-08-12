@@ -51,9 +51,11 @@ export default function CommunityRoomPage() {
   const [preview, setPreview] = useState("");
   const [sending, setSending] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [menuMsg, setMenuMsg] = useState<Msg | null>(null);
+  const pressTimer = useRef<number | null>(null);
   
   const bottomRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null); // Added ref to fix Issue 3
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const id = typeof window !== "undefined" ? localStorage.getItem("dg-community") : null;
 
@@ -85,7 +87,6 @@ export default function CommunityRoomPage() {
       rows.filter((r) => r.status === "pending").map((r) => ({ user_id: r.user_id, user_name: r.user_name || "member" }))
     );
     
-    // Fixed Issues 2 and 4
     setMyStatus(uid === c.data?.owner_id ? "approved" : my.data?.status || "");
 
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
@@ -214,7 +215,7 @@ export default function CommunityRoomPage() {
     setFile(null);
     setPreview("");
     if (fileInputRef.current) {
-      fileInputRef.current.value = ""; // Fixed Issue 3: Reset DOM input
+      fileInputRef.current.value = ""; 
     }
   };
 
@@ -275,13 +276,30 @@ export default function CommunityRoomPage() {
     setText(m.text);
   };
 
+  // FIXED #1 & #2: Removed the duplicated startPress and cancelPress declarations
+  const startPress = (m: Msg) => {
+    if (m.user_id !== me) return;
+    pressTimer.current = window.setTimeout(() => setMenuMsg(m), 500);
+  };
+
+  const cancelPress = () => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
+
+  // FIXED #3: Added missing ID null-check
   const approve = async (uid: string) => {
+    if (!id) return;
     await supabase.from("community_members").update({ status: "approved" }).eq("community_id", id).eq("user_id", uid);
     setPending(pending.filter((p) => p.user_id !== uid));
     setMemberCount(memberCount + 1);
   };
 
+  // FIXED #4: Added missing ID null-check
   const reject = async (uid: string) => {
+    if (!id) return;
     await supabase.from("community_members").delete().eq("community_id", id).eq("user_id", uid);
     setPending(pending.filter((p) => p.user_id !== uid));
   };
@@ -332,7 +350,7 @@ export default function CommunityRoomPage() {
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">🏘️ {community?.name || "..."}</h1>
-          <p className="text-slate-400 text-xs">👥 {memberCount} members • v3</p>
+          <p className="text-slate-400 text-xs">👥 {memberCount} members • v4</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -382,7 +400,16 @@ export default function CommunityRoomPage() {
           const own = m.user_id === me;
           return (
             <div key={m.id} className={`flex ${own ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[78%] rounded-2xl px-3 py-2 ${own ? "bg-green-700" : "bg-slate-800"}`}>
+              <div
+                className={`max-w-[78%] rounded-2xl px-3 py-2 select-none ${own ? "bg-green-700" : "bg-slate-800"}`}
+                onTouchStart={() => startPress(m)}
+                onTouchEnd={cancelPress}
+                onTouchMove={cancelPress}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (m.user_id === me) setMenuMsg(m);
+                }}
+              >
                 {!own && (
                   <p className="text-xs font-bold mb-0.5" style={{ color: nameColor(m.user_name) }}>
                     {m.user_name}
@@ -400,18 +427,6 @@ export default function CommunityRoomPage() {
                 <div className="flex items-center justify-end gap-2 mt-0.5">
                   <span className={`text-[10px] ${own ? "text-green-200" : "text-slate-400"}`}>{timeOf(m.created_at)}</span>
                 </div>
-                {own && (
-                  <div className="flex justify-end gap-3 mt-1">
-                    {canEdit(m.created_at) && (
-                      <button onClick={() => startEdit(m)} className="text-[11px] text-green-200 underline">
-                        ✏️ edit
-                      </button>
-                    )}
-                    <button onClick={() => del(m)} className="text-[11px] text-red-300 underline">
-                      🗑️ delete
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           );
@@ -420,7 +435,6 @@ export default function CommunityRoomPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Fixed Issue 1: Completed the JSX for file UI, editing banner, and chat input form */}
       {file && (
         <div className="mt-2 bg-slate-900 border border-sky-500/40 rounded-xl p-3 flex items-center gap-3">
           {preview ? (
@@ -459,7 +473,7 @@ export default function CommunityRoomPage() {
           className="hidden"
           accept="image/*,application/pdf"
           onChange={onFile}
-          ref={fileInputRef} // Needed for Issue 3
+          ref={fileInputRef} 
         />
         
         {!editingId && (
@@ -487,6 +501,50 @@ export default function CommunityRoomPage() {
           {sending ? "⏳" : (editingId ? "💾" : "➤")}
         </button>
       </form>
+
+      {/* Bonus Fix: Corrected Strict null-checks when handling the menuMsg */}
+      {menuMsg && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          onClick={() => setMenuMsg(null)}
+        >
+          <div
+            className="bg-slate-800 rounded-xl p-2 w-52 grid gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {canEdit(menuMsg.created_at) && (
+              <button
+                onClick={() => {
+                  if (menuMsg) {
+                    startEdit(menuMsg);
+                    setMenuMsg(null);
+                  }
+                }}
+                className="text-left px-4 py-3 rounded-lg hover:bg-slate-700"
+              >
+                ✏️ Edit
+              </button>
+            )}
+            <button
+              onClick={() => {
+                if (menuMsg) {
+                  del(menuMsg);
+                  setMenuMsg(null);
+                }
+              }}
+              className="text-left px-4 py-3 rounded-lg hover:bg-slate-700 text-red-400"
+            >
+              🗑️ Delete
+            </button>
+            <button
+              onClick={() => setMenuMsg(null)}
+              className="text-left px-4 py-3 rounded-lg hover:bg-slate-700 text-slate-400"
+            >
+              ✖ Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
