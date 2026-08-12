@@ -1,79 +1,137 @@
-import { NextResponse } from "next/server";
+"use client";
 
-type ModelInfo = { name: string; supportedGenerationMethods?: string[] };
+import { useState } from "react";
+import { supabase } from "@/lib/supabase";
+import Link from "next/link";
 
-async function getCandidates(key: string): Promise<string[]> {
-  const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=200`
-  );
-  const d = await r.json();
-  const list: ModelInfo[] = d.models || [];
-  const usable = list.filter(
-    (m) =>
-      (m.supportedGenerationMethods || []).includes("generateContent") &&
-      /gemini/.test(m.name) &&
-      !/embedding|tts|image|a2i|deep-research|robotics/i.test(m.name)
-  );
-  const clean = (m: ModelInfo) => m.name.replace("models/", "");
-  const ordered = [
-    ...usable.filter((m) => /flash/.test(m.name) && !/preview/.test(m.name)),
-    ...usable.filter((m) => /flash/.test(m.name) && /preview/.test(m.name)),
-    ...usable.filter((m) => /pro/.test(m.name)),
-  ].map(clean);
-  return [...new Set(ordered)].slice(0, 4);
+function toLocalISO(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
-export async function POST(req: Request) {
-  try {
-    const { task } = await req.json();
-    const key = process.env.GEMINI_API_KEY;
+export default function BreakdownPage() {
+  const [task, setTask] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [steps, setSteps] = useState<string[]>([]);
+  const [picked, setPicked] = useState<boolean[]>([]);
+  const [saved, setSaved] = useState(false);
 
-    if (!key) {
-      return NextResponse.json({ error: "API key not configured." }, { status: 500 });
-    }
-    if (!task) {
-      return NextResponse.json({ error: "Enter a task first." }, { status: 400 });
-    }
-
-    const prompt = `Break this big task into 6-8 small actionable steps (each under 10 words, start with a verb): "${task}".
-    Reply ONLY with a valid JSON array of strings (no markdown): ["step 1","step 2"]`;
-
-    const candidates = await getCandidates(key);
-    let data: any = null;
-    let lastError = "";
-    for (const model of candidates) {
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.6, maxOutputTokens: 1024 },
-          }),
-        }
-      );
-      data = await r.json();
-      if (data.candidates && data.candidates.length > 0) break;
-      lastError = data?.error?.message || "model failed";
-    }
-
-    if (!data?.candidates?.length) {
-      return NextResponse.json({ error: `AI error: ${lastError}` }, { status: 500 });
-    }
-
-    let text = data.candidates[0]?.content?.parts?.[0]?.text || "";
-    text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const match = text.match(/\[[\s\S]*\]/);
-    if (match) text = match[0];
-
+  const generate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setSteps([]);
+    setSaved(false);
     try {
-      const steps = JSON.parse(text);
-      return NextResponse.json({ steps });
-    } catch {
-      return NextResponse.json({ error: "Could not parse steps. Try again." }, { status: 500 });
+      const res = await fetch("/api/breakdown", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ task }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "failed");
+      setSteps(data.steps || []);
+      setPicked(new Array((data.steps || []).length).fill(true));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed. Try again.");
     }
-  } catch {
-    return NextResponse.json({ error: "Server error. Try again." }, { status: 500 });
-  }
+    setLoading(false);
+  };
+
+  const addSelected = async () => {
+    const { data } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+    if (!userId) return;
+    const today = toLocalISO(new Date());
+    const chosen = steps.filter((_, i) => picked[i]);
+    for (const s of chosen) {
+      await supabase.from("tasks").insert({
+        user_id: userId,
+        title: s,
+        category: "todo",
+        task_date: today,
+        completed: false,
+      });
+    }
+    setSaved(true);
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold flex items-center gap-3">
+          <span className="w-10 h-10 rounded-xl bg-amber-600/20 border border-amber-500/40 flex items-center justify-center text-xl">🤖</span>
+          AI Breakdown
+        </h1>
+        <p className="text-slate-400">Big scary task → tiny easy steps</p>
+      </div>
+
+      <form onSubmit={generate} className="bg-slate-900 p-6 rounded-lg mb-8 grid gap-4">
+        <input
+          value={task}
+          onChange={(e) => setTask(e.target.value)}
+          placeholder="Big task (e.g. Prepare for physics exam)"
+          required
+          className="p-3 rounded bg-slate-800 border border-slate-700"
+        />
+        <button
+          disabled={loading}
+          className="py-3 rounded bg-amber-600 hover:bg-amber-500 font-semibold disabled:opacity-50"
+        >
+          {loading ? "🤖 AI is thinking..." : "⚡ Break It Down"}
+        </button>
+      </form>
+
+      {error && <p className="text-red-400 mb-4">❌ {error}</p>}
+
+      {steps.length > 0 && !saved && (
+        <div className="grid gap-2 mb-6">
+          {steps.map((s, i) => (
+            <label
+              key={i}
+              className="bg-slate-900 rounded p-3 flex items-center gap-3 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={picked[i]}
+                onChange={() =>
+                  setPicked(picked.map((p, j) => (j === i ? !p : p)))
+                }
+                className="w-4 h-4"
+              />
+              <span className="text-sm">
+                {i + 1}. {s}
+              </span>
+            </label>
+          ))}
+          <button
+            onClick={addSelected}
+            className="py-3 rounded bg-green-600 hover:bg-green-500 font-semibold"
+          >
+            ➕ Add selected to today's tasks
+          </button>
+        </div>
+      )}
+
+      {saved && (
+        <div className="bg-green-600/20 border border-green-500/40 rounded-xl p-6 text-center">
+          <p className="text-4xl mb-2">✅</p>
+          <p className="font-bold">Steps added to today's Task Log!</p>
+          <Link href="/tasklog" className="text-sm text-green-400 underline">
+            Open Task Log →
+          </Link>
+        </div>
+      )}
+
+      <Link
+        href="/todo"
+        className="inline-block mt-6 text-sm text-slate-400 hover:text-white"
+      >
+        ← Back to ToDo
+      </Link>
+    </main>
+  );
 }
