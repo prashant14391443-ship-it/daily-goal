@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-// Added 'Track' to the imports here
 import { Room, RoomEvent, Track } from "livekit-client";
 
 export default function LivekitRoom({
@@ -17,6 +16,7 @@ export default function LivekitRoom({
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
+  const [micError, setMicError] = useState(false);
 
   useEffect(() => {
     let activeRoom: Room | null = null;
@@ -34,7 +34,7 @@ export default function LivekitRoom({
         const r = new Room();
         activeRoom = r;
 
-        // FIX 1: Listen for remote audio tracks and attach them to the browser so you can actually hear them!
+        // Listen for incoming audio from other people and attach it
         r.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
           if (track.kind === Track.Kind.Audio) {
             const element = track.attach();
@@ -42,22 +42,16 @@ export default function LivekitRoom({
           }
         });
 
-        // Cleanup audio tracks when someone leaves
+        // Cleanup audio when someone leaves
         r.on(RoomEvent.TrackUnsubscribed, (track) => {
           track.detach().forEach((el) => el.remove());
         });
 
+        // 1. Connect to the room FIRST
         await r.connect(data.url, data.token);
 
-        // FIX 2: Prevent the "Requested device not found" crash on laptops with no mic
-        try {
-          await r.localParticipant.setMicrophoneEnabled(true);
-        } catch (micErr) {
-          console.warn("Microphone access failed or no mic found:", micErr);
-          setMuted(true); // Default to muted if mic fails, but keep them in the room
-        }
-
-        r.on(RoomEvent.Disconnected, onLeave);
+        // 2. MOBILE FIX: Force the phone's audio context to wake up
+        await r.startAudio().catch(console.error);
 
         const updateList = () => {
           const names = [r.localParticipant.identity];
@@ -69,7 +63,17 @@ export default function LivekitRoom({
         r.on(RoomEvent.ParticipantDisconnected, updateList);
         updateList();
 
+        // 3. Show the room UI immediately so it doesn't crash
         setRoom(r);
+
+        // 4. LAPTOP FIX: Try to turn on the mic entirely separately
+        // We do NOT use "await" here, so if it fails, it doesn't crash the room!
+        r.localParticipant.setMicrophoneEnabled(true).catch((err) => {
+          console.warn("Mic error:", err);
+          setMuted(true);
+          setMicError(true);
+        });
+
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Failed to connect";
         setError(msg);
@@ -89,8 +93,11 @@ export default function LivekitRoom({
       const newState = !muted;
       await room.localParticipant.setMicrophoneEnabled(!newState);
       setMuted(newState);
+      setMicError(false); // Clear the error if they plugged a mic in!
     } catch (err) {
-      alert("Could not access microphone. Please check browser permissions.");
+      alert("No microphone found! Please plug one in or check browser permissions.");
+      setMicError(true);
+      setMuted(true);
     }
   };
 
@@ -101,7 +108,7 @@ export default function LivekitRoom({
 
   if (error)
     return (
-      <p className="text-red-400 text-center p-4 bg-red-900/20 rounded-xl">
+      <p className="text-red-400 text-center p-4 bg-red-900/20 rounded-xl border border-red-500/30">
         ❌ {error}
       </p>
     );
@@ -114,12 +121,12 @@ export default function LivekitRoom({
     );
 
   return (
-    <div className="bg-slate-900 border border-green-500/40 rounded-xl p-5">
+    <div className="bg-slate-900 border border-green-500/40 rounded-xl p-5 shadow-lg">
       <p className="text-center text-green-400 font-bold mb-3">
         🟢 Live Room — {participants.length} {participants.length === 1 ? "person" : "people"}
       </p>
       
-      <div className="flex flex-wrap justify-center gap-2 mb-5">
+      <div className="flex flex-wrap justify-center gap-2 mb-4">
         {participants.map((name, i) => (
           <div
             key={i}
@@ -130,6 +137,12 @@ export default function LivekitRoom({
           </div>
         ))}
       </div>
+
+      {micError && (
+        <p className="text-xs text-amber-400 text-center mb-4 bg-amber-900/20 p-2 rounded">
+          ⚠️ No microphone detected. You can hear others, but they can't hear you.
+        </p>
+      )}
 
       <div className="flex gap-3">
         <button
