@@ -9,13 +9,12 @@ const tabs = [
   { href: "/gym-log", icon: "🏋️", label: "Gym" },
   { href: "/routine-habits", icon: "✅", label: "Habits" },
   { href: "/todo", icon: "📝", label: "ToDo" },
-  { href: "/community", icon: "🏘️", label: "Social" },
 ];
 
 export default function BottomNav() {
   const pathname = usePathname();
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 bg-slate-900 border-t border-slate-800 grid grid-cols-6 md:hidden">
+    <nav className="fixed bottom-0 inset-x-0 z-40 bg-slate-900 border-t border-slate-800 grid grid-cols-5 md:hidden">
       {tabs.map((t) => (
         <Link
           key={t.href}

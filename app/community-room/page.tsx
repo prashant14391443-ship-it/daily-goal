@@ -66,6 +66,7 @@ export default function CommunityPage() {
       .insert({ owner_id: userId, name, description: desc, room_code: room })
       .select()
       .single();
+    if (!data) return;
     await supabase
       .from("community_members")
       .insert({ community_id: data.id, user_id: userId });
