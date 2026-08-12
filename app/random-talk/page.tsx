@@ -9,8 +9,7 @@ export default function RandomTalkPage() {
   const [state, setState] = useState<"idle" | "waiting" | "talk">("idle");
   const [room, setRoom] = useState("");
   const [me, setMe] = useState("");
-  const stateRef = useRef(state);
-  stateRef.current = state;
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const meRef = useRef("");
   const router = useRouter();
 
@@ -27,35 +26,32 @@ export default function RandomTalkPage() {
     };
     init();
     return () => {
-      if (meRef.current && stateRef.current === "waiting") {
+      if (pollRef.current) clearInterval(pollRef.current);
+      if (meRef.current)
         supabase.from("talk_queue").delete().eq("user_id", meRef.current);
-      }
     };
   }, []);
 
+  const stopPoll = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  const matchWith = async (otherId: string) => {
+    const newRoom = "TALK-" + Math.random().toString(36).slice(2, 8);
+    await supabase
+      .from("talk_queue")
+      .update({ status: "matched", room_code: newRoom })
+      .in("user_id", [me, otherId]);
+    stopPoll();
+    setRoom(newRoom);
+    setState("talk");
+  };
+
   const start = async () => {
     setState("waiting");
-
-    supabase
-      .channel("tq-" + me)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "talk_queue",
-          filter: `user_id=eq.${me}`,
-        },
-        (payload) => {
-          const row = payload.new as { status: string; room_code: string | null };
-          if (row.status === "matched" && row.room_code) {
-            setRoom(row.room_code);
-            setState("talk");
-          }
-        }
-      )
-      .subscribe();
-
     await supabase
       .from("talk_queue")
       .upsert({ user_id: me, status: "waiting", room_code: null });
@@ -66,29 +62,42 @@ export default function RandomTalkPage() {
       .eq("status", "waiting")
       .neq("user_id", me)
       .limit(1);
-
     if (data && data.length > 0) {
-      const other = data[0];
-      const newRoom = "TALK-" + Math.random().toString(36).slice(2, 8);
-      await supabase
-        .from("talk_queue")
-        .update({ status: "matched", room_code: newRoom })
-        .in("user_id", [me, other.user_id]);
-      setRoom(newRoom);
-      setState("talk");
+      await matchWith(data[0].user_id);
+      return;
     }
+
+    pollRef.current = setInterval(async () => {
+      const { data: mine } = await supabase
+        .from("talk_queue")
+        .select("*")
+        .eq("user_id", me)
+        .maybeSingle();
+      if (mine && mine.status === "matched" && mine.room_code) {
+        stopPoll();
+        setRoom(mine.room_code);
+        setState("talk");
+        return;
+      }
+      const { data: others } = await supabase
+        .from("talk_queue")
+        .select("*")
+        .eq("status", "waiting")
+        .neq("user_id", me)
+        .limit(1);
+      if (others && others.length > 0) await matchWith(others[0].user_id);
+    }, 2500);
   };
 
   const end = async () => {
+    stopPoll();
     await supabase.from("talk_queue").delete().eq("user_id", me);
     setRoom("");
     setState("idle");
   };
 
   const next = async () => {
-    await supabase.from("talk_queue").delete().eq("user_id", me);
-    setRoom("");
-    setState("idle");
+    await end();
     setTimeout(start, 300);
   };
 
@@ -122,7 +131,7 @@ export default function RandomTalkPage() {
           <p className="text-5xl mb-4 animate-pulse">🔍</p>
           <p className="font-bold mb-2">Finding a partner...</p>
           <p className="text-sm text-slate-400 mb-6">
-            Keep this screen open. You'll connect the moment another member presses the button.
+            Keep this screen open. You'll connect within seconds of another member pressing the button.
           </p>
           <button
             onClick={end}
