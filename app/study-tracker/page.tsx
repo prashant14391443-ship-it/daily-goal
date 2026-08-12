@@ -36,16 +36,22 @@ export default function StudyHub() {
           </p>
         </Link>
 
-        <Link
-          href="/flashcards"
-          className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-center hover:bg-slate-800"
-        >
-          <span className="text-4xl">🃏</span>
-          <h3 className="font-bold mt-3">Flashcards</h3>
-          <p className="text-xs text-slate-400 mt-1">
-            Memorize anything, forgot cards repeat
-          </p>
-        </Link>
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 grid grid-cols-2 gap-3">
+          <Link href="/flashcards" className="text-center p-3 rounded-lg hover:bg-slate-800">
+            <span className="text-4xl">🃏</span>
+            <h3 className="font-bold mt-3">Flashcards</h3>
+            <p className="text-xs text-slate-400 mt-1">
+              Memorize anything
+            </p>
+          </Link>
+          <Link href="/summarize" className="text-center p-3 rounded-lg hover:bg-slate-800">
+            <span className="text-4xl">🧠</span>
+            <h3 className="font-bold mt-3">Summarize</h3>
+            <p className="text-xs text-slate-400 mt-1">
+              Points + mind-map
+            </p>
+          </Link>
+        </div>
 
         <Link
           href="/quiz"
