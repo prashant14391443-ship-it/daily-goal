@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Room, RoomEvent, Track } from "livekit-client";
+import { useEffect, useRef, useState } from "react";
+import { Room, RoomEvent } from "livekit-client";
 
 export default function LivekitRoom({
   roomName,
@@ -12,15 +12,15 @@ export default function LivekitRoom({
   identity: string;
   onLeave: () => void;
 }) {
-  const [room, setRoom] = useState<Room | null>(null);
-  const [muted, setMuted] = useState(false);
+  const [status, setStatus] = useState<"connecting" | "live">("connecting");
   const [error, setError] = useState("");
-  const [participants, setParticipants] = useState<string[]>([]);
-  const [micError, setMicError] = useState(false);
+  const [micOn, setMicOn] = useState(false);
+  const [micMsg, setMicMsg] = useState("");
+  const [people, setPeople] = useState<string[]>([]);
+  const roomRef = useRef<Room | null>(null);
 
   useEffect(() => {
-    let activeRoom: Room | null = null;
-
+    let cancelled = false;
     const connect = async () => {
       try {
         const res = await fetch("/api/voice-token", {
@@ -29,91 +29,75 @@ export default function LivekitRoom({
           body: JSON.stringify({ room: roomName, identity }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to get token");
+        if (!res.ok) throw new Error(data.error || "Token failed");
 
         const r = new Room();
-        activeRoom = r;
-
-        // Listen for incoming audio from other people and attach it
-        r.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-          if (track.kind === Track.Kind.Audio) {
-            const element = track.attach();
-            document.body.appendChild(element);
-          }
-        });
-
-        // Cleanup audio when someone leaves
-        r.on(RoomEvent.TrackUnsubscribed, (track) => {
-          track.detach().forEach((el) => el.remove());
-        });
-
-        // 1. Connect to the room FIRST
+        roomRef.current = r;
         await r.connect(data.url, data.token);
+        if (cancelled) {
+          r.disconnect();
+          return;
+        }
 
-        // 2. MOBILE FIX: Force the phone's audio context to wake up
-        await r.startAudio().catch(console.error);
-
-        const updateList = () => {
-          const names = [r.localParticipant.identity];
+        const update = () => {
+          const names = [identity];
           r.remoteParticipants.forEach((p) => names.push(p.identity));
-          setParticipants(names);
+          setPeople(names);
         };
+        r.on(RoomEvent.ParticipantConnected, update);
+        r.on(RoomEvent.ParticipantDisconnected, update);
+        r.on(RoomEvent.Disconnected, () => onLeave());
+        update();
+        setStatus("live");
 
-        r.on(RoomEvent.ParticipantConnected, updateList);
-        r.on(RoomEvent.ParticipantDisconnected, updateList);
-        updateList();
-
-        // 3. Show the room UI immediately so it doesn't crash
-        setRoom(r);
-
-        // 4. LAPTOP FIX: Try to turn on the mic entirely separately
-        // We do NOT use "await" here, so if it fails, it doesn't crash the room!
-        r.localParticipant.setMicrophoneEnabled(true).catch((err) => {
-          console.warn("Mic error:", err);
-          setMuted(true);
-          setMicError(true);
-        });
-
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Failed to connect";
-        setError(msg);
+        try {
+          await r.localParticipant.setMicrophoneEnabled(true);
+          setMicOn(true);
+        } catch {
+          setMicMsg("Mic not started — tap 🎤 Enable Mic below.");
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Connect failed");
       }
     };
-    
     connect();
-
     return () => {
-      activeRoom?.disconnect();
+      cancelled = true;
+      roomRef.current?.disconnect();
     };
-  }, [roomName, identity, onLeave]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomName, identity]);
 
-  const toggleMute = async () => {
-    if (!room) return;
+  const enableMic = async () => {
+    const r = roomRef.current;
+    if (!r) return;
     try {
-      const newState = !muted;
-      await room.localParticipant.setMicrophoneEnabled(!newState);
-      setMuted(newState);
-      setMicError(false); // Clear the error if they plugged a mic in!
-    } catch (err) {
-      alert("No microphone found! Please plug one in or check browser permissions.");
-      setMicError(true);
-      setMuted(true);
+      await r.localParticipant.setMicrophoneEnabled(true);
+      setMicOn(true);
+      setMicMsg("");
+    } catch {
+      setMicMsg(
+        "No mic found! Windows: Settings→Sound→Input choose mic + Privacy→Microphone ON. Or use earphones 🎧"
+      );
     }
   };
 
-  const leave = async () => {
-    room?.disconnect();
+  const muteMic = async () => {
+    await roomRef.current?.localParticipant.setMicrophoneEnabled(false);
+    setMicOn(false);
+  };
+
+  const leave = () => {
+    roomRef.current?.disconnect();
     onLeave();
   };
 
   if (error)
     return (
-      <p className="text-red-400 text-center p-4 bg-red-900/20 rounded-xl border border-red-500/30">
-        ❌ {error}
-      </p>
+      <p className="text-red-400 text-center p-4 bg-red-900/20 rounded-xl">❌ {error}</p>
     );
 
-  if (!room)
+  if (status === "connecting")
     return (
       <p className="text-slate-400 text-center p-6 animate-pulse bg-slate-900 rounded-xl">
         📡 Connecting to voice room...
@@ -121,13 +105,13 @@ export default function LivekitRoom({
     );
 
   return (
-    <div className="bg-slate-900 border border-green-500/40 rounded-xl p-5 shadow-lg">
+    <div className="bg-slate-900 border border-green-500/40 rounded-xl p-5">
       <p className="text-center text-green-400 font-bold mb-3">
-        🟢 Live Room — {participants.length} {participants.length === 1 ? "person" : "people"}
+        🟢 Live Room — {people.length} {people.length === 1 ? "person" : "people"}
       </p>
-      
+
       <div className="flex flex-wrap justify-center gap-2 mb-4">
-        {participants.map((name, i) => (
+        {people.map((name, i) => (
           <div
             key={i}
             className="bg-slate-800 px-3 py-2 rounded-lg text-sm flex items-center gap-2"
@@ -138,26 +122,29 @@ export default function LivekitRoom({
         ))}
       </div>
 
-      {micError && (
-        <p className="text-xs text-amber-400 text-center mb-4 bg-amber-900/20 p-2 rounded">
-          ⚠️ No microphone detected. You can hear others, but they can't hear you.
-        </p>
+      {micMsg && (
+        <p className="text-xs text-amber-400 text-center mb-4">{micMsg}</p>
       )}
 
       <div className="flex gap-3">
-        <button
-          onClick={toggleMute}
-          className={`flex-1 py-3 rounded font-semibold transition-colors ${
-            muted
-              ? "bg-red-600 hover:bg-red-500"
-              : "bg-slate-700 hover:bg-slate-600"
-          }`}
-        >
-          {muted ? "🔇 Unmute" : "🎤 Mute"}
-        </button>
+        {micOn ? (
+          <button
+            onClick={muteMic}
+            className="flex-1 py-3 rounded bg-slate-700 hover:bg-slate-600 font-semibold"
+          >
+            🔇 Mute
+          </button>
+        ) : (
+          <button
+            onClick={enableMic}
+            className="flex-1 py-3 rounded bg-green-600 hover:bg-green-500 font-semibold"
+          >
+            🎤 Enable Mic
+          </button>
+        )}
         <button
           onClick={leave}
-          className="flex-1 py-3 rounded bg-slate-800 border border-red-500/50 text-red-400 hover:bg-red-600 hover:text-white font-semibold transition-colors"
+          className="flex-1 py-3 rounded bg-slate-800 border border-red-500/50 text-red-400 hover:bg-red-600 hover:text-white font-semibold"
         >
           ❌ Leave
         </button>
