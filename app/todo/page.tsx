@@ -103,6 +103,7 @@ export default function TodoPage() {
     if (!remindersOn) return;
 
     const check = () => {
+      if (/Android/i.test(navigator.userAgent)) return;
       const now = new Date();
       const hh = String(now.getHours()).padStart(2, "0");
       const mm = String(now.getMinutes()).padStart(2, "0");

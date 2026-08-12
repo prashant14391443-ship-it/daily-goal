@@ -107,6 +107,7 @@ export default function RoutineHabits() {
     if (!remindersOn) return;
 
     const check = () => {
+      if (/Android/i.test(navigator.userAgent)) return;
       const now = new Date();
       const hh = String(now.getHours()).padStart(2, "0");
       const mm = String(now.getMinutes()).padStart(2, "0");
@@ -123,7 +124,6 @@ export default function RoutineHabits() {
         const key = `${h.id}-${todayStr}-${t}`;
         if (t === nowHM && !doneToday.has(h.id) && !notified.current.has(key)) {
           notified.current.add(key);
-          recordNotification("DAILY GOAL ⏰", `Time to: ${h.habit_name}`);
           if (
             "Notification" in window &&
             Notification.permission === "granted"
