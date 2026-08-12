@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     }
 
     let userContext = "Estimate portion size from the photo.";
-    
+
     if (foodName && quantity) {
       userContext = `The user has identified this food as "${foodName}" with quantity "${quantity}". Use this information heavily in your calculation for maximum accuracy.`;
     } else if (foodName) {
@@ -33,40 +33,55 @@ export async function POST(req: Request) {
     }
 
     const prompt = `You are a nutritionist. Analyze this food photo and estimate the total meal's nutritional value.
-    
+
     ${userContext}
-    
+
     Reply ONLY with valid JSON (no markdown, no code blocks):
     {"food": "short food name", "calories": number, "protein": number, "carbs": number, "fat": number, "advice": "one short healthy tip"}`;
 
-    const r = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${key}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: prompt },
-                { inline_data: { mime_type: mime, data: base64 } },
-              ],
+    // Try models in order until one works
+    const models = [
+      "gemini-2.0-flash",
+      "gemini-2.0-flash-lite",
+      "gemini-1.5-flash",
+      "gemini-1.5-pro",
+    ];
+
+    let data = null;
+    for (const model of models) {
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: prompt },
+                  { inline_data: { mime_type: mime, data: base64 } },
+                ],
+              },
+            ],
+            generationConfig: {
+              temperature: 0.4,
+              maxOutputTokens: 1024,
             },
-          ],
-          generationConfig: {
-            temperature: 0.4,
-            maxOutputTokens: 1024,
-          },
-        }),
+          }),
+        }
+      );
+      data = await r.json();
+
+      // If this model worked, stop trying
+      if (data.candidates && data.candidates.length > 0) {
+        break;
       }
-    );
+    }
 
-    const data = await r.json();
-
-    if (data.error) {
-      console.error("Gemini API error:", data.error);
+    if (!data || data.error) {
+      console.error("Gemini API error:", data?.error);
       return NextResponse.json(
-        { error: `AI error: ${data.error.message || "Try again"}` },
+        { error: `AI error: ${data?.error?.message || "No model available. Try again."}` },
         { status: 500 }
       );
     }
