@@ -41,13 +41,28 @@ export default function RandomTalkPage() {
 
   const matchWith = async (otherId: string) => {
     const newRoom = "TALK-" + Math.random().toString(36).slice(2, 8);
-    await supabase
+    const { data } = await supabase
       .from("talk_queue")
       .update({ status: "matched", room_code: newRoom })
-      .in("user_id", [me, otherId]);
-    stopPoll();
-    setRoom(newRoom);
-    setState("talk");
+      .in("user_id", [me, otherId])
+      .eq("status", "waiting")
+      .select();
+    if (data && data.length === 2) {
+      stopPoll();
+      setRoom(newRoom);
+      setState("talk");
+      return;
+    }
+    const { data: mine } = await supabase
+      .from("talk_queue")
+      .select("*")
+      .eq("user_id", me)
+      .maybeSingle();
+    if (mine && mine.status === "matched" && mine.room_code) {
+      stopPoll();
+      setRoom(mine.room_code);
+      setState("talk");
+    }
   };
 
   const start = async () => {
@@ -144,8 +159,11 @@ export default function RandomTalkPage() {
 
       {state === "talk" && (
         <div className="max-w-md mx-auto">
-          <p className="text-center text-green-400 font-bold mb-3">
+          <p className="text-center text-green-400 font-bold mb-2">
             ✅ Matched! You're live — say hi! 👋
+          </p>
+          <p className="text-center text-xs text-slate-400 mb-3">
+            BOTH press blue "Join meeting" inside & allow microphone 🎤
           </p>
           <iframe
             src={`https://meet.jit.si/${room}`}
