@@ -9,14 +9,15 @@ type Community = {
   id: string;
   name: string;
   description: string;
-  room_code: string;
   members: number;
   joined: boolean;
+  requested: boolean;
 };
 
 export default function CommunityPage() {
   const [list, setList] = useState<Community[]>([]);
   const [userId, setUserId] = useState("");
+  const [myName, setMyName] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
@@ -31,24 +32,32 @@ export default function CommunityPage() {
       return;
     }
     setUserId(uid);
+    setMyName(data.session?.user.email?.split("@")[0] || "member");
     const [c, m, jm] = await Promise.all([
       supabase.from("communities").select("*").order("created_at", { ascending: false }),
-      supabase.from("community_members").select("community_id"),
-      supabase.from("community_members").select("community_id").eq("user_id", uid),
+      supabase
+        .from("community_members")
+        .select("community_id")
+        .eq("status", "approved"),
+      supabase
+        .from("community_members")
+        .select("community_id, status")
+        .eq("user_id", uid),
     ]);
     const counts = new Map<string, number>();
     (m.data || []).forEach((r) =>
       counts.set(r.community_id, (counts.get(r.community_id) || 0) + 1)
     );
-    const joined = new Set((jm.data || []).map((r) => r.community_id));
+    const mine = new Map<string, string>();
+    (jm.data || []).forEach((r) => mine.set(r.community_id, r.status));
     setList(
       (c.data || []).map((x) => ({
         id: x.id,
         name: x.name,
         description: x.description,
-        room_code: x.room_code,
         members: counts.get(x.id) || 0,
-        joined: joined.has(x.id),
+        joined: mine.get(x.id) === "approved",
+        requested: mine.get(x.id) === "pending",
       }))
     );
     setLoading(false);
@@ -70,9 +79,12 @@ export default function CommunityPage() {
       .select()
       .single();
     if (!data) return;
-    await supabase
-      .from("community_members")
-      .insert({ community_id: data.id, user_id: userId });
+    await supabase.from("community_members").insert({
+      community_id: data.id,
+      user_id: userId,
+      status: "approved",
+      user_name: myName,
+    });
     setName("");
     setDesc("");
     setShowCreate(false);
@@ -80,8 +92,13 @@ export default function CommunityPage() {
     router.push("/community-room");
   };
 
-  const join = async (id: string) => {
-    await supabase.from("community_members").insert({ community_id: id, user_id: userId });
+  const requestJoin = async (id: string) => {
+    await supabase.from("community_members").insert({
+      community_id: id,
+      user_id: userId,
+      status: "pending",
+      user_name: myName,
+    });
     await load();
   };
 
@@ -97,7 +114,7 @@ export default function CommunityPage() {
           <span className="w-10 h-10 rounded-xl bg-pink-600/20 border border-pink-500/40 flex items-center justify-center text-xl">🏘️</span>
           Community
         </h1>
-        <p className="text-slate-400">Chat + talk with people worldwide</p>
+        <p className="text-slate-400">Request to join → admin approves → chat & talk</p>
       </div>
 
       <Link
@@ -140,7 +157,10 @@ export default function CommunityPage() {
       ) : (
         <div className="grid gap-3">
           {list.map((c) => (
-            <div key={c.id} className="bg-slate-900 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+            <div
+              key={c.id}
+              className="bg-slate-900 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap"
+            >
               <div>
                 <p className="font-bold">{c.name}</p>
                 <p className="text-sm text-slate-400">{c.description}</p>
@@ -153,12 +173,16 @@ export default function CommunityPage() {
                 >
                   Open →
                 </button>
+              ) : c.requested ? (
+                <span className="px-4 py-2 rounded bg-slate-800 text-amber-400 text-sm font-semibold">
+                  ⏳ Requested
+                </span>
               ) : (
                 <button
-                  onClick={() => join(c.id)}
+                  onClick={() => requestJoin(c.id)}
                   className="px-4 py-2 rounded bg-pink-600 hover:bg-pink-500 text-sm font-semibold"
                 >
-                  Join
+                  🙏 Request to Join
                 </button>
               )}
             </div>
