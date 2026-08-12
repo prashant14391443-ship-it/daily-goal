@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Room, RoomEvent } from "livekit-client";
 
+type Person = { name: string; mic: boolean };
+
 export default function LivekitRoom({
   roomName,
   identity,
@@ -16,7 +18,7 @@ export default function LivekitRoom({
   const [error, setError] = useState("");
   const [micOn, setMicOn] = useState(false);
   const [micMsg, setMicMsg] = useState("");
-  const [people, setPeople] = useState<string[]>([]);
+  const [people, setPeople] = useState<Person[]>([]);
   const roomRef = useRef<Room | null>(null);
 
   useEffect(() => {
@@ -40,12 +42,21 @@ export default function LivekitRoom({
         }
 
         const update = () => {
-          const names = [identity];
-          r.remoteParticipants.forEach((p) => names.push(p.identity));
-          setPeople(names);
+          const list: Person[] = [
+            { name: identity, mic: r.localParticipant.isMicrophoneEnabled },
+          ];
+          r.remoteParticipants.forEach((p) =>
+            list.push({ name: p.identity, mic: p.isMicrophoneEnabled })
+          );
+          setPeople(list);
         };
+
         r.on(RoomEvent.ParticipantConnected, update);
         r.on(RoomEvent.ParticipantDisconnected, update);
+        r.on(RoomEvent.TrackPublished, update);
+        r.on(RoomEvent.TrackUnpublished, update);
+        r.on(RoomEvent.TrackMuted, update);
+        r.on(RoomEvent.TrackUnmuted, update);
         r.on(RoomEvent.Disconnected, () => onLeave());
         update();
         setStatus("live");
@@ -54,7 +65,7 @@ export default function LivekitRoom({
           await r.localParticipant.setMicrophoneEnabled(true);
           setMicOn(true);
         } catch {
-          setMicMsg("Mic not started — tap 🎤 Enable Mic below.");
+          setMicMsg("Mic not started — tap 🎤 Enable Mic.");
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Connect failed");
@@ -77,7 +88,7 @@ export default function LivekitRoom({
       setMicMsg("");
     } catch {
       setMicMsg(
-        "No mic found! Windows: Settings→Sound→Input choose mic + Privacy→Microphone ON. Or use earphones 🎧"
+        "No mic! Allow permission popup. Windows: Privacy→Microphone ON. Or earphones 🎧"
       );
     }
   };
@@ -100,7 +111,7 @@ export default function LivekitRoom({
   if (status === "connecting")
     return (
       <p className="text-slate-400 text-center p-6 animate-pulse bg-slate-900 rounded-xl">
-        📡 Connecting to voice room...
+        📡 Connecting...
       </p>
     );
 
@@ -111,16 +122,24 @@ export default function LivekitRoom({
       </p>
 
       <div className="flex flex-wrap justify-center gap-2 mb-4">
-        {people.map((name, i) => (
+        {people.map((p, i) => (
           <div
             key={i}
             className="bg-slate-800 px-3 py-2 rounded-lg text-sm flex items-center gap-2"
           >
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            {name}
+            <span
+              className={`w-2 h-2 rounded-full ${
+                p.mic ? "bg-green-500 animate-pulse" : "bg-red-500"
+              }`}
+            />
+            {p.mic ? "🎤" : "🔇"} {p.name}
           </div>
         ))}
       </div>
+
+      <p className="text-[11px] text-slate-500 text-center mb-3">
+        🎤 = talking • 🔇 = silent. BOTH need 🎤 to speak & hear.
+      </p>
 
       {micMsg && (
         <p className="text-xs text-amber-400 text-center mb-4">{micMsg}</p>
