@@ -31,20 +31,16 @@ export default function CommunityPage() {
       return;
     }
     setUserId(uid);
-    
     const [c, m, jm] = await Promise.all([
       supabase.from("communities").select("*").order("created_at", { ascending: false }),
       supabase.from("community_members").select("community_id"),
       supabase.from("community_members").select("community_id").eq("user_id", uid),
     ]);
-    
     const counts = new Map<string, number>();
     (m.data || []).forEach((r) =>
       counts.set(r.community_id, (counts.get(r.community_id) || 0) + 1)
     );
-    
     const joined = new Set((jm.data || []).map((r) => r.community_id));
-    
     setList(
       (c.data || []).map((x) => ({
         id: x.id,
@@ -60,45 +56,37 @@ export default function CommunityPage() {
 
   useEffect(() => {
     load();
-  }, [router]);
+  }, []);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
-    const room = "COMM-" + Math.random().toString(36).slice(2, 8).toUpperCase();
-    
-    const { data, error } = await supabase
+    const room =
+      "DG-" +
+      Math.random().toString(36).slice(2, 10) +
+      Math.random().toString(36).slice(2, 10);
+    const { data } = await supabase
       .from("communities")
       .insert({ owner_id: userId, name, description: desc, room_code: room })
       .select()
       .single();
-      
-    if (error || !data) {
-      alert("Failed to create community.");
-      return;
-    }
-    
+    if (!data) return;
     await supabase
       .from("community_members")
       .insert({ community_id: data.id, user_id: userId });
-      
     setName("");
     setDesc("");
     setShowCreate(false);
-    
-    // Save ID and room code to local storage so the next page knows where to go
-    localStorage.setItem("dg-community-id", data.id);
-    localStorage.setItem("dg-community-room", data.room_code);
+    localStorage.setItem("dg-community", data.id);
     router.push("/community-room");
   };
 
-  const join = async (id: string, room_code: string) => {
+  const join = async (id: string) => {
     await supabase.from("community_members").insert({ community_id: id, user_id: userId });
-    open(id, room_code); // Instantly open after joining
+    await load();
   };
 
-  const open = (id: string, room_code: string) => {
-    localStorage.setItem("dg-community-id", id);
-    localStorage.setItem("dg-community-room", room_code);
+  const open = (id: string) => {
+    localStorage.setItem("dg-community", id);
     router.push("/community-room");
   };
 
@@ -114,34 +102,34 @@ export default function CommunityPage() {
 
       <Link
         href="/random-talk"
-        className="block bg-pink-600/20 border border-pink-500/40 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-pink-600/30 transition-colors"
+        className="block bg-pink-600/20 border border-pink-500/40 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-pink-600/30"
       >
         🎲 Talk to a Stranger — 1-on-1 voice, instant match
       </Link>
 
       <button
         onClick={() => setShowCreate(!showCreate)}
-        className="w-full py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold mb-4 transition-colors"
+        className="w-full py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold mb-4"
       >
         {showCreate ? "✖ Cancel" : "➕ Create My Community"}
       </button>
 
       {showCreate && (
-        <form onSubmit={create} className="bg-slate-900 p-5 rounded-lg mb-6 grid gap-3 border border-slate-800">
+        <form onSubmit={create} className="bg-slate-900 p-5 rounded-lg mb-6 grid gap-3">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Community name (e.g. English Practice India)"
             required
-            className="p-3 rounded bg-slate-800 border border-slate-700 w-full"
+            className="p-3 rounded bg-slate-800 border border-slate-700"
           />
           <input
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
             placeholder="What is it about?"
-            className="p-3 rounded bg-slate-800 border border-slate-700 w-full"
+            className="p-3 rounded bg-slate-800 border border-slate-700"
           />
-          <button className="py-3 rounded bg-green-600 hover:bg-green-500 font-semibold transition-colors">
+          <button className="py-3 rounded bg-green-600 hover:bg-green-500 font-semibold">
             🏘️ Create & Enter
           </button>
         </form>
@@ -152,7 +140,7 @@ export default function CommunityPage() {
       ) : (
         <div className="grid gap-3">
           {list.map((c) => (
-            <div key={c.id} className="bg-slate-900 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap border border-slate-800">
+            <div key={c.id} className="bg-slate-900 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
               <div>
                 <p className="font-bold">{c.name}</p>
                 <p className="text-sm text-slate-400">{c.description}</p>
@@ -160,15 +148,15 @@ export default function CommunityPage() {
               </div>
               {c.joined ? (
                 <button
-                  onClick={() => open(c.id, c.room_code)}
-                  className="px-4 py-2 rounded bg-green-600 hover:bg-green-500 text-sm font-semibold transition-colors"
+                  onClick={() => open(c.id)}
+                  className="px-4 py-2 rounded bg-green-600 hover:bg-green-500 text-sm font-semibold"
                 >
                   Open →
                 </button>
               ) : (
                 <button
-                  onClick={() => join(c.id, c.room_code)}
-                  className="px-4 py-2 rounded bg-pink-600 hover:bg-pink-500 text-sm font-semibold transition-colors"
+                  onClick={() => join(c.id)}
+                  className="px-4 py-2 rounded bg-pink-600 hover:bg-pink-500 text-sm font-semibold"
                 >
                   Join
                 </button>

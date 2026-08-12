@@ -1,173 +1,179 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-type Community = {
-  id: string;
-  name: string;
-  description: string;
-  room_code: string;
-  members: number;
-  joined: boolean;
-};
+type Msg = { id: string; user_name: string; text: string; created_at: string };
 
-export default function CommunityPage() {
-  const [list, setList] = useState<Community[]>([]);
-  const [userId, setUserId] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
-  const [name, setName] = useState("");
-  const [desc, setDesc] = useState("");
-  const [loading, setLoading] = useState(true);
+export default function CommunityRoomPage() {
+  const [community, setCommunity] = useState<{ name: string; room_code: string } | null>(null);
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [text, setText] = useState("");
+  const [memberCount, setMemberCount] = useState(0);
+  const [voiceOn, setVoiceOn] = useState(false);
+  const [me, setMe] = useState("");
+  const [myName, setMyName] = useState("");
+  const bottomRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-
-  const load = async () => {
-    const { data } = await supabase.auth.getSession();
-    const uid = data.session?.user.id;
-    if (!uid) {
-      router.push("/login");
-      return;
-    }
-    setUserId(uid);
-    const [c, m, jm] = await Promise.all([
-      supabase.from("communities").select("*").order("created_at", { ascending: false }),
-      supabase.from("community_members").select("community_id"),
-      supabase.from("community_members").select("community_id").eq("user_id", uid),
-    ]);
-    const counts = new Map<string, number>();
-    (m.data || []).forEach((r) =>
-      counts.set(r.community_id, (counts.get(r.community_id) || 0) + 1)
-    );
-    const joined = new Set((jm.data || []).map((r) => r.community_id));
-    setList(
-      (c.data || []).map((x) => ({
-        id: x.id,
-        name: x.name,
-        description: x.description,
-        room_code: x.room_code,
-        members: counts.get(x.id) || 0,
-        joined: joined.has(x.id),
-      }))
-    );
-    setLoading(false);
-  };
+  const id = typeof window !== "undefined" ? localStorage.getItem("dg-community") : null;
 
   useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.auth.getSession();
+      const uid = data.session?.user.id;
+      if (!uid || !id) {
+        router.push("/community");
+        return;
+      }
+      setMe(uid);
+      setMyName(data.session?.user.email?.split("@")[0] || "member");
+
+      const [c, m, msg] = await Promise.all([
+        supabase.from("communities").select("name, room_code").eq("id", id).single(),
+        supabase.from("community_members").select("user_id").eq("community_id", id),
+        supabase
+          .from("community_messages")
+          .select("id, user_name, text, created_at")
+          .eq("community_id", id)
+          .order("created_at", { ascending: false })
+          .limit(50),
+      ]);
+      setCommunity(c.data);
+      setMemberCount(m.data?.length || 0);
+      setMessages((msg.data || []).reverse());
+    };
     load();
   }, []);
 
-  const create = async (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel("cm-" + id)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "community_messages",
+          filter: `community_id=eq.${id}`,
+        },
+        (payload) => setMessages((m) => [...m, payload.new as Msg])
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const send = async (e: React.FormEvent) => {
     e.preventDefault();
-    const room =
-      "DG-" +
-      Math.random().toString(36).slice(2, 10) +
-      Math.random().toString(36).slice(2, 10);
-    const { data } = await supabase
-      .from("communities")
-      .insert({ owner_id: userId, name, description: desc, room_code: room })
-      .select()
-      .single();
-    if (!data) return;
-    await supabase
-      .from("community_members")
-      .insert({ community_id: data.id, user_id: userId });
-    setName("");
-    setDesc("");
-    setShowCreate(false);
-    localStorage.setItem("dg-community", data.id);
-    router.push("/community-room");
+    if (!text.trim() || !id) return;
+    await supabase.from("community_messages").insert({
+      community_id: id,
+      user_id: me,
+      user_name: myName,
+      text: text.trim(),
+    });
+    setText("");
   };
 
-  const join = async (id: string) => {
-    await supabase.from("community_members").insert({ community_id: id, user_id: userId });
-    await load();
+  const leave = async () => {
+    if (id) {
+      await supabase.from("community_members").delete().eq("community_id", id).eq("user_id", me);
+    }
+    router.push("/community");
   };
 
-  const open = (id: string) => {
-    localStorage.setItem("dg-community", id);
-    router.push("/community-room");
+  const invite = async () => {
+    const link = window.location.origin + "/community";
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: community?.name || "Community",
+          text: `Join "${community?.name}" on DAILY GOAL — chat & talk with us! 🎙️`,
+          url: link,
+        });
+      } catch {
+        // cancelled
+      }
+    } else {
+      prompt("Copy this link:", link);
+    }
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl bg-pink-600/20 border border-pink-500/40 flex items-center justify-center text-xl">🏘️</span>
-          Community
-        </h1>
-        <p className="text-slate-400">Chat + talk with people worldwide</p>
+    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8 flex flex-col">
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold">🏘️ {community?.name || "..."}</h1>
+        <p className="text-slate-400 text-sm">👥 {memberCount} members</p>
       </div>
 
-      <Link
-        href="/random-talk"
-        className="block bg-pink-600/20 border border-pink-500/40 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-pink-600/30"
-      >
-        🎲 Talk to a Stranger — 1-on-1 voice, instant match
+      <div className="flex gap-2 mb-4 flex-wrap">
+        <button
+          onClick={() => setVoiceOn(!voiceOn)}
+          className={`flex-1 min-w-[140px] py-3 rounded font-semibold ${
+            voiceOn ? "bg-red-600 hover:bg-red-500" : "bg-green-600 hover:bg-green-500"
+          }`}
+        >
+          {voiceOn ? "🔴 Leave Voice Room" : "🎙️ Join Voice Room"}
+        </button>
+        <button
+          onClick={invite}
+          className="px-4 py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold"
+        >
+          ➕ Invite
+        </button>
+        <button
+          onClick={leave}
+          className="px-4 py-3 rounded bg-slate-800 hover:bg-slate-700 text-sm"
+        >
+          Leave
+        </button>
+      </div>
+
+      {voiceOn && community && (
+        <iframe
+          src={`https://meet.jit.si/${community.room_code}#config.prejoinConfig.enabled=false&userInfo.displayName=${encodeURIComponent(myName)}`}
+          className="w-full rounded-xl border border-slate-700 mb-4"
+          style={{ height: 480 }}
+          allow="camera; microphone; fullscreen; autoplay; display-capture"
+        />
+      )}
+
+      <div className="flex-1 bg-slate-900 rounded-xl p-4 overflow-y-auto grid gap-2" style={{ maxHeight: "45vh" }}>
+        {messages.map((m) => (
+          <div key={m.id} className="bg-slate-800 rounded p-2">
+            <p className="text-xs text-pink-400 font-semibold">{m.user_name}</p>
+            <p className="text-sm">{m.text}</p>
+          </div>
+        ))}
+        {messages.length === 0 && (
+          <p className="text-slate-500 text-sm">No messages yet — say hello! 👋</p>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      <form onSubmit={send} className="flex gap-2 mt-3">
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Type a message..."
+          className="flex-1 p-3 rounded bg-slate-800 border border-slate-700"
+        />
+        <button className="px-5 py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold">
+          ➤
+        </button>
+      </form>
+
+      <Link href="/community" className="inline-block mt-4 text-sm text-slate-400 hover:text-white">
+        ← Back to Communities
       </Link>
-
-      <button
-        onClick={() => setShowCreate(!showCreate)}
-        className="w-full py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold mb-4"
-      >
-        {showCreate ? "✖ Cancel" : "➕ Create My Community"}
-      </button>
-
-      {showCreate && (
-        <form onSubmit={create} className="bg-slate-900 p-5 rounded-lg mb-6 grid gap-3">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Community name (e.g. English Practice India)"
-            required
-            className="p-3 rounded bg-slate-800 border border-slate-700"
-          />
-          <input
-            value={desc}
-            onChange={(e) => setDesc(e.target.value)}
-            placeholder="What is it about?"
-            className="p-3 rounded bg-slate-800 border border-slate-700"
-          />
-          <button className="py-3 rounded bg-green-600 hover:bg-green-500 font-semibold">
-            🏘️ Create & Enter
-          </button>
-        </form>
-      )}
-
-      {loading ? (
-        <p className="text-slate-400">Loading communities...</p>
-      ) : (
-        <div className="grid gap-3">
-          {list.map((c) => (
-            <div key={c.id} className="bg-slate-900 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
-              <div>
-                <p className="font-bold">{c.name}</p>
-                <p className="text-sm text-slate-400">{c.description}</p>
-                <p className="text-xs text-slate-500 mt-1">👥 {c.members} members</p>
-              </div>
-              {c.joined ? (
-                <button
-                  onClick={() => open(c.id)}
-                  className="px-4 py-2 rounded bg-green-600 hover:bg-green-500 text-sm font-semibold"
-                >
-                  Open →
-                </button>
-              ) : (
-                <button
-                  onClick={() => join(c.id)}
-                  className="px-4 py-2 rounded bg-pink-600 hover:bg-pink-500 text-sm font-semibold"
-                >
-                  Join
-                </button>
-              )}
-            </div>
-          ))}
-          {list.length === 0 && (
-            <p className="text-slate-400">No communities yet — create the first one! 🌟</p>
-          )}
-        </div>
-      )}
     </main>
   );
 }
