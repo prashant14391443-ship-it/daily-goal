@@ -1,25 +1,51 @@
 import { NextResponse } from "next/server";
 
+type ModelInfo = { name: string; supportedGenerationMethods?: string[] };
+
+async function getCandidates(key: string): Promise<string[]> {
+  const r = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=200`
+  );
+  const d = await r.json();
+  const list: ModelInfo[] = d.models || [];
+
+  const usable = list.filter(
+    (m) =>
+      (m.supportedGenerationMethods || []).includes("generateContent") &&
+      /gemini/.test(m.name) &&
+      !/embedding|tts|image|a2i|deep-research|robotics/i.test(m.name)
+  );
+
+  const clean = (m: ModelInfo) => m.name.replace("models/", "");
+
+  const ordered = [
+    ...usable.filter((m) => /flash/.test(m.name) && !/preview/.test(m.name)),
+    ...usable.filter((m) => /flash/.test(m.name) && /preview/.test(m.name)),
+    ...usable.filter((m) => /pro/.test(m.name) && !/preview/.test(m.name)),
+    ...usable.filter((m) => /pro/.test(m.name) && /preview/.test(m.name)),
+    ...usable.filter(
+      (m) => !/flash/.test(m.name) && !/pro/.test(m.name)
+    ),
+  ].map(clean);
+
+  // remove duplicates, keep order
+  return [...new Set(ordered)].slice(0, 4);
+}
+
 export async function POST(req: Request) {
   try {
     const { image, foodName, quantity } = await req.json();
     const key = process.env.GEMINI_API_KEY;
 
     if (!key) {
-      return NextResponse.json(
-        { error: "API key not configured." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "API key not configured." }, { status: 500 });
     }
 
     const base64 = String(image).split(",")[1];
     const mime = String(image).split(";")[0].split(":")[1] || "image/jpeg";
 
     if (!base64 || base64.length < 100) {
-      return NextResponse.json(
-        { error: "Invalid image data. Try a new photo." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid image. Try a new photo." }, { status: 400 });
     }
 
     let userContext = "Estimate portion size from the photo.";
@@ -36,15 +62,14 @@ export async function POST(req: Request) {
     Reply ONLY with valid JSON (no markdown):
     {"food": "short food name", "calories": number, "protein": number, "carbs": number, "fat": number, "advice": "one short healthy tip"}`;
 
-    const models = [
-      "gemini-2.5-flash",
-      "gemini-2.5-flash-lite",
-      "gemini-2.5-pro",
-      
-    ];
+    const candidates = await getCandidates(key);
+    if (candidates.length === 0) {
+      return NextResponse.json({ error: "No AI model available on this key." }, { status: 500 });
+    }
 
-    let data = null;
-    for (const model of models) {
+    let data: any = null;
+    let lastError = "";
+    for (const model of candidates) {
       const r = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
         {
@@ -59,30 +84,22 @@ export async function POST(req: Request) {
                 ],
               },
             ],
-            generationConfig: {
-              temperature: 0.4,
-              maxOutputTokens: 1024,
-            },
+            generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
           }),
         }
       );
       data = await r.json();
       if (data.candidates && data.candidates.length > 0) break;
+      lastError = data?.error?.message || "model failed";
     }
 
-    if (!data || data.error) {
-      return NextResponse.json(
-        { error: `AI error: ${data?.error?.message || "No model available."}` },
-        { status: 500 }
-      );
+    if (!data || data.error || !data.candidates?.length) {
+      return NextResponse.json({ error: `AI error: ${lastError}` }, { status: 500 });
     }
 
-    let text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    let text = data.candidates[0]?.content?.parts?.[0]?.text || "";
     if (!text) {
-      return NextResponse.json(
-        { error: "AI returned empty response. Try another photo." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "AI returned empty. Try another photo." }, { status: 500 });
     }
 
     text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -92,10 +109,7 @@ export async function POST(req: Request) {
     try {
       return NextResponse.json(JSON.parse(text));
     } catch {
-      return NextResponse.json(
-        { error: "Could not parse AI response. Try again." },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Could not parse AI response. Try again." }, { status: 500 });
     }
   } catch {
     return NextResponse.json({ error: "Server error. Try again." }, { status: 500 });
