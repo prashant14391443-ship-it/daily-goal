@@ -25,6 +25,37 @@ const PALETTES = [
   ["#fbbf24", "#34d399", "#60a5fa", "#f87171", "#94a3b8", "#c084fc"],
 ];
 
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxW: number,
+  font: string,
+  maxLines: number
+): string[] {
+  ctx.font = font;
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = "";
+  for (const wd of words) {
+    const test = cur ? cur + " " + wd : wd;
+    if (!cur || ctx.measureText(test).width <= maxW) cur = test;
+    else {
+      lines.push(cur);
+      cur = wd;
+    }
+  }
+  if (cur) lines.push(cur);
+  if (lines.length > maxLines) {
+    const cut = lines.slice(0, maxLines);
+    let last = cut[maxLines - 1];
+    while (last.length > 2 && ctx.measureText(last + "…").width > maxW)
+      last = last.slice(0, -1);
+    cut[maxLines - 1] = last + "…";
+    return cut;
+  }
+  return lines;
+}
+
 function drawMap(map: MapData, title: string): string {
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
@@ -34,129 +65,120 @@ function drawMap(map: MapData, title: string): string {
 
   ctx.fillStyle = "#020617";
   ctx.fillRect(0, 0, 1080, 1080);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
 
-  // title bar (never overlaps)
   ctx.fillStyle = "#0f172a";
   ctx.fillRect(0, 0, 1080, 90);
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 36px sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  let tt = "🧠 " + (title || "Summary");
-  while (ctx.measureText(tt).width > 1000 && tt.length > 4) tt = tt.slice(0, -1);
-  if (tt !== "🧠 " + (title || "Summary")) tt += "…";
-  ctx.fillText(tt, 540, 48);
+  const tLine = wrapText(ctx, "🧠 " + (title || "Summary"), 1000, "bold 36px sans-serif", 1);
+  ctx.fillText(tLine[0], 540, 48);
 
   const design = hashStr(title + map.center) % 6;
   const pal = PALETTES[design];
 
-  type Node = { x: number; y: number; text: string; bg: string; font: string; maxW: number; h: number };
+  type Node = {
+    x: number; y: number; lines: string[]; w: number; h: number;
+    bg: string; font: string; lh: number; sub?: string[];
+  };
   const nodes: Node[] = [];
   const edges: { a: number; b: number; color: string; w: number }[] = [];
 
-  const addNode = (x: number, y: number, text: string, bg: string, font: string, maxW: number, h: number) => {
+  const addNode = (
+    x: number, y: number, text: string, bg: string, font: string,
+    maxW: number, lh: number, maxLines: number, sub?: string[]
+  ) => {
+    const lines = wrapText(ctx, text, maxW, font, maxLines);
+    const subLines = (sub || []).map(
+      (s) => wrapText(ctx, s, maxW, "18px sans-serif", 1)[0]
+    );
     ctx.font = font;
-    let t = text;
-    if (ctx.measureText(t).width > maxW) {
-      while (t.length > 2 && ctx.measureText(t + "…").width > maxW) t = t.slice(0, -1);
-      t += "…";
+    let wMax = Math.max(...lines.map((l) => ctx.measureText(l).width));
+    if (subLines.length) {
+      ctx.font = "18px sans-serif";
+      wMax = Math.max(wMax, ...subLines.map((s) => ctx.measureText("• " + s).width));
     }
-    const w = Math.min(ctx.measureText(t).width + 36, maxW + 36);
-    const cx = Math.max(w / 2 + 16, Math.min(1080 - w / 2 - 16, x));
-    const cy = Math.max(h / 2 + 106, Math.min(1080 - h / 2 - 16, y));
-    nodes.push({ x: cx, y: cy, text: t, bg, font, maxW, h });
+    const w = Math.min(wMax + 44, maxW + 44);
+    const h = lines.length * lh + (subLines.length ? subLines.length * 24 + 10 : 0) + 28;
+    const cx = Math.max(w / 2 + 16, Math.min(1064 - w / 2, x));
+    const cy = Math.max(h / 2 + 106, Math.min(1064 - h / 2, y));
+    nodes.push({ x: cx, y: cy, lines, w, h, bg, font, lh, sub: subLines });
     return nodes.length - 1;
   };
 
-  const branches = (map.branches || []).slice(0, design === 3 ? 4 : 6);
+  const branches = (map.branches || []).slice(0, 6);
   const n = Math.max(branches.length, 1);
-
   let centerIdx = -1;
 
   if (design === 0) {
-    // RADIAL
-    centerIdx = addNode(540, 570, map.center, "#f59e0b", "bold 30px sans-serif", 300, 64);
+    centerIdx = addNode(540, 560, map.center, "#f59e0b", "bold 28px sans-serif", 340, 34, 2);
     branches.forEach((b, i) => {
       const a = (i / n) * Math.PI * 2 - Math.PI / 2;
-      const bi = addNode(540 + Math.cos(a) * 280, 570 + Math.sin(a) * 280, b.name, pal[i % 6], "bold 24px sans-serif", 240, 54);
+      const bi = addNode(540 + Math.cos(a) * 270, 560 + Math.sin(a) * 270, b.name, pal[i % 6], "bold 22px sans-serif", 240, 28, 2);
       edges.push({ a: centerIdx, b: bi, color: pal[i % 6], w: 5 });
-      (b.kids || []).slice(0, 3).forEach((k, j) => {
-        const kids = Math.min((b.kids || []).length, 3);
-        const off = (j - (kids - 1) / 2) * 0.25;
-        const ki = addNode(540 + Math.cos(a + off) * 470, 570 + Math.sin(a + off) * 470, k, "#1e293b", "20px sans-serif", 200, 44);
+      const kids = (b.kids || []).slice(0, 3);
+      kids.forEach((k, j) => {
+        const ki = addNode(540 + Math.cos(a) * 460, 560 + Math.sin(a) * 460 + (j - (kids.length - 1) / 2) * 110, k, "#1e293b", "18px sans-serif", 220, 24, 3);
         edges.push({ a: bi, b: ki, color: pal[i % 6], w: 3 });
       });
     });
   } else if (design === 1) {
-    // TREE (top-down)
-    centerIdx = addNode(540, 160, map.center, "#f59e0b", "bold 30px sans-serif", 400, 64);
-    branches.forEach((b, i) => {
-      const x = (1080 / (n + 1)) * (i + 1);
-      const bi = addNode(x, 400, b.name, pal[i % 6], "bold 22px sans-serif", 1080 / (n + 1) - 50, 54);
+    const bs = branches.slice(0, 4);
+    const nb = Math.max(bs.length, 1);
+    const colW = 1080 / (nb + 1);
+    centerIdx = addNode(540, 160, map.center, "#f59e0b", "bold 28px sans-serif", 400, 34, 2);
+    bs.forEach((b, i) => {
+      const x = colW * (i + 1);
+      const bi = addNode(x, 380, b.name, pal[i % 6], "bold 22px sans-serif", colW - 40, 28, 2);
       edges.push({ a: centerIdx, b: bi, color: pal[i % 6], w: 5 });
       (b.kids || []).slice(0, 3).forEach((k, j) => {
-        const ki = addNode(x, 580 + j * 90, k, "#1e293b", "18px sans-serif", 1080 / (n + 1) - 60, 44);
+        const ki = addNode(x, 580 + j * 140, k, "#1e293b", "18px sans-serif", colW - 50, 24, 3);
         edges.push({ a: bi, b: ki, color: pal[i % 6], w: 3 });
       });
     });
   } else if (design === 2) {
-    // LEFT-RIGHT
-    centerIdx = addNode(540, 560, map.center, "#f59e0b", "bold 30px sans-serif", 280, 64);
+    centerIdx = addNode(540, 540, map.center, "#f59e0b", "bold 28px sans-serif", 280, 34, 2);
     const rows = Math.ceil(n / 2);
     branches.forEach((b, i) => {
       const left = i % 2 === 0;
       const row = Math.floor(i / 2);
-      const y = rows === 1 ? 560 : 240 + (row * 640) / (rows - 1);
-      const bi = addNode(left ? 260 : 820, y, b.name, pal[i % 6], "bold 22px sans-serif", 240, 54);
+      const y = rows === 1 ? 540 : 240 + (row * 620) / (rows - 1);
+      const bi = addNode(left ? 280 : 800, y, b.name, pal[i % 6], "bold 22px sans-serif", 260, 28, 2);
       edges.push({ a: centerIdx, b: bi, color: pal[i % 6], w: 5 });
       (b.kids || []).slice(0, 2).forEach((k, j) => {
-        const ki = addNode(left ? 150 : 930, y + (j - 0.5) * 120, k, "#1e293b", "18px sans-serif", 200, 42);
+        const ki = addNode(left ? 280 : 800, y + 110 + j * 110, k, "#1e293b", "18px sans-serif", 260, 24, 3);
         edges.push({ a: bi, b: ki, color: pal[i % 6], w: 3 });
       });
     });
   } else if (design === 3) {
-    // FLOWCHART (vertical)
-    centerIdx = addNode(540, 160, map.center, "#f59e0b", "bold 30px sans-serif", 500, 64);
+    centerIdx = addNode(540, 150, map.center, "#f59e0b", "bold 28px sans-serif", 500, 34, 2);
     let prev = centerIdx;
-    branches.forEach((b, i) => {
-      const bi = addNode(540, 320 + i * 190, b.name, pal[i % 6], "bold 24px sans-serif", 600, 58);
+    branches.slice(0, 4).forEach((b, i) => {
+      const bi = addNode(540, 320 + i * 210, b.name, pal[i % 6], "bold 24px sans-serif", 700, 30, 2, (b.kids || []).slice(0, 3));
       edges.push({ a: prev, b: bi, color: pal[i % 6], w: 5 });
-      const kidsText = (b.kids || []).slice(0, 3).join("  •  ");
-      if (kidsText) {
-        const ki = addNode(540, 320 + i * 190 + 78, kidsText, "#1e293b", "18px sans-serif", 800, 42);
-        edges.push({ a: bi, b: ki, color: pal[i % 6], w: 3 });
-      }
       prev = bi;
     });
   } else if (design === 4) {
-    // COLUMNS
-    const cols = Math.min(n, 4);
-    const cw = 1000 / cols;
-    centerIdx = addNode(540, 160, map.center, "#f59e0b", "bold 30px sans-serif", 500, 64);
-    branches.slice(0, 4).forEach((b, i) => {
+    const bs = branches.slice(0, 4);
+    const cw = 1000 / bs.length;
+    centerIdx = addNode(540, 150, map.center, "#f59e0b", "bold 28px sans-serif", 500, 34, 2);
+    bs.forEach((b, i) => {
       const x = 40 + cw * (i + 0.5);
-      const bi = addNode(x, 300, b.name, pal[i % 6], "bold 22px sans-serif", cw - 40, 54);
+      const bi = addNode(x, 300, b.name, pal[i % 6], "bold 22px sans-serif", cw - 40, 28, 2);
       edges.push({ a: centerIdx, b: bi, color: pal[i % 6], w: 5 });
-      (b.kids || []).slice(0, 4).forEach((k, j) => {
-        const ki = addNode(x, 420 + j * 110, k, "#1e293b", "18px sans-serif", cw - 50, 60);
+      (b.kids || []).slice(0, 3).forEach((k, j) => {
+        const ki = addNode(x, 470 + j * 150, k, "#1e293b", "18px sans-serif", cw - 50, 24, 3);
         edges.push({ a: bi, b: ki, color: pal[i % 6], w: 3 });
       });
     });
   } else {
-    // BARS (infographic)
-    centerIdx = addNode(540, 160, map.center, "#f59e0b", "bold 30px sans-serif", 500, 64);
+    centerIdx = addNode(540, 150, map.center, "#f59e0b", "bold 28px sans-serif", 500, 34, 2);
     branches.forEach((b, i) => {
-      const bi = addNode(540, 300 + i * 150, b.name, pal[i % 6], "bold 24px sans-serif", 700, 58);
+      const bi = addNode(540, 300 + i * 170, b.name, pal[i % 6], "bold 24px sans-serif", 800, 30, 2, (b.kids || []).slice(0, 3));
       edges.push({ a: centerIdx, b: bi, color: pal[i % 6], w: 4 });
-      (b.kids || []).slice(0, 3).forEach((k, j) => {
-        const kids = Math.min((b.kids || []).length, 3);
-        const ki = addNode(540 + (j - (kids - 1) / 2) * 340, 300 + i * 150 + 72, k, "#1e293b", "17px sans-serif", 300, 40);
-        edges.push({ a: bi, b: ki, color: pal[i % 6], w: 3 });
-      });
     });
   }
 
-  // draw lines first, boxes on top
   edges.forEach((e) => {
     ctx.strokeStyle = e.color;
     ctx.lineWidth = e.w;
@@ -167,16 +189,28 @@ function drawMap(map: MapData, title: string): string {
   });
 
   nodes.forEach((nd) => {
-    ctx.font = nd.font;
-    const w = Math.min(ctx.measureText(nd.text).width + 36, nd.maxW + 36);
     ctx.fillStyle = nd.bg;
     ctx.beginPath();
-    ctx.roundRect(nd.x - w / 2, nd.y - nd.h / 2, w, nd.h, 14);
+    ctx.roundRect(nd.x - nd.w / 2, nd.y - nd.h / 2, nd.w, nd.h, 16);
     ctx.fill();
     ctx.fillStyle = "#ffffff";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(nd.text, nd.x, nd.y);
+    const subCount = nd.sub?.length || 0;
+    const contentH = nd.lines.length * nd.lh + subCount * 24;
+    let yy = nd.y - contentH / 2 + nd.lh / 2;
+    ctx.font = nd.font;
+    nd.lines.forEach((ln) => {
+      ctx.fillText(ln, nd.x, yy);
+      yy += nd.lh;
+    });
+    if (nd.sub && nd.sub.length) {
+      ctx.font = "18px sans-serif";
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      yy += 4;
+      nd.sub.forEach((ln) => {
+        ctx.fillText("• " + ln, nd.x, yy + 8);
+        yy += 24;
+      });
+    }
   });
 
   return canvas.toDataURL("image/png");
