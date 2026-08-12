@@ -5,9 +5,6 @@ import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
 import Link from "next/link";
 
-const FOCUS = 25 * 60;
-const BREAK = 5 * 60;
-
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -43,9 +40,13 @@ function playBeep() {
   }
 }
 
+const PRESETS = [15, 25, 40, 60, 90];
+
 export default function FocusPage() {
   const [mode, setMode] = useState<"focus" | "break">("focus");
-  const [left, setLeft] = useState(FOCUS);
+  const [focusMin, setFocusMin] = useState(25);
+  const [breakMin, setBreakMin] = useState(5);
+  const [left, setLeft] = useState(25 * 60);
   const [running, setRunning] = useState(false);
   const [subject, setSubject] = useState("");
   const [doneToday, setDoneToday] = useState(0);
@@ -78,6 +79,16 @@ export default function FocusPage() {
     complete();
   }, [left, running]);
 
+  const pickPreset = (m: number) => {
+    setFocusMin(m);
+    const b = m >= 40 ? 10 : 5;
+    setBreakMin(b);
+    if (!running) {
+      setMode("focus");
+      setLeft(m * 60);
+    }
+  };
+
   const complete = async () => {
     playBeep();
     if (mode === "focus") {
@@ -88,17 +99,17 @@ export default function FocusPage() {
           user_id: userId,
           subject: subject || "Focus session",
           topic: "🍅 Pomodoro",
-          duration_minutes: 25,
+          duration_minutes: focusMin,
           session_date: toLocalISO(new Date()),
           completed: true,
         });
       }
-      recordNotification("DAILY GOAL 🍅", "Focus complete! +25 min logged.");
+      recordNotification("DAILY GOAL 🍅", `Focus complete! +${focusMin} min logged.`);
       if ("serviceWorker" in navigator) {
         try {
           const reg = await navigator.serviceWorker.getRegistration();
           reg?.showNotification("DAILY GOAL 🍅", {
-            body: "Focus complete! +25 min logged. Break time ☕",
+            body: `Focus complete! +${focusMin} min logged. Break time ☕`,
           });
         } catch {
           // ignore
@@ -106,20 +117,21 @@ export default function FocusPage() {
       }
       setDoneToday((d) => d + 1);
       setMode("break");
-      setLeft(BREAK);
+      setLeft(breakMin * 60);
     } else {
       setMode("focus");
-      setLeft(FOCUS);
+      setLeft(focusMin * 60);
     }
   };
 
   const reset = () => {
     setRunning(false);
-    setLeft(mode === "focus" ? FOCUS : BREAK);
+    setLeft(mode === "focus" ? focusMin * 60 : breakMin * 60);
   };
 
-  const elapsed = (mode === "focus" ? FOCUS : BREAK) - left;
-  const pct = elapsed / (mode === "focus" ? FOCUS : BREAK);
+  const total = (mode === "focus" ? focusMin : breakMin) * 60;
+  const elapsed = total - left;
+  const pct = total ? elapsed / total : 0;
   const plant =
     mode === "break" ? "☕" : pct < 0.25 ? "🌱" : pct < 0.5 ? "🌿" : pct < 0.75 ? "🌳" : "🌲";
 
@@ -134,17 +146,33 @@ export default function FocusPage() {
           Focus Timer
         </h1>
         <p className="text-slate-400">
-          25 min focus → 5 min break • 🍅 today: {doneToday}
+          {focusMin} min focus → {breakMin} min break • 🍅 today: {doneToday}
         </p>
       </div>
 
       <div className="bg-slate-900 rounded-xl p-8 text-center max-w-md mx-auto">
+        <div className="flex gap-2 justify-center flex-wrap mb-6">
+          {PRESETS.map((m) => (
+            <button
+              key={m}
+              onClick={() => pickPreset(m)}
+              className={`px-3 py-1.5 rounded text-sm font-semibold ${
+                focusMin === m ? "bg-green-600" : "bg-slate-800 hover:bg-slate-700"
+              }`}
+            >
+              {m}m
+            </button>
+          ))}
+        </div>
+
         <p className="text-7xl mb-4">{plant}</p>
         <p className="text-6xl font-extrabold mb-2">
           {mm}:{ss}
         </p>
         <p className="text-sm text-slate-400 mb-6">
-          {mode === "focus" ? " Focus time — stay off your phone!" : "☕ Break — stretch a little"}
+          {mode === "focus"
+            ? " Focus time — stay off your phone!"
+            : "☕ Break — stretch a little"}
         </p>
 
         <input
@@ -158,7 +186,9 @@ export default function FocusPage() {
           <button
             onClick={() => setRunning(!running)}
             className={`flex-1 py-3 rounded font-semibold ${
-              running ? "bg-yellow-600 hover:bg-yellow-500" : "bg-green-600 hover:bg-green-500"
+              running
+                ? "bg-yellow-600 hover:bg-yellow-500"
+                : "bg-green-600 hover:bg-green-500"
             }`}
           >
             {running ? "⏸ Pause" : "▶ Start"}
