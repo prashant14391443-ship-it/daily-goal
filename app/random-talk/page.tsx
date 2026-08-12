@@ -116,7 +116,7 @@ export default function RandomTalkPage() {
   };
 
   const jitsiUrl = (r: string) =>
-    `https://meet.jit.si/${r}#config.prejoinConfig.enabled=false&userInfo.displayName=${encodeURIComponent(
+    `https://meet.ffmuc.net/${r}#config.prejoinConfig.enabled=false&config.requireDisplayName=false&userInfo.displayName=${encodeURIComponent(
       displayName
     )}`;
 
