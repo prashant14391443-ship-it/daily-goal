@@ -1,0 +1,169 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+
+type Community = {
+  id: string;
+  name: string;
+  description: string;
+  room_code: string;
+  members: number;
+  joined: boolean;
+};
+
+export default function CommunityPage() {
+  const [list, setList] = useState<Community[]>([]);
+  const [userId, setUserId] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  const load = async () => {
+    const { data } = await supabase.auth.getSession();
+    const uid = data.session?.user.id;
+    if (!uid) {
+      router.push("/login");
+      return;
+    }
+    setUserId(uid);
+    const [c, m, jm] = await Promise.all([
+      supabase.from("communities").select("*").order("created_at", { ascending: false }),
+      supabase.from("community_members").select("community_id"),
+      supabase.from("community_members").select("community_id").eq("user_id", uid),
+    ]);
+    const counts = new Map<string, number>();
+    (m.data || []).forEach((r) =>
+      counts.set(r.community_id, (counts.get(r.community_id) || 0) + 1)
+    );
+    const joined = new Set((jm.data || []).map((r) => r.community_id));
+    setList(
+      (c.data || []).map((x) => ({
+        id: x.id,
+        name: x.name,
+        description: x.description,
+        room_code: x.room_code,
+        members: counts.get(x.id) || 0,
+        joined: joined.has(x.id),
+      }))
+    );
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const create = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const room = "DG-" + Math.random().toString(36).slice(2, 8);
+    const { data } = await supabase
+      .from("communities")
+      .insert({ owner_id: userId, name, description: desc, room_code: room })
+      .select()
+      .single();
+    await supabase
+      .from("community_members")
+      .insert({ community_id: data.id, user_id: userId });
+    setName("");
+    setDesc("");
+    setShowCreate(false);
+    localStorage.setItem("dg-community", data.id);
+    router.push("/community-room");
+  };
+
+  const join = async (id: string) => {
+    await supabase.from("community_members").insert({ community_id: id, user_id: userId });
+    await load();
+  };
+
+  const open = (id: string) => {
+    localStorage.setItem("dg-community", id);
+    router.push("/community-room");
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold flex items-center gap-3">
+          <span className="w-10 h-10 rounded-xl bg-pink-600/20 border border-pink-500/40 flex items-center justify-center text-xl">🏘️</span>
+          Community
+        </h1>
+        <p className="text-slate-400">Chat + talk with people worldwide</p>
+      </div>
+
+      <Link
+        href="/random-talk"
+        className="block bg-pink-600/20 border border-pink-500/40 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-pink-600/30"
+      >
+        🎲 Talk to a Stranger — 1-on-1 voice, instant match
+      </Link>
+
+      <button
+        onClick={() => setShowCreate(!showCreate)}
+        className="w-full py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold mb-4"
+      >
+        {showCreate ? "✖ Cancel" : "➕ Create My Community"}
+      </button>
+
+      {showCreate && (
+        <form onSubmit={create} className="bg-slate-900 p-5 rounded-lg mb-6 grid gap-3">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Community name (e.g. English Practice India)"
+            required
+            className="p-3 rounded bg-slate-800 border border-slate-700"
+          />
+          <input
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            placeholder="What is it about?"
+            className="p-3 rounded bg-slate-800 border border-slate-700"
+          />
+          <button className="py-3 rounded bg-green-600 hover:bg-green-500 font-semibold">
+            🏘️ Create & Enter
+          </button>
+        </form>
+      )}
+
+      {loading ? (
+        <p className="text-slate-400">Loading communities...</p>
+      ) : (
+        <div className="grid gap-3">
+          {list.map((c) => (
+            <div key={c.id} className="bg-slate-900 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="font-bold">{c.name}</p>
+                <p className="text-sm text-slate-400">{c.description}</p>
+                <p className="text-xs text-slate-500 mt-1">👥 {c.members} members</p>
+              </div>
+              {c.joined ? (
+                <button
+                  onClick={() => open(c.id)}
+                  className="px-4 py-2 rounded bg-green-600 hover:bg-green-500 text-sm font-semibold"
+                >
+                  Open →
+                </button>
+              ) : (
+                <button
+                  onClick={() => join(c.id)}
+                  className="px-4 py-2 rounded bg-pink-600 hover:bg-pink-500 text-sm font-semibold"
+                >
+                  Join
+                </button>
+              )}
+            </div>
+          ))}
+          {list.length === 0 && (
+            <p className="text-slate-400">No communities yet — create the first one! 🌟</p>
+          )}
+        </div>
+      )}
+    </main>
+  );
+}

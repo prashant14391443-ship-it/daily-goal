@@ -3,35 +3,31 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+const tabs = [
+  { href: "/dashboard", icon: "🏠", label: "Home" },
+  { href: "/study-tracker", icon: "📚", label: "Study" },
+  { href: "/gym-log", icon: "🏋️", label: "Gym" },
+  { href: "/routine-habits", icon: "✅", label: "Habits" },
+  { href: "/todo", icon: "📝", label: "ToDo" },
+  { href: "/community", icon: "🏘️", label: "Social" },
+];
+
 export default function BottomNav() {
-  const path = usePathname();
-
-  if (path === "/login" || path === "/signup") return null;
-
-  const tabs = [
-    { href: "/dashboard", label: "Home", icon: "🏠" },
-    { href: "/study-tracker", label: "Study", icon: "📚" },
-    { href: "/gym-log", label: "Gym", icon: "🏋️" },
-    { href: "/routine-habits", label: "Habits", icon: "✅" },
-    { href: "/todo", label: "ToDo", icon: "📝" },
-  ];
-
+  const pathname = usePathname();
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-slate-900 border-t border-slate-800 md:hidden">
-      <div className="grid grid-cols-5">
-        {tabs.map((t) => (
-          <Link
-            key={t.href}
-            href={t.href}
-            className={`flex flex-col items-center py-2 text-xs ${
-              path === t.href ? "text-blue-400" : "text-slate-400"
-            }`}
-          >
-            <span className="text-xl">{t.icon}</span>
-            {t.label}
-          </Link>
-        ))}
-      </div>
+    <nav className="fixed bottom-0 inset-x-0 z-40 bg-slate-900 border-t border-slate-800 grid grid-cols-6 md:hidden">
+      {tabs.map((t) => (
+        <Link
+          key={t.href}
+          href={t.href}
+          className={`flex flex-col items-center py-2 text-[10px] ${
+            pathname.startsWith(t.href) ? "text-white" : "text-slate-500"
+          }`}
+        >
+          <span className="text-lg">{t.icon}</span>
+          {t.label}
+        </Link>
+      ))}
     </nav>
   );
 }
