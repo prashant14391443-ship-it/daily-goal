@@ -24,13 +24,13 @@ type Result = {
 export default function RunningPage() {
   const [mode, setMode] = useState<"manual" | "live">("manual");
 
-  // Manual inputs (Untouched)
+  // Manual inputs
   const [distance, setDistance] = useState("");
   const [mins, setMins] = useState("");
   const [secs, setSecs] = useState("");
   
   // Live Auto-Tracker states
-  const [weight, setWeight] = useState("70");
+  const [weight, setWeight] = useState(""); // Starts empty
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [liveSteps, setLiveSteps] = useState(0);
@@ -124,11 +124,19 @@ export default function RunningPage() {
     e.preventDefault();
     const d = Number(distance);
     const totalSec = (Number(mins) || 0) * 60 + (Number(secs) || 0);
-    computeResults(d, totalSec, Number(weight) || 70, 0); // 0 steps for manual
+    
+    // Uses exactly what they typed, no default estimate
+    computeResults(d, totalSec, Number(weight), 0); 
   };
 
   // Start the tracker and ask for sensor permissions
   const handleStartLive = async () => {
+    // Check if they typed a weight before letting them start
+    if (!weight || Number(weight) <= 0) {
+      alert("Please enter your exact weight first to calculate calories.");
+      return;
+    }
+
     // iOS Safari requires explicit permission to use the accelerometer
     if (typeof window !== "undefined" && typeof (DeviceMotionEvent as any).requestPermission === "function") {
       try {
@@ -156,7 +164,8 @@ export default function RunningPage() {
     // Average stride length is roughly 0.762 meters per step
     const estimatedDistanceKm = (liveSteps * 0.762) / 1000;
     
-    computeResults(estimatedDistanceKm, elapsedSeconds, Number(weight) || 70, liveSteps);
+    // Uses exactly what they typed, no default estimate
+    computeResults(estimatedDistanceKm, elapsedSeconds, Number(weight), liveSteps); 
   };
 
   const inputCls = "p-3 rounded bg-slate-800 border border-slate-700 w-full text-white";
@@ -193,7 +202,7 @@ export default function RunningPage() {
         </button>
       </div>
 
-      {/* MANUAL MODE FORM (Untouched) */}
+      {/* MANUAL MODE FORM */}
       {mode === "manual" && (
         <form
           onSubmit={calculateManual}
@@ -211,11 +220,12 @@ export default function RunningPage() {
           />
           <input
             type="number"
-            min="0"
-            max="200"
+            min="1"
+            max="300"
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
-            placeholder="Your weight (kg)"
+            placeholder="Your exact weight (kg)"
+            required // <-- Now REQUIRED to submit the form
             className={inputCls}
           />
           <input
@@ -247,12 +257,12 @@ export default function RunningPage() {
         <div className="bg-slate-900 p-6 rounded-lg mb-8 grid gap-4 md:grid-cols-2">
           <input
             type="number"
-            min="0"
-            max="200"
+            min="1"
+            max="300"
             value={weight}
             disabled={isRunning}
             onChange={(e) => setWeight(e.target.value)}
-            placeholder="Your weight (kg) - helps calculate calories"
+            placeholder="Your exact weight (kg) - required"
             className={`${inputCls} md:col-span-2 ${isRunning ? "opacity-50 cursor-not-allowed" : ""}`}
           />
 
