@@ -25,12 +25,15 @@ export default function RandomTalkPage() {
       meRef.current = uid;
     };
     init();
+    
+    // Cleanup: Remove user from queue if they close the tab or navigate away
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
-      if (meRef.current)
+      if (meRef.current) {
         supabase.from("talk_queue").delete().eq("user_id", meRef.current);
+      }
     };
-  }, []);
+  }, [router]);
 
   const stopPoll = () => {
     if (pollRef.current) {
@@ -40,24 +43,31 @@ export default function RandomTalkPage() {
   };
 
   const matchWith = async (otherId: string) => {
-    const newRoom = "TALK-" + Math.random().toString(36).slice(2, 8);
+    // Generate a random 6-character room code
+    const newRoom = "TALK-" + Math.random().toString(36).slice(2, 8).toUpperCase();
+    
+    // Update both users in the database to 'matched' and assign the room
     const { data } = await supabase
       .from("talk_queue")
       .update({ status: "matched", room_code: newRoom })
       .in("user_id", [me, otherId])
       .eq("status", "waiting")
       .select();
+      
     if (data && data.length === 2) {
       stopPoll();
       setRoom(newRoom);
       setState("talk");
       return;
     }
+    
+    // Fallback: Check if I was matched by someone else at the exact same millisecond
     const { data: mine } = await supabase
       .from("talk_queue")
       .select("*")
       .eq("user_id", me)
       .maybeSingle();
+      
     if (mine && mine.status === "matched" && mine.room_code) {
       stopPoll();
       setRoom(mine.room_code);
@@ -67,40 +77,51 @@ export default function RandomTalkPage() {
 
   const start = async () => {
     setState("waiting");
+    // Put myself in the waiting room
     await supabase
       .from("talk_queue")
       .upsert({ user_id: me, status: "waiting", room_code: null });
 
+    // Look for someone else who is already waiting
     const { data } = await supabase
       .from("talk_queue")
       .select("*")
       .eq("status", "waiting")
       .neq("user_id", me)
       .limit(1);
+      
     if (data && data.length > 0) {
       await matchWith(data[0].user_id);
       return;
     }
 
+    // If nobody is waiting, poll every 2.5 seconds
     pollRef.current = setInterval(async () => {
+      // 1. Check if someone else matched with me
       const { data: mine } = await supabase
         .from("talk_queue")
         .select("*")
         .eq("user_id", me)
         .maybeSingle();
+        
       if (mine && mine.status === "matched" && mine.room_code) {
         stopPoll();
         setRoom(mine.room_code);
         setState("talk");
         return;
       }
+      
+      // 2. Check if a new person joined the waiting room
       const { data: others } = await supabase
         .from("talk_queue")
         .select("*")
         .eq("status", "waiting")
         .neq("user_id", me)
         .limit(1);
-      if (others && others.length > 0) await matchWith(others[0].user_id);
+        
+      if (others && others.length > 0) {
+        await matchWith(others[0].user_id);
+      }
     }, 2500);
   };
 
@@ -116,84 +137,95 @@ export default function RandomTalkPage() {
     setTimeout(start, 300);
   };
 
+  // MAGIC URL: This bypasses the pre-join screen, deep-link prompts, and sets default names.
+  const jitsiUrl = room 
+    ? `https://meet.jit.si/${room}#config.prejoinPageEnabled=false&config.disableDeepLinking=true&config.startWithVideoMuted=true&userInfo.displayName=Member` 
+    : "";
+
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
+    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8 flex flex-col">
       <div className="mb-6">
         <h1 className="text-3xl font-bold flex items-center gap-3">
           <span className="w-10 h-10 rounded-xl bg-pink-600/20 border border-pink-500/40 flex items-center justify-center text-xl">🎲</span>
           Talk to a Stranger
         </h1>
-        <p className="text-slate-400">1-on-1 voice with a random member</p>
+        <p className="text-slate-400">Instant 1-on-1 voice with a random member</p>
       </div>
 
-      {state === "idle" && (
-        <div className="bg-slate-900 rounded-xl p-8 text-center max-w-md mx-auto">
-          <p className="text-6xl mb-4">🎲</p>
-          <p className="text-slate-400 mb-6">
-            Press the button → we match you with another member who also pressed it → you talk!
-          </p>
-          <button
-            onClick={start}
-            className="w-full py-4 rounded bg-pink-600 hover:bg-pink-500 font-bold text-lg"
-          >
-            🎙️ Find Me a Partner
-          </button>
-        </div>
-      )}
-
-      {state === "waiting" && (
-        <div className="bg-slate-900 rounded-xl p-8 text-center max-w-md mx-auto">
-          <p className="text-5xl mb-4 animate-pulse">🔍</p>
-          <p className="font-bold mb-2">Finding a partner...</p>
-          <p className="text-sm text-slate-400 mb-6">
-            Keep this screen open. You'll connect within seconds of another member pressing the button.
-          </p>
-          <button
-            onClick={end}
-            className="px-6 py-3 rounded bg-slate-800 hover:bg-slate-700"
-          >
-            ✖ Cancel
-          </button>
-        </div>
-      )}
-
-      {state === "talk" && (
-        <div className="max-w-md mx-auto">
-          <p className="text-center text-green-400 font-bold mb-2">
-            ✅ Matched! You're live — say hi! 👋
-          </p>
-          <p className="text-center text-xs text-slate-400 mb-3">
-            BOTH press blue "Join meeting" inside & allow microphone 🎤
-          </p>
-          <iframe
-            src={`https://meet.jit.si/${room}`}
-            className="w-full rounded-xl border border-slate-700"
-            style={{ height: 480 }}
-            allow="camera; microphone; fullscreen; autoplay; display-capture"
-          />
-          <div className="flex gap-3 mt-4">
+      <div className="flex-1 flex flex-col justify-center max-w-2xl mx-auto w-full">
+        {state === "idle" && (
+          <div className="bg-slate-900 rounded-xl p-8 text-center border border-slate-800 shadow-2xl">
+            <p className="text-6xl mb-6">🎙️</p>
+            <h2 className="text-2xl font-bold mb-2">Ready to talk?</h2>
+            <p className="text-slate-400 mb-8">
+              Press the button to instantly connect with another online member. No setup required.
+            </p>
             <button
-              onClick={next}
-              className="flex-1 py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold"
+              onClick={start}
+              className="w-full py-4 rounded-lg bg-pink-600 hover:bg-pink-500 font-bold text-xl transition-colors shadow-lg shadow-pink-500/20"
             >
-              🎲 Next Stranger
-            </button>
-            <button
-              onClick={end}
-              className="flex-1 py-3 rounded bg-slate-800 hover:bg-slate-700 font-semibold"
-            >
-              ❌ End
+              Start Matching
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      <Link
-        href="/community"
-        className="inline-block mt-6 text-sm text-slate-400 hover:text-white"
-      >
-        ← Back to Community
-      </Link>
+        {state === "waiting" && (
+          <div className="bg-slate-900 rounded-xl p-8 text-center border border-slate-800 shadow-2xl">
+            <div className="relative w-24 h-24 mx-auto mb-6">
+              <div className="absolute inset-0 rounded-full border-4 border-pink-500/20 border-t-pink-500 animate-spin"></div>
+              <p className="absolute inset-0 flex items-center justify-center text-3xl">🔍</p>
+            </div>
+            <h2 className="text-xl font-bold mb-2">Looking for a partner...</h2>
+            <p className="text-sm text-slate-400 mb-8">
+              Stay on this screen. You'll connect the second someone else searches.
+            </p>
+            <button
+              onClick={end}
+              className="px-8 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {state === "talk" && (
+          <div className="bg-slate-900 rounded-xl overflow-hidden border border-slate-700 shadow-2xl flex flex-col h-[500px]">
+            <div className="bg-green-600 text-white text-center py-2 font-bold text-sm">
+              ✅ Connected! You are live.
+            </div>
+            
+            <iframe
+              src={jitsiUrl}
+              className="w-full flex-1 bg-black"
+              allow="camera; microphone; fullscreen; autoplay; display-capture"
+            />
+            
+            <div className="p-4 bg-slate-900 border-t border-slate-800 flex gap-3">
+              <button
+                onClick={next}
+                className="flex-1 py-3 rounded-lg bg-pink-600 hover:bg-pink-500 font-semibold transition-colors"
+              >
+                🎲 Next Person
+              </button>
+              <button
+                onClick={end}
+                className="flex-1 py-3 rounded-lg bg-slate-800 hover:bg-slate-700 font-semibold transition-colors"
+              >
+                End Call
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8">
+        <Link
+          href="/community"
+          className="inline-block text-sm text-slate-400 hover:text-white transition-colors"
+        >
+          ← Back to Hub
+        </Link>
+      </div>
     </main>
   );
 }
