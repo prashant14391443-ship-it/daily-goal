@@ -8,20 +8,22 @@ type MapData = {
   branches: { name: string; kids: string[] }[];
 };
 
-type Result = {
-  title: string;
-  points: string[];
-  map: MapData;
-};
+type Result = { title: string; points: string[]; map: MapData };
 
-function dataUrlToBlob(du: string) {
-  const [head, b64] = du.split(",");
-  const mime = head.split(":")[1].split(";")[0];
-  const bin = atob(b64);
-  const arr = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-  return new Blob([arr], { type: mime });
+function hashStr(s: string) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 997;
+  return h;
 }
+
+const PALETTES = [
+  ["#3b82f6", "#22c55e", "#a855f7", "#ef4444", "#eab308", "#06b6d4"],
+  ["#f472b6", "#fb923c", "#a3e635", "#38bdf8", "#c084fc", "#f87171"],
+  ["#14b8a6", "#f59e0b", "#6366f1", "#ec4899", "#84cc16", "#0ea5e9"],
+  ["#e11d48", "#7c3aed", "#0891b2", "#65a30d", "#d97706", "#db2777"],
+  ["#22d3ee", "#facc15", "#f472b6", "#4ade80", "#a78bfa", "#fb7185"],
+  ["#fbbf24", "#34d399", "#60a5fa", "#f87171", "#94a3b8", "#c084fc"],
+];
 
 function drawMap(map: MapData, title: string): string {
   const canvas = document.createElement("canvas");
@@ -33,77 +35,160 @@ function drawMap(map: MapData, title: string): string {
   ctx.fillStyle = "#020617";
   ctx.fillRect(0, 0, 1080, 1080);
 
+  // title bar (never overlaps)
+  ctx.fillStyle = "#0f172a";
+  ctx.fillRect(0, 0, 1080, 90);
   ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 40px sans-serif";
+  ctx.font = "bold 36px sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText("🧠 " + title.slice(0, 30), 540, 60);
+  let tt = "🧠 " + (title || "Summary");
+  while (ctx.measureText(tt).width > 1000 && tt.length > 4) tt = tt.slice(0, -1);
+  if (tt !== "🧠 " + (title || "Summary")) tt += "…";
+  ctx.fillText(tt, 540, 48);
 
-  const colors = ["#3b82f6", "#22c55e", "#a855f7", "#ef4444", "#eab308", "#06b6d4"];
-  const cx = 540;
-  const cy = 560;
+  const design = hashStr(title + map.center) % 6;
+  const pal = PALETTES[design];
 
-  const box = (
-    x: number,
-    y: number,
-    text: string,
-    bg: string,
-    font: string,
-    maxW: number
-  ) => {
+  type Node = { x: number; y: number; text: string; bg: string; font: string; maxW: number; h: number };
+  const nodes: Node[] = [];
+  const edges: { a: number; b: number; color: string; w: number }[] = [];
+
+  const addNode = (x: number, y: number, text: string, bg: string, font: string, maxW: number, h: number) => {
     ctx.font = font;
     let t = text;
     if (ctx.measureText(t).width > maxW) {
-      while (t.length > 3 && ctx.measureText(t + "…").width > maxW)
-        t = t.slice(0, -1);
+      while (t.length > 2 && ctx.measureText(t + "…").width > maxW) t = t.slice(0, -1);
       t += "…";
     }
-    const w = ctx.measureText(t).width + 36;
-    const h = font.includes("22") ? 48 : 60;
-    ctx.fillStyle = bg;
-    ctx.beginPath();
-    ctx.roundRect(x - w / 2, y - h / 2, w, h, 14);
-    ctx.fill();
-    ctx.fillStyle = "#ffffff";
-    ctx.fillText(t, x, y);
+    const w = Math.min(ctx.measureText(t).width + 36, maxW + 36);
+    const cx = Math.max(w / 2 + 16, Math.min(1080 - w / 2 - 16, x));
+    const cy = Math.max(h / 2 + 106, Math.min(1080 - h / 2 - 16, y));
+    nodes.push({ x: cx, y: cy, text: t, bg, font, maxW, h });
+    return nodes.length - 1;
   };
 
-  const branches = (map.branches || []).slice(0, 6);
-  const n = branches.length || 1;
+  const branches = (map.branches || []).slice(0, design === 3 ? 4 : 6);
+  const n = Math.max(branches.length, 1);
 
-  branches.forEach((b, i) => {
-    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
-    const bx = cx + Math.cos(a) * 300;
-    const by = cy + Math.sin(a) * 300;
-    const color = colors[i % colors.length];
+  let centerIdx = -1;
 
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(bx, by);
-    ctx.stroke();
-
-    (b.kids || []).slice(0, 3).forEach((k, j) => {
-      const kids = Math.min((b.kids || []).length, 3);
-      const off = (j - (kids - 1) / 2) * 0.22;
-      const kx = cx + Math.cos(a + off) * 520;
-      const ky = cy + Math.sin(a + off) * 520;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(bx, by);
-      ctx.lineTo(kx, ky);
-      ctx.stroke();
-      box(kx, ky, k, "#1e293b", "22px sans-serif", 240);
+  if (design === 0) {
+    // RADIAL
+    centerIdx = addNode(540, 570, map.center, "#f59e0b", "bold 30px sans-serif", 300, 64);
+    branches.forEach((b, i) => {
+      const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+      const bi = addNode(540 + Math.cos(a) * 280, 570 + Math.sin(a) * 280, b.name, pal[i % 6], "bold 24px sans-serif", 240, 54);
+      edges.push({ a: centerIdx, b: bi, color: pal[i % 6], w: 5 });
+      (b.kids || []).slice(0, 3).forEach((k, j) => {
+        const kids = Math.min((b.kids || []).length, 3);
+        const off = (j - (kids - 1) / 2) * 0.25;
+        const ki = addNode(540 + Math.cos(a + off) * 470, 570 + Math.sin(a + off) * 470, k, "#1e293b", "20px sans-serif", 200, 44);
+        edges.push({ a: bi, b: ki, color: pal[i % 6], w: 3 });
+      });
     });
+  } else if (design === 1) {
+    // TREE (top-down)
+    centerIdx = addNode(540, 160, map.center, "#f59e0b", "bold 30px sans-serif", 400, 64);
+    branches.forEach((b, i) => {
+      const x = (1080 / (n + 1)) * (i + 1);
+      const bi = addNode(x, 400, b.name, pal[i % 6], "bold 22px sans-serif", 1080 / (n + 1) - 50, 54);
+      edges.push({ a: centerIdx, b: bi, color: pal[i % 6], w: 5 });
+      (b.kids || []).slice(0, 3).forEach((k, j) => {
+        const ki = addNode(x, 580 + j * 90, k, "#1e293b", "18px sans-serif", 1080 / (n + 1) - 60, 44);
+        edges.push({ a: bi, b: ki, color: pal[i % 6], w: 3 });
+      });
+    });
+  } else if (design === 2) {
+    // LEFT-RIGHT
+    centerIdx = addNode(540, 560, map.center, "#f59e0b", "bold 30px sans-serif", 280, 64);
+    const rows = Math.ceil(n / 2);
+    branches.forEach((b, i) => {
+      const left = i % 2 === 0;
+      const row = Math.floor(i / 2);
+      const y = rows === 1 ? 560 : 240 + (row * 640) / (rows - 1);
+      const bi = addNode(left ? 260 : 820, y, b.name, pal[i % 6], "bold 22px sans-serif", 240, 54);
+      edges.push({ a: centerIdx, b: bi, color: pal[i % 6], w: 5 });
+      (b.kids || []).slice(0, 2).forEach((k, j) => {
+        const ki = addNode(left ? 150 : 930, y + (j - 0.5) * 120, k, "#1e293b", "18px sans-serif", 200, 42);
+        edges.push({ a: bi, b: ki, color: pal[i % 6], w: 3 });
+      });
+    });
+  } else if (design === 3) {
+    // FLOWCHART (vertical)
+    centerIdx = addNode(540, 160, map.center, "#f59e0b", "bold 30px sans-serif", 500, 64);
+    let prev = centerIdx;
+    branches.forEach((b, i) => {
+      const bi = addNode(540, 320 + i * 190, b.name, pal[i % 6], "bold 24px sans-serif", 600, 58);
+      edges.push({ a: prev, b: bi, color: pal[i % 6], w: 5 });
+      const kidsText = (b.kids || []).slice(0, 3).join("  •  ");
+      if (kidsText) {
+        const ki = addNode(540, 320 + i * 190 + 78, kidsText, "#1e293b", "18px sans-serif", 800, 42);
+        edges.push({ a: bi, b: ki, color: pal[i % 6], w: 3 });
+      }
+      prev = bi;
+    });
+  } else if (design === 4) {
+    // COLUMNS
+    const cols = Math.min(n, 4);
+    const cw = 1000 / cols;
+    centerIdx = addNode(540, 160, map.center, "#f59e0b", "bold 30px sans-serif", 500, 64);
+    branches.slice(0, 4).forEach((b, i) => {
+      const x = 40 + cw * (i + 0.5);
+      const bi = addNode(x, 300, b.name, pal[i % 6], "bold 22px sans-serif", cw - 40, 54);
+      edges.push({ a: centerIdx, b: bi, color: pal[i % 6], w: 5 });
+      (b.kids || []).slice(0, 4).forEach((k, j) => {
+        const ki = addNode(x, 420 + j * 110, k, "#1e293b", "18px sans-serif", cw - 50, 60);
+        edges.push({ a: bi, b: ki, color: pal[i % 6], w: 3 });
+      });
+    });
+  } else {
+    // BARS (infographic)
+    centerIdx = addNode(540, 160, map.center, "#f59e0b", "bold 30px sans-serif", 500, 64);
+    branches.forEach((b, i) => {
+      const bi = addNode(540, 300 + i * 150, b.name, pal[i % 6], "bold 24px sans-serif", 700, 58);
+      edges.push({ a: centerIdx, b: bi, color: pal[i % 6], w: 4 });
+      (b.kids || []).slice(0, 3).forEach((k, j) => {
+        const kids = Math.min((b.kids || []).length, 3);
+        const ki = addNode(540 + (j - (kids - 1) / 2) * 340, 300 + i * 150 + 72, k, "#1e293b", "17px sans-serif", 300, 40);
+        edges.push({ a: bi, b: ki, color: pal[i % 6], w: 3 });
+      });
+    });
+  }
 
-    box(bx, by, b.name, color, "bold 26px sans-serif", 260);
+  // draw lines first, boxes on top
+  edges.forEach((e) => {
+    ctx.strokeStyle = e.color;
+    ctx.lineWidth = e.w;
+    ctx.beginPath();
+    ctx.moveTo(nodes[e.a].x, nodes[e.a].y);
+    ctx.lineTo(nodes[e.b].x, nodes[e.b].y);
+    ctx.stroke();
   });
 
-  box(cx, cy, map.center, "#f59e0b", "bold 32px sans-serif", 300);
+  nodes.forEach((nd) => {
+    ctx.font = nd.font;
+    const w = Math.min(ctx.measureText(nd.text).width + 36, nd.maxW + 36);
+    ctx.fillStyle = nd.bg;
+    ctx.beginPath();
+    ctx.roundRect(nd.x - w / 2, nd.y - nd.h / 2, w, nd.h, 14);
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(nd.text, nd.x, nd.y);
+  });
 
   return canvas.toDataURL("image/png");
+}
+
+function dataUrlToBlob(du: string) {
+  const [head, b64] = du.split(",");
+  const mime = head.split(":")[1].split(";")[0];
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
 }
 
 export default function SummarizePage() {
@@ -205,7 +290,7 @@ export default function SummarizePage() {
           Summarize Anything
         </h1>
         <p className="text-slate-400">
-          Photo or topic → key points + mind-map you can download
+          Photo or topic → key points + mind-map (6 designs!)
         </p>
       </div>
 
