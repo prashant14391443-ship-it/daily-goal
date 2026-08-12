@@ -14,10 +14,12 @@ export default function LivekitRoom({
 }) {
   const [room, setRoom] = useState<Room | null>(null);
   const [muted, setMuted] = useState(false);
+  const [noMic, setNoMic] = useState(false);
   const [error, setError] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
 
   useEffect(() => {
+    let current: Room | null = null;
     const connect = async () => {
       try {
         const res = await fetch("/api/voice-token", {
@@ -29,8 +31,17 @@ export default function LivekitRoom({
         if (!res.ok) throw new Error(data.error || "Failed to get token");
 
         const r = new Room();
+        current = r;
         await r.connect(data.url, data.token);
-        await r.localParticipant.setMicrophoneEnabled(true);
+
+        try {
+          await r.localParticipant.setMicrophoneEnabled(true);
+          setMuted(false);
+          setNoMic(false);
+        } catch {
+          setMuted(true);
+          setNoMic(true);
+        }
 
         r.on(RoomEvent.Disconnected, onLeave);
 
@@ -53,16 +64,21 @@ export default function LivekitRoom({
     connect();
 
     return () => {
-      room?.disconnect();
+      current?.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomName, identity]);
 
   const toggleMute = async () => {
     if (!room) return;
-    const newState = !muted;
-    await room.localParticipant.setMicrophoneEnabled(!newState);
-    setMuted(newState);
+    try {
+      const newState = !muted;
+      await room.localParticipant.setMicrophoneEnabled(!newState);
+      setMuted(newState);
+      if (!newState) setNoMic(false);
+    } catch {
+      setNoMic(true);
+    }
   };
 
   const leave = async () => {
@@ -87,10 +103,11 @@ export default function LivekitRoom({
   return (
     <div className="bg-slate-900 border border-green-500/40 rounded-xl p-5">
       <p className="text-center text-green-400 font-bold mb-3">
-        🟢 Live Room — {participants.length} {participants.length === 1 ? "person" : "people"}
+        🟢 Live Room — {participants.length}{" "}
+        {participants.length === 1 ? "person" : "people"}
       </p>
-      
-      <div className="flex flex-wrap justify-center gap-2 mb-5">
+
+      <div className="flex flex-wrap justify-center gap-2 mb-4">
         {participants.map((name, i) => (
           <div
             key={i}
@@ -102,6 +119,13 @@ export default function LivekitRoom({
         ))}
       </div>
 
+      {noMic && (
+        <p className="text-xs text-amber-400 text-center mb-4">
+          ⚠️ No microphone found on this device — you can still listen.
+          Check mic settings, then tap the mic button to retry.
+        </p>
+      )}
+
       <div className="flex gap-3">
         <button
           onClick={toggleMute}
@@ -111,7 +135,7 @@ export default function LivekitRoom({
               : "bg-slate-700 hover:bg-slate-600"
           }`}
         >
-          {muted ? "🔇 Unmute" : "🎤 Mute"}
+          {muted ? "🎤 Try Mic" : "🔇 Mute"}
         </button>
         <button
           onClick={leave}
