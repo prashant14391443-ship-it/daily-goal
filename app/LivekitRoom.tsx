@@ -17,9 +17,12 @@ export default function LivekitRoom({
   const [status, setStatus] = useState<"connecting" | "live">("connecting");
   const [error, setError] = useState("");
   const [micOn, setMicOn] = useState(false);
+  const [soundOn, setSoundOn] = useState(true);
   const [micMsg, setMicMsg] = useState("");
   const [people, setPeople] = useState<Person[]>([]);
   const roomRef = useRef<Room | null>(null);
+  const elsRef = useRef<HTMLMediaElement[]>([]);
+  const soundRef = useRef(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,23 +62,33 @@ export default function LivekitRoom({
         r.on(RoomEvent.TrackUnmuted, update);
         r.on(RoomEvent.Disconnected, () => onLeave());
 
-        // 🔊 PLUG IN THE SPEAKERS (this was missing!)
+        // plug the other person's voice into the page
         r.on(RoomEvent.TrackSubscribed, (track) => {
-          const el = track.attach();
-          el.classList.add("lk-audio-el");
+          const el = track.attach() as HTMLMediaElement;
+          el.muted = !soundRef.current;
+          elsRef.current.push(el);
           document.body.appendChild(el);
         });
         r.on(RoomEvent.TrackUnsubscribed, (track) => {
-          track.detach().forEach((el) => el.remove());
+          track.detach().forEach((el) => {
+            elsRef.current = elsRef.current.filter((x) => x !== el);
+            el.remove();
+          });
         });
+
         update();
         setStatus("live");
+        try {
+          await (r as unknown as { startAudio?: () => Promise<void> }).startAudio?.();
+        } catch {
+          // ignore
+        }
 
         try {
           await r.localParticipant.setMicrophoneEnabled(true);
           setMicOn(true);
         } catch {
-          setMicMsg("Mic not started — tap 🎤 Enable Mic.");
+          setMicMsg("Mic blocked — tap 🎤 button after allowing permission.");
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Connect failed");
@@ -85,28 +98,31 @@ export default function LivekitRoom({
     return () => {
       cancelled = true;
       roomRef.current?.disconnect();
-      document.querySelectorAll(".lk-audio-el").forEach((el) => el.remove());
+      elsRef.current.forEach((el) => el.remove());
+      elsRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomName, identity]);
 
-  const enableMic = async () => {
+  const toggleMic = async () => {
     const r = roomRef.current;
     if (!r) return;
     try {
-      await r.localParticipant.setMicrophoneEnabled(true);
-      setMicOn(true);
-      setMicMsg("");
+      await r.localParticipant.setMicrophoneEnabled(!micOn);
+      setMicOn(!micOn);
+      if (!micOn) setMicMsg("");
     } catch {
-      setMicMsg(
-        "No mic! Allow permission popup. Windows: Privacy→Microphone ON. Or earphones 🎧"
-      );
+      setMicMsg("No mic on this device — use earphones 🎧 or check settings.");
     }
   };
 
-  const muteMic = async () => {
-    await roomRef.current?.localParticipant.setMicrophoneEnabled(false);
-    setMicOn(false);
+  const toggleSound = () => {
+    const next = !soundOn;
+    setSoundOn(next);
+    soundRef.current = next;
+    elsRef.current.forEach((el) => {
+      el.muted = !next;
+    });
   };
 
   const leave = () => {
@@ -148,35 +164,36 @@ export default function LivekitRoom({
         ))}
       </div>
 
-      <p className="text-[11px] text-slate-500 text-center mb-3">
-        🎤 = talking • 🔇 = silent. BOTH need 🎤 to speak & hear.
-      </p>
-
       {micMsg && (
-        <p className="text-xs text-amber-400 text-center mb-4">{micMsg}</p>
+        <p className="text-xs text-amber-400 text-center mb-3">{micMsg}</p>
       )}
 
-      <div className="flex gap-3">
-        {micOn ? (
-          <button
-            onClick={muteMic}
-            className="flex-1 py-3 rounded bg-slate-700 hover:bg-slate-600 font-semibold"
-          >
-            🔇 Mute
-          </button>
-        ) : (
-          <button
-            onClick={enableMic}
-            className="flex-1 py-3 rounded bg-green-600 hover:bg-green-500 font-semibold"
-          >
-            🎤 Enable Mic
-          </button>
-        )}
+      <div className="flex gap-2">
+        <button
+          onClick={toggleMic}
+          className={`flex-1 py-3 rounded font-semibold ${
+            micOn
+              ? "bg-green-600 hover:bg-green-500"
+              : "bg-slate-700 hover:bg-slate-600"
+          }`}
+        >
+          🎤 {micOn ? "ON" : "OFF"}
+        </button>
+        <button
+          onClick={toggleSound}
+          className={`flex-1 py-3 rounded font-semibold ${
+            soundOn
+              ? "bg-green-600 hover:bg-green-500"
+              : "bg-slate-700 hover:bg-slate-600"
+          }`}
+        >
+          {soundOn ? "🔊 ON" : "🔇 OFF"}
+        </button>
         <button
           onClick={leave}
-          className="flex-1 py-3 rounded bg-slate-800 border border-red-500/50 text-red-400 hover:bg-red-600 hover:text-white font-semibold"
+          className="px-4 py-3 rounded bg-slate-800 border border-red-500/50 text-red-400 hover:bg-red-600 hover:text-white font-semibold"
         >
-          ❌ Leave
+          ❌
         </button>
       </div>
     </div>
