@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Room, RoomEvent } from "livekit-client";
+// Added 'Track' to the imports here
+import { Room, RoomEvent, Track } from "livekit-client";
 
 export default function LivekitRoom({
   roomName,
@@ -14,12 +15,12 @@ export default function LivekitRoom({
 }) {
   const [room, setRoom] = useState<Room | null>(null);
   const [muted, setMuted] = useState(false);
-  const [noMic, setNoMic] = useState(false);
   const [error, setError] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
 
   useEffect(() => {
-    let current: Room | null = null;
+    let activeRoom: Room | null = null;
+
     const connect = async () => {
       try {
         const res = await fetch("/api/voice-token", {
@@ -31,16 +32,29 @@ export default function LivekitRoom({
         if (!res.ok) throw new Error(data.error || "Failed to get token");
 
         const r = new Room();
-        current = r;
+        activeRoom = r;
+
+        // FIX 1: Listen for remote audio tracks and attach them to the browser so you can actually hear them!
+        r.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          if (track.kind === Track.Kind.Audio) {
+            const element = track.attach();
+            document.body.appendChild(element);
+          }
+        });
+
+        // Cleanup audio tracks when someone leaves
+        r.on(RoomEvent.TrackUnsubscribed, (track) => {
+          track.detach().forEach((el) => el.remove());
+        });
+
         await r.connect(data.url, data.token);
 
+        // FIX 2: Prevent the "Requested device not found" crash on laptops with no mic
         try {
           await r.localParticipant.setMicrophoneEnabled(true);
-          setMuted(false);
-          setNoMic(false);
-        } catch {
-          setMuted(true);
-          setNoMic(true);
+        } catch (micErr) {
+          console.warn("Microphone access failed or no mic found:", micErr);
+          setMuted(true); // Default to muted if mic fails, but keep them in the room
         }
 
         r.on(RoomEvent.Disconnected, onLeave);
@@ -61,13 +75,13 @@ export default function LivekitRoom({
         setError(msg);
       }
     };
+    
     connect();
 
     return () => {
-      current?.disconnect();
+      activeRoom?.disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomName, identity]);
+  }, [roomName, identity, onLeave]);
 
   const toggleMute = async () => {
     if (!room) return;
@@ -75,9 +89,8 @@ export default function LivekitRoom({
       const newState = !muted;
       await room.localParticipant.setMicrophoneEnabled(!newState);
       setMuted(newState);
-      if (!newState) setNoMic(false);
-    } catch {
-      setNoMic(true);
+    } catch (err) {
+      alert("Could not access microphone. Please check browser permissions.");
     }
   };
 
@@ -103,11 +116,10 @@ export default function LivekitRoom({
   return (
     <div className="bg-slate-900 border border-green-500/40 rounded-xl p-5">
       <p className="text-center text-green-400 font-bold mb-3">
-        🟢 Live Room — {participants.length}{" "}
-        {participants.length === 1 ? "person" : "people"}
+        🟢 Live Room — {participants.length} {participants.length === 1 ? "person" : "people"}
       </p>
-
-      <div className="flex flex-wrap justify-center gap-2 mb-4">
+      
+      <div className="flex flex-wrap justify-center gap-2 mb-5">
         {participants.map((name, i) => (
           <div
             key={i}
@@ -119,27 +131,20 @@ export default function LivekitRoom({
         ))}
       </div>
 
-      {noMic && (
-        <p className="text-xs text-amber-400 text-center mb-4">
-          ⚠️ No microphone found on this device — you can still listen.
-          Check mic settings, then tap the mic button to retry.
-        </p>
-      )}
-
       <div className="flex gap-3">
         <button
           onClick={toggleMute}
-          className={`flex-1 py-3 rounded font-semibold ${
+          className={`flex-1 py-3 rounded font-semibold transition-colors ${
             muted
               ? "bg-red-600 hover:bg-red-500"
               : "bg-slate-700 hover:bg-slate-600"
           }`}
         >
-          {muted ? "🎤 Try Mic" : "🔇 Mute"}
+          {muted ? "🔇 Unmute" : "🎤 Mute"}
         </button>
         <button
           onClick={leave}
-          className="flex-1 py-3 rounded bg-slate-800 border border-red-500/50 text-red-400 hover:bg-red-600 hover:text-white font-semibold"
+          className="flex-1 py-3 rounded bg-slate-800 border border-red-500/50 text-red-400 hover:bg-red-600 hover:text-white font-semibold transition-colors"
         >
           ❌ Leave
         </button>
