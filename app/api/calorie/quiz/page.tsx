@@ -1,0 +1,150 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+
+type Question = {
+  q: string;
+  options: string[];
+  answer: number;
+  explain: string;
+};
+
+export default function QuizPage() {
+  const [topic, setTopic] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [answers, setAnswers] = useState<number[]>([]);
+  const [submitted, setSubmitted] = useState(false);
+
+  const generate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    setQuestions([]);
+    setSubmitted(false);
+    try {
+      const res = await fetch("/api/quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "failed");
+      setQuestions(data.questions || []);
+      setAnswers(new Array((data.questions || []).length).fill(-1));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate quiz.");
+    }
+    setLoading(false);
+  };
+
+  const pick = (qi: number, oi: number) => {
+    if (submitted) return;
+    const next = [...answers];
+    next[qi] = oi;
+    setAnswers(next);
+  };
+
+  const submit = () => {
+    setSubmitted(true);
+  };
+
+  const score = questions.filter((q, i) => answers[i] === q.answer).length;
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold flex items-center gap-3">
+          <span className="w-10 h-10 rounded-xl bg-green-600/20 border border-green-500/40 flex items-center justify-center text-xl">🤖</span>
+          AI Quiz
+        </h1>
+        <p className="text-slate-400">Type any topic → AI writes your test</p>
+      </div>
+
+      <form onSubmit={generate} className="bg-slate-900 p-6 rounded-lg mb-8 grid gap-4">
+        <input
+          value={topic}
+          onChange={(e) => setTopic(e.target.value)}
+          placeholder="Topic (e.g. Photosynthesis, World War 2, Trigonometry)"
+          required
+          className="p-3 rounded bg-slate-800 border border-slate-700"
+        />
+        <button
+          disabled={loading}
+          className="py-3 rounded bg-green-600 hover:bg-green-500 font-semibold disabled:opacity-50"
+        >
+          {loading ? "🤖 AI is writing your test..." : " Generate Quiz"}
+        </button>
+      </form>
+
+      {error && <p className="text-red-400 mb-4">❌ {error}</p>}
+
+      {questions.length > 0 && (
+        <div className="grid gap-5">
+          {questions.map((q, qi) => (
+            <div key={qi} className="bg-slate-900 rounded-xl p-5">
+              <p className="font-bold mb-3">
+                {qi + 1}. {q.q}
+              </p>
+              <div className="grid gap-2">
+                {q.options.map((opt, oi) => {
+                  let cls = "bg-slate-800 hover:bg-slate-700";
+                  if (submitted) {
+                    if (oi === q.answer) cls = "bg-green-700";
+                    else if (answers[qi] === oi) cls = "bg-red-700";
+                  } else if (answers[qi] === oi) {
+                    cls = "bg-blue-700";
+                  }
+                  return (
+                    <button
+                      key={oi}
+                      onClick={() => pick(qi, oi)}
+                      className={`text-left p-3 rounded text-sm ${cls}`}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+              {submitted && (
+                <p className="text-xs text-slate-400 mt-2">💡 {q.explain}</p>
+              )}
+            </div>
+          ))}
+
+          {!submitted ? (
+            <button
+              onClick={submit}
+              disabled={answers.some((a) => a === -1)}
+              className="py-3 rounded bg-green-600 hover:bg-green-500 font-semibold disabled:opacity-50"
+            >
+              ✅ Submit Answers
+            </button>
+          ) : (
+            <div className="bg-slate-900 rounded-xl p-6 text-center">
+              <p className="text-4xl font-extrabold text-green-400">
+                {score} / {questions.length}
+              </p>
+              <p className="text-slate-400 mt-1">
+                {score === questions.length
+                  ? "🏆 Perfect! You're ready!"
+                  : score >= 3
+                  ? "💪 Good job — review the red ones!"
+                  : "📚 Keep studying — you'll get there!"}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      <Link
+        href="/study-tracker"
+        className="inline-block mt-6 text-sm text-slate-400 hover:text-white"
+      >
+        ← Back to Study
+      </Link>
+    </main>
+  );
+}
