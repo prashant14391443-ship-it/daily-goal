@@ -29,6 +29,10 @@ function timeOf(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
+function canEdit(iso: string) {
+  return new Date(iso).getTime() > Date.now() - 15 * 60 * 1000;
+}
+
 export default function CommunityRoomPage() {
   const [community, setCommunity] = useState<{
     name: string;
@@ -47,7 +51,9 @@ export default function CommunityRoomPage() {
   const [preview, setPreview] = useState("");
   const [sending, setSending] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  
   const bottomRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null); // Added ref to fix Issue 3
   const router = useRouter();
   const id = typeof window !== "undefined" ? localStorage.getItem("dg-community") : null;
 
@@ -66,32 +72,40 @@ export default function CommunityRoomPage() {
       supabase.from("community_members").select("user_id, status, user_name").eq("community_id", id),
       supabase.from("community_members").select("status").eq("community_id", id).eq("user_id", uid).maybeSingle(),
     ]);
+    
     if (!c.data) {
       router.push("/community");
       return;
     }
+    
     setCommunity(c.data);
     const rows = m.data || [];
     setMemberCount(rows.filter((r) => r.status === "approved").length);
     setPending(
       rows.filter((r) => r.status === "pending").map((r) => ({ user_id: r.user_id, user_name: r.user_name || "member" }))
     );
-    setMyStatus(uid === c.data.owner_id ? "approved" : my?.status || "");
+    
+    // Fixed Issues 2 and 4
+    setMyStatus(uid === c.data?.owner_id ? "approved" : my.data?.status || "");
 
     const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
     const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString();
+    
     const { data: oldFiles } = await supabase
       .from("community_messages")
       .select("id, file_url")
       .eq("community_id", id)
       .not("file_url", "is", null)
       .lt("created_at", twoDaysAgo);
+      
     const paths = (oldFiles || [])
       .map((o) => String(o.file_url).split("/community-files/")[1])
       .filter(Boolean);
+      
     if (paths.length) {
       await supabase.storage.from("community-files").remove(paths);
     }
+    
     await supabase.from("community_messages").delete().eq("community_id", id).not("file_url", "is", null).lt("created_at", twoDaysAgo);
     await supabase.from("community_messages").delete().eq("community_id", id).lt("created_at", weekAgo);
 
@@ -199,6 +213,9 @@ export default function CommunityRoomPage() {
   const clearFile = () => {
     setFile(null);
     setPreview("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""; // Fixed Issue 3: Reset DOM input
+    }
   };
 
   const send = async (e: React.FormEvent) => {
@@ -218,6 +235,7 @@ export default function CommunityRoomPage() {
 
     let fileUrl: string | null = null;
     let fileType: string | null = null;
+    
     if (file) {
       const ext = file.name.split(".").pop() || "bin";
       const path = `${id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
@@ -238,6 +256,7 @@ export default function CommunityRoomPage() {
       file_url: fileUrl,
       file_type: fileType,
     });
+    
     setText("");
     setSending(false);
   };
@@ -313,7 +332,7 @@ export default function CommunityRoomPage() {
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">🏘️ {community?.name || "..."}</h1>
-          <p className="text-slate-400 text-xs">👥 {memberCount} members</p>
+          <p className="text-slate-400 text-xs">👥 {memberCount} members • v3</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -378,15 +397,16 @@ export default function CommunityRoomPage() {
                   </a>
                 )}
                 <p className="text-sm whitespace-pre-wrap">{m.text}</p>
-                <div className={`flex items-center gap-2 mt-0.5 ${own ? "justify-end" : "justify-between"}`}>
-                  {!own && <span />}
+                <div className="flex items-center justify-end gap-2 mt-0.5">
                   <span className={`text-[10px] ${own ? "text-green-200" : "text-slate-400"}`}>{timeOf(m.created_at)}</span>
                 </div>
                 {own && (
                   <div className="flex justify-end gap-3 mt-1">
-                    <button onClick={() => startEdit(m)} className="text-[11px] text-green-200 underline">
-                      ✏️ edit
-                    </button>
+                    {canEdit(m.created_at) && (
+                      <button onClick={() => startEdit(m)} className="text-[11px] text-green-200 underline">
+                        ✏️ edit
+                      </button>
+                    )}
                     <button onClick={() => del(m)} className="text-[11px] text-red-300 underline">
                       🗑️ delete
                     </button>
@@ -400,6 +420,7 @@ export default function CommunityRoomPage() {
         <div ref={bottomRef} />
       </div>
 
+      {/* Fixed Issue 1: Completed the JSX for file UI, editing banner, and chat input form */}
       {file && (
         <div className="mt-2 bg-slate-900 border border-sky-500/40 rounded-xl p-3 flex items-center gap-3">
           {preview ? (
@@ -420,37 +441,50 @@ export default function CommunityRoomPage() {
       )}
 
       {editingId && (
-        <div className="mt-2 bg-slate-900 border border-amber-500/40 rounded-xl p-2 flex items-center justify-between px-3">
-          <span className="text-xs text-amber-400 font-semibold">✏️ Editing message</span>
-          <button
-            type="button"
-            onClick={() => {
-              setEditingId(null);
-              setText("");
-            }}
-            className="text-xs text-red-400"
+        <div className="mt-2 bg-slate-900 border border-amber-500/40 rounded-xl p-3 flex items-center justify-between">
+          <span className="text-sm text-amber-400 font-semibold">✏️ Editing message...</span>
+          <button 
+            onClick={() => { setEditingId(null); setText(""); }} 
+            className="text-xs text-red-400 underline"
           >
             Cancel
           </button>
         </div>
       )}
 
-      <form onSubmit={send} className="flex gap-2 mt-2 items-center">
-        <label className="w-12 h-12 rounded-full bg-slate-800 hover:bg-slate-700 cursor-pointer text-xl flex items-center justify-center shrink-0">
-          📎
-          <input type="file" accept="image/*,application/pdf" onChange={onFile} className="hidden" />
-        </label>
+      <form onSubmit={send} className="flex gap-2 mt-3 items-center">
+        <input
+          type="file"
+          id="file-upload"
+          className="hidden"
+          accept="image/*,application/pdf"
+          onChange={onFile}
+          ref={fileInputRef} // Needed for Issue 3
+        />
+        
+        {!editingId && (
+          <label
+            htmlFor="file-upload"
+            className="cursor-pointer p-3 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xl"
+            title="Attach File"
+          >
+            📎
+          </label>
+        )}
+        
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={editingId ? "Edit your message..." : "Type a message..."}
-          className="flex-1 h-12 px-4 rounded-full bg-slate-800 border border-slate-700 text-base"
-        />
-        <button
+          placeholder={file ? "Add a message (optional)..." : "Type a message..."}
+          className="flex-1 p-3 rounded bg-slate-800 border border-slate-700 focus:outline-none focus:border-pink-500"
           disabled={sending}
-          className="w-12 h-12 rounded-full bg-pink-600 hover:bg-pink-500 font-semibold shrink-0 disabled:opacity-50"
+        />
+        
+        <button
+          disabled={sending || (!text.trim() && !file)}
+          className="px-5 py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold disabled:opacity-50"
         >
-          ➤
+          {sending ? "⏳" : (editingId ? "💾" : "➤")}
         </button>
       </form>
     </main>
