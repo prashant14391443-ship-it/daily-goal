@@ -49,6 +49,7 @@ export default function FocusPage() {
   const [left, setLeft] = useState(25 * 60);
   const [running, setRunning] = useState(false);
   const [subject, setSubject] = useState("");
+  const [custom, setCustom] = useState("");
   const [doneToday, setDoneToday] = useState(0);
 
   useEffect(() => {
@@ -87,6 +88,11 @@ export default function FocusPage() {
       setMode("focus");
       setLeft(m * 60);
     }
+  };
+
+  const applyCustom = () => {
+    const m = Number(custom);
+    if (m > 0) pickPreset(m);
   };
 
   const complete = async () => {
@@ -163,6 +169,16 @@ export default function FocusPage() {
               {m}m
             </button>
           ))}
+          <input
+            type="number"
+            min="1"
+            max="180"
+            placeholder="Custom"
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            onBlur={applyCustom}
+            className="w-20 px-2 py-1.5 rounded bg-slate-800 border border-slate-700 text-sm"
+          />
         </div>
 
         <p className="text-7xl mb-4">{plant}</p>
