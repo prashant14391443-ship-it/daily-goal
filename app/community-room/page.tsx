@@ -60,7 +60,10 @@ export default function CommunityPage() {
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
-    const room = "DG-" + Math.random().toString(36).slice(2, 8);
+    const room =
+      "DG-" +
+      Math.random().toString(36).slice(2, 10) +
+      Math.random().toString(36).slice(2, 10);
     const { data } = await supabase
       .from("communities")
       .insert({ owner_id: userId, name, description: desc, room_code: room })
