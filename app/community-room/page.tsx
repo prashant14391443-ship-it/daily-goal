@@ -346,7 +346,7 @@ export default function CommunityRoomPage() {
     );
 
   return (
-    <main className="h-screen overflow-hidden bg-slate-950 text-white p-3 md:p-6 pb-20 md:pb-6 flex flex-col">
+    <main className="fixed inset-0 overflow-hidden bg-slate-950 text-white p-3 md:p-6 pb-20 md:pb-6 flex flex-col z-0">
       <div className="mb-3">
         <div className="pr-24">
           <h1 className="text-xl font-bold">🏘️ {community?.name || "..."}</h1>
