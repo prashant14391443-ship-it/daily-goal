@@ -118,8 +118,14 @@ export default function CalculatorPage() {
   });
   const [addingMeal, setAddingMeal] = useState<string | null>(null);
   const [foodName, setFoodName] = useState("");
-  const [qty, setQty] = useState("");
+  const [qty, setQty] = useState("1");
   const [customFood, setCustomFood] = useState(false);
+  const [picked, setPicked] = useState<{
+    cal: number;
+    p: number;
+    c: number;
+    f: number;
+  } | null>(null);
   const [scanName, setScanName] = useState("");
   const [scanQty, setScanQty] = useState("");
   const [cal, setCal] = useState("");
@@ -212,29 +218,45 @@ export default function CalculatorPage() {
 
   const resetForm = () => {
     setFoodName("");
-    setQty("");
+    setQty("1");
     setCustomFood(false);
+    setPicked(null);
     setCal("");
     setPro("");
     setCarb("");
     setFat("");
   };
 
+  const applyMacros = (
+    q: { cal: number; p: number; c: number; f: number },
+    qtyStr: string
+  ) => {
+    const n = Number(qtyStr) || 1;
+    setCal(String(Math.round(q.cal * n)));
+    setPro(String(Math.round(q.p * n)));
+    setCarb(String(Math.round(q.c * n)));
+    setFat(String(Math.round(q.f * n)));
+  };
+
   const pick = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const v = e.target.value;
     if (v === "custom") {
       setCustomFood(true);
+      setPicked(null);
       setFoodName("");
       return;
     }
-    setCustomFood(false);
     const q = QUICK_FOODS[Number(v)];
     if (!q) return;
+    setCustomFood(false);
+    setPicked(q);
     setFoodName(q.name);
-    setCal(String(q.cal));
-    setPro(String(q.p));
-    setCarb(String(q.c));
-    setFat(String(q.f));
+    applyMacros(q, qty);
+  };
+
+  const onQty = (v: string) => {
+    setQty(v);
+    if (picked && !customFood) applyMacros(picked, v);
   };
 
   const insertLog = async (meal: string, entry: Omit<Log, "id" | "meal">) => {
@@ -253,7 +275,8 @@ export default function CalculatorPage() {
     e.preventDefault();
     if (!foodName.trim() || !cal) return;
     await insertLog(meal, {
-      food_name: foodName.trim() + (qty.trim() ? " • " + qty.trim() : ""),
+      food_name:
+        foodName.trim() + (picked && Number(qty) > 1 ? " × " + qty.trim() : ""),
       calories: Number(cal) || 0,
       protein: Number(pro) || 0,
       carbs: Number(carb) || 0,
@@ -549,7 +572,7 @@ export default function CalculatorPage() {
                     {customFood && (
                       <input value={foodName} onChange={(e) => setFoodName(e.target.value)} placeholder="Food name" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm" />
                     )}
-                    <input value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Quantity (e.g. 2 pcs, 1 bowl)" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm" />
+                    <input type="number" min="1" value={qty} onChange={(e) => onQty(e.target.value)} placeholder="Quantity (×)" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm" />
                     <div className="grid grid-cols-4 gap-2">
                       <input type="number" value={cal} onChange={(e) => setCal(e.target.value)} placeholder="cal" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm" />
                       <input type="number" value={pro} onChange={(e) => setPro(e.target.value)} placeholder="P g" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm" />
