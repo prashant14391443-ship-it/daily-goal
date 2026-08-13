@@ -504,6 +504,15 @@ export default function Dashboard() {
       ? "💪 Good start, keep pushing!"
       : "🦇 Rise, hero — start NOW!";
 
+  const motiveColor =
+    overallPct >= 75
+      ? "border-green-500/40 bg-green-600/15"
+      : overallPct >= 50
+      ? "border-amber-500/40 bg-amber-600/15"
+      : overallPct >= 25
+      ? "border-blue-500/40 bg-blue-600/15"
+      : "border-violet-500/40 bg-violet-600/15";
+
   const weekData =
     chartMode === "study"
       ? studyWeekData
@@ -536,11 +545,14 @@ export default function Dashboard() {
           <h1 className="text-2xl md:text-3xl font-black bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">
             {greeting}, {userName}! 👋
           </h1>
-          <p className="text-slate-400">
-            {motivation} —{" "}
-            <span className="font-bold text-white">{overallPct}%</span> done
-            today • {today}
-          </p>
+          <div
+            className={`mt-2 inline-flex items-center gap-3 rounded-xl border px-4 py-2 ${motiveColor}`}
+          >
+            <span className="text-sm font-bold text-white">{motivation}</span>
+            <span className="text-sm font-black text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-lg px-2.5 py-0.5 shadow-lg shadow-violet-500/20">
+              {overallPct}%
+            </span>
+          </div>
         </div>
         <nav className="hidden md:flex flex-wrap gap-4 text-sm items-center">
           <Link href="/study-tracker" className="text-slate-300 hover:text-white">
