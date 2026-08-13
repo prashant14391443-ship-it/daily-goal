@@ -570,6 +570,9 @@ export default function Dashboard() {
           <Link href="/community" className="text-slate-300 hover:text-white">
             Social
           </Link>
+          <Link href="/nutrition" className="text-slate-300 hover:text-white">
+            Food
+          </Link>
         </nav>
       </div>
 
