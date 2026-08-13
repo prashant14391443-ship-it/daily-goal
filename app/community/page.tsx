@@ -149,9 +149,9 @@ export default function CommunityPage() {
 
       <Link
         href="/random-talk"
-        className="block bg-pink-600/20 border border-pink-500/40 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-pink-600/30"
+        className="block bg-pink-600 hover:bg-pink-500 rounded-lg p-4 mb-4 text-center font-semibold"
       >
-        🎲 Talk to a Stranger — 1-on-1 voice, instant match
+        🎲 Talk to a Stranger — 1-on-1 voice, practice English communication
       </Link>
 
       <button

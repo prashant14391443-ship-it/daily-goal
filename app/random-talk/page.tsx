@@ -116,6 +116,17 @@ export default function RandomTalkPage() {
     setTimeout(start, 300);
   };
 
+  const reportStranger = async () => {
+    const reason = prompt("What did the stranger say wrong?");
+    if (!reason || !reason.trim()) return;
+    await supabase.from("community_reports").insert({
+      community_id: null,
+      reporter_id: me,
+      reason: `🎙️ Voice talk (room ${room}): ${reason.trim()}`,
+    });
+    alert("✅ Reported. Moderators will review this person.");
+  };
+
 
 
   return (
@@ -149,7 +160,7 @@ export default function RandomTalkPage() {
           <p className="text-5xl mb-4 animate-pulse">🔍</p>
           <p className="font-bold mb-2">Finding a partner...</p>
           <p className="text-sm text-slate-400 mb-6">
-            Keep this screen open. Connection happens within ~2 seconds of
+            Keep this screen open. Connection happens within seconds of
             another member pressing the button.
           </p>
           <button
@@ -164,12 +175,23 @@ export default function RandomTalkPage() {
       {state === "talk" && (
         <div className="max-w-md mx-auto">
           <p className="text-center text-green-400 font-bold mb-2">
-            ✅ Matched! You're in a private room together.
+            ✅ Matched! You're connected — start talking! 🎙️
           </p>
           <p className="text-center text-xs text-slate-400 mb-3">
-            Allow microphone 🎤 when the browser asks — then talk!
+            Allow microphone 🎤 when the browser asks.
           </p>
           <LivekitRoom roomName={room} identity={displayName} onLeave={end} />
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 mt-4 flex items-center justify-between gap-2">
+            <p className="text-xs text-slate-400">
+              🤝 Be respectful — a real person is listening.
+            </p>
+            <button
+              onClick={reportStranger}
+              className="px-3 py-2 rounded-lg bg-red-600/20 border border-red-500/40 text-red-300 text-xs font-bold shrink-0"
+            >
+              🚩 Report
+            </button>
+          </div>
           <div className="flex gap-3 mt-4">
             <button
               onClick={next}
