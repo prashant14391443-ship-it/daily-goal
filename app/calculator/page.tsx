@@ -118,6 +118,10 @@ export default function CalculatorPage() {
   });
   const [addingMeal, setAddingMeal] = useState<string | null>(null);
   const [foodName, setFoodName] = useState("");
+  const [qty, setQty] = useState("");
+  const [customFood, setCustomFood] = useState(false);
+  const [scanName, setScanName] = useState("");
+  const [scanQty, setScanQty] = useState("");
   const [cal, setCal] = useState("");
   const [pro, setPro] = useState("");
   const [carb, setCarb] = useState("");
@@ -208,6 +212,8 @@ export default function CalculatorPage() {
 
   const resetForm = () => {
     setFoodName("");
+    setQty("");
+    setCustomFood(false);
     setCal("");
     setPro("");
     setCarb("");
@@ -215,7 +221,14 @@ export default function CalculatorPage() {
   };
 
   const pick = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const q = QUICK_FOODS[Number(e.target.value)];
+    const v = e.target.value;
+    if (v === "custom") {
+      setCustomFood(true);
+      setFoodName("");
+      return;
+    }
+    setCustomFood(false);
+    const q = QUICK_FOODS[Number(v)];
     if (!q) return;
     setFoodName(q.name);
     setCal(String(q.cal));
@@ -240,7 +253,7 @@ export default function CalculatorPage() {
     e.preventDefault();
     if (!foodName.trim() || !cal) return;
     await insertLog(meal, {
-      food_name: foodName.trim(),
+      food_name: foodName.trim() + (qty.trim() ? " • " + qty.trim() : ""),
       calories: Number(cal) || 0,
       protein: Number(pro) || 0,
       carbs: Number(carb) || 0,
@@ -271,7 +284,11 @@ export default function CalculatorPage() {
       const res = await fetch("/api/calorie", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: scanImg }),
+        body: JSON.stringify({
+          image: scanImg,
+          foodName: scanName || undefined,
+          quantity: scanQty || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Analysis failed");
@@ -469,6 +486,8 @@ export default function CalculatorPage() {
                         setScanImg(null);
                         setScanResult(null);
                         setScanError("");
+                        setScanName("");
+                        setScanQty("");
                       }}
                       className="px-3 py-1 rounded-lg bg-red-600/20 border border-red-500/40 text-red-300 text-xs font-bold"
                     >
@@ -498,15 +517,19 @@ export default function CalculatorPage() {
                   <form onSubmit={(e) => addFood(e, m.key)} className="grid gap-2 mt-2">
                     <select onChange={pick} defaultValue="" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm">
                       <option value="" disabled>
-                        ⚡ Quick pick common food…
+                        ⚡ Choose food…
                       </option>
                       {QUICK_FOODS.map((q, i) => (
                         <option key={i} value={i}>
                           {q.name} — {q.cal} cal
                         </option>
                       ))}
+                      <option value="custom">✏️ Other (type name)</option>
                     </select>
-                    <input value={foodName} onChange={(e) => setFoodName(e.target.value)} placeholder="Food name" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm" />
+                    {customFood && (
+                      <input value={foodName} onChange={(e) => setFoodName(e.target.value)} placeholder="Food name" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm" />
+                    )}
+                    <input value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Quantity (e.g. 2 pcs, 1 bowl)" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm" />
                     <div className="grid grid-cols-4 gap-2">
                       <input type="number" value={cal} onChange={(e) => setCal(e.target.value)} placeholder="cal" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm" />
                       <input type="number" value={pro} onChange={(e) => setPro(e.target.value)} placeholder="P g" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm" />
@@ -529,6 +552,8 @@ export default function CalculatorPage() {
                     ) : (
                       <>
                         <img src={scanImg} alt="food" className="rounded-lg max-h-40 w-full object-cover" />
+                        <input value={scanName} onChange={(e) => setScanName(e.target.value)} placeholder="Food name (optional, more accurate)" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm" />
+                        <input value={scanQty} onChange={(e) => setScanQty(e.target.value)} placeholder="Quantity (e.g. 1 plate, 200g)" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm" />
                         {!scanResult ? (
                           <button onClick={analyze} disabled={scanLoading} className="py-2 rounded bg-red-600 hover:bg-red-500 text-sm font-bold disabled:opacity-50">
                             {scanLoading ? "🤖 AI is reading your food..." : "⚡ Analyze Calories"}
