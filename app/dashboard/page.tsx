@@ -573,6 +573,9 @@ export default function Dashboard() {
           <Link href="/nutrition" className="text-slate-300 hover:text-white">
             Food
           </Link>
+          <Link href="/ai" className="text-slate-300 hover:text-white">
+            AI Coach
+          </Link>
         </nav>
       </div>
 
