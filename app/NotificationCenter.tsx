@@ -12,7 +12,7 @@ type Notif = {
 };
 
 function prune(list: Notif[]) {
-  const cutoff = Date.now() - 2 * 60 * 60 * 1000 * 24; // ← same 2 days rule
+  const cutoff = Date.now() - 2 * 60 * 60 * 1000 * 24;
   return list
     .filter((n) => new Date(n.time).getTime() > cutoff)
     .slice(0, 50);
@@ -76,7 +76,12 @@ export default function NotificationCenter() {
     });
 
   return (
-    <div className="fixed top-3 right-14 z-50" ref={boxRef}>
+    <div
+      className="absolute top-3 right-14 z-50"
+      ref={boxRef}
+      data-version="v6-bell"
+    >
+      <span className="sr-only">bell-v6</span>
       <button
         onClick={toggle}
         className="relative w-9 h-9 rounded-full bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center text-lg"
