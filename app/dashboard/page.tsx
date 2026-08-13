@@ -88,16 +88,20 @@ function ProgressBar({
   color: string;
 }) {
   const pct = Math.min(100, Math.round((value / Math.max(target, 1)) * 100));
+  const full = pct >= 100;
   return (
     <div>
       <div className="flex justify-between text-sm mb-1">
         <span>{label}</span>
-        <span className="text-slate-400">
-          {value} / {target} {unit} • {pct}%
+        <span className={full ? "text-green-400 font-bold" : "text-slate-400"}>
+          {value} / {target} {unit} • {pct}% {full ? "🎉" : ""}
         </span>
       </div>
       <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-        <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+        <div
+          className={`h-full ${color} ${full ? "bar-full" : ""}`}
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );
@@ -457,7 +461,7 @@ export default function Dashboard() {
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
       <div className="flex flex-wrap justify-between items-center mb-8 gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold">
+          <h1 className="text-2xl md:text-3xl font-black bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">
             {greeting}, {userName}! 👋
           </h1>
           <p className="text-slate-400">Here is your day at a glance — {today}</p>
@@ -488,49 +492,57 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 md:gap-6 mb-8">
             <Link
               href="/study-tracker"
-              className="bg-slate-900 p-4 md:p-6 rounded-xl hover:bg-slate-800"
+              className="bg-slate-900 p-4 md:p-6 rounded-xl border border-slate-800 shadow-lg shadow-black/30 hover:bg-slate-800"
             >
               <h3 className="text-base md:text-lg font-bold text-blue-400 mb-2">📚 Study</h3>
-              <p className="text-2xl md:text-3xl font-extrabold">
+              <p className="text-2xl md:text-3xl font-black tracking-tight">
                 {Math.floor(studyMinutes / 60)}h {studyMinutes % 60}m
               </p>
-              <p className="text-xs md:text-sm text-slate-400 mt-1">today</p>
+              <p className="text-xs md:text-sm text-slate-400 mt-1">
+                {studyMinutes === 0 ? "Start with 25 focused min! 📚" : "studied today"}
+              </p>
             </Link>
 
             <Link
               href="/gym-log"
-              className="bg-slate-900 p-4 md:p-6 rounded-xl hover:bg-slate-800"
+              className="bg-slate-900 p-4 md:p-6 rounded-xl border border-slate-800 shadow-lg shadow-black/30 hover:bg-slate-800"
             >
               <h3 className="text-base md:text-lg font-bold text-green-400 mb-2">🏋️ Gym</h3>
-              <p className="text-2xl md:text-3xl font-extrabold">{workouts}</p>
-              <p className="text-xs md:text-sm text-slate-400 mt-1">workouts today</p>
+              <p className="text-2xl md:text-3xl font-black tracking-tight">{workouts}</p>
+              <p className="text-xs md:text-sm text-slate-400 mt-1">
+                {workouts === 0 ? "Ready to crush a workout? 💪" : "workouts today"}
+              </p>
             </Link>
 
             <Link
               href="/routine-habits"
-              className="bg-slate-900 p-4 md:p-6 rounded-xl hover:bg-slate-800"
+              className="bg-slate-900 p-4 md:p-6 rounded-xl border border-slate-800 shadow-lg shadow-black/30 hover:bg-slate-800"
             >
               <h3 className="text-base md:text-lg font-bold text-purple-400 mb-2">✅ Habits</h3>
-              <p className="text-2xl md:text-3xl font-extrabold">
+              <p className="text-2xl md:text-3xl font-black tracking-tight">
                 {habitsDone} / {goals.habits_target}
               </p>
-              <p className="text-xs md:text-sm text-slate-400 mt-1">completed today</p>
+              <p className="text-xs md:text-sm text-slate-400 mt-1">
+                {habitsDone === 0 ? "Pick one easy habit to start! 🌱" : "completed today"}
+              </p>
             </Link>
 
             <Link
               href="/todo"
-              className="bg-slate-900 p-4 md:p-6 rounded-xl hover:bg-slate-800"
+              className="bg-slate-900 p-4 md:p-6 rounded-xl border border-slate-800 shadow-lg shadow-black/30 hover:bg-slate-800"
             >
               <h3 className="text-base md:text-lg font-bold text-amber-400 mb-2">📝 ToDo</h3>
-              <p className="text-2xl md:text-3xl font-extrabold">
+              <p className="text-2xl md:text-3xl font-black tracking-tight">
                 {todoDone} / {todoTotal}
               </p>
-              <p className="text-xs md:text-sm text-slate-400 mt-1">done today</p>
+              <p className="text-xs md:text-sm text-slate-400 mt-1">
+                {todoDone === 0 ? "One small task first! ✨" : "done today"}
+              </p>
             </Link>
 
             <Link
               href="/community"
-              className="bg-slate-900 p-4 md:p-6 rounded-xl hover:bg-slate-800"
+              className="bg-slate-900 p-4 md:p-6 rounded-xl border border-slate-800 shadow-lg shadow-black/30 hover:bg-slate-800 col-span-2 md:col-span-1"
             >
               <h3 className="text-base md:text-lg font-bold text-pink-400 mb-2">🏘️ Social</h3>
               <p className="text-2xl md:text-3xl font-extrabold">💬</p>
@@ -539,7 +551,7 @@ export default function Dashboard() {
 
             <Link
               href="/streaks"
-              className="bg-slate-900 p-4 md:p-6 rounded-xl col-span-2 md:col-span-1 hover:bg-slate-800 block"
+              className="bg-slate-900 p-4 md:p-6 rounded-xl border border-slate-800 shadow-lg shadow-black/30 col-span-2 md:col-span-1 hover:bg-slate-800 block"
             >
               <h3 className="text-base md:text-lg font-bold text-orange-400 mb-2">🔥 Streaks</h3>
               <div className="grid gap-2 max-h-40 overflow-y-auto">
@@ -593,7 +605,7 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div
-              className="bg-slate-900 p-6 rounded-xl cursor-pointer hover:bg-slate-800"
+              className="bg-slate-900 p-6 rounded-xl border border-slate-800 shadow-lg shadow-black/30 cursor-pointer hover:bg-slate-800"
               onClick={() => router.push("/daily-goals")}
             >
               <div className="flex justify-between items-center mb-4">
@@ -640,7 +652,7 @@ export default function Dashboard() {
                       className="w-24 p-1 rounded bg-slate-800 border border-slate-700"
                     />
                   </label>
-                  <button className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-semibold">
+                  <button className="px-4 py-2 rounded bg-violet-600 hover:bg-violet-500 text-sm font-semibold">
                     Save goals
                   </button>
                 </form>
@@ -672,7 +684,7 @@ export default function Dashboard() {
             </div>
 
             <div
-              className="bg-slate-900 p-6 rounded-xl cursor-pointer hover:bg-slate-800"
+              className="bg-slate-900 p-6 rounded-xl border border-slate-800 shadow-lg shadow-black/30 cursor-pointer hover:bg-slate-800"
               onClick={() => router.push("/weekly")}
             >
               <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -751,7 +763,7 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-slate-900 p-6 rounded-xl">
+            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 shadow-lg shadow-black/30">
               <h3 className="text-lg font-bold mb-4">📋 Today&apos;s Tasks</h3>
               <form onSubmit={addTask} className="flex gap-2 mb-4">
                 <input
@@ -760,7 +772,7 @@ export default function Dashboard() {
                   placeholder="Add a task for today..."
                   className="flex-1 p-2 rounded bg-slate-800 border border-slate-700"
                 />
-                <button className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-semibold">
+                <button className="px-4 py-2 rounded bg-violet-600 hover:bg-violet-500 text-sm font-semibold">
                   Add
                 </button>
               </form>
@@ -805,7 +817,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="bg-slate-900 p-6 rounded-xl">
+            <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 shadow-lg shadow-black/30">
               <h3 className="text-lg font-bold mb-4">⏳ Countdowns</h3>
               <form onSubmit={addCountdown} className="flex flex-wrap gap-2 mb-4">
                 <input
@@ -833,7 +845,7 @@ export default function Dashboard() {
                   <option value="🎯">🎯</option>
                   <option value="💼">💼</option>
                 </select>
-                <button className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-500 text-sm font-semibold">
+                <button className="px-4 py-2 rounded bg-violet-600 hover:bg-violet-500 text-sm font-semibold">
                   Add
                 </button>
               </form>

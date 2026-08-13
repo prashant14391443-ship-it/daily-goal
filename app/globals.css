@@ -45,4 +45,16 @@ input[type="date"] {
     font-size: 13px;
     padding: 8px 6px;
   }
+}/* brand glow when a goal hits 100% */
+.bar-full {
+  animation: barGlow 1.6s ease-in-out infinite;
+}
+@keyframes barGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 6px rgba(167, 139, 250, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(167, 139, 250, 1);
+  }
 }
