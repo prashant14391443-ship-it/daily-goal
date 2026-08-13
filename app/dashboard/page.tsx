@@ -44,6 +44,17 @@ function calcStreak(dates: Set<string>, today: string) {
   return streak;
 }
 
+function brokenStreak(dates: Set<string>, today: string) {
+  if (dates.has(today) || dates.has(addDays(today, -1))) return 0;
+  let len = 0;
+  let cursor = addDays(today, -2);
+  while (dates.has(cursor)) {
+    len += 1;
+    cursor = addDays(cursor, -1);
+  }
+  return len;
+}
+
 function dayLabel(dateStr: string) {
   const d = new Date(dateStr + "T00:00:00");
   return d.toLocaleDateString(undefined, { weekday: "short" });
@@ -103,6 +114,12 @@ export default function Dashboard() {
   const [studyStreak, setStudyStreak] = useState(0);
   const [gymStreak, setGymStreak] = useState(0);
   const [todoStreak, setTodoStreak] = useState(0);
+  const [studyBroken, setStudyBroken] = useState(0);
+  const [gymBroken, setGymBroken] = useState(0);
+  const [todoBroken, setTodoBroken] = useState(0);
+  const [habitBroken, setHabitBroken] = useState<
+    { name: string; broken: number }[]
+  >([]);
   const [goals, setGoals] = useState<Goals>({
     study_target: 120,
     workout_target: 1,
@@ -271,6 +288,25 @@ export default function Dashboard() {
       )
     );
 
+    const studyDates = new Set(
+      (studyDoneRes.data || []).map((r) => r.session_date)
+    );
+    const gymDates = new Set((gymDoneRes.data || []).map((r) => r.session_date));
+    const todoDates = new Set((todoDoneRes.data || []).map((r) => r.task_date));
+    setStudyBroken(brokenStreak(studyDates, today));
+    setGymBroken(brokenStreak(gymDates, today));
+    setTodoBroken(brokenStreak(todoDates, today));
+    setHabitBroken(
+      (habits.data || []).map((h) => {
+        const dates = new Set(
+          (habitLogs.data || [])
+            .filter((l) => l.habit_id === h.id)
+            .map((l) => l.log_date)
+        );
+        return { name: h.habit_name, broken: brokenStreak(dates, today) };
+      })
+    );
+
     setHabitStreaks(
       (habits.data || []).map((h) => {
         const dates = new Set(
@@ -402,7 +438,7 @@ export default function Dashboard() {
       : chartMode === "gym"
       ? gymWeekData
       : habitsWeekData;
-  const maxVal = Math.max(...weekData.map((w) => w.value), 1);
+
   const barColor =
     chartMode === "study"
       ? "bg-blue-600 hover:bg-blue-500"
@@ -410,6 +446,12 @@ export default function Dashboard() {
       ? "bg-green-600 hover:bg-green-500"
       : "bg-purple-600 hover:bg-purple-500";
   const unit = chartMode === "habits" ? "done" : "min";
+  const dailyTarget =
+    chartMode === "study"
+      ? goals.study_target
+      : chartMode === "gym"
+      ? goals.workout_target
+      : goals.habits_target;
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
@@ -498,26 +540,50 @@ export default function Dashboard() {
             <div className="bg-slate-900 p-4 md:p-6 rounded-xl col-span-2 md:col-span-1">
               <h3 className="text-base md:text-lg font-bold text-orange-400 mb-2">🔥 Streaks</h3>
               <div className="grid gap-2 max-h-40 overflow-y-auto">
-                <div className="flex justify-between text-xs md:text-sm">
-                  <span>📚 Study</span>
-                  <span className="text-orange-400 font-semibold">{studyStreak} 🔥</span>
-                </div>
-                <div className="flex justify-between text-xs md:text-sm">
-                  <span>🏋️ Gym</span>
-                  <span className="text-orange-400 font-semibold">{gymStreak} 🔥</span>
-                </div>
-                <div className="flex justify-between text-xs md:text-sm">
-                  <span>📝 ToDo</span>
-                  <span className="text-orange-400 font-semibold">{todoStreak} 🔥</span>
-                </div>
-                {habitStreaks.map((h) => (
-                  <div key={h.name} className="flex justify-between text-xs md:text-sm">
-                    <span className={h.streak > 0 ? "" : "text-slate-500"}>
-                      ✅ {h.name}
-                    </span>
-                    <span className="text-orange-400 font-semibold">{h.streak} 🔥</span>
+                <div>
+                  <div className="flex justify-between text-xs md:text-sm">
+                    <span>📚 Study</span>
+                    <span className="text-orange-400 font-semibold">{studyStreak} 🔥</span>
                   </div>
-                ))}
+                  {studyBroken >= 2 && (
+                    <p className="text-[10px] text-red-400">💔 broke {studyBroken}-day streak</p>
+                  )}
+                </div>
+                <div>
+                  <div className="flex justify-between text-xs md:text-sm">
+                    <span>🏋️ Gym</span>
+                    <span className="text-orange-400 font-semibold">{gymStreak} 🔥</span>
+                  </div>
+                  {gymBroken >= 2 && (
+                    <p className="text-[10px] text-red-400">💔 broke {gymBroken}-day streak</p>
+                  )}
+                </div>
+                <div>
+                  <div className="flex justify-between text-xs md:text-sm">
+                    <span>📝 ToDo</span>
+                    <span className="text-orange-400 font-semibold">{todoStreak} 🔥</span>
+                  </div>
+                  {todoBroken >= 2 && (
+                    <p className="text-[10px] text-red-400">💔 broke {todoBroken}-day streak</p>
+                  )}
+                </div>
+                {habitStreaks.map((h) => {
+                  const b =
+                    habitBroken.find((x) => x.name === h.name)?.broken || 0;
+                  return (
+                    <div key={h.name}>
+                      <div className="flex justify-between text-xs md:text-sm">
+                        <span className={h.streak > 0 ? "" : "text-slate-500"}>
+                          ✅ {h.name}
+                        </span>
+                        <span className="text-orange-400 font-semibold">{h.streak} 🔥</span>
+                      </div>
+                      {b >= 2 && (
+                        <p className="text-[10px] text-red-400">💔 broke {b}-day streak</p>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -633,26 +699,32 @@ export default function Dashboard() {
                 </div>
               </div>
               <div className="flex gap-2 h-32 items-end">
-                {weekData.map((w) => (
-                  <div
-                    key={w.date}
-                    className="flex-1 h-full flex flex-col justify-end items-center gap-1"
-                  >
+                {weekData.map((w) => {
+                  const pct = Math.min(
+                    100,
+                    Math.round((w.value / Math.max(dailyTarget, 1)) * 100)
+                  );
+                  return (
                     <div
-                      className={`w-full rounded-t ${barColor}`}
-                      style={{
-                        height: `${Math.max(
-                          (w.value / maxVal) * 90,
-                          w.value > 0 ? 8 : 2
-                        )}%`,
-                      }}
-                      title={`${w.value} ${unit}`}
-                    />
-                    <span className="text-[10px] text-slate-400">
-                      {dayLabel(w.date)}
-                    </span>
-                  </div>
-                ))}
+                      key={w.date}
+                      className="flex-1 h-full flex flex-col justify-end items-center gap-1"
+                    >
+                      {pct > 0 && (
+                        <span className="text-[9px] text-slate-300">{pct}%</span>
+                      )}
+                      <div
+                        className={`w-full rounded-t ${barColor}`}
+                        style={{
+                          height: `${Math.max(pct * 0.8, w.value > 0 ? 8 : 2)}%`,
+                        }}
+                        title={`${w.value} ${unit} (${pct}%)`}
+                      />
+                      <span className="text-[10px] text-slate-400">
+                        {dayLabel(w.date)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
