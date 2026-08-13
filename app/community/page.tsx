@@ -156,7 +156,7 @@ export default function CommunityPage() {
 
       <button
         onClick={() => setShowCreate(!showCreate)}
-        className="w-full py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold mb-4"
+        className="w-full py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold mb-4 mt-6"
       >
         {showCreate ? "✖ Cancel" : "➕ Create My Community"}
       </button>
