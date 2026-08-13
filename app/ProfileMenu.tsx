@@ -180,7 +180,7 @@ export default function ProfileMenu() {
   };
 
   return (
-    <div className="fixed top-3 right-3 z-50" ref={boxRef}>
+    <div className="absolute top-3 right-3 z-50" ref={boxRef}>
       <button
         onClick={() => setOpen(!open)}
         className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center justify-center"
