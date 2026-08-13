@@ -23,6 +23,7 @@ export default function LivekitRoom({
   const roomRef = useRef<Room | null>(null);
   const elsRef = useRef<HTMLMediaElement[]>([]);
   const soundRef = useRef(true);
+  const aloneRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,6 +167,12 @@ export default function LivekitRoom({
 
       {micMsg && (
         <p className="text-xs text-amber-400 text-center mb-3">{micMsg}</p>
+      )}
+
+      {status === "live" && people.length === 1 && (
+        <p className="text-[11px] text-slate-500 text-center mb-3">
+           You're alone — auto-leave in 10 min to save data & battery.
+        </p>
       )}
 
       <div className="flex gap-2">
