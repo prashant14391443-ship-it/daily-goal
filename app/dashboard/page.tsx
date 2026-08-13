@@ -652,9 +652,9 @@ export default function Dashboard() {
                     e.stopPropagation();
                     setEditingGoals(!editingGoals);
                   }}
-                  className="text-xs text-slate-400 hover:text-white"
+                  className="px-3 py-1.5 rounded-lg bg-violet-600/20 border border-violet-500/40 text-violet-300 hover:bg-violet-600/40 text-xs font-bold"
                 >
-                  {editingGoals ? "Close" : "Edit goals"}
+                  {editingGoals ? "✖ Close" : "✏️ Edit Goals"}
                 </button>
               </div>
               {editingGoals ? (
