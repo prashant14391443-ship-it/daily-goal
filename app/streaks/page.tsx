@@ -13,8 +13,18 @@ type StreakDetail = {
   breakdown: { date: string; detail: string }[];
 };
 
+function verdict(pct: number) {
+  if (pct >= 80) return "excellent! 🔥";
+  if (pct >= 50) return "good & improving 💪";
+  if (pct >= 20) return "keep going 🌱";
+  return "start today! 🚀";
+}
+
 export default function StreaksPage() {
   const [streaks, setStreaks] = useState<StreakDetail[]>([]);
+  const [overall, setOverall] = useState<
+    { type: string; icon: string; pct: number }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -112,6 +122,22 @@ export default function StreaksPage() {
         },
       ]);
 
+      const pctOf = (dates: Set<string>) => {
+        let count = 0;
+        for (let i = 0; i < 7; i++) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          if (dates.has(d.toISOString().split("T")[0])) count++;
+        }
+        return Math.round((count / 7) * 100);
+      };
+      setOverall([
+        { type: "Study", icon: "📚", pct: pctOf(studyDates) },
+        { type: "Gym", icon: "🏋️", pct: pctOf(gymDates) },
+        { type: "Habits", icon: "✅", pct: pctOf(habitDates) },
+        { type: "ToDo", icon: "📝", pct: pctOf(todoDates) },
+      ]);
+
       setLoading(false);
     };
     load();
@@ -157,6 +183,20 @@ export default function StreaksPage() {
           </div>
         ))}
       </div>
+      <div className="bg-slate-900 rounded-xl p-5 mt-6">
+        <h2 className="text-lg font-bold mb-3">📈 Overall this week</h2>
+        {overall.map((o) => (
+          <div key={o.type} className="flex justify-between text-sm py-1">
+            <span>
+              {o.icon} {o.type}
+            </span>
+            <span className="text-slate-300">
+              {o.pct}% — {verdict(o.pct)}
+            </span>
+          </div>
+        ))}
+      </div>
+
       <Link href="/dashboard" className="inline-block mt-6 text-sm text-slate-400 hover:text-white">
         ← Back to Dashboard
       </Link>

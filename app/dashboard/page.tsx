@@ -592,26 +592,24 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <div className="bg-slate-900 p-6 rounded-xl">
+            <div
+              className="bg-slate-900 p-6 rounded-xl cursor-pointer hover:bg-slate-800"
+              onClick={() => router.push("/daily-goals")}
+            >
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold">🎯 Daily Goals</h3>
-                <div className="flex items-center gap-3">
-                  <Link
-                    href="/daily-goals"
-                    className="text-xs text-blue-400 hover:text-white underline"
-                  >
-                    Details →
-                  </Link>
-                  <button
-                    onClick={() => setEditingGoals(!editingGoals)}
-                    className="text-xs text-slate-400 hover:text-white"
-                  >
-                    {editingGoals ? "Close" : "Edit goals"}
-                  </button>
-                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingGoals(!editingGoals);
+                  }}
+                  className="text-xs text-slate-400 hover:text-white"
+                >
+                  {editingGoals ? "Close" : "Edit goals"}
+                </button>
               </div>
               {editingGoals ? (
-                <form onSubmit={saveGoals} className="grid gap-3">
+                <form onSubmit={saveGoals} onClick={(e) => e.stopPropagation()} className="grid gap-3">
                   <label className="text-sm flex justify-between items-center gap-2">
                     Study (min/day)
                     <input
@@ -673,20 +671,18 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div className="bg-slate-900 p-6 rounded-xl">
+            <div
+              className="bg-slate-900 p-6 rounded-xl cursor-pointer hover:bg-slate-800"
+              onClick={() => router.push("/weekly")}
+            >
               <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-bold">📊 Last 7 days</h3>
-                  <Link
-                    href="/weekly"
-                    className="text-xs text-blue-400 hover:text-white underline"
-                  >
-                    Details →
-                  </Link>
-                </div>
+                <h3 className="text-lg font-bold">📊 Last 7 days</h3>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setChartMode("study")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setChartMode("study");
+                    }}
                     className={`px-3 py-1 rounded text-xs font-semibold ${
                       chartMode === "study"
                         ? "bg-blue-600"
@@ -696,7 +692,10 @@ export default function Dashboard() {
                     📚 Study
                   </button>
                   <button
-                    onClick={() => setChartMode("gym")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setChartMode("gym");
+                    }}
                     className={`px-3 py-1 rounded text-xs font-semibold ${
                       chartMode === "gym"
                         ? "bg-green-600"
@@ -706,7 +705,10 @@ export default function Dashboard() {
                     🏋️ Gym
                   </button>
                   <button
-                    onClick={() => setChartMode("habits")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setChartMode("habits");
+                    }}
                     className={`px-3 py-1 rounded text-xs font-semibold ${
                       chartMode === "habits"
                         ? "bg-purple-600"

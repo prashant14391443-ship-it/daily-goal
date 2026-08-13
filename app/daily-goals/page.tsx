@@ -131,6 +131,13 @@ export default function DailyGoalsPage() {
         )}
       </div>
 
+      <div className="bg-slate-900 rounded-xl p-5 mt-6">
+        <h2 className="text-lg font-bold mb-2">📈 Today's score</h2>
+        <p className="text-sm text-slate-300">
+          {pct}% — {pct >= 80 ? "excellent! 🔥" : pct >= 50 ? "good & improving 💪" : pct >= 20 ? "keep going 🌱" : "start today! 🚀"}
+        </p>
+      </div>
+
       <Link href="/dashboard" className="inline-block mt-6 text-sm text-slate-400 hover:text-white">
         ← Back to Dashboard
       </Link>

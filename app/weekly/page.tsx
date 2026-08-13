@@ -15,8 +15,18 @@ type DayDetail = {
   activities: string[];
 };
 
+function verdict(pct: number) {
+  if (pct >= 80) return "excellent! 🔥";
+  if (pct >= 50) return "good & improving 💪";
+  if (pct >= 20) return "keep going 🌱";
+  return "start today! 🚀";
+}
+
 export default function WeeklyPage() {
   const [days, setDays] = useState<DayDetail[]>([]);
+  const [overall, setOverall] = useState<
+    { type: string; icon: string; pct: number }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -74,6 +84,14 @@ export default function WeeklyPage() {
       }
 
       setDays(daysData);
+      const pctDays = (fn: (d: DayDetail) => boolean) =>
+        Math.round((daysData.filter(fn).length / 7) * 100);
+      setOverall([
+        { type: "Study", icon: "📚", pct: pctDays((d) => d.study > 0) },
+        { type: "Gym", icon: "🏋️", pct: pctDays((d) => d.gym > 0) },
+        { type: "Habits", icon: "✅", pct: pctDays((d) => d.habits > 0) },
+        { type: "ToDo", icon: "📝", pct: pctDays((d) => d.todos > 0) },
+      ]);
       setLoading(false);
     };
     load();
@@ -117,6 +135,20 @@ export default function WeeklyPage() {
             ) : (
               <p className="text-xs text-slate-500">No activity</p>
             )}
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-slate-900 rounded-xl p-5 mt-6">
+        <h2 className="text-lg font-bold mb-3">📈 Overall this week</h2>
+        {overall.map((o) => (
+          <div key={o.type} className="flex justify-between text-sm py-1">
+            <span>
+              {o.icon} {o.type}
+            </span>
+            <span className="text-slate-300">
+              {o.pct}% — {verdict(o.pct)}
+            </span>
           </div>
         ))}
       </div>
