@@ -357,24 +357,17 @@ export default function ProfileMenu() {
           >
             📊 Weekly Report
           </Link>
-          {email.toLowerCase() === "prahant14391443@gmail.com" && (
-            <Link
-              href="/admin"
-              onClick={() => setOpen(false)}
-              className="text-sm bg-amber-600 hover:bg-amber-500 p-2 rounded text-white font-bold"
-            >
-              👑 Admin Panel
-            </Link>
-          )}
-          {email === "prahant14391443@gmail.com" && (
-            <Link
-              href="/admin"
-              onClick={() => setOpen(false)}
-              className="text-sm bg-amber-600 hover:bg-amber-500 p-2 rounded text-white font-bold"
-            >
-              👑 Admin Panel
-            </Link>
-          )}
+          <div className="bg-red-900/40 border border-red-500 p-2 rounded text-center">
+             <p className="text-[10px] text-red-300 uppercase">Currently logged in as:</p>
+             <p className="text-xs text-white font-bold break-all">{email}</p>
+          </div>
+          <Link
+            href="/admin"
+            onClick={() => setOpen(false)}
+            className="text-sm bg-amber-600 hover:bg-amber-500 p-2 rounded text-white font-bold text-center"
+          >
+            👑 Admin Panel
+          </Link>
           <button
             onClick={logout}
             className="text-sm bg-red-600 hover:bg-red-500 p-2 rounded font-semibold text-white"
