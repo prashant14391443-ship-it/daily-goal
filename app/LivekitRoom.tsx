@@ -105,6 +105,52 @@ export default function LivekitRoom({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomName, identity]);
 
+  useEffect(() => {
+    if (status === "live" && people.length === 1) {
+      if (!aloneRef.current) {
+        aloneRef.current = window.setTimeout(() => {
+          roomRef.current?.disconnect();
+          onLeave();
+        }, 10 * 60 * 1000);
+      }
+    } else {
+      if (aloneRef.current) {
+        clearTimeout(aloneRef.current);
+        aloneRef.current = null;
+      }
+    }
+    return () => {
+      if (aloneRef.current) {
+        clearTimeout(aloneRef.current);
+        aloneRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [people.length, status]);
+
+  useEffect(() => {
+    if (status === "live" && people.length === 1) {
+      if (!aloneRef.current) {
+        aloneRef.current = window.setTimeout(() => {
+          roomRef.current?.disconnect();
+          onLeave();
+        }, 10 * 60 * 1000);
+      }
+    } else {
+      if (aloneRef.current) {
+        clearTimeout(aloneRef.current);
+        aloneRef.current = null;
+      }
+    }
+    return () => {
+      if (aloneRef.current) {
+        clearTimeout(aloneRef.current);
+        aloneRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [people.length, status]);
+
   const toggleMic = async () => {
     const r = roomRef.current;
     if (!r) return;
