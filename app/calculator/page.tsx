@@ -299,15 +299,35 @@ export default function CalculatorPage() {
     setScanLoading(false);
   };
 
+  const num = (v: unknown) => {
+    const n = Number(String(v ?? 0).replace(/[^\d.]/g, ""));
+    return Number.isFinite(n) ? Math.round(n) : 0;
+  };
+
   const saveScan = async () => {
     if (!scanResult || !scanMeal) return;
-    await insertLog(scanMeal, {
-      food_name: "📷 " + scanResult.food,
-      calories: scanResult.calories,
-      protein: scanResult.protein,
-      carbs: scanResult.carbs,
-      fat: scanResult.fat,
-    });
+    const { data } = await supabase.auth.getSession();
+    const uid = data.session?.user.id;
+    if (!uid) return;
+    const { data: inserted, error } = await supabase
+      .from("nutrition_logs")
+      .insert({
+        user_id: uid,
+        log_date: today,
+        meal: scanMeal,
+        food_name: "📷 " + (scanResult.food || "Scanned food"),
+        calories: num(scanResult.calories),
+        protein: num(scanResult.protein),
+        carbs: num(scanResult.carbs),
+        fat: num(scanResult.fat),
+      })
+      .select()
+      .single();
+    if (error) {
+      alert("Could not save: " + error.message);
+      return;
+    }
+    if (inserted) setLogs((l) => [...l, inserted as Log]);
     setScanMeal(null);
     setScanImg(null);
     setScanResult(null);
@@ -564,7 +584,7 @@ export default function CalculatorPage() {
                               🍽️ {scanResult.food} — {scanResult.calories} cal
                             </p>
                             <p className="text-xs text-slate-400">
-                              P{scanResult.protein} C{scanResult.carbs} F{scanResult.fat}
+                              P{num(scanResult.protein)} C{num(scanResult.carbs)} F{num(scanResult.fat)}
                             </p>
                             <div className="flex gap-2 mt-2">
                               <button onClick={saveScan} className="flex-1 py-2 rounded bg-green-600 hover:bg-green-500 text-xs font-bold">
