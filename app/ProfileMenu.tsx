@@ -355,7 +355,7 @@ export default function ProfileMenu() {
             onClick={() => setOpen(false)}
             className="text-sm bg-violet-600 hover:bg-violet-500 p-2 rounded text-white font-bold"
           >
-            🤖 AI Coach
+            🤖 Personal AI
           </Link>
           <Link
             href="/report"

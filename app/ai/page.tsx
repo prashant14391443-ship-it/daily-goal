@@ -118,7 +118,7 @@ Food eaten: ${eaten} cal (protein ${protein}g) of target ${goals?.calorie_target
   return (
     <main className="h-screen bg-slate-950 text-white flex flex-col p-4 md:p-8 pb-24">
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-black">🤖 AI Coach</h1>
+        <h1 className="text-2xl font-black">🤖 Personal AI</h1>
         <div className="flex items-center gap-3">
           <span className="text-xs bg-violet-600/20 border border-violet-500/40 text-violet-300 px-2 py-1 rounded-lg font-bold">
             {left}/15 free today
