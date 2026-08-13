@@ -139,7 +139,13 @@ export default function Dashboard() {
   const [studyWeekData, setStudyWeekData] = useState<DayStat[]>([]);
   const [gymWeekData, setGymWeekData] = useState<DayStat[]>([]);
   const [habitsWeekData, setHabitsWeekData] = useState<DayStat[]>([]);
-  const [chartMode, setChartMode] = useState<"study" | "gym" | "habits">("study");
+  const [chartMode, setChartMode] = useState<
+    "study" | "gym" | "habits" | "todo"
+  >("study");
+  const [todoWeekData, setTodoWeekData] = useState<DayStat[]>([]);
+  const [todoWeekTotals, setTodoWeekTotals] = useState<Record<string, number>>(
+    {}
+  );
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTask, setNewTask] = useState("");
   const [countdowns, setCountdowns] = useState<Countdown[]>([]);
@@ -177,6 +183,7 @@ export default function Dashboard() {
       studyDoneRes,
       gymDoneRes,
       todoDoneRes,
+      todoWeekRes,
     ] = await Promise.all([
       supabase
         .from("study_sessions")
@@ -243,6 +250,12 @@ export default function Dashboard() {
         .eq("user_id", userId)
         .eq("category", "todo")
         .eq("completed", true),
+      supabase
+        .from("tasks")
+        .select("task_date, completed")
+        .eq("user_id", userId)
+        .eq("category", "todo")
+        .gte("task_date", weekStart),
     ]);
 
     setStudyMinutes(
@@ -351,6 +364,20 @@ export default function Dashboard() {
     }
     setHabitsWeekData(habitDays);
 
+    const todoDays: DayStat[] = [];
+    const totals: Record<string, number> = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = addDays(today, -i);
+      const rows = (todoWeekRes.data || []).filter((t) => t.task_date === d);
+      totals[d] = rows.length;
+      todoDays.push({
+        date: d,
+        value: rows.filter((t) => t.completed).length,
+      });
+    }
+    setTodoWeekData(todoDays);
+    setTodoWeekTotals(totals);
+
     setTasks(tasksRes.data || []);
     setCountdowns(cdRes.data || []);
     setLoading(false);
@@ -372,7 +399,13 @@ export default function Dashboard() {
       habits_target: Number(goalHabits) || 3,
     };
 
-    await supabase.from("user_goals").upsert({ user_id: userId, ...g });
+    const { error } = await supabase
+      .from("user_goals")
+      .upsert({ user_id: userId, ...g });
+    if (error) {
+      alert("Could not save goals: " + error.message);
+      return;
+    }
     setGoals(g);
     setEditingGoals(false);
   };
@@ -441,6 +474,8 @@ export default function Dashboard() {
       ? studyWeekData
       : chartMode === "gym"
       ? gymWeekData
+      : chartMode === "todo"
+      ? todoWeekData
       : habitsWeekData;
 
   const barColor =
@@ -448,8 +483,10 @@ export default function Dashboard() {
       ? "bg-blue-600 hover:bg-blue-500"
       : chartMode === "gym"
       ? "bg-green-600 hover:bg-green-500"
+      : chartMode === "todo"
+      ? "bg-pink-600 hover:bg-pink-500"
       : "bg-purple-600 hover:bg-purple-500";
-  const unit = chartMode === "habits" ? "done" : "min";
+  const unit = chartMode === "habits" || chartMode === "todo" ? "done" : "min";
   const dailyTarget =
     chartMode === "study"
       ? goals.study_target
@@ -679,6 +716,13 @@ export default function Dashboard() {
                     unit=""
                     color="bg-purple-600"
                   />
+                  <ProgressBar
+                    label="📝 ToDo"
+                    value={todoDone}
+                    target={todoTotal}
+                    unit=""
+                    color="bg-pink-600"
+                  />
                 </div>
               )}
             </div>
@@ -729,14 +773,35 @@ export default function Dashboard() {
                   >
                     ✅ Habits
                   </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setChartMode("todo");
+                    }}
+                    className={`px-3 py-1 rounded text-xs font-semibold ${
+                      chartMode === "todo"
+                        ? "bg-pink-600"
+                        : "bg-slate-800 hover:bg-slate-700"
+                    }`}
+                  >
+                    📝 ToDo
+                  </button>
                 </div>
               </div>
               <div className="flex gap-2 h-32 items-end">
                 {weekData.map((w) => {
-                  const pct = Math.min(
-                    100,
-                    Math.round((w.value / Math.max(dailyTarget, 1)) * 100)
-                  );
+                  const pct =
+                    chartMode === "todo"
+                      ? todoWeekTotals[w.date]
+                        ? Math.min(
+                            100,
+                            Math.round((w.value / todoWeekTotals[w.date]) * 100)
+                          )
+                        : 0
+                      : Math.min(
+                          100,
+                          Math.round((w.value / Math.max(dailyTarget, 1)) * 100)
+                        );
                   return (
                     <div
                       key={w.date}
