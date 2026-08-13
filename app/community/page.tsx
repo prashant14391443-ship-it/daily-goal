@@ -14,6 +14,16 @@ type Community = {
   requested: boolean;
 };
 
+const BANNED_WORDS = [
+  "fuck", "shit", "bitch", "asshole", "dick", "pussy",
+  "nigga", "nigger", "cunt", "whore", "bastard"
+];
+
+function hasBadWord(text: string) {
+  const lower = text.toLowerCase();
+  return BANNED_WORDS.some((word) => lower.includes(word));
+}
+
 export default function CommunityPage() {
   const [list, setList] = useState<Community[]>([]);
   const [userId, setUserId] = useState("");
@@ -69,6 +79,12 @@ export default function CommunityPage() {
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (hasBadWord(name) || hasBadWord(desc)) {
+      alert("🚫 Community name or description contains banned words. Please choose a clean name!");
+      return;
+    }
+
     const room =
       "DG-" +
       Math.random().toString(36).slice(2, 10) +
@@ -100,6 +116,17 @@ export default function CommunityPage() {
       user_name: myName,
     });
     await load();
+  };
+
+  const report = async (id: string) => {
+    const reason = prompt("Why are you reporting this community? (e.g., abusive name, spam)");
+    if (!reason || !reason.trim()) return;
+    await supabase.from("community_reports").insert({
+      community_id: id,
+      user_id: userId,
+      reason: reason.trim(),
+    });
+    alert("✅ Thank you! Our moderators will review this community.");
   };
 
   const open = (id: string) => {
@@ -166,25 +193,34 @@ export default function CommunityPage() {
                 <p className="text-sm text-slate-400">{c.description}</p>
                 <p className="text-xs text-slate-500 mt-1">👥 {c.members} members</p>
               </div>
-              {c.joined ? (
+              <div className="flex gap-2 items-center">
+                {c.joined ? (
+                  <button
+                    onClick={() => open(c.id)}
+                    className="px-4 py-2 rounded bg-green-600 hover:bg-green-500 text-sm font-semibold"
+                  >
+                    Open →
+                  </button>
+                ) : c.requested ? (
+                  <span className="px-4 py-2 rounded bg-slate-800 text-amber-400 text-sm font-semibold">
+                    ⏳ Requested
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => requestJoin(c.id)}
+                    className="px-4 py-2 rounded bg-pink-600 hover:bg-pink-500 text-sm font-semibold"
+                  >
+                    🙏 Request
+                  </button>
+                )}
                 <button
-                  onClick={() => open(c.id)}
-                  className="px-4 py-2 rounded bg-green-600 hover:bg-green-500 text-sm font-semibold"
+                  onClick={() => report(c.id)}
+                  className="px-2 py-2 rounded bg-slate-800 hover:bg-red-600 text-xs"
+                  title="Report abusive content"
                 >
-                  Open →
+                  🚩
                 </button>
-              ) : c.requested ? (
-                <span className="px-4 py-2 rounded bg-slate-800 text-amber-400 text-sm font-semibold">
-                  ⏳ Requested
-                </span>
-              ) : (
-                <button
-                  onClick={() => requestJoin(c.id)}
-                  className="px-4 py-2 rounded bg-pink-600 hover:bg-pink-500 text-sm font-semibold"
-                >
-                  🙏 Request to Join
-                </button>
-              )}
+              </div>
             </div>
           ))}
           {list.length === 0 && (
