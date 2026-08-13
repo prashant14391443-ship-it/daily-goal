@@ -67,7 +67,10 @@ export default function CommunityRoomPage() {
       return;
     }
     setMe(uid);
-    setMyName(data.session?.user.email?.split("@")[0] || "member");
+    const meta = (data.session?.user.user_metadata || {}) as {
+      display_name?: string;
+    };
+    setMyName(meta.display_name || data.session?.user.email?.split("@")[0] || "member");
 
     const [c, m, my] = await Promise.all([
       supabase.from("communities").select("name, room_code, owner_id").eq("id", id).single(),

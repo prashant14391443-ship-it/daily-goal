@@ -164,7 +164,10 @@ export default function Dashboard() {
     }
 
     const email = data.session?.user.email || "friend";
-    const rawName = email.split("@")[0];
+    const meta = (data.session?.user.user_metadata || {}) as {
+      display_name?: string;
+    };
+    const rawName = meta.display_name || email.split("@")[0];
     setUserName(rawName.charAt(0).toUpperCase() + rawName.slice(1));
 
     const weekStart = addDays(today, -6);

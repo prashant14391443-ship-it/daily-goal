@@ -41,9 +41,45 @@ function toLocalISO(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
+function compressAvatar(f: File): Promise<File> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const size = 256;
+        const canvas = document.createElement("canvas");
+        const min = Math.min(img.width, img.height);
+        const sx = (img.width - min) / 2;
+        const sy = (img.height - min) / 2;
+        canvas.width = size;
+        canvas.height = size;
+        canvas
+          .getContext("2d")
+          ?.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+        canvas.toBlob(
+          (blob) =>
+            resolve(new File([blob || new Blob()], "avatar.jpg", { type: "image/jpeg" })),
+          "image/jpeg",
+          0.8
+        );
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
 export default function ProfileMenu() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
+  const [saving, setSaving] = useState(false);
   const [light, setLight] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -54,6 +90,12 @@ export default function ProfileMenu() {
     const load = async () => {
       const { data } = await supabase.auth.getSession();
       setEmail(data.session?.user.email || "friend");
+      const meta = (data.session?.user.user_metadata || {}) as {
+        display_name?: string;
+        avatar_url?: string;
+      };
+      setDisplayName(meta.display_name || "");
+      setAvatarUrl(meta.avatar_url || "");
     };
     load();
     if (localStorage.getItem("dg-theme") === "light") {
@@ -164,7 +206,7 @@ export default function ProfileMenu() {
 
   if (pathname === "/login" || pathname === "/signup") return null;
 
-  const name = email ? email.split("@")[0] : "friend";
+  const name = displayName || (email ? email.split("@")[0] : "friend");
   const initial = name.charAt(0).toUpperCase();
 
   const toggleTheme = () => {
@@ -179,13 +221,60 @@ export default function ProfileMenu() {
     router.push("/login");
   };
 
+  const onPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!f.type.startsWith("image/")) {
+      alert("Images only!");
+      return;
+    }
+    if (f.size > 8 * 1024 * 1024) {
+      alert("Max 8 MB!");
+      return;
+    }
+    const small = await compressAvatar(f);
+    setPhoto(small);
+    setPreview(URL.createObjectURL(small));
+  };
+
+  const saveProfile = async () => {
+    setSaving(true);
+    const { data } = await supabase.auth.getSession();
+    const uid = data.session?.user.id;
+    let url = avatarUrl;
+    if (photo && uid) {
+      const path = `${uid}/avatar.jpg`;
+      await supabase.storage.from("avatars").upload(path, photo, { upsert: true });
+      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(path);
+      url = urlData.publicUrl + "?t=" + Date.now();
+    }
+    const finalName = editName.trim() || name;
+    const { error } = await supabase.auth.updateUser({
+      data: { display_name: finalName, avatar_url: url },
+    });
+    if (!error) {
+      setDisplayName(finalName);
+      setAvatarUrl(url);
+      setEditing(false);
+      setPhoto(null);
+      setPreview("");
+    } else {
+      alert("Could not save: " + error.message);
+    }
+    setSaving(false);
+  };
+
   return (
     <div className="absolute top-3 right-3 z-50" ref={boxRef}>
       <button
         onClick={() => setOpen(!open)}
-        className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center justify-center"
+        className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center justify-center overflow-hidden"
       >
-        {initial}
+        {avatarUrl ? (
+          <img src={avatarUrl} alt="me" className="w-9 h-9 rounded-full object-cover" />
+        ) : (
+          initial
+        )}
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl p-4 grid gap-3 shadow-xl">
@@ -193,6 +282,53 @@ export default function ProfileMenu() {
             <p className="font-bold text-white capitalize">{name}</p>
             <p className="text-xs text-slate-400 break-all">{email}</p>
           </div>
+
+          {!editing ? (
+            <button
+              onClick={() => {
+                setEditName(displayName || "");
+                setEditing(true);
+              }}
+              className="text-sm bg-slate-800 hover:bg-slate-700 p-2 rounded text-white"
+            >
+              ✏️ Edit Profile
+            </button>
+          ) : (
+            <div className="bg-slate-800 rounded p-3 grid gap-2">
+              <div className="flex items-center gap-2">
+                <label className="w-12 h-12 rounded-full bg-slate-700 hover:bg-slate-600 cursor-pointer flex items-center justify-center text-xl overflow-hidden shrink-0">
+                  {preview ? (
+                    <img src={preview} alt="preview" className="w-12 h-12 object-cover" />
+                  ) : (
+                    "📷"
+                  )}
+                  <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
+                </label>
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Your name"
+                  className="flex-1 p-2 rounded bg-slate-900 border border-slate-700 text-sm"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={saveProfile}
+                  disabled={saving}
+                  className="flex-1 py-2 rounded bg-violet-600 hover:bg-violet-500 text-xs font-bold disabled:opacity-50"
+                >
+                  💾 Save
+                </button>
+                <button
+                  onClick={() => setEditing(false)}
+                  className="px-3 py-2 rounded bg-slate-700 text-xs"
+                >
+                  ✖
+                </button>
+              </div>
+            </div>
+          )}
+
           <button
             onClick={toggleTheme}
             className="flex justify-between items-center text-sm bg-slate-800 hover:bg-slate-700 p-2 rounded text-white"
@@ -221,7 +357,7 @@ export default function ProfileMenu() {
           >
             📊 Weekly Report
           </Link>
-          {email === "prashant14391443@gmail.com" && (
+          {email === "prahant14391443@gmail.com" && (
             <Link
               href="/admin"
               onClick={() => setOpen(false)}

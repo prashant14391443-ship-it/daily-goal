@@ -42,7 +42,10 @@ export default function CommunityPage() {
       return;
     }
     setUserId(uid);
-    setMyName(data.session?.user.email?.split("@")[0] || "member");
+    const meta = (data.session?.user.user_metadata || {}) as {
+      display_name?: string;
+    };
+    setMyName(meta.display_name || data.session?.user.email?.split("@")[0] || "member");
     const [c, m, jm] = await Promise.all([
       supabase.from("communities").select("*").order("created_at", { ascending: false }),
       supabase
