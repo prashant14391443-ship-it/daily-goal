@@ -373,7 +373,18 @@ export default function CalculatorPage() {
   const tCarb = logs.reduce((s, l) => s + l.carbs, 0);
   const tFat = logs.reduce((s, l) => s + l.fat, 0);
 
-  const proTarget = result ? Math.round((result.calories * 0.3) / 4) : 120;
+  const proteinFactor =
+    activity === "1.2"
+      ? 1.2
+      : activity === "1.375"
+      ? 1.4
+      : activity === "1.55"
+      ? 1.6
+      : activity === "1.725"
+      ? 1.9
+      : 2.2;
+  const wKg = Number(weight) || 0;
+  const proTarget = wKg > 0 ? Math.round(wKg * proteinFactor) : 120;
   const carbTarget = result ? Math.round((result.calories * 0.5) / 4) : 250;
   const fatTarget = result ? Math.round((result.calories * 0.2) / 9) : 70;
 
