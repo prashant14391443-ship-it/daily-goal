@@ -24,6 +24,23 @@ type Log = {
   fat: number;
 };
 
+type ScanResult = {
+  food: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+};
+
+type Meal = { key: string; icon: string; label: string };
+
+const BASE_MEALS: Meal[] = [
+  { key: "breakfast", icon: "🌅", label: "Breakfast" },
+  { key: "lunch", icon: "☀️", label: "Lunch" },
+  { key: "dinner", icon: "🌙", label: "Dinner" },
+  { key: "snacks", icon: "🍿", label: "Snacks" },
+];
+
 const QUICK_FOODS = [
   { name: "🫓 Roti (1 pc)", cal: 120, p: 4, c: 20, f: 3 },
   { name: "🍚 White rice (1 cup)", cal: 200, p: 4, c: 45, f: 1 },
@@ -39,18 +56,42 @@ const QUICK_FOODS = [
   { name: "🍎 Apple", cal: 95, p: 0, c: 25, f: 0 },
 ];
 
-const MEALS = [
-  { key: "breakfast", icon: "🌅", label: "Breakfast" },
-  { key: "lunch", icon: "☀️", label: "Lunch" },
-  { key: "dinner", icon: "🌙", label: "Dinner" },
-  { key: "snacks", icon: "🍿", label: "Snacks" },
-];
-
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function compressImage(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxSize = 1024;
+        let { width, height } = img;
+        if (width > height) {
+          if (width > maxSize) {
+            height *= maxSize / width;
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width *= maxSize / height;
+            height = maxSize;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 export default function CalculatorPage() {
@@ -66,12 +107,28 @@ export default function CalculatorPage() {
   const [result, setResult] = useState<Result | null>(null);
 
   const [logs, setLogs] = useState<Log[]>([]);
+  const [meals, setMeals] = useState<Meal[]>(() => {
+    if (typeof window === "undefined") return BASE_MEALS;
+    try {
+      const extra = JSON.parse(localStorage.getItem("dg-meals") || "[]");
+      return [...BASE_MEALS, ...extra];
+    } catch {
+      return BASE_MEALS;
+    }
+  });
   const [addingMeal, setAddingMeal] = useState<string | null>(null);
   const [foodName, setFoodName] = useState("");
   const [cal, setCal] = useState("");
   const [pro, setPro] = useState("");
   const [carb, setCarb] = useState("");
   const [fat, setFat] = useState("");
+
+  const [scanMeal, setScanMeal] = useState<string | null>(null);
+  const [scanImg, setScanImg] = useState<string | null>(null);
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanError, setScanError] = useState("");
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+
   const today = toLocalISO(new Date());
 
   useEffect(() => {
@@ -88,22 +145,25 @@ export default function CalculatorPage() {
         setTarget(p.target || "");
         setPace(p.pace || "0.5");
         setResult(p.result || null);
-      } catch {}
+      } catch {
+        // ignore
+      }
     }
     loadLogs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadLogs = async () => {
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
     if (!uid) return;
-    const { data: logs } = await supabase
+    const { data: rows } = await supabase
       .from("nutrition_logs")
       .select("*")
       .eq("user_id", uid)
       .eq("log_date", today)
       .order("created_at");
-    setLogs((logs as Log[]) || []);
+    setLogs((rows as Log[]) || []);
   };
 
   const calculate = (e: React.FormEvent) => {
@@ -112,7 +172,6 @@ export default function CalculatorPage() {
     const h = Number(height);
     const a = Number(age);
     const t = Number(target);
-
     const bmr = Math.round(
       gender === "male"
         ? 10 * w + 6.25 * h - 5 * a + 5
@@ -131,7 +190,6 @@ export default function CalculatorPage() {
         : tdee
     );
     const weeks = Math.round(Math.abs(diff) / Number(pace));
-
     const r: Result = { name, bmr, tdee, calories, weeks, direction, target: t };
     setResult(r);
     localStorage.setItem(
@@ -147,8 +205,6 @@ export default function CalculatorPage() {
       return `${r.name}, ${r.weeks} weeks of good food and lifting = a bigger, stronger you. Eat up! 🏋️`;
     return `${r.name}, you are at your goal weight — keep crushing it to stay there! 🔥`;
   };
-
-  const inputCls = "p-3 rounded bg-slate-800 border border-slate-700 w-full";
 
   const resetForm = () => {
     setFoodName("");
@@ -168,26 +224,28 @@ export default function CalculatorPage() {
     setFat(String(q.f));
   };
 
-  const addFood = async (e: React.FormEvent, meal: string) => {
-    e.preventDefault();
+  const insertLog = async (meal: string, entry: Omit<Log, "id" | "meal">) => {
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
-    if (!uid || !foodName.trim() || !cal) return;
+    if (!uid) return;
     const { data: inserted, error } = await supabase
       .from("nutrition_logs")
-      .insert({
-        user_id: uid,
-        log_date: today,
-        meal,
-        food_name: foodName.trim(),
-        calories: Number(cal) || 0,
-        protein: Number(pro) || 0,
-        carbs: Number(carb) || 0,
-        fat: Number(fat) || 0,
-      })
+      .insert({ user_id: uid, log_date: today, meal, ...entry })
       .select()
       .single();
-    if (!error && inserted) setLogs([...logs, inserted as Log]);
+    if (!error && inserted) setLogs((l) => [...l, inserted as Log]);
+  };
+
+  const addFood = async (e: React.FormEvent, meal: string) => {
+    e.preventDefault();
+    if (!foodName.trim() || !cal) return;
+    await insertLog(meal, {
+      food_name: foodName.trim(),
+      calories: Number(cal) || 0,
+      protein: Number(pro) || 0,
+      carbs: Number(carb) || 0,
+      fat: Number(fat) || 0,
+    });
     setAddingMeal(null);
     resetForm();
   };
@@ -197,14 +255,69 @@ export default function CalculatorPage() {
     setLogs(logs.filter((l) => l.id !== id));
   };
 
+  const onScanFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setScanError("");
+    setScanResult(null);
+    setScanImg(await compressImage(f));
+  };
+
+  const analyze = async () => {
+    if (!scanImg) return;
+    setScanLoading(true);
+    setScanError("");
+    try {
+      const res = await fetch("/api/calorie", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: scanImg }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Analysis failed");
+      setScanResult(data);
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : "Could not analyze. Try a clearer photo.");
+    }
+    setScanLoading(false);
+  };
+
+  const saveScan = async () => {
+    if (!scanResult || !scanMeal) return;
+    await insertLog(scanMeal, {
+      food_name: "📷 " + scanResult.food,
+      calories: scanResult.calories,
+      protein: scanResult.protein,
+      carbs: scanResult.carbs,
+      fat: scanResult.fat,
+    });
+    setScanMeal(null);
+    setScanImg(null);
+    setScanResult(null);
+  };
+
+  const addMealSection = () => {
+    const label = prompt("New meal section name (e.g. Evening Chai):");
+    if (!label || !label.trim()) return;
+    const item: Meal = { key: "custom-" + Date.now(), icon: "🍽️", label: label.trim() };
+    const next = [...meals, item];
+    setMeals(next);
+    localStorage.setItem(
+      "dg-meals",
+      JSON.stringify(next.filter((m) => m.key.startsWith("custom-")))
+    );
+  };
+
   const eaten = logs.reduce((s, l) => s + l.calories, 0);
   const tPro = logs.reduce((s, l) => s + l.protein, 0);
   const tCarb = logs.reduce((s, l) => s + l.carbs, 0);
   const tFat = logs.reduce((s, l) => s + l.fat, 0);
 
-  const proTarget = result ? Math.round(result.calories * 0.3 / 4) : 120;
-  const carbTarget = result ? Math.round(result.calories * 0.5 / 4) : 250;
-  const fatTarget = result ? Math.round(result.calories * 0.2 / 9) : 70;
+  const proTarget = result ? Math.round((result.calories * 0.3) / 4) : 120;
+  const carbTarget = result ? Math.round((result.calories * 0.5) / 4) : 250;
+  const fatTarget = result ? Math.round((result.calories * 0.2) / 9) : 70;
+
+  const inputCls = "p-3 rounded bg-slate-800 border border-slate-700 w-full";
 
   const Bar = ({ label, value, target, color }: { label: string; value: number; target: number; color: string }) => {
     const pct = Math.min(100, Math.round((value / Math.max(target, 1)) * 100));
@@ -212,17 +325,19 @@ export default function CalculatorPage() {
       <div>
         <div className="flex justify-between text-xs mb-1">
           <span>{label}</span>
-          <span className="text-slate-400">{value} / {target} • {pct}%</span>
+          <span className="text-slate-400">
+            {value} / {target} • {pct}%
+          </span>
         </div>
         <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-          <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+          <div className={`h-full ${color} ${pct >= 100 ? "bar-full" : ""}`} style={{ width: `${pct}%` }} />
         </div>
       </div>
     );
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
+    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8 pb-24">
       <div className="mb-6">
         <h1 className="text-3xl font-bold flex items-center gap-3">
           <span className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-xl">🎯</span>
@@ -234,17 +349,13 @@ export default function CalculatorPage() {
       <div className="flex gap-2 mb-6">
         <button
           onClick={() => setTab("calc")}
-          className={`flex-1 py-3 rounded-lg font-bold text-sm ${
-            tab === "calc" ? "bg-blue-600" : "bg-slate-800"
-          }`}
+          className={`flex-1 py-3 rounded-lg font-bold text-sm ${tab === "calc" ? "bg-blue-600" : "bg-slate-800"}`}
         >
           🧮 Calculate Plan
         </button>
         <button
           onClick={() => setTab("track")}
-          className={`flex-1 py-3 rounded-lg font-bold text-sm ${
-            tab === "track" ? "bg-green-600" : "bg-slate-800"
-          }`}
+          className={`flex-1 py-3 rounded-lg font-bold text-sm ${tab === "track" ? "bg-green-600" : "bg-slate-800"}`}
         >
           🍽️ Track Daily
         </button>
@@ -301,10 +412,14 @@ export default function CalculatorPage() {
               </div>
               <div className="bg-slate-800 rounded p-4 text-center">
                 <p className="text-sm text-slate-400">⏳ Estimated time to goal</p>
-                <p className="text-xl font-bold">{result.weeks} weeks (~{Math.round(result.weeks / 4.33)} months)</p>
+                <p className="text-xl font-bold">
+                  {result.weeks} weeks (~{Math.round(result.weeks / 4.33)} months)
+                </p>
               </div>
               <p className="text-center text-sm text-green-400 font-semibold">{motivation(result)}</p>
-              <p className="text-[10px] text-slate-500 text-center">Based on Mifflin-St Jeor formula. Estimates for guidance only.</p>
+              <p className="text-[10px] text-slate-500 text-center">
+                Based on Mifflin-St Jeor formula. Estimates for guidance only.
+              </p>
             </div>
           )}
         </>
@@ -314,7 +429,10 @@ export default function CalculatorPage() {
         <>
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
             <p className="text-3xl font-black mb-1">
-              {eaten} <span className="text-base text-slate-400 font-semibold">/ {result?.calories || 2000} cal</span>
+              {eaten}{" "}
+              <span className="text-base text-slate-400 font-semibold">
+                / {result?.calories || 2000} cal
+              </span>
             </p>
             <p className="text-xs text-slate-400 mb-4">
               {Math.max((result?.calories || 2000) - eaten, 0)} cal left today
@@ -327,38 +445,65 @@ export default function CalculatorPage() {
           </div>
 
           <div className="grid gap-4">
-            {MEALS.map((m) => (
+            {meals.map((m) => (
               <div key={m.key} className="bg-slate-900 border border-slate-800 rounded-xl p-4">
                 <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-bold">{m.icon} {m.label}</h3>
-                  <button
-                    onClick={() => {
-                      setAddingMeal(addingMeal === m.key ? null : m.key);
-                      resetForm();
-                    }}
-                    className="px-3 py-1 rounded-lg bg-violet-600/20 border border-violet-500/40 text-violet-300 text-xs font-bold"
-                  >
-                    + Add
-                  </button>
+                  <h3 className="font-bold">
+                    {m.icon} {m.label}
+                  </h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setAddingMeal(addingMeal === m.key ? null : m.key);
+                        setScanMeal(null);
+                        resetForm();
+                      }}
+                      className="px-3 py-1 rounded-lg bg-violet-600/20 border border-violet-500/40 text-violet-300 text-xs font-bold"
+                    >
+                      ✍️ Add
+                    </button>
+                    <button
+                      onClick={() => {
+                        setScanMeal(scanMeal === m.key ? null : m.key);
+                        setAddingMeal(null);
+                        setScanImg(null);
+                        setScanResult(null);
+                        setScanError("");
+                      }}
+                      className="px-3 py-1 rounded-lg bg-red-600/20 border border-red-500/40 text-red-300 text-xs font-bold"
+                    >
+                      📷 Scan
+                    </button>
+                  </div>
                 </div>
 
-                {logs.filter((l) => l.meal === m.key).map((l) => (
-                  <div key={l.id} className="flex justify-between items-center bg-slate-800 rounded p-2 mb-1 text-sm">
-                    <span>{l.food_name}</span>
-                    <span className="flex items-center gap-3 text-slate-400">
-                      <span className="text-white font-semibold">{l.calories} cal</span>
-                      <span className="text-[10px]">P{l.protein} C{l.carbs} F{l.fat}</span>
-                      <button onClick={() => del(l.id)} className="text-red-400">✕</button>
-                    </span>
-                  </div>
-                ))}
+                {logs
+                  .filter((l) => l.meal === m.key)
+                  .map((l) => (
+                    <div key={l.id} className="flex justify-between items-center bg-slate-800 rounded p-2 mb-1 text-sm">
+                      <span>{l.food_name}</span>
+                      <span className="flex items-center gap-3 text-slate-400">
+                        <span className="text-white font-semibold">{l.calories} cal</span>
+                        <span className="text-[10px]">
+                          P{l.protein} C{l.carbs} F{l.fat}
+                        </span>
+                        <button onClick={() => del(l.id)} className="text-red-400">
+                          ✕
+                        </button>
+                      </span>
+                    </div>
+                  ))}
 
                 {addingMeal === m.key && (
                   <form onSubmit={(e) => addFood(e, m.key)} className="grid gap-2 mt-2">
                     <select onChange={pick} defaultValue="" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm">
-                      <option value="" disabled>⚡ Quick pick common food…</option>
+                      <option value="" disabled>
+                        ⚡ Quick pick common food…
+                      </option>
                       {QUICK_FOODS.map((q, i) => (
-                        <option key={i} value={i}>{q.name} — {q.cal} cal</option>
+                        <option key={i} value={i}>
+                          {q.name} — {q.cal} cal
+                        </option>
                       ))}
                     </select>
                     <input value={foodName} onChange={(e) => setFoodName(e.target.value)} placeholder="Food name" className="p-2 rounded bg-slate-800 border border-slate-700 text-sm" />
@@ -373,8 +518,59 @@ export default function CalculatorPage() {
                     </button>
                   </form>
                 )}
+
+                {scanMeal === m.key && (
+                  <div className="grid gap-2 mt-2">
+                    {!scanImg ? (
+                      <label className="block bg-slate-800 border-2 border-dashed border-slate-600 rounded-xl p-4 text-center cursor-pointer hover:border-red-500">
+                        📷 Tap to take food photo
+                        <input type="file" accept="image/*" capture="environment" onChange={onScanFile} className="hidden" />
+                      </label>
+                    ) : (
+                      <>
+                        <img src={scanImg} alt="food" className="rounded-lg max-h-40 w-full object-cover" />
+                        {!scanResult ? (
+                          <button onClick={analyze} disabled={scanLoading} className="py-2 rounded bg-red-600 hover:bg-red-500 text-sm font-bold disabled:opacity-50">
+                            {scanLoading ? "🤖 AI is reading your food..." : "⚡ Analyze Calories"}
+                          </button>
+                        ) : (
+                          <div className="bg-slate-800 rounded p-3 text-sm">
+                            <p className="font-bold">
+                              🍽️ {scanResult.food} — {scanResult.calories} cal
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              P{scanResult.protein} C{scanResult.carbs} F{scanResult.fat}
+                            </p>
+                            <div className="flex gap-2 mt-2">
+                              <button onClick={saveScan} className="flex-1 py-2 rounded bg-green-600 hover:bg-green-500 text-xs font-bold">
+                                💾 Add to {m.label}
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setScanImg(null);
+                                  setScanResult(null);
+                                }}
+                                className="px-3 py-2 rounded bg-slate-700 text-xs"
+                              >
+                                🔁 Retake
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {scanError && <p className="text-red-400 text-xs">❌ {scanError}</p>}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
+
+            <button
+              onClick={addMealSection}
+              className="py-3 rounded-xl border-2 border-dashed border-slate-700 text-slate-400 hover:text-white hover:border-violet-500 text-sm font-bold"
+            >
+              ➕ Add New Meal Section
+            </button>
           </div>
         </>
       )}
