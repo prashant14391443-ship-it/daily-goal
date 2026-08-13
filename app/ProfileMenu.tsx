@@ -221,6 +221,15 @@ export default function ProfileMenu() {
           >
             📊 Weekly Report
           </Link>
+          {email === "prashant14391443@gmail.com" && (
+            <Link
+              href="/admin"
+              onClick={() => setOpen(false)}
+              className="text-sm bg-amber-600 hover:bg-amber-500 p-2 rounded text-white font-bold"
+            >
+              👑 Admin Panel
+            </Link>
+          )}
           <button
             onClick={logout}
             className="text-sm bg-red-600 hover:bg-red-500 p-2 rounded font-semibold text-white"
