@@ -537,7 +537,10 @@ export default function Dashboard() {
               <p className="text-xs md:text-sm text-slate-400 mt-1">chat & talk live</p>
             </Link>
 
-            <div className="bg-slate-900 p-4 md:p-6 rounded-xl col-span-2 md:col-span-1">
+            <Link
+              href="/streaks"
+              className="bg-slate-900 p-4 md:p-6 rounded-xl col-span-2 md:col-span-1 hover:bg-slate-800 block"
+            >
               <h3 className="text-base md:text-lg font-bold text-orange-400 mb-2">🔥 Streaks</h3>
               <div className="grid gap-2 max-h-40 overflow-y-auto">
                 <div>
@@ -585,19 +588,27 @@ export default function Dashboard() {
                   );
                 })}
               </div>
-            </div>
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <div className="bg-slate-900 p-6 rounded-xl">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-bold">🎯 Daily Goals</h3>
-                <button
-                  onClick={() => setEditingGoals(!editingGoals)}
-                  className="text-xs text-slate-400 hover:text-white"
-                >
-                  {editingGoals ? "Close" : "Edit goals"}
-                </button>
+                <div className="flex items-center gap-3">
+                  <Link
+                    href="/daily-goals"
+                    className="text-xs text-blue-400 hover:text-white underline"
+                  >
+                    Details →
+                  </Link>
+                  <button
+                    onClick={() => setEditingGoals(!editingGoals)}
+                    className="text-xs text-slate-400 hover:text-white"
+                  >
+                    {editingGoals ? "Close" : "Edit goals"}
+                  </button>
+                </div>
               </div>
               {editingGoals ? (
                 <form onSubmit={saveGoals} className="grid gap-3">
@@ -664,7 +675,15 @@ export default function Dashboard() {
 
             <div className="bg-slate-900 p-6 rounded-xl">
               <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <h3 className="text-lg font-bold">📊 Last 7 days</h3>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-bold">📊 Last 7 days</h3>
+                  <Link
+                    href="/weekly"
+                    className="text-xs text-blue-400 hover:text-white underline"
+                  >
+                    Details →
+                  </Link>
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => setChartMode("study")}
