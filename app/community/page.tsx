@@ -149,14 +149,14 @@ export default function CommunityPage() {
 
       <Link
         href="/random-talk"
-        className="block bg-pink-600 hover:bg-pink-500 rounded-lg p-4 mb-4 text-center font-semibold"
+        className="block bg-pink-600/20 border border-pink-500/40 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-pink-600/30"
       >
         🎲 Talk to a Stranger — 1-on-1 voice, practice English communication
       </Link>
 
       <button
         onClick={() => setShowCreate(!showCreate)}
-        className="w-full py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold mb-4 mt-6"
+        className="w-full py-3 rounded bg-pink-600/20 border border-pink-500/40 font-semibold mb-4 mt-6 hover:bg-pink-600/30"
       >
         {showCreate ? "✖ Cancel" : "➕ Create My Community"}
       </button>
@@ -211,7 +211,7 @@ export default function CommunityPage() {
                 ) : (
                   <button
                     onClick={() => requestJoin(c.id)}
-                    className="px-4 py-2 rounded bg-pink-600 hover:bg-pink-500 text-sm font-semibold"
+                    className="px-4 py-2 rounded bg-pink-600/20 border border-pink-500/40 text-pink-300 text-sm font-semibold hover:bg-pink-600/30"
                   >
                     🙏 Request
                   </button>
