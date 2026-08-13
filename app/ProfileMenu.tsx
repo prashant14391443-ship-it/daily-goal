@@ -357,7 +357,7 @@ export default function ProfileMenu() {
           >
             📊 Weekly Report
           </Link>
-          {email.toLowerCase() === "prahant14391443@gmail.com" && (
+          {email.toLowerCase() === "prashant14391443@gmail.com" && (
             <Link
               href="/admin"
               onClick={() => setOpen(false)}
