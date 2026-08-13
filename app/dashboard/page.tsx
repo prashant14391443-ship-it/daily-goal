@@ -472,6 +472,38 @@ export default function Dashboard() {
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
+  const studyPct = Math.min(
+    100,
+    Math.round((studyMinutes / Math.max(goals.study_target, 1)) * 100)
+  );
+  const gymPct = Math.min(
+    100,
+    Math.round((workouts / Math.max(goals.workout_target, 1)) * 100)
+  );
+  const habitsPct = Math.min(
+    100,
+    Math.round((habitsDone / Math.max(goals.habits_target, 1)) * 100)
+  );
+  const generalDone = tasks.filter((t) => t.completed).length;
+  const todoAllDone = todoDone + generalDone;
+  const todoAllTotal = todoTotal + tasks.length;
+  const todoPct =
+    todoAllTotal > 0
+      ? Math.min(100, Math.round((todoAllDone / todoAllTotal) * 100))
+      : 0;
+  const overallPct = Math.round((studyPct + gymPct + habitsPct + todoPct) / 4);
+
+  const motivation =
+    overallPct >= 100
+      ? "⚡ BATMAN MODE: COMPLETE!"
+      : overallPct >= 75
+      ? "🏆 Keep it up, champion!"
+      : overallPct >= 50
+      ? "🔥 Better than yesterday!"
+      : overallPct >= 25
+      ? "💪 Good start, keep pushing!"
+      : "🦇 Rise, hero — start NOW!";
+
   const weekData =
     chartMode === "study"
       ? studyWeekData
@@ -504,7 +536,11 @@ export default function Dashboard() {
           <h1 className="text-2xl md:text-3xl font-black bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">
             {greeting}, {userName}! 👋
           </h1>
-          <p className="text-slate-400">Here is your day at a glance — {today}</p>
+          <p className="text-slate-400">
+            {motivation} —{" "}
+            <span className="font-bold text-white">{overallPct}%</span> done
+            today • {today}
+          </p>
         </div>
         <nav className="hidden md:flex flex-wrap gap-4 text-sm items-center">
           <Link href="/study-tracker" className="text-slate-300 hover:text-white">
