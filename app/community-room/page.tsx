@@ -346,24 +346,24 @@ export default function CommunityRoomPage() {
     );
 
   return (
-    <main className="h-screen bg-slate-950 text-white p-3 md:p-6 flex flex-col">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
+    <main className="h-screen overflow-hidden bg-slate-950 text-white p-3 md:p-6 pb-20 md:pb-6 flex flex-col">
+      <div className="mb-3">
+        <div className="pr-24">
           <h1 className="text-xl font-bold">🏘️ {community?.name || "..."}</h1>
-          <p className="text-slate-400 text-xs">👥 {memberCount} members • v4</p>
+          <p className="text-slate-400 text-xs">👥 {memberCount} members • v5</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 mt-2">
           <button
             onClick={() => setVoiceOn(!voiceOn)}
             className={`px-3 py-2 rounded font-semibold text-sm ${voiceOn ? "bg-red-600" : "bg-green-600"}`}
           >
-            {voiceOn ? "🔴 Voice" : "🎙️ Voice"}
+            {voiceOn ? "🔴 Leave Voice" : "🎙️ Voice"}
           </button>
           <button onClick={invite} className="px-3 py-2 rounded bg-pink-600 text-sm font-semibold">
-            ➕
+            ➕ Invite
           </button>
           <button onClick={leave} className="px-3 py-2 rounded bg-slate-800 text-sm">
-            ←
+            ← Leave
           </button>
         </div>
       </div>
