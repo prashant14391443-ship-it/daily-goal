@@ -580,12 +580,30 @@ export default function CalculatorPage() {
                           </button>
                         ) : (
                           <div className="bg-slate-800 rounded p-3 text-sm">
-                            <p className="font-bold">
-                              🍽️ {scanResult.food} — {scanResult.calories} cal
+                            <p className="font-bold">🍽️ {scanResult.food}</p>
+                            <p className="text-2xl font-extrabold text-red-400 my-1">
+                              {num(scanResult.calories)} kcal
                             </p>
-                            <p className="text-xs text-slate-400">
-                              P{num(scanResult.protein)} C{num(scanResult.carbs)} F{num(scanResult.fat)}
-                            </p>
+                            <div className="grid grid-cols-3 gap-2 text-center mb-2">
+                              <div className="bg-slate-900 rounded p-2">
+                                <p className="text-[10px] text-slate-400">Protein</p>
+                                <p className="font-bold text-green-400">
+                                  {num(scanResult.protein)}g
+                                </p>
+                              </div>
+                              <div className="bg-slate-900 rounded p-2">
+                                <p className="text-[10px] text-slate-400">Carbs</p>
+                                <p className="font-bold text-blue-400">
+                                  {num(scanResult.carbs)}g
+                                </p>
+                              </div>
+                              <div className="bg-slate-900 rounded p-2">
+                                <p className="text-[10px] text-slate-400">Fat</p>
+                                <p className="font-bold text-yellow-400">
+                                  {num(scanResult.fat)}g
+                                </p>
+                              </div>
+                            </div>
                             <div className="flex gap-2 mt-2">
                               <button onClick={saveScan} className="flex-1 py-2 rounded bg-green-600 hover:bg-green-500 text-xs font-bold">
                                 💾 Add to {m.label}
