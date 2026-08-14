@@ -154,39 +154,44 @@ export default function CommunityPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl bg-pink-600/20 border border-pink-500/40 flex items-center justify-center text-xl">🏘️</span>
-          Community
-        </h1>
-        <p className="text-slate-400">
-          Request to join → admin approves → chat & talk{" "}
-          <span className="ml-2 inline-flex items-center gap-1 text-green-400 font-bold">
-            🟢 {online} online
-          </span>
-        </p>
+      <div className="mb-4 pt-6 pr-24">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
+            <span className="w-10 h-10 rounded-xl bg-pink-600/20 border border-pink-500/40 flex items-center justify-center text-xl">🏘️</span>
+            Community
+          </h1>
+          <span className="text-xs text-green-400 font-bold">🟢 {online} online</span>
+          <button
+            onClick={() => setShowCreate(!showCreate)}
+            className="px-3 py-1.5 rounded-lg border-2 border-dashed border-pink-400/60 text-pink-200 text-xs font-bold hover:bg-pink-600/10"
+          >
+            {showCreate ? "✖ Cancel" : "＋ Create"}
+          </button>
+        </div>
       </div>
 
-      <Link
-        href="/random-talk"
-        className="block bg-pink-500/25 border border-pink-400/50 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-pink-500/35"
-      >
-        🌍 Talk to a Stranger — 1-on-1 voice, practice English communication
-      </Link>
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <Link
+          href="/random-talk"
+          className="block bg-pink-500/25 border border-pink-400/50 rounded-xl p-3 text-center hover:bg-pink-500/35"
+        >
+          <p className="text-2xl mb-1">🌍</p>
+          <p className="font-semibold text-sm">Talk to Stranger</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">1-on-1 voice practice</p>
+        </Link>
+        <Link
+          href="/english"
+          className="block bg-pink-500/25 border border-pink-400/50 rounded-xl p-3 text-center hover:bg-pink-500/35"
+        >
+          <p className="text-2xl mb-1">🤖</p>
+          <p className="font-semibold text-sm">Practice with AI</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Instant corrections</p>
+        </Link>
+      </div>
 
-      <Link
-        href="/english"
-        className="block bg-pink-500/25 border border-pink-400/50 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-pink-500/35"
-      >
-        🤖 Talk to AI — Practice English, correct mistakes
-      </Link>
 
-      <button
-        onClick={() => setShowCreate(!showCreate)}
-        className="w-full py-3 rounded-xl border-2 border-dashed border-pink-400/60 text-pink-200 font-semibold mb-4 mt-6 hover:bg-pink-600/10"
-      >
-        {showCreate ? "✖ Cancel" : "✨ Create My Community"}
-      </button>
+
+
 
       {showCreate && (
         <form onSubmit={create} className="bg-slate-900 p-5 rounded-lg mb-6 grid gap-3">
@@ -236,7 +241,7 @@ export default function CommunityPage() {
                   👥
                 </span>
                 <div>
-                  <p className="font-bold">
+                  <p className="font-bold line-clamp-2">
                     {c.description
                       ? `${c.name.trim()}'s ${c.description.trim()} Community`
                       : `${c.name.trim()} Community`}
@@ -250,18 +255,18 @@ export default function CommunityPage() {
                 {c.joined ? (
                   <button
                     onClick={() => open(c.id)}
-                    className="px-4 py-2 rounded bg-green-600 hover:bg-green-500 text-sm font-semibold"
+                    className="px-3 py-1.5 rounded-full bg-green-600 hover:bg-green-500 text-xs font-bold"
                   >
                     Open →
                   </button>
                 ) : c.requested ? (
-                  <span className="px-4 py-2 rounded bg-slate-800 text-amber-400 text-sm font-semibold">
+                  <span className="px-3 py-1.5 rounded-full bg-slate-800 text-amber-400 text-xs font-bold">
                     ⏳ Requested
                   </span>
                 ) : (
                   <button
                     onClick={() => requestJoin(c.id)}
-                    className="px-4 py-2 rounded bg-pink-600/20 border border-pink-500/40 text-pink-300 text-sm font-semibold hover:bg-pink-600/30"
+                    className="px-3 py-1.5 rounded-full bg-pink-600/20 border border-pink-500/40 text-pink-300 text-xs font-bold hover:bg-pink-600/30"
                   >
                     🙏 Request
                   </button>
