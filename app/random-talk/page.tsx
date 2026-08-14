@@ -49,6 +49,30 @@ export default function RandomTalkPage() {
     return () => clearTimeout(t);
   }, []);
 
+  // SMART DISCONNECT: Automatically ends the call if the stranger leaves
+  useEffect(() => {
+    if (state !== "talk" || !room) return;
+    
+    let checks = 0;
+    const dropCheck = setInterval(async () => {
+      checks++;
+      if (checks < 3) return; // Wait a few seconds for both users to fully join the DB
+      
+      const { count } = await supabase
+        .from("talk_queue")
+        .select("*", { count: "exact", head: true })
+        .eq("room_code", room);
+        
+      // If the count drops below 2, it means the stranger deleted their row (they left)
+      if (count !== null && count < 2) {
+        end();
+      }
+    }, 3000);
+
+    return () => clearInterval(dropCheck);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, room]);
+
   const stopPoll = () => {
     if (pollRef.current) {
       clearInterval(pollRef.current);
@@ -134,7 +158,7 @@ export default function RandomTalkPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#0a0f1c] text-white p-4 md:p-8 pb-24">
+    <main className="min-h-screen bg-[#0a0f1c] text-white p-4 md:p-8 pb-12">
       {/* HEADER */}
       <div className="mb-8 flex justify-between items-center">
         <h1 className="text-3xl md:text-4xl font-extrabold flex items-center gap-3 tracking-tight">
@@ -142,7 +166,7 @@ export default function RandomTalkPage() {
           Talk to a Stranger
         </h1>
         
-        {/* REPORT BUTTON (Only shows during talk state) */}
+        {/* REPORT BUTTON */}
         {state === "talk" && (
           <button
             onClick={reportStranger}
@@ -202,37 +226,37 @@ export default function RandomTalkPage() {
         </div>
       )}
 
-      {/* TALK STATE */}
+      {/* TALK STATE (Unified Layout) */}
       {state === "talk" && (
-        <div className="max-w-xl mx-auto flex flex-col gap-4">
-          <div className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl overflow-hidden shadow-2xl">
+        <div className="max-w-xl mx-auto w-full">
+          <div className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl overflow-hidden shadow-2xl p-2 md:p-3 flex flex-col gap-3">
+            
+            {/* LiveKit component renders Chat + Mic/Speaker controls here */}
             <LivekitRoom roomName={room} identity={displayName} onLeave={end} />
+            
+            {/* DOCKED ACTIONS: Next and End buttons sit permanently under LiveKit */}
+            <div className="flex gap-2 pt-3 border-t border-slate-800/80">
+              <button
+                onClick={next}
+                className="flex-1 py-4 rounded-xl bg-violet-600 hover:bg-violet-500 font-bold shadow-lg shadow-violet-900/20 transition-all active:scale-[0.98] text-white flex items-center justify-center gap-2 text-sm md:text-base"
+              >
+                🎲 Next Stranger
+              </button>
+              <button
+                onClick={end}
+                className="flex-1 py-4 rounded-xl bg-red-600 hover:bg-red-500 font-bold shadow-lg shadow-red-900/20 transition-all active:scale-[0.98] text-white flex items-center justify-center gap-2 text-sm md:text-base"
+              >
+                ❌ End Call
+              </button>
+            </div>
+
           </div>
+          
           {showHint && (
-            <p className="text-center text-[11px] text-slate-500 mt-1 uppercase tracking-wider font-bold">
+            <p className="text-center text-[11px] text-slate-500 mt-4 uppercase tracking-wider font-bold">
               🤝 Be respectful — a real person is listening.
             </p>
           )}
-        </div>
-      )}
-
-      {/* BOTTOM FLOATING CONTROLS (ONLY IN TALK STATE) */}
-      {state === "talk" && (
-        <div className="fixed bottom-0 inset-x-0 z-40 p-4 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/80 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
-          <div className="max-w-xl mx-auto flex gap-3">
-            <button
-              onClick={next}
-              className="flex-1 py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 font-bold shadow-lg shadow-violet-900/20 transition-all active:scale-[0.98] text-white"
-            >
-              🎲 Next Stranger
-            </button>
-            <button
-              onClick={end}
-              className="flex-1 py-4 rounded-2xl bg-red-600 hover:bg-red-500 font-bold shadow-lg shadow-red-900/20 transition-all active:scale-[0.98] text-white"
-            >
-              ❌ End Call
-            </button>
-          </div>
         </div>
       )}
     </main>
