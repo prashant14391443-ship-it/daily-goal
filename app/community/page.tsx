@@ -217,10 +217,20 @@ export default function CommunityPage() {
               key={c.id}
               className="bg-slate-900 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap"
             >
-              <div>
-                <p className="font-bold">{c.name}</p>
-                <p className="text-sm text-slate-400">{c.description}</p>
-                <p className="text-xs text-slate-500 mt-1">👥 {c.members} members</p>
+              <div className="flex items-center gap-3">
+                <span className="w-12 h-12 rounded-xl bg-pink-600/20 border border-pink-500/40 flex items-center justify-center text-2xl shrink-0">
+                  👥
+                </span>
+                <div>
+                  <p className="font-bold">
+                    {c.description
+                      ? `${c.name}'s ${c.description} Community`
+                      : `${c.name} Community`}
+                  </p>
+                  <span className="inline-flex items-center gap-1 text-[10px] bg-pink-600/20 border border-pink-500/40 text-pink-300 px-2 py-0.5 rounded-full font-bold mt-1">
+                    👥 {c.members} {c.members === 1 ? "member" : "members"}
+                  </span>
+                </div>
               </div>
               <div className="flex gap-2 items-center">
                 {c.joined ? (
