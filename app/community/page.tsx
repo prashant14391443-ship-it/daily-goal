@@ -151,21 +151,21 @@ export default function CommunityPage() {
         href="/random-talk"
         className="block bg-pink-600/20 border border-pink-500/40 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-pink-600/30"
       >
-        🎲 Talk to a Stranger — 1-on-1 voice, practice English communication
+        🌍 Talk to a Stranger — 1-on-1 voice, practice English communication
       </Link>
 
       <Link
         href="/english"
         className="block bg-pink-600/20 border border-pink-500/40 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-pink-600/30"
       >
-        🗣️ Talk to AI — Practice English, correct mistakes
+        🤖 Talk to AI — Practice English, correct mistakes
       </Link>
 
       <button
         onClick={() => setShowCreate(!showCreate)}
         className="w-full py-3 rounded bg-pink-600/20 border border-pink-500/40 font-semibold mb-4 mt-6 hover:bg-pink-600/30"
       >
-        {showCreate ? "✖ Cancel" : "➕ Create My Community"}
+        {showCreate ? "✖ Cancel" : "✨ Create My Community"}
       </button>
 
       {showCreate && (
