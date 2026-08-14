@@ -150,7 +150,7 @@ export default function ProfileMenu() {
       const nowHM = `${hh}:${mm}`;
       const todayStr = toLocalISO(now);
 
-      const [s, g, h, t, hl] = await Promise.all([
+      const [s, g, h, t, hl, cStudy, cWork, cHab, cMeal, cTodo] = await Promise.all([
         supabase
           .from("study_sessions")
           .select("id, subject, reminder_time")
@@ -177,7 +177,12 @@ export default function ProfileMenu() {
           .eq("user_id", userId)
           .eq("log_date", todayStr)
           .eq("completed", true),
-      ]);
+        supabase.from("study_sessions").select("id", { count: "exact", head: true }).eq("user_id", userId),
+        supabase.from("gym_logs").select("id", { count: "exact", head: true }).eq("user_id", userId),
+        supabase.from("habit_logs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("completed", true),
+        supabase.from("nutrition_logs").select("id", { count: "exact", head: true }).eq("user_id", userId),
+        supabase.from("tasks").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("category", "todo").eq("completed", true),
+      ]); // The syntax error was right after this bracket. I removed the duplicate queries.
 
       const items: { key: string; label: string; time: string }[] = [];
       (s.data || []).forEach((r) => {
@@ -209,6 +214,64 @@ export default function ProfileMenu() {
             reg.showNotification("DAILY GOAL ⏰", { body: `Time to: ${it.label}` });
           }
         });
+
+        // 🔥 AUTOMATION 1: STREAK RESCUE (7-9 PM, nothing done)
+        const doneAnything =
+          (s.data?.length || 0) + (g.data?.length || 0) + (hl.data?.length || 0) > 0;
+        const hour = now.getHours();
+        const rescueKey = `dg-rescue-${todayStr}`;
+        if (hour >= 19 && hour <= 21 && !doneAnything && !localStorage.getItem(rescueKey)) {
+          localStorage.setItem(rescueKey, "1");
+          playBeep();
+          recordNotification("🔥 STREAK RESCUE", "Nothing done today yet — one small habit now saves your streak!");
+          reg.showNotification("🔥 STREAK RESCUE", { body: "One small habit now saves your streak!" });
+        }
+
+        // 🏆 AUTOMATION 4: INSTANT BADGES (within 30 sec of earning!)
+        const badges = [
+          { id: "b1", ok: (cStudy.count || 0) >= 1, label: "📚 First Study Session" },
+          { id: "b2", ok: (cWork.count || 0) >= 10, label: "💪 10 Workouts Club" },
+          { id: "b3", ok: (cHab.count || 0) >= 50, label: "✅ 50 Habits Done" },
+          { id: "b4", ok: (cMeal.count || 0) >= 20, label: "🍽️ 20 Meals Tracked" },
+          { id: "b5", ok: (cTodo.count || 0) >= 25, label: "🎯 25 Tasks Completed" },
+        ];
+        badges.forEach((b) => {
+          const key = `dg-badge-${userId}-${b.id}`;
+          if (b.ok && !localStorage.getItem(key)) {
+            localStorage.setItem(key, "1");
+            playBeep();
+            recordNotification("🏆 BADGE EARNED!", b.label);
+            reg.showNotification("🏆 BADGE EARNED!", { body: b.label });
+          }
+        });
+
+        // 📊 AUTOMATION 5: SUNDAY AI WEEKLY REPORT
+        if (now.getDay() === 0) {
+          const weekKey = `dg-weekrep-${todayStr}`;
+          if (!localStorage.getItem(weekKey)) {
+            const fromStr = toLocalISO(new Date(Date.now() - 6 * 86400000));
+            const [ws, wg, wh, wt, wn] = await Promise.all([
+              supabase.from("study_sessions").select("duration_minutes").eq("user_id", userId).gte("session_date", fromStr),
+              supabase.from("gym_logs").select("id").eq("user_id", userId).gte("session_date", fromStr),
+              supabase.from("habit_logs").select("id").eq("user_id", userId).gte("log_date", fromStr).eq("completed", true),
+              supabase.from("tasks").select("id").eq("user_id", userId).gte("task_date", fromStr).eq("category", "todo").eq("completed", true),
+              supabase.from("nutrition_logs").select("id").eq("user_id", userId).gte("log_date", fromStr),
+            ]);
+            const mins = (ws.data || []).reduce((a: number, r: { duration_minutes: number }) => a + r.duration_minutes, 0);
+            const ctx = `This week: studied ${mins} min, ${(wg.data || []).length} workouts, ${(wh.data || []).length} habits done, ${(wt.data || []).length} tasks done, ${(wn.data || []).length} meals logged. Write a 3-line weekly report: 1 line praise, 1 line weakest area, 1 line next week tip. Use emojis.`;
+            const ar = await fetch("/api/ai", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ message: "Write my weekly report.", context: ctx, mode: "coach" }),
+            });
+            const ad = await ar.json();
+            if (ad.reply) {
+              localStorage.setItem(weekKey, "1");
+              recordNotification("📊 YOUR WEEKLY REPORT", ad.reply.slice(0, 250));
+              reg.showNotification("📊 YOUR WEEKLY REPORT", { body: ad.reply.slice(0, 200) });
+            }
+          }
+        }
       } catch {
         // notifications not allowed yet
       }
