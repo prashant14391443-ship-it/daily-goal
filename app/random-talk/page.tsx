@@ -194,9 +194,15 @@ export default function RandomTalkPage() {
               🤝 Be respectful — a real person is listening.
             </p>
           )}
+          <div className="h-24" />
+        </div>
+      )}
+
+      {state === "talk" && (
+        <div className="fixed bottom-0 inset-x-0 z-40 p-3 bg-slate-950/95 border-t border-slate-800">
           <button
             onClick={next}
-            className="w-full mt-4 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 font-semibold"
+            className="w-full max-w-md mx-auto block py-3 rounded-xl bg-violet-600 hover:bg-violet-500 font-semibold"
           >
             🎲 Next Stranger
           </button>

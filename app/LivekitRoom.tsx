@@ -202,7 +202,7 @@ export default function LivekitRoom({
     );
 
   return (
-    <div className="rounded-3xl bg-slate-900/70 p-4">
+    <div className="min-h-[calc(100dvh-250px)] flex flex-col rounded-3xl bg-slate-900/70 p-4">
       {/* 1️⃣ SINGLE CLEAN HEADER + TIMER */}
       <p className="text-center text-white font-bold mb-3">
         {names.length > 0 ? (
@@ -217,8 +217,8 @@ export default function LivekitRoom({
       )}
 
       {/* 4️⃣ SOFT CHAT CONTAINER */}
-      <div className="bg-slate-950/50 rounded-2xl p-3 mb-3">
-        <div className="h-40 overflow-y-auto space-y-2 pr-1">
+      <div className="bg-slate-950/50 rounded-2xl p-3 mb-3 flex-1 flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
           {msgs.length === 0 && (
             <p className="text-center text-xs text-slate-600 py-4">
               💬 Messages auto-delete when call ends
@@ -266,7 +266,7 @@ export default function LivekitRoom({
       </div>
 
       {/* 2️⃣ SINGLE CONTROL PILL */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 mt-auto">
         <button
           onClick={toggleMic}
           className={`flex-1 py-3 rounded-xl font-semibold ${
