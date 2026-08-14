@@ -25,6 +25,20 @@ function hasBadWord(text: string) {
 }
 
 export default function CommunityPage() {
+  const [online, setOnline] = useState(0);
+
+  useEffect(() => {
+    const load = async () => {
+      const { count } = await supabase
+        .from("online_users")
+        .select("*", { count: "exact", head: true })
+        .gt("last_seen", new Date(Date.now() - 90000).toISOString());
+      setOnline(count || 0);
+    };
+    load();
+    const id = setInterval(load, 30000);
+    return () => clearInterval(id);
+  }, []);
   const [list, setList] = useState<Community[]>([]);
   const [userId, setUserId] = useState("");
   const [myName, setMyName] = useState("");
@@ -144,7 +158,12 @@ export default function CommunityPage() {
           <span className="w-10 h-10 rounded-xl bg-pink-600/20 border border-pink-500/40 flex items-center justify-center text-xl">🏘️</span>
           Community
         </h1>
-        <p className="text-slate-400">Request to join → admin approves → chat & talk</p>
+        <p className="text-slate-400">
+          Request to join → admin approves → chat & talk{" "}
+          <span className="ml-2 inline-flex items-center gap-1 text-green-400 font-bold">
+            🟢 {online} online
+          </span>
+        </p>
       </div>
 
       <Link

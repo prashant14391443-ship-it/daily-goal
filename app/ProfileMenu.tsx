@@ -119,6 +119,21 @@ export default function ProfileMenu() {
 
   useEffect(() => {
     if (pathname === "/login" || pathname === "/signup") return;
+    const beat = async () => {
+      const { data } = await supabase.auth.getSession();
+      const uid = data.session?.user.id;
+      if (!uid) return;
+      await supabase
+        .from("online_users")
+        .upsert({ user_id: uid, last_seen: new Date().toISOString() });
+    };
+    beat();
+    const id = setInterval(beat, 30000);
+    return () => clearInterval(id);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (pathname === "/login" || pathname === "/signup") return;
     const isAndroid = /Android/i.test(navigator.userAgent);
     if (!isAndroid || !("serviceWorker" in navigator)) return;
 
