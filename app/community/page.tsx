@@ -163,9 +163,9 @@ export default function CommunityPage() {
           <span className="text-xs text-green-400 font-bold">🟢 {online} online</span>
           <button
             onClick={() => setShowCreate(!showCreate)}
-            className="px-3 py-1.5 rounded-lg border-2 border-dashed border-pink-400/60 text-pink-200 text-xs font-bold hover:bg-pink-600/10"
+            className="ml-auto px-3 py-1.5 rounded-lg border-2 border-dashed border-pink-400/60 text-pink-200 text-xs font-bold hover:bg-pink-600/10"
           >
-            {showCreate ? "✖ Cancel" : "＋ Create"}
+            {showCreate ? "✖ Cancel" : "＋ Create Community"}
           </button>
         </div>
       </div>
@@ -260,7 +260,7 @@ export default function CommunityPage() {
                     Open →
                   </button>
                 ) : c.requested ? (
-                  <span className="px-3 py-1.5 rounded-full bg-slate-800 text-amber-400 text-xs font-bold">
+                  <span className="px-3 py-1.5 rounded-full bg-slate-800/60 border border-slate-700 text-slate-400 text-xs font-bold">
                     ⏳ Requested
                   </span>
                 ) : (
@@ -271,13 +271,7 @@ export default function CommunityPage() {
                     🙏 Request
                   </button>
                 )}
-                <button
-                  onClick={() => report(c.id)}
-                  className="px-2 py-2 rounded bg-slate-800 hover:bg-red-600 text-xs"
-                  title="Report abusive content"
-                >
-                  🚨
-                </button>
+               
               </div>
             </div>
           ))}

@@ -404,7 +404,7 @@ export default function ProfileMenu() {
   };
 
   return (
-    <div className="absolute top-3 right-3 z-50" ref={boxRef}>
+    <div className="absolute top-5 right-3 z-50" ref={boxRef}>
       {badgePop &&
         createPortal(
           <div className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-4">

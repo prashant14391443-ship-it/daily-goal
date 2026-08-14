@@ -197,7 +197,7 @@ export default function RandomTalkPage() {
               🤝 Be respectful — a real person is listening.
             </p>
           )}
-
+          <div className="h-24" />
         </div>
       )}
 
