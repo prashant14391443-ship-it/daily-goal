@@ -9,12 +9,22 @@ export default function EnglishPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [left, setLeft] = useState(10);
+  const mediaRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const recogRef = useRef<any>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, loading]);
+
+  useEffect(() => {
+    const c = JSON.parse(localStorage.getItem("dg-eng-count") || "null");
+    if (c && c.date === new Date().toDateString())
+      setLeft(Math.max(0, 10 - c.n));
+  }, []);
 
   const speak = (text: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
@@ -49,7 +59,82 @@ export default function EnglishPage() {
     setListening(true);
   };
 
+  const useLimit = () => {
+    if (left <= 0) {
+      alert("🗣️ 10 free practice sessions per day! Come back tomorrow.");
+      return false;
+    }
+    return true;
+  };
+
+  const bumpLimit = () => {
+    const count = 10 - left + 1;
+    setLeft(10 - count);
+    localStorage.setItem(
+      "dg-eng-count",
+      JSON.stringify({ date: new Date().toDateString(), n: count })
+    );
+  };
+
+  const toggleRecord = () => {
+    if (recording) {
+      mediaRef.current?.stop();
+      setRecording(false);
+      return;
+    }
+    if (!useLimit()) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert("Mic not supported on this browser!");
+      return;
+    }
+    navigator.mediaDevices
+      .getUserMedia({ audio: true })
+      .then((stream) => {
+        const mr = new MediaRecorder(stream);
+        chunksRef.current = [];
+        mr.ondataavailable = (e) => chunksRef.current.push(e.data);
+        mr.onstop = () => {
+          stream.getTracks().forEach((t) => t.stop());
+          const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+          if (blob.size > 3500000) {
+            alert("Recording too long! Max ~60 seconds.");
+            return;
+          }
+          const reader = new FileReader();
+          reader.onloadend = async () => {
+            const b64 = String(reader.result).split(",")[1];
+            await sendAudio(b64);
+          };
+          reader.readAsDataURL(blob);
+        };
+        mr.start();
+        mediaRef.current = mr;
+        setRecording(true);
+      })
+      .catch(() => alert("Mic permission denied!"));
+  };
+
+  const sendAudio = async (b64: string) => {
+    setMsgs((m) => [...m, { role: "user" as const, content: "🎙️ (voice message)" }]);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "english", audio: b64 }),
+      });
+      const d = await res.json();
+      const reply = d.reply || "😴 " + (d.error || "Could not hear you.");
+      setMsgs((m) => [...m, { role: "assistant" as const, content: reply }]);
+      if (d.reply) bumpLimit();
+    } catch {
+      setMsgs((m) => [...m, { role: "assistant" as const, content: "📡 Network issue!" }]);
+    }
+    setLoading(false);
+  };
+
   const send = async (text?: string) => {
+    if (!useLimit()) return;
     const msg = (text || input).trim();
     if (!msg || loading) return;
     setInput("");
@@ -66,6 +151,7 @@ export default function EnglishPage() {
       const d = await res.json();
       const reply = d.reply || "😴 " + (d.error || "AI sleeping.");
       setMsgs([...next, { role: "assistant" as const, content: reply }]);
+      if (d.reply) bumpLimit();
     } catch {
       setMsgs([...next, { role: "assistant" as const, content: "📡 Network issue!" }]);
     }
@@ -77,6 +163,9 @@ export default function EnglishPage() {
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-black">🗣️ English Practice</h1>
         <div className="flex items-center gap-3">
+          <span className="text-xs bg-blue-600/20 border border-blue-500/40 text-blue-300 px-2 py-1 rounded-lg font-bold">
+            {left}/10 free
+          </span>
           <button onClick={() => setMsgs([])} className="text-xs bg-slate-800 border border-slate-700 px-2 py-1 rounded-lg">
             🗑️ Clear
           </button>
@@ -109,6 +198,9 @@ export default function EnglishPage() {
       <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
         <button type="button" onClick={toggleMic} className={`w-14 h-12 rounded-xl font-bold text-xl ${listening ? "bg-red-600 animate-pulse" : "bg-slate-800"}`}>
           {listening ? "🔴" : "🎤"}
+        </button>
+        <button type="button" onClick={toggleRecord} className={`w-14 h-12 rounded-xl font-bold text-xl ${recording ? "bg-red-600 animate-pulse" : "bg-slate-800"}`}>
+          {recording ? "⏹️" : "🎙️"}
         </button>
         <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Speak or type in English..." className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm" />
         <button disabled={loading} className="px-5 rounded-xl bg-blue-600 font-bold disabled:opacity-50">➤</button>
