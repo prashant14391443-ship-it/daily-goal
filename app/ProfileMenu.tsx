@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { createPortal } from "react-dom";
 import { recordNotification } from "@/lib/notify";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -70,6 +71,22 @@ function compressAvatar(f: File): Promise<File> {
   });
 }
 
+type Counts = { s: number; g: number; h: number; m: number; t: number };
+const BADGES: { id: string; label: string; ok: (c: Counts) => boolean }[] = [
+  { id: "s1", label: "📚 Study Starter — first session", ok: (c) => c.s >= 1 },
+  { id: "s2", label: "📚 Study Climber — 10 sessions", ok: (c) => c.s >= 10 },
+  { id: "s3", label: "📚 Study Master — 50 sessions", ok: (c) => c.s >= 50 },
+  { id: "g1", label: "💪 Gym Starter — first workout", ok: (c) => c.g >= 1 },
+  { id: "g2", label: "💪 Gym Climber — 10 workouts", ok: (c) => c.g >= 10 },
+  { id: "g3", label: "💪 Gym Master — 25 workouts", ok: (c) => c.g >= 25 },
+  { id: "h1", label: "✅ Habit Starter — first habit", ok: (c) => c.h >= 1 },
+  { id: "h2", label: "✅ Habit Climber — 25 habits", ok: (c) => c.h >= 25 },
+  { id: "h3", label: "✅ Habit Master — 50 habits", ok: (c) => c.h >= 50 },
+  { id: "t1", label: "🎯 Task Starter — first task", ok: (c) => c.t >= 1 },
+  { id: "t2", label: "🎯 Task Climber — 10 tasks", ok: (c) => c.t >= 10 },
+  { id: "t3", label: "🎯 Task Master — 20 tasks", ok: (c) => c.t >= 20 },
+];
+
 export default function ProfileMenu() {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
@@ -131,6 +148,44 @@ export default function ProfileMenu() {
     beat();
     const id = setInterval(beat, 30000);
     return () => clearInterval(id);
+  }, [pathname]);
+
+  const checkBadgesNow = async () => {
+    const { data } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+    if (!userId) return;
+    const [cStudy, cWork, cHab, cMeal, cTodo] = await Promise.all([
+      supabase.from("study_sessions").select("id", { count: "exact", head: true }).eq("user_id", userId),
+      supabase.from("gym_logs").select("id", { count: "exact", head: true }).eq("user_id", userId),
+      supabase.from("habit_logs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("completed", true),
+      supabase.from("nutrition_logs").select("id", { count: "exact", head: true }).eq("user_id", userId),
+      supabase.from("tasks").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("category", "todo").eq("completed", true),
+    ]);
+    for (const b of BADGES) {
+      if (!b.ok({ s: cStudy.count || 0, g: cWork.count || 0, h: cHab.count || 0, m: cMeal.count || 0, t: cTodo.count || 0 })) continue;
+      const key = `dg-badge-${userId}-${b.id}`;
+      if (!localStorage.getItem(key)) {
+        localStorage.setItem(key, "1");
+        await supabase.from("earned_badges").upsert({ user_id: userId, badge_id: b.id });
+        playBeep();
+        setBadgePop(b.label);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (pathname === "/login" || pathname === "/signup") return;
+    const trigger = () => setTimeout(checkBadgesNow, 1500);
+    const chan = supabase
+      .channel("badge-watch")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "study_sessions" }, trigger)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "gym_logs" }, trigger)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "habit_logs" }, trigger)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tasks" }, trigger)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(chan);
+    };
   }, [pathname]);
 
   useEffect(() => {
@@ -229,24 +284,19 @@ export default function ProfileMenu() {
         }
 
         // 🏆 AUTOMATION 4: INSTANT BADGES (within 30 sec of earning!)
-        const badges = [
-          { id: "s1", ok: (cStudy.count || 0) >= 1, label: "📚 Study Starter — first session" },
-          { id: "s2", ok: (cStudy.count || 0) >= 10, label: "📚 Study Climber — 10 sessions" },
-          { id: "s3", ok: (cStudy.count || 0) >= 50, label: "📚 Study Master — 50 sessions" },
-          { id: "g1", ok: (cWork.count || 0) >= 1, label: "💪 Gym Starter — first workout" },
-          { id: "g2", ok: (cWork.count || 0) >= 10, label: "💪 Gym Climber — 10 workouts" },
-          { id: "g3", ok: (cWork.count || 0) >= 25, label: "💪 Gym Master — 25 workouts" },
-          { id: "h1", ok: (cHab.count || 0) >= 1, label: "✅ Habit Starter — first habit" },
-          { id: "h2", ok: (cHab.count || 0) >= 25, label: "✅ Habit Climber — 25 habits" },
-          { id: "h3", ok: (cHab.count || 0) >= 50, label: "✅ Habit Master — 50 habits" },
-          { id: "t1", ok: (cTodo.count || 0) >= 1, label: "🎯 Task Starter — first task" },
-          { id: "t2", ok: (cTodo.count || 0) >= 10, label: "🎯 Task Climber — 10 tasks" },
-          { id: "t3", ok: (cTodo.count || 0) >= 20, label: "🎯 Task Master — 20 tasks" },
-        ];
-        
-        for (const b of badges) {
+        for (const b of BADGES) {
+          if (
+            !b.ok({
+              s: cStudy.count || 0,
+              g: cWork.count || 0,
+              h: cHab.count || 0,
+              m: cMeal.count || 0,
+              t: cTodo.count || 0,
+            })
+          )
+            continue;
           const key = `dg-badge-${userId}-${b.id}`;
-          if (b.ok && !localStorage.getItem(key)) {
+          if (!localStorage.getItem(key)) {
             localStorage.setItem(key, "1");
             await supabase
               .from("earned_badges")
@@ -355,8 +405,9 @@ export default function ProfileMenu() {
 
   return (
     <div className="absolute top-3 right-3 z-50" ref={boxRef}>
-      {badgePop && (
-        <div className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-4">
+      {badgePop &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-4">
           <div className="bg-slate-900 border-2 border-amber-500 rounded-2xl p-8 text-center max-w-sm w-full shadow-2xl">
             <p className="text-6xl mb-3">🏆</p>
             <p className="text-xl font-black text-amber-400 mb-1">BADGE EARNED!</p>
@@ -368,8 +419,9 @@ export default function ProfileMenu() {
               🎉 YAY!
             </button>
           </div>
-        </div>
-      )}
+        </div>,
+          document.body
+        )}
       <button
         onClick={() => setOpen(!open)}
         className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center justify-center overflow-hidden"
