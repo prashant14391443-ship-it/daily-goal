@@ -374,11 +374,12 @@ export default function CommunityRoomPage() {
 
   return (
     <main className="fixed inset-0 overflow-hidden bg-slate-950 text-white p-3 md:p-6 flex flex-col z-[100]">
-      {/* HEADER SECTION - Voice toggle removed from here */}
+      
+      {/* HEADER SECTION */}
       <div className="mb-3">
         <div className="pr-24">
           <h1 className="text-xl font-bold">🏘️ {community?.name || "..."}</h1>
-          <p className="text-slate-400 text-xs">👥 {memberCount} members • v7</p>
+          <p className="text-slate-400 text-xs">👥 {memberCount} members • v8</p>
         </div>
         <div className="flex gap-2 mt-2">
           <button onClick={invite} className="flex-1 py-2.5 rounded-lg bg-pink-600 hover:bg-pink-500 text-sm font-semibold transition-colors">
@@ -392,19 +393,15 @@ export default function CommunityRoomPage() {
 
       {/* JOIN REQUESTS PANEL (OWNER ONLY) */}
       {community && me === community.owner_id && pending.length > 0 && (
-        <div className="bg-amber-600/10 border border-amber-500/40 rounded-xl p-3 mb-3">
+        <div className="bg-amber-600/10 border border-amber-500/40 rounded-xl p-3 mb-3 shrink-0">
           <p className="font-bold text-amber-400 mb-2 text-sm">🙏 Join Requests ({pending.length})</p>
           <div className="grid gap-2">
             {pending.map((p) => (
               <div key={p.user_id} className="flex items-center justify-between bg-slate-900 rounded p-2">
                 <span className="text-sm">{p.user_name}</span>
                 <div className="flex gap-2">
-                  <button onClick={() => approve(p.user_id)} className="px-3 py-1 rounded bg-green-600 hover:bg-green-500 text-xs font-bold transition-colors">
-                    ✅
-                  </button>
-                  <button onClick={() => reject(p.user_id)} className="px-3 py-1 rounded bg-red-600 hover:bg-red-500 text-xs font-bold transition-colors">
-                    ❌
-                  </button>
+                  <button onClick={() => approve(p.user_id)} className="px-3 py-1 rounded bg-green-600 hover:bg-green-500 text-xs font-bold transition-colors">✅</button>
+                  <button onClick={() => reject(p.user_id)} className="px-3 py-1 rounded bg-red-600 hover:bg-red-500 text-xs font-bold transition-colors">❌</button>
                 </div>
               </div>
             ))}
@@ -412,148 +409,161 @@ export default function CommunityRoomPage() {
         </div>
       )}
 
-      {/* RENDER VOICE ROOM OR TEXT CHAT */}
-      {voiceOn ? (
-        <div className="flex-1 flex flex-col min-h-0 bg-slate-900 rounded-xl overflow-hidden border border-slate-800">
-          {voiceUsers.length >= 2 && community ? (
+      {/* THE UNIFIED CHAT CONTAINER */}
+      <div className="flex-1 min-h-0 relative bg-slate-900 rounded-xl overflow-hidden border border-slate-800 flex flex-col">
+        
+        {/* FLOATING VOICE STATUS PILL */}
+        {voiceOn && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 bg-slate-950/80 backdrop-blur-md border border-slate-700/50 px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold shadow-xl">
+            {voiceUsers.length >= 2 ? (
+              <><span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" /> <span className="text-green-400">Voice Connected</span></>
+            ) : (
+              <><span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" /> <span className="text-amber-400">Waiting for someone...</span></>
+            )}
+          </div>
+        )}
+
+        {/* INVISIBLE LIVEKIT (Handles audio in the background) */}
+        {voiceOn && voiceUsers.length >= 2 && community && (
+          <div className="hidden pointer-events-none">
             <LivekitRoom roomName={community.room_code} identity={myName} onLeave={() => setVoiceOn(false)} />
-          ) : (
-            // CLEANED UP WAITING LOBBY
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900/50">
-              <span className="text-7xl mb-6 animate-pulse">🎧</span>
-              <h3 className="text-xl md:text-2xl font-bold text-slate-200 mb-3">Waiting for someone...</h3>
-              <p className="text-slate-400 text-sm max-w-xs mx-auto leading-relaxed">
-                You will be connected automatically when another member joins the voice channel.
-              </p>
-            </div>
-          )}
-        </div>
-      ) : (
-        <>
-          {/* STANDARD PERSISTENT TEXT CHAT */}
-          <div className="flex-1 min-h-0 bg-slate-900 rounded-xl p-3 overflow-y-auto grid gap-2 content-start">
-            {messages.map((m) => {
-              const own = m.user_id === me;
-              return (
-                <div key={m.id} className={`flex ${own ? "justify-end" : "justify-start"}`}>
-                  <div
-                    className={`max-w-[78%] rounded-2xl px-3 py-2 select-none ${own ? "bg-green-700" : "bg-slate-800"}`}
-                    onTouchStart={() => startPress(m)}
-                    onTouchEnd={cancelPress}
-                    onTouchMove={cancelPress}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      if (m.user_id === me) setMenuMsg(m);
-                    }}
-                  >
-                    {!own && (
-                      <p className="text-xs font-bold mb-0.5" style={{ color: nameColor(m.user_name) }}>
-                        {m.user_name}
-                      </p>
-                    )}
-                    {m.file_type === "image" && m.file_url && (
-                      <img src={m.file_url} alt="shared" className="rounded-lg max-h-60 mb-1" />
-                    )}
-                    {m.file_type === "pdf" && m.file_url && (
-                      <a href={m.file_url} target="_blank" className="block text-sm underline text-sky-300 mb-1">
-                        📄 Open PDF
-                      </a>
-                    )}
-                    <p className="text-sm whitespace-pre-wrap">{m.text}</p>
-                    <div className="flex items-center justify-end gap-2 mt-0.5">
-                      <span className={`text-[10px] ${own ? "text-green-200" : "text-slate-400"}`}>{timeOf(m.created_at)}</span>
-                    </div>
+          </div>
+        )}
+
+        {/* ALWAYS-VISIBLE TEXT CHAT */}
+        <div className="flex-1 overflow-y-auto p-3 grid gap-2 content-start">
+          {messages.map((m) => {
+            const own = m.user_id === me;
+            return (
+              <div key={m.id} className={`flex ${own ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[78%] rounded-2xl px-3 py-2 select-none ${own ? "bg-green-700" : "bg-slate-800"}`}
+                  onTouchStart={() => startPress(m)}
+                  onTouchEnd={cancelPress}
+                  onTouchMove={cancelPress}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    if (m.user_id === me) setMenuMsg(m);
+                  }}
+                >
+                  {!own && (
+                    <p className="text-xs font-bold mb-0.5" style={{ color: nameColor(m.user_name) }}>
+                      {m.user_name}
+                    </p>
+                  )}
+                  {m.file_type === "image" && m.file_url && (
+                    <img src={m.file_url} alt="shared" className="rounded-lg max-h-60 mb-1" />
+                  )}
+                  {m.file_type === "pdf" && m.file_url && (
+                    <a href={m.file_url} target="_blank" className="block text-sm underline text-sky-300 mb-1">
+                      📄 Open PDF
+                    </a>
+                  )}
+                  <p className="text-sm whitespace-pre-wrap">{m.text}</p>
+                  <div className="flex items-center justify-end gap-2 mt-0.5">
+                    <span className={`text-[10px] ${own ? "text-green-200" : "text-slate-400"}`}>{timeOf(m.created_at)}</span>
                   </div>
                 </div>
-              );
-            })}
-            {messages.length === 0 && <p className="text-slate-500 text-sm text-center mt-4">No messages yet — say hello! 👋</p>}
-            <div ref={bottomRef} />
-          </div>
-
-          {/* FILE PREVIEW */}
-          {file && (
-            <div className="mt-2 bg-slate-900 border border-sky-500/40 rounded-xl p-3 flex items-center gap-3">
-              {preview ? (
-                <img src={preview} alt="preview" className="w-16 h-16 rounded-lg object-cover" />
-              ) : (
-                <span className="text-4xl">📄</span>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">{file.name || "photo.jpg"}</p>
-                <p className="text-xs text-green-400">
-                  {(file.size / 1024).toFixed(0)} KB — attached ✅ ready to send
-                </p>
               </div>
-              <button type="button" onClick={clearFile} className="text-red-400 text-xl px-2 hover:text-red-300">
-                ✕
-              </button>
-            </div>
-          )}
+            );
+          })}
+          {messages.length === 0 && <p className="text-slate-500 text-sm text-center mt-8">No messages yet — say hello! 👋</p>}
+          <div ref={bottomRef} />
+        </div>
+      </div>
 
-          {/* EDITING INDICATOR */}
-          {editingId && (
-            <div className="mt-2 bg-slate-900 border border-amber-500/40 rounded-xl p-3 flex items-center justify-between">
-              <span className="text-sm text-amber-400 font-semibold">✏️ Editing message...</span>
-              <button 
-                onClick={() => { setEditingId(null); setText(""); }} 
-                className="text-xs text-red-400 underline hover:text-red-300"
-              >
-                Cancel
-              </button>
-            </div>
+      {/* FILE PREVIEW */}
+      {file && (
+        <div className="mt-2 bg-slate-900 border border-sky-500/40 rounded-xl p-3 flex items-center gap-3 shrink-0">
+          {preview ? (
+            <img src={preview} alt="preview" className="w-16 h-16 rounded-lg object-cover" />
+          ) : (
+            <span className="text-4xl">📄</span>
           )}
-
-          {/* CHAT INPUT FORM */}
-          <form onSubmit={send} className="flex gap-2 mt-3 items-center">
-            <input
-              type="file"
-              id="file-upload"
-              className="hidden"
-              accept="image/*,application/pdf"
-              onChange={onFile}
-              ref={fileInputRef} 
-            />
-            
-            {!editingId && (
-              <label
-                htmlFor="file-upload"
-                className="cursor-pointer p-3 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xl transition-colors"
-                title="Attach File"
-              >
-                📎
-              </label>
-            )}
-            
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={file ? "Add a message (optional)..." : "Type a message..."}
-              className="flex-1 p-3.5 rounded-xl bg-slate-800 border border-slate-700 focus:outline-none focus:border-pink-500 transition-colors"
-              disabled={sending}
-            />
-            
-            <button
-              disabled={sending || (!text.trim() && !file)}
-              className="px-5 py-3.5 rounded-xl bg-pink-600 hover:bg-pink-500 font-bold disabled:opacity-50 transition-colors flex items-center justify-center"
-            >
-              {sending ? "⏳" : (editingId ? "💾" : "➤")}
-            </button>
-          </form>
-        </>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate">{file.name || "photo.jpg"}</p>
+            <p className="text-xs text-green-400">
+              {(file.size / 1024).toFixed(0)} KB — attached ✅ ready to send
+            </p>
+          </div>
+          <button type="button" onClick={clearFile} className="text-red-400 text-xl px-2 hover:text-red-300">
+            ✕
+          </button>
+        </div>
       )}
 
-      {/* FULL-WIDTH BOTTOM VOICE BUTTON */}
-      <button
-        onClick={() => setVoiceOn(!voiceOn)}
-        className={`w-full shrink-0 mt-3 py-4 rounded-2xl font-extrabold text-lg shadow-lg transition-all active:scale-[0.98] ${
-          voiceOn 
-            ? "bg-red-600 hover:bg-red-500 shadow-red-900/20 text-white" 
-            : "bg-green-600 hover:bg-green-500 shadow-green-900/20 text-white"
-        }`}
-      >
-        {voiceOn ? "🔴 Leave Voice Channel" : "🎙️ Join Voice Channel"}
-      </button>
+      {/* EDITING INDICATOR */}
+      {editingId && (
+        <div className="mt-2 bg-slate-900 border border-amber-500/40 rounded-xl p-3 flex items-center justify-between shrink-0">
+          <span className="text-sm text-amber-400 font-semibold">✏️ Editing message...</span>
+          <button 
+            onClick={() => { setEditingId(null); setText(""); }} 
+            className="text-xs text-red-400 underline hover:text-red-300"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {/* CHAT INPUT & SMALL LEAVE VOICE BUTTON */}
+      <form onSubmit={send} className="flex gap-2 mt-3 items-center shrink-0">
+        
+        {/* If Voice is ON, show the small red X button */}
+        {voiceOn && (
+          <button 
+            type="button" 
+            onClick={() => setVoiceOn(false)} 
+            className="w-[50px] h-[50px] rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500/20 flex items-center justify-center text-xl shrink-0 transition-colors"
+            title="Leave Voice"
+          >
+            ✖
+          </button>
+        )}
+
+        <input
+          type="file"
+          id="file-upload"
+          className="hidden"
+          accept="image/*,application/pdf"
+          onChange={onFile}
+          ref={fileInputRef} 
+        />
+        
+        {!editingId && !voiceOn && (
+          <label
+            htmlFor="file-upload"
+            className="cursor-pointer w-[50px] h-[50px] flex items-center justify-center rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xl transition-colors shrink-0"
+            title="Attach File"
+          >
+            📎
+          </label>
+        )}
+        
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={file ? "Add a message..." : "Type a message..."}
+          className="flex-1 h-[50px] px-4 rounded-xl bg-slate-800 border border-slate-700 focus:outline-none focus:border-pink-500 transition-colors"
+          disabled={sending}
+        />
+        
+        <button
+          disabled={sending || (!text.trim() && !file)}
+          className="w-[50px] h-[50px] rounded-xl bg-pink-600 hover:bg-pink-500 font-bold disabled:opacity-50 transition-colors flex items-center justify-center shrink-0"
+        >
+          {sending ? "⏳" : (editingId ? "💾" : "➤")}
+        </button>
+      </form>
+
+      {/* BIG GREEN JOIN BUTTON (ONLY SHOWS WHEN NOT IN VOICE) */}
+      {!voiceOn && (
+        <button
+          onClick={() => setVoiceOn(true)}
+          className="w-full shrink-0 mt-3 py-4 rounded-2xl font-extrabold text-lg shadow-lg bg-green-600 hover:bg-green-500 shadow-green-900/20 text-white transition-all active:scale-[0.98]"
+        >
+          🎙️ Join Voice Channel
+        </button>
+      )}
 
       {/* LONG-PRESS / RIGHT-CLICK MENU */}
       {menuMsg && (
