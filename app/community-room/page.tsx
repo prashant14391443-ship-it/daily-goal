@@ -148,7 +148,6 @@ export default function CommunityRoomPage() {
         const state = channel.presenceState<{ voice: boolean }>();
         const active: string[] = [];
         for (const key in state) {
-          // If the user has broadcasted that their voice is ON
           if (state[key][0]?.voice) active.push(key);
         }
         setVoiceUsers(active);
@@ -175,7 +174,6 @@ export default function CommunityRoomPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, me]);
 
-  // Sync voice toggle with the rest of the room
   useEffect(() => {
     if (channelJoined && channelRef.current) {
       channelRef.current.track({ voice: voiceOn });
@@ -355,7 +353,7 @@ export default function CommunityRoomPage() {
 
   if (myStatus === "pending")
     return (
-      <main className="min-h-screen bg-slate-950 text-white p-8 text-center">
+      <main className="min-h-screen bg-slate-950 text-white p-8 text-center flex flex-col justify-center">
         <p className="text-5xl mb-4">⏳</p>
         <p className="font-bold text-xl">Waiting for admin approval...</p>
         <Link href="/community" className="inline-block mt-6 text-sm text-slate-400 hover:text-white">
@@ -366,38 +364,33 @@ export default function CommunityRoomPage() {
 
   if (myStatus !== "approved")
     return (
-      <main className="min-h-screen bg-slate-950 text-white p-8 text-center">
+      <main className="min-h-screen bg-slate-950 text-white p-8 text-center flex flex-col justify-center">
         <p className="text-slate-400">You are not a member of this community.</p>
-        <Link href="/community" className="inline-block mt-4 text-pink-400 underline">
+        <Link href="/community" className="inline-block mt-4 text-pink-400 underline hover:text-pink-300">
           Go to Communities
         </Link>
       </main>
     );
 
   return (
-    // Z-[100] AND PB-3 GUARANTEES THE BOTTOM NAV IS COVERED
-    <main className="fixed inset-0 overflow-hidden bg-slate-950 text-white p-3 md:p-6 pb-3 md:pb-6 flex flex-col z-[100]">
+    <main className="fixed inset-0 overflow-hidden bg-slate-950 text-white p-3 md:p-6 flex flex-col z-[100]">
+      {/* HEADER SECTION - Voice toggle removed from here */}
       <div className="mb-3">
         <div className="pr-24">
           <h1 className="text-xl font-bold">🏘️ {community?.name || "..."}</h1>
-          <p className="text-slate-400 text-xs">👥 {memberCount} members • v6</p>
+          <p className="text-slate-400 text-xs">👥 {memberCount} members • v7</p>
         </div>
         <div className="flex gap-2 mt-2">
-          <button
-            onClick={() => setVoiceOn(!voiceOn)}
-            className={`px-3 py-2 rounded font-semibold text-sm ${voiceOn ? "bg-red-600 hover:bg-red-500" : "bg-green-600 hover:bg-green-500"}`}
-          >
-            {voiceOn ? "🔴 Leave Voice" : "🎙️ Voice"}
-          </button>
-          <button onClick={invite} className="px-3 py-2 rounded bg-pink-600 hover:bg-pink-500 text-sm font-semibold">
+          <button onClick={invite} className="flex-1 py-2.5 rounded-lg bg-pink-600 hover:bg-pink-500 text-sm font-semibold transition-colors">
             ➕ Invite
           </button>
-          <button onClick={leave} className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 text-sm">
+          <button onClick={leave} className="flex-1 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-sm font-semibold transition-colors">
             ← Leave
           </button>
         </div>
       </div>
 
+      {/* JOIN REQUESTS PANEL (OWNER ONLY) */}
       {community && me === community.owner_id && pending.length > 0 && (
         <div className="bg-amber-600/10 border border-amber-500/40 rounded-xl p-3 mb-3">
           <p className="font-bold text-amber-400 mb-2 text-sm">🙏 Join Requests ({pending.length})</p>
@@ -406,10 +399,10 @@ export default function CommunityRoomPage() {
               <div key={p.user_id} className="flex items-center justify-between bg-slate-900 rounded p-2">
                 <span className="text-sm">{p.user_name}</span>
                 <div className="flex gap-2">
-                  <button onClick={() => approve(p.user_id)} className="px-3 py-1 rounded bg-green-600 hover:bg-green-500 text-xs font-bold">
+                  <button onClick={() => approve(p.user_id)} className="px-3 py-1 rounded bg-green-600 hover:bg-green-500 text-xs font-bold transition-colors">
                     ✅
                   </button>
-                  <button onClick={() => reject(p.user_id)} className="px-3 py-1 rounded bg-red-600 hover:bg-red-500 text-xs font-bold">
+                  <button onClick={() => reject(p.user_id)} className="px-3 py-1 rounded bg-red-600 hover:bg-red-500 text-xs font-bold transition-colors">
                     ❌
                   </button>
                 </div>
@@ -423,16 +416,14 @@ export default function CommunityRoomPage() {
       {voiceOn ? (
         <div className="flex-1 flex flex-col min-h-0 bg-slate-900 rounded-xl overflow-hidden border border-slate-800">
           {voiceUsers.length >= 2 && community ? (
-            // LIVEKIT MOUNTS ONLY WHEN 2 OR MORE USERS ARE READY
             <LivekitRoom roomName={community.room_code} identity={myName} onLeave={() => setVoiceOn(false)} />
           ) : (
-            // WAITING LOBBY (DOES NOT SPEND LIVEKIT MINUTES)
+            // CLEANED UP WAITING LOBBY
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900/50">
-              <span className="text-6xl mb-4 animate-bounce">🎧</span>
-              <h3 className="text-xl md:text-2xl font-bold text-slate-200 mb-2 animate-pulse">Waiting for someone...</h3>
-              <p className="text-slate-400 text-sm">LiveKit will automatically connect you when another member clicks Voice.</p>
-              <p className="text-[11px] text-green-400 font-bold mt-6 tracking-wider uppercase border border-green-500/30 bg-green-500/10 px-4 py-2 rounded-full">
-                Saves your free plan limits
+              <span className="text-7xl mb-6 animate-pulse">🎧</span>
+              <h3 className="text-xl md:text-2xl font-bold text-slate-200 mb-3">Waiting for someone...</h3>
+              <p className="text-slate-400 text-sm max-w-xs mx-auto leading-relaxed">
+                You will be connected automatically when another member joins the voice channel.
               </p>
             </div>
           )}
@@ -476,10 +467,11 @@ export default function CommunityRoomPage() {
                 </div>
               );
             })}
-            {messages.length === 0 && <p className="text-slate-500 text-sm text-center">No messages yet — say hello! 👋</p>}
+            {messages.length === 0 && <p className="text-slate-500 text-sm text-center mt-4">No messages yet — say hello! 👋</p>}
             <div ref={bottomRef} />
           </div>
 
+          {/* FILE PREVIEW */}
           {file && (
             <div className="mt-2 bg-slate-900 border border-sky-500/40 rounded-xl p-3 flex items-center gap-3">
               {preview ? (
@@ -493,12 +485,13 @@ export default function CommunityRoomPage() {
                   {(file.size / 1024).toFixed(0)} KB — attached ✅ ready to send
                 </p>
               </div>
-              <button type="button" onClick={clearFile} className="text-red-400 text-xl px-2">
+              <button type="button" onClick={clearFile} className="text-red-400 text-xl px-2 hover:text-red-300">
                 ✕
               </button>
             </div>
           )}
 
+          {/* EDITING INDICATOR */}
           {editingId && (
             <div className="mt-2 bg-slate-900 border border-amber-500/40 rounded-xl p-3 flex items-center justify-between">
               <span className="text-sm text-amber-400 font-semibold">✏️ Editing message...</span>
@@ -511,6 +504,7 @@ export default function CommunityRoomPage() {
             </div>
           )}
 
+          {/* CHAT INPUT FORM */}
           <form onSubmit={send} className="flex gap-2 mt-3 items-center">
             <input
               type="file"
@@ -524,7 +518,7 @@ export default function CommunityRoomPage() {
             {!editingId && (
               <label
                 htmlFor="file-upload"
-                className="cursor-pointer p-3 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xl transition-colors"
+                className="cursor-pointer p-3 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xl transition-colors"
                 title="Attach File"
               >
                 📎
@@ -535,13 +529,13 @@ export default function CommunityRoomPage() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder={file ? "Add a message (optional)..." : "Type a message..."}
-              className="flex-1 p-3 rounded bg-slate-800 border border-slate-700 focus:outline-none focus:border-pink-500 transition-colors"
+              className="flex-1 p-3.5 rounded-xl bg-slate-800 border border-slate-700 focus:outline-none focus:border-pink-500 transition-colors"
               disabled={sending}
             />
             
             <button
               disabled={sending || (!text.trim() && !file)}
-              className="px-5 py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold disabled:opacity-50 transition-colors"
+              className="px-5 py-3.5 rounded-xl bg-pink-600 hover:bg-pink-500 font-bold disabled:opacity-50 transition-colors flex items-center justify-center"
             >
               {sending ? "⏳" : (editingId ? "💾" : "➤")}
             </button>
@@ -549,13 +543,26 @@ export default function CommunityRoomPage() {
         </>
       )}
 
+      {/* FULL-WIDTH BOTTOM VOICE BUTTON */}
+      <button
+        onClick={() => setVoiceOn(!voiceOn)}
+        className={`w-full shrink-0 mt-3 py-4 rounded-2xl font-extrabold text-lg shadow-lg transition-all active:scale-[0.98] ${
+          voiceOn 
+            ? "bg-red-600 hover:bg-red-500 shadow-red-900/20 text-white" 
+            : "bg-green-600 hover:bg-green-500 shadow-green-900/20 text-white"
+        }`}
+      >
+        {voiceOn ? "🔴 Leave Voice Channel" : "🎙️ Join Voice Channel"}
+      </button>
+
+      {/* LONG-PRESS / RIGHT-CLICK MENU */}
       {menuMsg && (
         <div
-          className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center"
+          className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center backdrop-blur-sm"
           onClick={() => setMenuMsg(null)}
         >
           <div
-            className="bg-slate-800 rounded-xl p-2 w-52 grid gap-1 shadow-2xl"
+            className="bg-slate-800 rounded-2xl p-2 w-52 grid gap-1 shadow-2xl border border-slate-700"
             onClick={(e) => e.stopPropagation()}
           >
             {canEdit(menuMsg.created_at) && (
@@ -566,7 +573,7 @@ export default function CommunityRoomPage() {
                     setMenuMsg(null);
                   }
                 }}
-                className="text-left px-4 py-3 rounded-lg hover:bg-slate-700 font-medium transition-colors"
+                className="text-left px-4 py-3 rounded-xl hover:bg-slate-700 font-medium transition-colors"
               >
                 ✏️ Edit
               </button>
@@ -578,13 +585,13 @@ export default function CommunityRoomPage() {
                   setMenuMsg(null);
                 }
               }}
-              className="text-left px-4 py-3 rounded-lg hover:bg-red-500/20 text-red-400 font-medium transition-colors"
+              className="text-left px-4 py-3 rounded-xl hover:bg-red-500/20 text-red-400 font-medium transition-colors"
             >
               🗑️ Delete
             </button>
             <button
               onClick={() => setMenuMsg(null)}
-              className="text-left px-4 py-3 rounded-lg hover:bg-slate-700 text-slate-400 font-medium mt-2 border-t border-slate-700 transition-colors"
+              className="text-left px-4 py-3 rounded-xl hover:bg-slate-700 text-slate-400 font-medium mt-1 border-t border-slate-700/50 transition-colors"
             >
               ✖ Cancel
             </button>
