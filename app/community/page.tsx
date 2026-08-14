@@ -176,7 +176,7 @@ export default function CommunityPage() {
         </div>
       </div>
 
-      {/* FULL-WIDTH ACTION ROWS (Matches target image but highly polished) */}
+      {/* FULL-WIDTH ACTION ROWS */}
       <div className="flex flex-col gap-4 mb-8">
         <Link
           href="/random-talk"
@@ -278,7 +278,7 @@ export default function CommunityPage() {
                 </div>
 
                 {/* Buttons Bottom Row */}
-                <div className="flex gap-3 items-center">
+                <div className="flex gap-3 items-center w-full">
                   {c.joined ? (
                     <button
                       onClick={() => open(c.id)}
@@ -299,16 +299,28 @@ export default function CommunityPage() {
                     </button>
                   )}
 
-                  {/* Red Flag Report Button (Only if not joined) */}
-                  {!c.joined && (
-                    <button
-                      onClick={() => report(c.id)}
-                      title="Report Community"
-                      className="p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-colors flex items-center justify-center ml-auto md:ml-0"
+                  {/* Sleek SVG Report Button (Now available on ALL groups) */}
+                  <button
+                    onClick={() => report(c.id)}
+                    title="Report Community"
+                    className="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/50 text-slate-400 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all flex items-center justify-center ml-auto group"
+                  >
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      width="18" 
+                      height="18" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      strokeWidth="2" 
+                      strokeLinecap="round" 
+                      strokeLinejoin="round" 
+                      className="group-hover:fill-red-500/20 transition-colors"
                     >
-                      🚩
-                    </button>
-                  )}
+                      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+                      <line x1="4" y1="22" x2="4" y2="15"></line>
+                    </svg>
+                  </button>
                 </div>
               </div>
             ))}
