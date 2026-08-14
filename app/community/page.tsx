@@ -229,11 +229,11 @@ export default function CommunityPage() {
             .map((c) => (
             <div
               key={c.id}
-              className="bg-slate-900 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap"
+              className="bg-slate-900 rounded-xl p-4 flex items-center justify-between gap-2"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
                 <span className="w-12 h-12 rounded-xl bg-pink-600/20 border border-pink-500/40 flex items-center justify-center text-2xl shrink-0">
-                  👨‍👩‍‍
+                  👥
                 </span>
                 <div>
                   <p className="font-bold">
