@@ -3,8 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { Room, RoomEvent } from "livekit-client";
 
-type Person = { name: string; mic: boolean };
 type ChatMsg = { who: string; text: string; me: boolean };
+
+function fmt(s: number) {
+  const m = Math.floor(s / 60).toString().padStart(2, "0");
+  const ss = (s % 60).toString().padStart(2, "0");
+  return `${m}:${ss}`;
+}
 
 export default function LivekitRoom({
   roomName,
@@ -20,7 +25,8 @@ export default function LivekitRoom({
   const [micOn, setMicOn] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
   const [micMsg, setMicMsg] = useState("");
-  const [people, setPeople] = useState<Person[]>([]);
+  const [names, setNames] = useState<string[]>([]);
+  const [sec, setSec] = useState(0);
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
   const roomRef = useRef<Room | null>(null);
@@ -32,6 +38,12 @@ export default function LivekitRoom({
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
+
+  useEffect(() => {
+    if (status !== "live") return;
+    const id = setInterval(() => setSec((x) => x + 1), 1000);
+    return () => clearInterval(id);
+  }, [status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,44 +66,28 @@ export default function LivekitRoom({
         }
 
         const update = () => {
-          const list: Person[] = [
-            { name: identity, mic: r.localParticipant.isMicrophoneEnabled },
-          ];
-          r.remoteParticipants.forEach((p) =>
-            list.push({ name: p.identity, mic: p.isMicrophoneEnabled })
-          );
-          setPeople(list);
+          const list: string[] = [];
+          r.remoteParticipants.forEach((p) => list.push(p.identity));
+          setNames(list);
         };
 
         r.on(RoomEvent.ParticipantConnected, update);
         r.on(RoomEvent.ParticipantDisconnected, update);
-        r.on(RoomEvent.TrackPublished, update);
-        r.on(RoomEvent.TrackUnpublished, update);
-        r.on(RoomEvent.TrackMuted, update);
-        r.on(RoomEvent.TrackUnmuted, update);
         r.on(RoomEvent.Disconnected, () => onLeave());
 
-        // 💬 INCOMING CHAT MESSAGE
         r.on(RoomEvent.DataReceived, (payload, participant) => {
           try {
-            const decoded = new TextDecoder().decode(payload);
-            const obj = JSON.parse(decoded);
-            if (obj && obj.text) {
+            const obj = JSON.parse(new TextDecoder().decode(payload));
+            if (obj && obj.text)
               setMsgs((prev) => [
                 ...prev,
-                {
-                  who: participant?.identity || "friend",
-                  text: String(obj.text),
-                  me: false,
-                },
+                { who: participant?.identity || "friend", text: String(obj.text), me: false },
               ]);
-            }
           } catch {
-            // ignore bad packets
+            // ignore
           }
         });
 
-        // plug the other person's voice into the page
         r.on(RoomEvent.TrackSubscribed, (track) => {
           const el = track.attach() as HTMLMediaElement;
           el.muted = !soundRef.current;
@@ -112,12 +108,11 @@ export default function LivekitRoom({
         } catch {
           // ignore
         }
-
         try {
           await r.localParticipant.setMicrophoneEnabled(true);
           setMicOn(true);
         } catch {
-          setMicMsg("Mic blocked — tap 🎤 button after allowing permission.");
+          setMicMsg("Mic blocked — tap the mic button after allowing permission.");
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Connect failed");
@@ -129,33 +124,30 @@ export default function LivekitRoom({
       roomRef.current?.disconnect();
       elsRef.current.forEach((el) => el.remove());
       elsRef.current = [];
-      setMsgs([]); // 💨 auto-delete all messages on leave
+      setMsgs([]);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomName, identity]);
 
   useEffect(() => {
-    if (status === "live" && people.length === 1) {
-      if (!aloneRef.current) {
+    if (status === "live" && names.length === 0) {
+      if (!aloneRef.current)
         aloneRef.current = window.setTimeout(() => {
           roomRef.current?.disconnect();
           onLeave();
         }, 10 * 60 * 1000);
-      }
-    } else {
-      if (aloneRef.current) {
-        clearTimeout(aloneRef.current);
-        aloneRef.current = null;
-      }
+    } else if (aloneRef.current) {
+      clearTimeout(aloneRef.current);
+      aloneRef.current = null;
     }
     return () => {
       if (aloneRef.current) {
         clearTimeout(aloneRef.current);
         aloneRef.current = null;
       }
-    };
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [people.length, status]);
+  }, [names.length, status]);
 
   const toggleMic = async () => {
     const r = roomRef.current;
@@ -178,18 +170,17 @@ export default function LivekitRoom({
     });
   };
 
-  // 💬 SEND TEXT MESSAGE via data channel (no DB, no storage)
   const sendMsg = async () => {
     const text = input.trim();
     if (!text || !roomRef.current) return;
     const bytes = new TextEncoder().encode(JSON.stringify({ who: identity, text }));
     try {
-      // ✅ Corrected: LiveKit v2+ uses options object { reliable: true } instead of the DataPacket_Kind enum
+      // ✅ Corrected: publishData now takes { reliable: true } instead of the DataPacket_Kind enum
       await roomRef.current.localParticipant.publishData(bytes, { reliable: true });
       setMsgs((prev) => [...prev, { who: identity, text, me: true }]);
       setInput("");
     } catch {
-      // ignore send failures
+      // ignore
     }
   };
 
@@ -200,69 +191,50 @@ export default function LivekitRoom({
 
   if (error)
     return (
-      <p className="text-red-400 text-center p-4 bg-red-900/20 rounded-xl">❌ {error}</p>
+      <p className="text-red-400 text-center p-4 bg-red-900/20 rounded-2xl">❌ {error}</p>
     );
 
   if (status === "connecting")
     return (
-      <p className="text-slate-400 text-center p-6 animate-pulse bg-slate-900 rounded-xl">
+      <p className="text-slate-400 text-center p-6 animate-pulse bg-slate-900/60 rounded-2xl">
         📡 Connecting...
       </p>
     );
 
   return (
-    <div className="bg-slate-900 border border-green-500/40 rounded-xl p-5">
-      <p className="text-center text-green-400 font-bold mb-3">
-        🟢 Live Room — {people.length} {people.length === 1 ? "person" : "people"}
+    <div className="rounded-3xl bg-slate-900/70 p-4">
+      {/* 1️⃣ SINGLE CLEAN HEADER + TIMER */}
+      <p className="text-center text-white font-bold mb-3">
+        {names.length > 0 ? (
+          <>🟢 Talking with {names.join(", ")} • {fmt(sec)}</>
+        ) : (
+          <>🟢 Connected — waiting for someone • {fmt(sec)}</>
+        )}
       </p>
-
-      <div className="flex flex-wrap justify-center gap-2 mb-3">
-        {people.map((p, i) => (
-          <div
-            key={i}
-            className="bg-slate-800 px-3 py-2 rounded-lg text-sm flex items-center gap-2"
-          >
-            <span
-              className={`w-2 h-2 rounded-full ${
-                p.mic ? "bg-green-500 animate-pulse" : "bg-red-500"
-              }`}
-            />
-            {p.mic ? "🎤" : "🔇"} {p.name}
-          </div>
-        ))}
-      </div>
 
       {micMsg && (
         <p className="text-xs text-amber-400 text-center mb-3">{micMsg}</p>
       )}
 
-      {/* 💬 CHAT PANEL — messages live only in RAM, vanish on leave */}
-      <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 mb-3">
-        <p className="text-[10px] text-slate-500 text-center mb-2 uppercase tracking-wider">
-          💬 Chat • auto-deletes when call ends
-        </p>
+      {/* 4️⃣ SOFT CHAT CONTAINER */}
+      <div className="bg-slate-950/50 rounded-2xl p-3 mb-3">
         <div className="h-40 overflow-y-auto space-y-2 pr-1">
           {msgs.length === 0 && (
             <p className="text-center text-xs text-slate-600 py-4">
-              Type a message below...
+              💬 Messages auto-delete when call ends
             </p>
           )}
           {msgs.map((m, i) => (
-            <div
-              key={i}
-              className={`flex ${m.me ? "justify-end" : "justify-start"}`}
-            >
+            <div key={i} className={`flex ${m.me ? "justify-end" : "justify-start"}`}>
               <div
                 className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm break-words ${
                   m.me
-                    ? "bg-green-600 text-white rounded-br-sm"
+                    ? "bg-violet-600 text-white rounded-br-sm"
                     : "bg-slate-800 text-white rounded-bl-sm"
                 }`}
               >
                 {!m.me && (
-                  <p className="text-[9px] font-bold text-slate-400 mb-0.5">
-                    {m.who}
-                  </p>
+                  <p className="text-[9px] font-bold text-slate-400 mb-0.5">{m.who}</p>
                 )}
                 {m.text}
               </div>
@@ -282,47 +254,38 @@ export default function LivekitRoom({
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type a message..."
             maxLength={300}
-            className="flex-1 p-2 rounded-lg bg-slate-900 border border-slate-700 text-sm text-white"
+            className="flex-1 p-2 rounded-xl bg-slate-900 border border-slate-800 text-sm text-white"
           />
           <button
             type="submit"
-            className="px-4 rounded-lg bg-green-600 hover:bg-green-500 font-bold text-sm text-white"
+            className="px-4 rounded-xl bg-violet-600 hover:bg-violet-500 font-bold text-sm text-white"
           >
             ➤
           </button>
         </form>
       </div>
 
-      {status === "live" && people.length === 1 && (
-        <p className="text-[11px] text-slate-500 text-center mb-3">
-           You're alone — auto-leave in 10 min to save data & battery.
-        </p>
-      )}
-
+      {/* 2️⃣ SINGLE CONTROL PILL */}
       <div className="flex gap-2">
         <button
           onClick={toggleMic}
-          className={`flex-1 py-3 rounded font-semibold text-white ${
-            micOn
-              ? "bg-green-600 hover:bg-green-500"
-              : "bg-slate-700 hover:bg-slate-600"
+          className={`flex-1 py-3 rounded-xl font-semibold ${
+            micOn ? "bg-green-600/90 text-white" : "bg-slate-800 text-slate-300"
           }`}
         >
-          🎤 {micOn ? "ON" : "OFF"}
+          {micOn ? "🎙️ Mic ON" : "🔇 Muted"}
         </button>
         <button
           onClick={toggleSound}
-          className={`flex-1 py-3 rounded font-semibold text-white ${
-            soundOn
-              ? "bg-green-600 hover:bg-green-500"
-              : "bg-slate-700 hover:bg-slate-600"
+          className={`flex-1 py-3 rounded-xl font-semibold ${
+            soundOn ? "bg-green-600/90 text-white" : "bg-slate-800 text-slate-300"
           }`}
         >
-          {soundOn ? "🔊 ON" : "🔇 OFF"}
+          {soundOn ? "🔊 Speaker" : "🔇 Muted"}
         </button>
         <button
           onClick={leave}
-          className="px-4 py-3 rounded bg-slate-800 border border-red-500/50 text-red-400 hover:bg-red-600 hover:text-white font-semibold"
+          className="px-5 py-3 rounded-xl bg-red-600 hover:bg-red-500 font-semibold text-white"
         >
           ❌
         </button>

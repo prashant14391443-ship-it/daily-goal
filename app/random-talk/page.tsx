@@ -20,6 +20,7 @@ export default function RandomTalkPage() {
   const [me, setMe] = useState("");
   const [displayName, setDisplayName] = useState("friend");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [showHint, setShowHint] = useState(true);
   const meRef = useRef("");
   const router = useRouter();
 
@@ -41,6 +42,11 @@ export default function RandomTalkPage() {
       if (meRef.current)
         supabase.from("talk_queue").delete().eq("user_id", meRef.current);
     };
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => setShowHint(false), 6000);
+    return () => clearTimeout(t);
   }, []);
 
   const stopPoll = () => {
@@ -174,38 +180,26 @@ export default function RandomTalkPage() {
 
       {state === "talk" && (
         <div className="max-w-md mx-auto">
-          <p className="text-center text-green-400 font-bold mb-2">
-            ✅ Matched! You're connected — start talking! 🎙️
-          </p>
-          <p className="text-center text-xs text-slate-400 mb-3">
-            Allow microphone 🎤 when the browser asks.
-          </p>
-          <LivekitRoom roomName={room} identity={displayName} onLeave={end} />
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 mt-4 flex items-center justify-between gap-2">
-            <p className="text-xs text-slate-400">
-              🤝 Be respectful — a real person is listening.
-            </p>
+          <div className="flex justify-end mb-2">
             <button
               onClick={reportStranger}
-              className="px-3 py-2 rounded-lg bg-red-600/20 border border-red-500/40 text-red-300 text-xs font-bold shrink-0"
+              className="px-3 py-1.5 rounded-lg bg-red-600/10 border border-red-500/30 text-red-300 text-xs font-bold"
             >
               🚩 Report
             </button>
           </div>
-          <div className="flex gap-3 mt-4">
-            <button
-              onClick={next}
-              className="flex-1 py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold"
-            >
-              🎲 Next Stranger
-            </button>
-            <button
-              onClick={end}
-              className="flex-1 py-3 rounded bg-slate-800 hover:bg-slate-700 font-semibold"
-            >
-              ❌ End
-            </button>
-          </div>
+          <LivekitRoom roomName={room} identity={displayName} onLeave={end} />
+          {showHint && (
+            <p className="text-center text-[11px] text-slate-500 mt-3">
+              🤝 Be respectful — a real person is listening.
+            </p>
+          )}
+          <button
+            onClick={next}
+            className="w-full mt-4 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 font-semibold"
+          >
+            🎲 Next Stranger
+          </button>
         </div>
       )}
 
