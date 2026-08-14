@@ -19,7 +19,7 @@ export async function POST(req: Request) {
               contents: [
                 {
                   parts: [
-                    { inline_data: { mime_type: "audio/webm", data: audio } },
+                    { inlineData: { mimeType: "audio/webm", data: audio } },
                     {
                       text: "Listen to this English learner carefully. 1) Write what they said. 2) List ALL grammar AND pronunciation mistakes numbered: 1) ❌ [wrong] -> ✅ [right]. 3) End with one encouraging sentence + one simple question.",
                     },

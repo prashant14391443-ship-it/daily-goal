@@ -10,7 +10,7 @@ export default function EnglishPage() {
   const [loading, setLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [left, setLeft] = useState(10);
+  const [left, setLeft] = useState(16);
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -23,7 +23,7 @@ export default function EnglishPage() {
   useEffect(() => {
     const c = JSON.parse(localStorage.getItem("dg-eng-count") || "null");
     if (c && c.date === new Date().toDateString())
-      setLeft(Math.max(0, 10 - c.n));
+      setLeft(Math.max(0, 16 - c.n));
   }, []);
 
   const speak = (text: string) => {
@@ -35,41 +35,19 @@ export default function EnglishPage() {
     window.speechSynthesis.speak(utter);
   };
 
-  const toggleMic = () => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { alert("Your browser doesn't support voice. Please type!"); return; }
 
-    if (listening) {
-      recogRef.current?.stop();
-      setListening(false);
-      return;
-    }
-
-    const r = new SR();
-    r.lang = "en-IN"; // Indian English accent optimized
-    r.interimResults = false;
-    r.onresult = (e: any) => {
-      const text = e.results[0][0].transcript;
-      setInput(text);
-      send(text);
-    };
-    r.onend = () => setListening(false);
-    r.start();
-    recogRef.current = r;
-    setListening(true);
-  };
 
   const useLimit = () => {
     if (left <= 0) {
-      alert("🗣️ 10 free practice sessions per day! Come back tomorrow.");
+      alert("🗣️ 16 free practice sessions per day! Come back tomorrow.");
       return false;
     }
     return true;
   };
 
   const bumpLimit = () => {
-    const count = 10 - left + 1;
-    setLeft(10 - count);
+    const count = 16 - left + 1;
+    setLeft(16 - count);
     localStorage.setItem(
       "dg-eng-count",
       JSON.stringify({ date: new Date().toDateString(), n: count })
@@ -164,7 +142,7 @@ export default function EnglishPage() {
         <h1 className="text-2xl font-black">🗣️ English Practice</h1>
         <div className="flex items-center gap-3">
           <span className="text-xs bg-blue-600/20 border border-blue-500/40 text-blue-300 px-2 py-1 rounded-lg font-bold">
-            {left}/10 free
+            {left}/16 free
           </span>
           <button onClick={() => setMsgs([])} className="text-xs bg-slate-800 border border-slate-700 px-2 py-1 rounded-lg">
             🗑️ Clear
@@ -196,11 +174,8 @@ export default function EnglishPage() {
       </div>
 
       <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
-        <button type="button" onClick={toggleMic} className={`w-14 h-12 rounded-xl font-bold text-xl ${listening ? "bg-red-600 animate-pulse" : "bg-slate-800"}`}>
-          {listening ? "🔴" : "🎤"}
-        </button>
         <button type="button" onClick={toggleRecord} className={`w-14 h-12 rounded-xl font-bold text-xl ${recording ? "bg-red-600 animate-pulse" : "bg-slate-800"}`}>
-          {recording ? "⏹️" : "🎙️"}
+          {recording ? "⏹️" : "🎤"}
         </button>
         <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Speak or type in English..." className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm" />
         <button disabled={loading} className="px-5 rounded-xl bg-blue-600 font-bold disabled:opacity-50">➤</button>
