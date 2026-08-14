@@ -137,8 +137,8 @@ export default function RandomTalkPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
+      <div className="mb-6 pr-24">
+        <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
           <span className="w-10 h-10 rounded-xl bg-pink-600/20 border border-pink-500/40 flex items-center justify-center text-xl">🎲</span>
           Talk to a Stranger
         </h1>
@@ -183,7 +183,7 @@ export default function RandomTalkPage() {
           <div className="flex justify-end mb-2">
             <button
               onClick={reportStranger}
-              className="px-3 py-1.5 rounded-lg bg-red-600/10 border border-red-500/30 text-red-300 text-xs font-bold"
+              className="px-3 py-1.5 rounded-lg bg-red-500/25 border border-red-400/50 text-red-100 text-xs font-bold"
             >
               🚩 Report
             </button>
