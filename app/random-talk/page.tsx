@@ -158,11 +158,13 @@ export default function RandomTalkPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#0a0f1c] text-white p-4 md:p-8 pb-12">
-      {/* HEADER */}
-      <div className="mb-8 flex justify-between items-center">
-        <h1 className="text-3xl md:text-4xl font-extrabold flex items-center gap-3 tracking-tight">
-          <span className="text-4xl drop-shadow-md">🎲</span>
+    // fixed inset-0 flex flex-col completely locks the screen from scrolling past the viewport
+    <main className="fixed inset-0 flex flex-col bg-[#0a0f1c] text-white p-3 md:p-6 pb-4">
+      
+      {/* HEADER (Fixed at top) */}
+      <div className="mb-4 flex justify-between items-center shrink-0">
+        <h1 className="text-2xl md:text-3xl font-extrabold flex items-center gap-2 md:gap-3 tracking-tight">
+          <span className="text-3xl drop-shadow-md">🎲</span>
           Talk to a Stranger
         </h1>
         
@@ -171,12 +173,12 @@ export default function RandomTalkPage() {
           <button
             onClick={reportStranger}
             title="Report Stranger"
-            className="px-4 py-2.5 rounded-xl bg-slate-800/40 border border-slate-700/50 text-slate-400 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all flex items-center gap-2 group shadow-lg"
+            className="px-3 py-2 md:px-4 md:py-2.5 rounded-xl bg-slate-800/40 border border-slate-700/50 text-slate-400 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all flex items-center gap-2 group shadow-lg shrink-0"
           >
             <svg 
               xmlns="http://www.w3.org/2000/svg" 
-              width="20" 
-              height="20" 
+              width="18" 
+              height="18" 
               viewBox="0 0 24 24" 
               fill="none" 
               stroke="currentColor" 
@@ -188,75 +190,79 @@ export default function RandomTalkPage() {
               <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
               <line x1="4" y1="22" x2="4" y2="15"></line>
             </svg>
-            <span className="font-bold text-sm hidden md:inline">Report</span>
+            <span className="font-bold text-xs md:text-sm hidden sm:inline">Report</span>
           </button>
         )}
       </div>
 
       {/* IDLE STATE */}
       {state === "idle" && (
-        <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 text-center max-w-md mx-auto shadow-2xl mt-12">
-          <p className="text-7xl mb-6">🎲</p>
-          <p className="text-slate-400 mb-8 leading-relaxed font-medium">
-            Press the button below. When another member also presses it, you will both securely enter a private room to talk.
-          </p>
-          <button
-            onClick={start}
-            className="w-full py-4 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 font-bold text-lg shadow-lg shadow-pink-900/20 transition-all active:scale-[0.98]"
-          >
-            🎙️ Find Me a Partner
-          </button>
+        <div className="flex-1 flex flex-col justify-center">
+          <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 text-center max-w-md w-full mx-auto shadow-2xl">
+            <p className="text-7xl mb-6">🎲</p>
+            <p className="text-slate-400 mb-8 leading-relaxed font-medium">
+              Press the button below. When another member also presses it, you will both securely enter a private room to talk.
+            </p>
+            <button
+              onClick={start}
+              className="w-full py-4 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 font-bold text-lg shadow-lg shadow-pink-900/20 transition-all active:scale-[0.98]"
+            >
+              🎙️ Find Me a Partner
+            </button>
+          </div>
         </div>
       )}
 
       {/* WAITING STATE */}
       {state === "waiting" && (
-        <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 text-center max-w-md mx-auto shadow-2xl mt-12">
-          <p className="text-6xl mb-6 animate-pulse">🔍</p>
-          <p className="text-2xl font-bold mb-3 text-slate-100">Finding a partner...</p>
-          <p className="text-sm text-slate-400 mb-8 leading-relaxed">
-            Keep this screen open. Connection happens within seconds of another member pressing the button.
-          </p>
-          <button
-            onClick={end}
-            className="px-8 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition-all border border-slate-700 hover:border-slate-600"
-          >
-            ✖ Cancel
-          </button>
+        <div className="flex-1 flex flex-col justify-center">
+          <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 text-center max-w-md w-full mx-auto shadow-2xl">
+            <p className="text-6xl mb-6 animate-pulse">🔍</p>
+            <p className="text-2xl font-bold mb-3 text-slate-100">Finding a partner...</p>
+            <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+              Keep this screen open. Connection happens within seconds of another member pressing the button.
+            </p>
+            <button
+              onClick={end}
+              className="px-8 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition-all border border-slate-700 hover:border-slate-600"
+            >
+              ✖ Cancel
+            </button>
+          </div>
         </div>
       )}
 
-      {/* TALK STATE (Unified Layout) */}
+      {/* TALK STATE (Locked Height Layout) */}
       {state === "talk" && (
-        <div className="max-w-xl mx-auto w-full">
-          <div className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl overflow-hidden shadow-2xl p-2 md:p-3 flex flex-col gap-3">
-            
-            {/* LiveKit component renders Chat + Mic/Speaker controls here */}
+        <div className="flex-1 min-h-0 w-full max-w-xl mx-auto flex flex-col">
+          
+          {/* LiveKit component will scroll internally if it needs to, preventing the buttons below from moving */}
+          <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-2">
             <LivekitRoom roomName={room} identity={displayName} onLeave={end} />
-            
-            {/* DOCKED ACTIONS: Next and End buttons sit permanently under LiveKit */}
-            <div className="flex gap-2 pt-3 border-t border-slate-800/80">
-              <button
-                onClick={next}
-                className="flex-1 py-4 rounded-xl bg-violet-600 hover:bg-violet-500 font-bold shadow-lg shadow-violet-900/20 transition-all active:scale-[0.98] text-white flex items-center justify-center gap-2 text-sm md:text-base"
-              >
-                🎲 Next Stranger
-              </button>
-              <button
-                onClick={end}
-                className="flex-1 py-4 rounded-xl bg-red-600 hover:bg-red-500 font-bold shadow-lg shadow-red-900/20 transition-all active:scale-[0.98] text-white flex items-center justify-center gap-2 text-sm md:text-base"
-              >
-                ❌ End Call
-              </button>
-            </div>
-
           </div>
           
+          {/* DOCKED ACTIONS: Perfectly aligned under the Mic/Speaker buttons */}
+          <div className="flex gap-2 md:gap-3 shrink-0 pt-2">
+            <button
+              onClick={next}
+              className="flex-1 py-3.5 md:py-4 rounded-xl bg-violet-600 hover:bg-violet-500 font-bold shadow-lg shadow-violet-900/20 transition-all active:scale-[0.98] text-white flex items-center justify-center gap-2 text-sm md:text-base"
+            >
+              🎲 Next
+            </button>
+            <button
+              onClick={end}
+              className="flex-1 py-3.5 md:py-4 rounded-xl bg-red-600 hover:bg-red-500 font-bold shadow-lg shadow-red-900/20 transition-all active:scale-[0.98] text-white flex items-center justify-center gap-2 text-sm md:text-base"
+            >
+              ❌ End Call
+            </button>
+          </div>
+
           {showHint && (
-            <p className="text-center text-[11px] text-slate-500 mt-4 uppercase tracking-wider font-bold">
+            <p className="text-center text-[10px] md:text-xs text-slate-500 mt-2 uppercase tracking-wider font-bold shrink-0">
               🤝 Be respectful — a real person is listening.
             </p>
           )}
+
         </div>
       )}
     </main>
