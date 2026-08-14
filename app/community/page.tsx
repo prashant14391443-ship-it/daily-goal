@@ -26,6 +26,7 @@ function hasBadWord(text: string) {
 
 export default function CommunityPage() {
   const [online, setOnline] = useState(0);
+  const [q, setQ] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -168,21 +169,21 @@ export default function CommunityPage() {
 
       <Link
         href="/random-talk"
-        className="block bg-pink-600/20 border border-pink-500/40 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-pink-600/30"
+        className="block bg-pink-500/25 border border-pink-400/50 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-pink-500/35"
       >
         🌍 Talk to a Stranger — 1-on-1 voice, practice English communication
       </Link>
 
       <Link
         href="/english"
-        className="block bg-pink-600/20 border border-pink-500/40 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-pink-600/30"
+        className="block bg-pink-500/25 border border-pink-400/50 rounded-lg p-4 mb-4 text-center font-semibold hover:bg-pink-500/35"
       >
         🤖 Talk to AI — Practice English, correct mistakes
       </Link>
 
       <button
         onClick={() => setShowCreate(!showCreate)}
-        className="w-full py-3 rounded bg-pink-600/20 border border-pink-500/40 font-semibold mb-4 mt-6 hover:bg-pink-600/30"
+        className="w-full py-3 rounded-xl border-2 border-dashed border-pink-400/60 text-pink-200 font-semibold mb-4 mt-6 hover:bg-pink-600/10"
       >
         {showCreate ? "✖ Cancel" : "✨ Create My Community"}
       </button>
@@ -208,24 +209,37 @@ export default function CommunityPage() {
         </form>
       )}
 
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="🔍 Search communities..."
+        className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm mb-4"
+      />
+
       {loading ? (
         <p className="text-slate-400">Loading communities...</p>
       ) : (
         <div className="grid gap-3">
-          {list.map((c) => (
+          {list
+            .filter(
+              (c) =>
+                c.name.toLowerCase().includes(q.toLowerCase()) ||
+                (c.description || "").toLowerCase().includes(q.toLowerCase())
+            )
+            .map((c) => (
             <div
               key={c.id}
               className="bg-slate-900 rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap"
             >
               <div className="flex items-center gap-3">
                 <span className="w-12 h-12 rounded-xl bg-pink-600/20 border border-pink-500/40 flex items-center justify-center text-2xl shrink-0">
-                  👥
+                  👨‍👩‍‍
                 </span>
                 <div>
                   <p className="font-bold">
                     {c.description
-                      ? `${c.name}'s ${c.description} Community`
-                      : `${c.name} Community`}
+                      ? `${c.name.trim()}'s ${c.description.trim()} Community`
+                      : `${c.name.trim()} Community`}
                   </p>
                   <span className="inline-flex items-center gap-1 text-[10px] bg-pink-600/20 border border-pink-500/40 text-pink-300 px-2 py-0.5 rounded-full font-bold mt-1">
                     👥 {c.members} {c.members === 1 ? "member" : "members"}
@@ -257,7 +271,7 @@ export default function CommunityPage() {
                   className="px-2 py-2 rounded bg-slate-800 hover:bg-red-600 text-xs"
                   title="Report abusive content"
                 >
-                  🚩
+                  🚨
                 </button>
               </div>
             </div>
