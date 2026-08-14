@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import LivekitRoom from "@/app/LivekitRoom";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 
 function longRoom() {
   return (
@@ -42,6 +41,7 @@ export default function RandomTalkPage() {
       if (meRef.current)
         supabase.from("talk_queue").delete().eq("user_id", meRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -127,100 +127,114 @@ export default function RandomTalkPage() {
     if (!reason || !reason.trim()) return;
     await supabase.from("community_reports").insert({
       community_id: null,
-      reporter_id: me,
+      user_id: me,
       reason: `🎙️ Voice talk (room ${room}): ${reason.trim()}`,
     });
     alert("✅ Reported. Moderators will review this person.");
   };
 
-
-
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
-      <div className="mb-6 pr-24">
-        <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl bg-pink-600/20 border border-pink-500/40 flex items-center justify-center text-xl">🎲</span>
+    <main className="min-h-screen bg-[#0a0f1c] text-white p-4 md:p-8 pb-24">
+      {/* HEADER */}
+      <div className="mb-8 flex justify-between items-center">
+        <h1 className="text-3xl md:text-4xl font-extrabold flex items-center gap-3 tracking-tight">
+          <span className="text-4xl drop-shadow-md">🎲</span>
           Talk to a Stranger
         </h1>
-        <p className="text-slate-400">1-on-1 private voice with a random member</p>
+        
+        {/* REPORT BUTTON (Only shows during talk state) */}
+        {state === "talk" && (
+          <button
+            onClick={reportStranger}
+            title="Report Stranger"
+            className="px-4 py-2.5 rounded-xl bg-slate-800/40 border border-slate-700/50 text-slate-400 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all flex items-center gap-2 group shadow-lg"
+          >
+            <svg 
+              xmlns="http://www.w3.org/2000/svg" 
+              width="20" 
+              height="20" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2" 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              className="group-hover:fill-red-500/20 transition-colors"
+            >
+              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
+              <line x1="4" y1="22" x2="4" y2="15"></line>
+            </svg>
+            <span className="font-bold text-sm hidden md:inline">Report</span>
+          </button>
+        )}
       </div>
 
+      {/* IDLE STATE */}
       {state === "idle" && (
-        <div className="bg-slate-900 rounded-xl p-8 text-center max-w-md mx-auto">
-          <p className="text-6xl mb-4">🎲</p>
-          <p className="text-slate-400 mb-6">
-            Press the button → when another member presses it, you both enter
-            one private room and talk.
+        <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 text-center max-w-md mx-auto shadow-2xl mt-12">
+          <p className="text-7xl mb-6">🎲</p>
+          <p className="text-slate-400 mb-8 leading-relaxed font-medium">
+            Press the button below. When another member also presses it, you will both securely enter a private room to talk.
           </p>
           <button
             onClick={start}
-            className="w-full py-4 rounded bg-pink-600 hover:bg-pink-500 font-bold text-lg"
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 font-bold text-lg shadow-lg shadow-pink-900/20 transition-all active:scale-[0.98]"
           >
             🎙️ Find Me a Partner
           </button>
         </div>
       )}
 
+      {/* WAITING STATE */}
       {state === "waiting" && (
-        <div className="bg-slate-900 rounded-xl p-8 text-center max-w-md mx-auto">
-          <p className="text-5xl mb-4 animate-pulse">🔍</p>
-          <p className="font-bold mb-2">Finding a partner...</p>
-          <p className="text-sm text-slate-400 mb-6">
-            Keep this screen open. Connection happens within seconds of
-            another member pressing the button.
+        <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 text-center max-w-md mx-auto shadow-2xl mt-12">
+          <p className="text-6xl mb-6 animate-pulse">🔍</p>
+          <p className="text-2xl font-bold mb-3 text-slate-100">Finding a partner...</p>
+          <p className="text-sm text-slate-400 mb-8 leading-relaxed">
+            Keep this screen open. Connection happens within seconds of another member pressing the button.
           </p>
           <button
             onClick={end}
-            className="px-6 py-3 rounded bg-slate-800 hover:bg-slate-700"
+            className="px-8 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition-all border border-slate-700 hover:border-slate-600"
           >
             ✖ Cancel
           </button>
         </div>
       )}
 
+      {/* TALK STATE */}
       {state === "talk" && (
-        <div className="max-w-md mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <Link href="/community" className="text-slate-400 hover:text-white text-sm">
-              ← Back
-            </Link>
-            <button
-              onClick={reportStranger}
-              className="px-3 py-1.5 rounded-lg bg-red-500/25 border border-red-400/50 text-red-100 text-xs font-bold"
-            >
-              🚩 Report
-            </button>
+        <div className="max-w-xl mx-auto flex flex-col gap-4">
+          <div className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl overflow-hidden shadow-2xl">
+            <LivekitRoom roomName={room} identity={displayName} onLeave={end} />
           </div>
-          <LivekitRoom roomName={room} identity={displayName} onLeave={end} />
           {showHint && (
-            <p className="text-center text-[11px] text-slate-500 mt-3">
+            <p className="text-center text-[11px] text-slate-500 mt-1 uppercase tracking-wider font-bold">
               🤝 Be respectful — a real person is listening.
             </p>
           )}
-          <div className="h-24" />
         </div>
       )}
 
+      {/* BOTTOM FLOATING CONTROLS (ONLY IN TALK STATE) */}
       {state === "talk" && (
-        <div className="fixed bottom-0 inset-x-0 z-40 p-3 bg-slate-950/95 border-t border-slate-800">
-          <div className="max-w-md mx-auto flex gap-2">
+        <div className="fixed bottom-0 inset-x-0 z-40 p-4 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/80 shadow-[0_-10px_30px_rgba(0,0,0,0.5)]">
+          <div className="max-w-xl mx-auto flex gap-3">
             <button
               onClick={next}
-              className="flex-1 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 font-semibold"
+              className="flex-1 py-4 rounded-2xl bg-violet-600 hover:bg-violet-500 font-bold shadow-lg shadow-violet-900/20 transition-all active:scale-[0.98] text-white"
             >
               🎲 Next Stranger
             </button>
             <button
               onClick={end}
-              className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 font-semibold"
+              className="flex-1 py-4 rounded-2xl bg-red-600 hover:bg-red-500 font-bold shadow-lg shadow-red-900/20 transition-all active:scale-[0.98] text-white"
             >
               ❌ End Call
             </button>
           </div>
         </div>
       )}
-
-      
     </main>
   );
 }
