@@ -202,7 +202,7 @@ export default function LivekitRoom({
     );
 
   return (
-    <div className="min-h-[calc(100dvh-250px)] flex flex-col rounded-3xl bg-slate-900/70 p-4">
+    <div className="min-h-[calc(100dvh-150px)] flex flex-col rounded-3xl bg-slate-900/70 p-4">
       {/* 1️⃣ SINGLE CLEAN HEADER + TIMER */}
       <p className="text-center text-white font-bold mb-3">
         {names.length > 0 ? (

@@ -180,7 +180,10 @@ export default function RandomTalkPage() {
 
       {state === "talk" && (
         <div className="max-w-md mx-auto">
-          <div className="flex justify-end mb-2">
+          <div className="flex items-center justify-between mb-2">
+            <Link href="/community" className="text-slate-400 hover:text-white text-sm">
+              ← Back
+            </Link>
             <button
               onClick={reportStranger}
               className="px-3 py-1.5 rounded-lg bg-red-500/25 border border-red-400/50 text-red-100 text-xs font-bold"
@@ -194,27 +197,30 @@ export default function RandomTalkPage() {
               🤝 Be respectful — a real person is listening.
             </p>
           )}
-          <div className="h-24" />
+
         </div>
       )}
 
       {state === "talk" && (
         <div className="fixed bottom-0 inset-x-0 z-40 p-3 bg-slate-950/95 border-t border-slate-800">
-          <button
-            onClick={next}
-            className="w-full max-w-md mx-auto block py-3 rounded-xl bg-violet-600 hover:bg-violet-500 font-semibold"
-          >
-            🎲 Next Stranger
-          </button>
+          <div className="max-w-md mx-auto flex gap-2">
+            <button
+              onClick={next}
+              className="flex-1 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 font-semibold"
+            >
+              🎲 Next Stranger
+            </button>
+            <button
+              onClick={end}
+              className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-500 font-semibold"
+            >
+              ❌ End Call
+            </button>
+          </div>
         </div>
       )}
 
-      <Link
-        href="/community"
-        className="inline-block mt-6 text-sm text-slate-400 hover:text-white"
-      >
-        ← Back to Community
-      </Link>
+      
     </main>
   );
 }
