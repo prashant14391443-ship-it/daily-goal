@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import LivekitRoom from "@/app/LivekitRoom";
+import { RealtimeChannel } from "@supabase/supabase-js";
 
 type Msg = {
   id: string;
@@ -53,6 +54,11 @@ export default function CommunityRoomPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [menuMsg, setMenuMsg] = useState<Msg | null>(null);
   const pressTimer = useRef<number | null>(null);
+  
+  // LIVEKIT OPTIMIZATION STATES
+  const [voiceUsers, setVoiceUsers] = useState<string[]>([]);
+  const [channelJoined, setChannelJoined] = useState(false);
+  const channelRef = useRef<RealtimeChannel | null>(null);
   
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -127,31 +133,54 @@ export default function CommunityRoomPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // SMART PRESENCE + MESSAGE CHANNEL
   useEffect(() => {
-    if (!id) return;
-    const channel = supabase
-      .channel("cm-" + id)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "community_messages", filter: `community_id=eq.${id}` },
+    if (!id || !me) return;
+    
+    const channel = supabase.channel("cm-" + id, {
+      config: { presence: { key: me } }
+    });
+    
+    channelRef.current = channel;
+
+    channel
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState<{ voice: boolean }>();
+        const active: string[] = [];
+        for (const key in state) {
+          // If the user has broadcasted that their voice is ON
+          if (state[key][0]?.voice) active.push(key);
+        }
+        setVoiceUsers(active);
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "community_messages", filter: `community_id=eq.${id}` }, 
         (payload) => setMessages((m) => [...m, payload.new as Msg])
       )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "community_messages", filter: `community_id=eq.${id}` },
-        (payload) =>
-          setMessages((m) => m.map((x) => (x.id === (payload.new as Msg).id ? (payload.new as Msg) : x)))
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "community_messages", filter: `community_id=eq.${id}` }, 
+        (payload) => setMessages((m) => m.map((x) => (x.id === (payload.new as Msg).id ? (payload.new as Msg) : x)))
       )
-      .on(
-        "postgres_changes",
-        { event: "DELETE", schema: "public", table: "community_messages", filter: `community_id=eq.${id}` },
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "community_messages", filter: `community_id=eq.${id}` }, 
         (payload) => setMessages((m) => m.filter((x) => x.id !== (payload.old as Msg).id))
       )
-      .subscribe();
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          setChannelJoined(true);
+          await channel.track({ voice: voiceOn });
+        }
+      });
+      
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, me]);
+
+  // Sync voice toggle with the rest of the room
+  useEffect(() => {
+    if (channelJoined && channelRef.current) {
+      channelRef.current.track({ voice: voiceOn });
+    }
+  }, [voiceOn, channelJoined]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -279,7 +308,6 @@ export default function CommunityRoomPage() {
     setText(m.text);
   };
 
-  // FIXED #1 & #2: Removed the duplicated startPress and cancelPress declarations
   const startPress = (m: Msg) => {
     if (m.user_id !== me) return;
     pressTimer.current = window.setTimeout(() => setMenuMsg(m), 500);
@@ -292,7 +320,6 @@ export default function CommunityRoomPage() {
     }
   };
 
-  // FIXED #3: Added missing ID null-check
   const approve = async (uid: string) => {
     if (!id) return;
     await supabase.from("community_members").update({ status: "approved" }).eq("community_id", id).eq("user_id", uid);
@@ -300,7 +327,6 @@ export default function CommunityRoomPage() {
     setMemberCount(memberCount + 1);
   };
 
-  // FIXED #4: Added missing ID null-check
   const reject = async (uid: string) => {
     if (!id) return;
     await supabase.from("community_members").delete().eq("community_id", id).eq("user_id", uid);
@@ -349,23 +375,24 @@ export default function CommunityRoomPage() {
     );
 
   return (
-    <main className="fixed inset-0 overflow-hidden bg-slate-950 text-white p-3 md:p-6 pb-20 md:pb-6 flex flex-col z-0">
+    // Z-[100] AND PB-3 GUARANTEES THE BOTTOM NAV IS COVERED
+    <main className="fixed inset-0 overflow-hidden bg-slate-950 text-white p-3 md:p-6 pb-3 md:pb-6 flex flex-col z-[100]">
       <div className="mb-3">
         <div className="pr-24">
           <h1 className="text-xl font-bold">🏘️ {community?.name || "..."}</h1>
-          <p className="text-slate-400 text-xs">👥 {memberCount} members • v5</p>
+          <p className="text-slate-400 text-xs">👥 {memberCount} members • v6</p>
         </div>
         <div className="flex gap-2 mt-2">
           <button
             onClick={() => setVoiceOn(!voiceOn)}
-            className={`px-3 py-2 rounded font-semibold text-sm ${voiceOn ? "bg-red-600" : "bg-green-600"}`}
+            className={`px-3 py-2 rounded font-semibold text-sm ${voiceOn ? "bg-red-600 hover:bg-red-500" : "bg-green-600 hover:bg-green-500"}`}
           >
             {voiceOn ? "🔴 Leave Voice" : "🎙️ Voice"}
           </button>
-          <button onClick={invite} className="px-3 py-2 rounded bg-pink-600 text-sm font-semibold">
+          <button onClick={invite} className="px-3 py-2 rounded bg-pink-600 hover:bg-pink-500 text-sm font-semibold">
             ➕ Invite
           </button>
-          <button onClick={leave} className="px-3 py-2 rounded bg-slate-800 text-sm">
+          <button onClick={leave} className="px-3 py-2 rounded bg-slate-800 hover:bg-slate-700 text-sm">
             ← Leave
           </button>
         </div>
@@ -379,10 +406,10 @@ export default function CommunityRoomPage() {
               <div key={p.user_id} className="flex items-center justify-between bg-slate-900 rounded p-2">
                 <span className="text-sm">{p.user_name}</span>
                 <div className="flex gap-2">
-                  <button onClick={() => approve(p.user_id)} className="px-3 py-1 rounded bg-green-600 text-xs font-bold">
+                  <button onClick={() => approve(p.user_id)} className="px-3 py-1 rounded bg-green-600 hover:bg-green-500 text-xs font-bold">
                     ✅
                   </button>
-                  <button onClick={() => reject(p.user_id)} className="px-3 py-1 rounded bg-red-600 text-xs font-bold">
+                  <button onClick={() => reject(p.user_id)} className="px-3 py-1 rounded bg-red-600 hover:bg-red-500 text-xs font-bold">
                     ❌
                   </button>
                 </div>
@@ -392,127 +419,143 @@ export default function CommunityRoomPage() {
         </div>
       )}
 
-      {voiceOn && community && (
-        <div className="mb-3">
-          <LivekitRoom roomName={community.room_code} identity={myName} onLeave={() => setVoiceOn(false)} />
-        </div>
-      )}
-
-      <div className="flex-1 min-h-0 bg-slate-900 rounded-xl p-3 overflow-y-auto grid gap-2 content-start">
-        {messages.map((m) => {
-          const own = m.user_id === me;
-          return (
-            <div key={m.id} className={`flex ${own ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[78%] rounded-2xl px-3 py-2 select-none ${own ? "bg-green-700" : "bg-slate-800"}`}
-                onTouchStart={() => startPress(m)}
-                onTouchEnd={cancelPress}
-                onTouchMove={cancelPress}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  if (m.user_id === me) setMenuMsg(m);
-                }}
-              >
-                {!own && (
-                  <p className="text-xs font-bold mb-0.5" style={{ color: nameColor(m.user_name) }}>
-                    {m.user_name}
-                  </p>
-                )}
-                {m.file_type === "image" && m.file_url && (
-                  <img src={m.file_url} alt="shared" className="rounded-lg max-h-60 mb-1" />
-                )}
-                {m.file_type === "pdf" && m.file_url && (
-                  <a href={m.file_url} target="_blank" className="block text-sm underline text-sky-300 mb-1">
-                    📄 Open PDF
-                  </a>
-                )}
-                <p className="text-sm whitespace-pre-wrap">{m.text}</p>
-                <div className="flex items-center justify-end gap-2 mt-0.5">
-                  <span className={`text-[10px] ${own ? "text-green-200" : "text-slate-400"}`}>{timeOf(m.created_at)}</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        {messages.length === 0 && <p className="text-slate-500 text-sm text-center">No messages yet — say hello! 👋</p>}
-        <div ref={bottomRef} />
-      </div>
-
-      {file && (
-        <div className="mt-2 bg-slate-900 border border-sky-500/40 rounded-xl p-3 flex items-center gap-3">
-          {preview ? (
-            <img src={preview} alt="preview" className="w-16 h-16 rounded-lg object-cover" />
+      {/* RENDER VOICE ROOM OR TEXT CHAT */}
+      {voiceOn ? (
+        <div className="flex-1 flex flex-col min-h-0 bg-slate-900 rounded-xl overflow-hidden border border-slate-800">
+          {voiceUsers.length >= 2 && community ? (
+            // LIVEKIT MOUNTS ONLY WHEN 2 OR MORE USERS ARE READY
+            <LivekitRoom roomName={community.room_code} identity={myName} onLeave={() => setVoiceOn(false)} />
           ) : (
-            <span className="text-4xl">📄</span>
+            // WAITING LOBBY (DOES NOT SPEND LIVEKIT MINUTES)
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-slate-900/50">
+              <span className="text-6xl mb-4 animate-bounce">🎧</span>
+              <h3 className="text-xl md:text-2xl font-bold text-slate-200 mb-2 animate-pulse">Waiting for someone...</h3>
+              <p className="text-slate-400 text-sm">LiveKit will automatically connect you when another member clicks Voice.</p>
+              <p className="text-[11px] text-green-400 font-bold mt-6 tracking-wider uppercase border border-green-500/30 bg-green-500/10 px-4 py-2 rounded-full">
+                Saves your free plan limits
+              </p>
+            </div>
           )}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold truncate">{file.name || "photo.jpg"}</p>
-            <p className="text-xs text-green-400">
-              {(file.size / 1024).toFixed(0)} KB — attached ✅ ready to send
-            </p>
+        </div>
+      ) : (
+        <>
+          {/* STANDARD PERSISTENT TEXT CHAT */}
+          <div className="flex-1 min-h-0 bg-slate-900 rounded-xl p-3 overflow-y-auto grid gap-2 content-start">
+            {messages.map((m) => {
+              const own = m.user_id === me;
+              return (
+                <div key={m.id} className={`flex ${own ? "justify-end" : "justify-start"}`}>
+                  <div
+                    className={`max-w-[78%] rounded-2xl px-3 py-2 select-none ${own ? "bg-green-700" : "bg-slate-800"}`}
+                    onTouchStart={() => startPress(m)}
+                    onTouchEnd={cancelPress}
+                    onTouchMove={cancelPress}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      if (m.user_id === me) setMenuMsg(m);
+                    }}
+                  >
+                    {!own && (
+                      <p className="text-xs font-bold mb-0.5" style={{ color: nameColor(m.user_name) }}>
+                        {m.user_name}
+                      </p>
+                    )}
+                    {m.file_type === "image" && m.file_url && (
+                      <img src={m.file_url} alt="shared" className="rounded-lg max-h-60 mb-1" />
+                    )}
+                    {m.file_type === "pdf" && m.file_url && (
+                      <a href={m.file_url} target="_blank" className="block text-sm underline text-sky-300 mb-1">
+                        📄 Open PDF
+                      </a>
+                    )}
+                    <p className="text-sm whitespace-pre-wrap">{m.text}</p>
+                    <div className="flex items-center justify-end gap-2 mt-0.5">
+                      <span className={`text-[10px] ${own ? "text-green-200" : "text-slate-400"}`}>{timeOf(m.created_at)}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {messages.length === 0 && <p className="text-slate-500 text-sm text-center">No messages yet — say hello! 👋</p>}
+            <div ref={bottomRef} />
           </div>
-          <button type="button" onClick={clearFile} className="text-red-400 text-xl px-2">
-            ✕
-          </button>
-        </div>
+
+          {file && (
+            <div className="mt-2 bg-slate-900 border border-sky-500/40 rounded-xl p-3 flex items-center gap-3">
+              {preview ? (
+                <img src={preview} alt="preview" className="w-16 h-16 rounded-lg object-cover" />
+              ) : (
+                <span className="text-4xl">📄</span>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{file.name || "photo.jpg"}</p>
+                <p className="text-xs text-green-400">
+                  {(file.size / 1024).toFixed(0)} KB — attached ✅ ready to send
+                </p>
+              </div>
+              <button type="button" onClick={clearFile} className="text-red-400 text-xl px-2">
+                ✕
+              </button>
+            </div>
+          )}
+
+          {editingId && (
+            <div className="mt-2 bg-slate-900 border border-amber-500/40 rounded-xl p-3 flex items-center justify-between">
+              <span className="text-sm text-amber-400 font-semibold">✏️ Editing message...</span>
+              <button 
+                onClick={() => { setEditingId(null); setText(""); }} 
+                className="text-xs text-red-400 underline hover:text-red-300"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          <form onSubmit={send} className="flex gap-2 mt-3 items-center">
+            <input
+              type="file"
+              id="file-upload"
+              className="hidden"
+              accept="image/*,application/pdf"
+              onChange={onFile}
+              ref={fileInputRef} 
+            />
+            
+            {!editingId && (
+              <label
+                htmlFor="file-upload"
+                className="cursor-pointer p-3 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xl transition-colors"
+                title="Attach File"
+              >
+                📎
+              </label>
+            )}
+            
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={file ? "Add a message (optional)..." : "Type a message..."}
+              className="flex-1 p-3 rounded bg-slate-800 border border-slate-700 focus:outline-none focus:border-pink-500 transition-colors"
+              disabled={sending}
+            />
+            
+            <button
+              disabled={sending || (!text.trim() && !file)}
+              className="px-5 py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold disabled:opacity-50 transition-colors"
+            >
+              {sending ? "⏳" : (editingId ? "💾" : "➤")}
+            </button>
+          </form>
+        </>
       )}
 
-      {editingId && (
-        <div className="mt-2 bg-slate-900 border border-amber-500/40 rounded-xl p-3 flex items-center justify-between">
-          <span className="text-sm text-amber-400 font-semibold">✏️ Editing message...</span>
-          <button 
-            onClick={() => { setEditingId(null); setText(""); }} 
-            className="text-xs text-red-400 underline"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      <form onSubmit={send} className="flex gap-2 mt-3 items-center">
-        <input
-          type="file"
-          id="file-upload"
-          className="hidden"
-          accept="image/*,application/pdf"
-          onChange={onFile}
-          ref={fileInputRef} 
-        />
-        
-        {!editingId && (
-          <label
-            htmlFor="file-upload"
-            className="cursor-pointer p-3 rounded bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xl"
-            title="Attach File"
-          >
-            📎
-          </label>
-        )}
-        
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={file ? "Add a message (optional)..." : "Type a message..."}
-          className="flex-1 p-3 rounded bg-slate-800 border border-slate-700 focus:outline-none focus:border-pink-500"
-          disabled={sending}
-        />
-        
-        <button
-          disabled={sending || (!text.trim() && !file)}
-          className="px-5 py-3 rounded bg-pink-600 hover:bg-pink-500 font-semibold disabled:opacity-50"
-        >
-          {sending ? "⏳" : (editingId ? "💾" : "➤")}
-        </button>
-      </form>
-
-      {/* Bonus Fix: Corrected Strict null-checks when handling the menuMsg */}
       {menuMsg && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center"
+          className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center"
           onClick={() => setMenuMsg(null)}
         >
           <div
-            className="bg-slate-800 rounded-xl p-2 w-52 grid gap-1"
+            className="bg-slate-800 rounded-xl p-2 w-52 grid gap-1 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {canEdit(menuMsg.created_at) && (
@@ -523,7 +566,7 @@ export default function CommunityRoomPage() {
                     setMenuMsg(null);
                   }
                 }}
-                className="text-left px-4 py-3 rounded-lg hover:bg-slate-700"
+                className="text-left px-4 py-3 rounded-lg hover:bg-slate-700 font-medium transition-colors"
               >
                 ✏️ Edit
               </button>
@@ -535,13 +578,13 @@ export default function CommunityRoomPage() {
                   setMenuMsg(null);
                 }
               }}
-              className="text-left px-4 py-3 rounded-lg hover:bg-slate-700 text-red-400"
+              className="text-left px-4 py-3 rounded-lg hover:bg-red-500/20 text-red-400 font-medium transition-colors"
             >
               🗑️ Delete
             </button>
             <button
               onClick={() => setMenuMsg(null)}
-              className="text-left px-4 py-3 rounded-lg hover:bg-slate-700 text-slate-400"
+              className="text-left px-4 py-3 rounded-lg hover:bg-slate-700 text-slate-400 font-medium mt-2 border-t border-slate-700 transition-colors"
             >
               ✖ Cancel
             </button>
