@@ -80,6 +80,7 @@ export default function ProfileMenu() {
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
   const [saving, setSaving] = useState(false);
+  const [badgePop, setBadgePop] = useState("");
   const [light, setLight] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -182,7 +183,7 @@ export default function ProfileMenu() {
         supabase.from("habit_logs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("completed", true),
         supabase.from("nutrition_logs").select("id", { count: "exact", head: true }).eq("user_id", userId),
         supabase.from("tasks").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("category", "todo").eq("completed", true),
-      ]); // The syntax error was right after this bracket. I removed the duplicate queries.
+      ]);
 
       const items: { key: string; label: string; time: string }[] = [];
       (s.data || []).forEach((r) => {
@@ -229,21 +230,31 @@ export default function ProfileMenu() {
 
         // 🏆 AUTOMATION 4: INSTANT BADGES (within 30 sec of earning!)
         const badges = [
-          { id: "b1", ok: (cStudy.count || 0) >= 1, label: "📚 First Study Session" },
-          { id: "b2", ok: (cWork.count || 0) >= 10, label: "💪 10 Workouts Club" },
-          { id: "b3", ok: (cHab.count || 0) >= 50, label: "✅ 50 Habits Done" },
-          { id: "b4", ok: (cMeal.count || 0) >= 20, label: "🍽️ 20 Meals Tracked" },
-          { id: "b5", ok: (cTodo.count || 0) >= 25, label: "🎯 25 Tasks Completed" },
+          { id: "s1", ok: (cStudy.count || 0) >= 1, label: "📚 Study Starter — first session" },
+          { id: "s2", ok: (cStudy.count || 0) >= 10, label: "📚 Study Climber — 10 sessions" },
+          { id: "s3", ok: (cStudy.count || 0) >= 50, label: "📚 Study Master — 50 sessions" },
+          { id: "g1", ok: (cWork.count || 0) >= 1, label: "💪 Gym Starter — first workout" },
+          { id: "g2", ok: (cWork.count || 0) >= 10, label: "💪 Gym Climber — 10 workouts" },
+          { id: "g3", ok: (cWork.count || 0) >= 25, label: "💪 Gym Master — 25 workouts" },
+          { id: "h1", ok: (cHab.count || 0) >= 1, label: "✅ Habit Starter — first habit" },
+          { id: "h2", ok: (cHab.count || 0) >= 25, label: "✅ Habit Climber — 25 habits" },
+          { id: "h3", ok: (cHab.count || 0) >= 50, label: "✅ Habit Master — 50 habits" },
+          { id: "t1", ok: (cTodo.count || 0) >= 1, label: "🎯 Task Starter — first task" },
+          { id: "t2", ok: (cTodo.count || 0) >= 10, label: "🎯 Task Climber — 10 tasks" },
+          { id: "t3", ok: (cTodo.count || 0) >= 20, label: "🎯 Task Master — 20 tasks" },
         ];
-        badges.forEach((b) => {
+        
+        for (const b of badges) {
           const key = `dg-badge-${userId}-${b.id}`;
           if (b.ok && !localStorage.getItem(key)) {
             localStorage.setItem(key, "1");
+            await supabase
+              .from("earned_badges")
+              .upsert({ user_id: userId, badge_id: b.id });
             playBeep();
-            recordNotification("🏆 BADGE EARNED!", b.label);
-            reg.showNotification("🏆 BADGE EARNED!", { body: b.label });
+            setBadgePop(b.label);
           }
-        });
+        }
 
         // 📊 AUTOMATION 5: SUNDAY AI WEEKLY REPORT
         if (now.getDay() === 0) {
@@ -344,6 +355,21 @@ export default function ProfileMenu() {
 
   return (
     <div className="absolute top-3 right-3 z-50" ref={boxRef}>
+      {badgePop && (
+        <div className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-2 border-amber-500 rounded-2xl p-8 text-center max-w-sm w-full shadow-2xl">
+            <p className="text-6xl mb-3">🏆</p>
+            <p className="text-xl font-black text-amber-400 mb-1">BADGE EARNED!</p>
+            <p className="text-white font-bold mb-4">{badgePop}</p>
+            <button
+              onClick={() => setBadgePop("")}
+              className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold"
+            >
+              🎉 YAY!
+            </button>
+          </div>
+        </div>
+      )}
       <button
         onClick={() => setOpen(!open)}
         className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center justify-center overflow-hidden"
