@@ -5,6 +5,12 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+type Template = {
+  id: string;
+  title: string;
+  repeat: string;
+};
+
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -12,15 +18,15 @@ function toLocalISO(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
-type Task = { id: string; title: string; completed: boolean; focus: boolean };
-
-export default function MyDayPage() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+export default function RepeatTasksPage() {
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [title, setTitle] = useState("");
+  const [frequency, setFrequency] = useState("daily");
   const router = useRouter();
 
   const load = async () => {
-    // 1st change: Renamed to 'sessionData' to avoid conflicts
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id;
     
@@ -28,20 +34,16 @@ export default function MyDayPage() {
       router.push("/login");
       return;
     }
-    
-    // Moved 'today' inside the function to prevent Next.js hydration errors
-    const today = toLocalISO(new Date());
 
-    // 2nd change: Renamed to 'tasksData' 
-    const { data: tasksData } = await supabase
+    // Fetch master templates (tasks where 'repeat' is set)
+    const { data: rows } = await supabase
       .from("tasks")
-      .select("id, title, completed, focus")
+      .select("id, title, repeat")
       .eq("user_id", userId)
-      .eq("task_date", today)
-      .eq("category", "todo");
-      
-    // 3rd change: Explicitly tell TypeScript this data is an array of Tasks
-    setTasks((tasksData as Task[]) || []);
+      .not("repeat", "is", null)
+      .order("created_at", { ascending: false });
+
+    setTemplates(rows || []);
     setLoading(false);
   };
 
@@ -49,123 +51,113 @@ export default function MyDayPage() {
     load();
   }, []);
 
-  const toggleFocus = async (t: Task) => {
-    if (!t.focus && tasks.filter((x) => x.focus).length >= 3) {
-      alert("Max 3 star tasks! Unstar one first.");
-      return;
+  const addTemplate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
+    
+    if (!userId || !title.trim() || isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      const todayIso = toLocalISO(new Date());
+
+      await supabase.from("tasks").insert({
+        user_id: userId,
+        title: title.trim(),
+        category: "todo",
+        repeat: frequency,
+        task_date: todayIso, // Sets the starting point for your auto-copies
+        completed: false,
+      });
+      setTitle("");
+      await load();
+    } finally {
+      setIsSubmitting(false);
     }
-    await supabase.from("tasks").update({ focus: !t.focus }).eq("id", t.id);
-    setTasks(tasks.map((x) => (x.id === t.id ? { ...x, focus: !t.focus } : x)));
   };
 
-  const toggleDone = async (t: Task) => {
-    await supabase.from("tasks").update({ completed: !t.completed }).eq("id", t.id);
-    setTasks(tasks.map((x) => (x.id === t.id ? { ...x, completed: !t.completed } : x)));
+  const deleteTemplate = async (id: string) => {
+    // Delete the master template
+    await supabase.from("tasks").delete().eq("id", id);
+    setTemplates(templates.filter((t) => t.id !== id));
   };
-
-  const stars = tasks.filter((t) => t.focus);
-  const rest = tasks.filter((t) => !t.focus);
-  const allDone = stars.length > 0 && stars.every((t) => t.completed);
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
       <div className="mb-6">
         <h1 className="text-3xl font-bold flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl bg-amber-600/20 border border-amber-500/40 flex items-center justify-center text-xl">🌟</span>
-          My Day — Top 3
+          <span className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-xl">🔁</span>
+          Repeat Tasks
         </h1>
-        <p className="text-slate-400">Star max 3 tasks → finish them first</p>
+        <p className="text-slate-400">Manage your daily and weekly auto-copies</p>
       </div>
 
-      {allDone && (
-        <div className="bg-green-600/20 border border-green-500/40 rounded-xl p-6 text-center mb-6">
-          <p className="text-4xl mb-2">🎉</p>
-          <p className="font-bold">All 3 stars done — YOU WON TODAY!</p>
+      <form
+        onSubmit={addTemplate}
+        className="bg-slate-900 p-6 rounded-xl border border-slate-800 mb-8 flex flex-col md:flex-row gap-4"
+      >
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. Read 10 pages"
+          required
+          className="flex-1 p-3 rounded bg-slate-800 border border-slate-700 focus:outline-none focus:border-indigo-500"
+        />
+        <div className="flex gap-4">
+          <select
+            value={frequency}
+            onChange={(e) => setFrequency(e.target.value)}
+            className="p-3 rounded bg-slate-800 border border-slate-700 focus:outline-none focus:border-indigo-500 cursor-pointer"
+          >
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+          </select>
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="px-6 py-3 rounded bg-indigo-600 font-semibold hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+          >
+            {isSubmitting ? "Adding..." : "Add"}
+          </button>
         </div>
-      )}
+      </form>
 
       {loading ? (
-        <p className="text-slate-400">Loading today...</p>
+        <p className="text-slate-400">Loading routines...</p>
       ) : (
-        <>
-          <div className="grid gap-3 mb-8">
-            {stars.map((t) => (
-              <div
-                key={t.id}
-                className="bg-slate-900 border border-amber-500/40 rounded-xl p-4 flex items-center justify-between gap-3"
-              >
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => toggleDone(t)}
-                    className={`w-6 h-6 rounded border flex items-center justify-center ${
-                      t.completed
-                        ? "bg-green-500 border-green-500"
-                        : "bg-slate-800 border-slate-600"
-                    }`}
-                  >
-                    {t.completed && <span className="text-xs font-bold">✓</span>}
-                  </button>
-                  <p className={`font-bold ${t.completed ? "line-through text-slate-500" : ""}`}>
-                    ⭐ {t.title}
-                  </p>
-                </div>
-                <button
-                  onClick={() => toggleFocus(t)}
-                  className="text-amber-400 text-sm"
-                >
-                  Unstar
-                </button>
+        <div className="grid gap-3 mb-8">
+          {templates.map((t) => (
+            <div
+              key={t.id}
+              className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between gap-3"
+            >
+              <div>
+                <p className="font-bold">{t.title}</p>
+                <span className="text-xs px-2 py-1 bg-slate-800 text-slate-400 rounded-md uppercase tracking-wider font-semibold mt-1 inline-block">
+                  {t.repeat}
+                </span>
               </div>
-            ))}
-            {stars.length === 0 && (
-              <p className="text-slate-400 text-sm">
-                No stars yet — tap ⭐ below on your most important tasks.
-              </p>
-            )}
-          </div>
-
-          <p className="text-sm text-slate-400 mb-2">Other tasks today:</p>
-          <div className="grid gap-2">
-            {rest.map((t) => (
-              <div
-                key={t.id}
-                className="bg-slate-900 rounded p-3 flex items-center justify-between gap-3"
+              <button
+                onClick={() => deleteTemplate(t.id)}
+                className="text-red-400 hover:text-red-300 text-sm px-3 py-1 bg-red-400/10 rounded-md transition-colors"
               >
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => toggleDone(t)}
-                    className={`w-5 h-5 rounded border flex items-center justify-center ${
-                      t.completed
-                        ? "bg-green-500 border-green-500"
-                        : "bg-slate-800 border-slate-600"
-                    }`}
-                  >
-                    {t.completed && <span className="text-xs font-bold">✓</span>}
-                  </button>
-                  <p className={`text-sm ${t.completed ? "line-through text-slate-500" : ""}`}>
-                    {t.title}
-                  </p>
-                </div>
-                <button
-                  onClick={() => toggleFocus(t)}
-                  className="text-slate-500 hover:text-amber-400"
-                >
-                  ⭐
-                </button>
-              </div>
-            ))}
-            {rest.length === 0 && stars.length === 0 && (
-              <p className="text-slate-400 text-sm">
-                No tasks today — add some in Task Log!
-              </p>
-            )}
-          </div>
-        </>
+                Delete
+              </button>
+            </div>
+          ))}
+          {templates.length === 0 && (
+            <div className="text-center p-8 bg-slate-900/50 rounded-xl border border-dashed border-slate-800">
+              <p className="text-slate-400">No repeating tasks set up yet.</p>
+              <p className="text-sm text-slate-500 mt-1">Add a habit above to automate your to-do list!</p>
+            </div>
+          )}
+        </div>
       )}
 
       <Link
         href="/todo"
-        className="inline-block mt-6 text-sm text-slate-400 hover:text-white"
+        className="inline-block mt-4 text-sm text-slate-400 hover:text-white transition-colors"
       >
         ← Back to ToDo
       </Link>
