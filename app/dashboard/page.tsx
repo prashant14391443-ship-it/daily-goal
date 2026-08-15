@@ -196,7 +196,8 @@ export default function Dashboard() {
         .from("study_sessions")
         .select("duration_minutes")
         .eq("user_id", userId)
-        .eq("session_date", today),
+        .eq("session_date", today)
+        .eq("completed", true),
       supabase
         .from("study_sessions")
         .select("duration_minutes, session_date")
@@ -206,7 +207,8 @@ export default function Dashboard() {
         .from("gym_logs")
         .select("id")
         .eq("user_id", userId)
-        .eq("session_date", today),
+        .eq("session_date", today)
+        .eq("completed", true),
       supabase
         .from("gym_logs")
         .select("duration_minutes, session_date")

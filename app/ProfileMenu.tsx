@@ -156,8 +156,8 @@ export default function ProfileMenu() {
     const userId = data.session?.user.id;
     if (!userId) return;
     const [cStudy, cWork, cHab, cMeal, cTodo] = await Promise.all([
-      supabase.from("study_sessions").select("id", { count: "exact", head: true }).eq("user_id", userId),
-      supabase.from("gym_logs").select("id", { count: "exact", head: true }).eq("user_id", userId),
+      supabase.from("study_sessions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("completed", true),
+      supabase.from("gym_logs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("completed", true),
       supabase.from("habit_logs").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("completed", true),
       supabase.from("nutrition_logs").select("id", { count: "exact", head: true }).eq("user_id", userId),
       supabase.from("tasks").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("category", "todo").eq("completed", true),
@@ -180,8 +180,8 @@ export default function ProfileMenu() {
     if (!uid) return;
     const today = toLocalISO(new Date());
     const [s, g, h, t, n] = await Promise.all([
-      supabase.from("study_sessions").select("id").eq("user_id", uid).eq("session_date", today),
-      supabase.from("gym_logs").select("id").eq("user_id", uid).eq("session_date", today),
+      supabase.from("study_sessions").select("id").eq("user_id", uid).eq("session_date", today).eq("completed", true),
+      supabase.from("gym_logs").select("id").eq("user_id", uid).eq("session_date", today).eq("completed", true),
       supabase.from("habit_logs").select("id").eq("user_id", uid).eq("log_date", today).eq("completed", true),
       supabase.from("tasks").select("id").eq("user_id", uid).eq("task_date", today).eq("category", "todo").eq("completed", true),
       supabase.from("nutrition_logs").select("id").eq("user_id", uid).eq("log_date", today),
@@ -262,12 +262,12 @@ export default function ProfileMenu() {
       const [s, g, h, t, hl, cStudy, cWork, cHab, cMeal, cTodo] = await Promise.all([
         supabase
           .from("study_sessions")
-          .select("id, subject, reminder_time")
+          .select("id, subject, reminder_time, completed")
           .eq("user_id", userId)
           .eq("session_date", todayStr),
         supabase
           .from("gym_logs")
-          .select("id, workout_type, reminder_time")
+          .select("id, workout_type, reminder_time, completed")
           .eq("user_id", userId)
           .eq("session_date", todayStr),
         supabase
@@ -326,7 +326,9 @@ export default function ProfileMenu() {
 
         // 🔥 AUTOMATION 1: STREAK RESCUE (7-9 PM, nothing done)
         const doneAnything =
-          (s.data?.length || 0) + (g.data?.length || 0) + (hl.data?.length || 0) > 0;
+          (s.data || []).filter((r) => r.completed).length +
+          (g.data || []).filter((r) => r.completed).length +
+          (hl.data?.length || 0) > 0;
         const hour = now.getHours();
         const rescueKey = `dg-rescue-${todayStr}`;
         if (hour >= 19 && hour <= 21 && !doneAnything && !localStorage.getItem(rescueKey)) {
