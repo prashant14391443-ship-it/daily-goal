@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import BottomNav from "./BottomNav";
 import ProfileMenu from "./ProfileMenu";
+import CoinPop from "./CoinPop";
 import NotificationCenter from "./NotificationCenter";
 
 const geistSans = Geist({
@@ -34,6 +35,7 @@ export default function RootLayout({
         <BottomNav />
         <NotificationCenter />
         <ProfileMenu />
+        <CoinPop />
       </body>
     </html>
   );

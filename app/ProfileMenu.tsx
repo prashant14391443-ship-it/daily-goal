@@ -218,7 +218,7 @@ export default function ProfileMenu() {
       playBeep();
       setCoinFly(`+${earned} 🪙`);
       setTimeout(() => setCoinFly(""), 2500);
-      window.dispatchEvent(new CustomEvent("dg-coins", { detail: total }));
+      window.dispatchEvent(new CustomEvent("dg-coins", { detail: { total, earned } }));
     }
   };
 
