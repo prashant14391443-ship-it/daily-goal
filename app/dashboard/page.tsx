@@ -555,20 +555,12 @@ export default function Dashboard() {
           >
             🤖
           </Link>
-                    <div className="mt-3 w-full rounded-2xl border border-amber-400/40 bg-gradient-to-br from-slate-900 via-slate-900 to-amber-900/20 p-4 shadow-lg shadow-amber-900/20">
-            <p className="font-bold text-white truncate">{motivation}</p>
-            <div className="mt-2 h-2 rounded-full bg-slate-800 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-amber-600 to-yellow-400 transition-all"
-                style={{ width: `${overallPct}%` }}
-              />
-            </div>
-            <div className="mt-2 flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-lg text-xs font-black bg-slate-800/80 border border-slate-700 text-white">
-                {overallPct}%
-              </span>
-              <CoinPill />
-            </div>
+                    <div
+            className={`mt-2 inline-flex items-center gap-3 rounded-xl border px-4 py-2 ${motiveColor}`}
+          >
+            <span className="font-semibold">{motivation}</span>
+            <span className="bg-fuchsia-600 px-3 py-1 rounded-lg font-bold">{overallPct}%</span>
+            <CoinPill />
           </div>
         </div>
         <nav className="hidden md:flex flex-wrap gap-4 text-sm items-center">

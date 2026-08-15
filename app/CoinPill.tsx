@@ -40,13 +40,15 @@ export default function CoinPill() {
     coins >= 1000 ? "🦸 Hero" : coins >= 500 ? "🥇 Gold" : coins >= 100 ? "🥈 Silver" : "🥉 Bronze";
 
   return (
-    <span className="relative order-last ml-2 flex items-center gap-1 bg-amber-500/20 border border-amber-400/50 text-amber-300 px-2 py-0.5 rounded-lg text-xs font-black">
+    <span className="relative inline-flex">
       {fly && (
         <span className="absolute -top-7 right-0 text-lg font-black text-amber-400 animate-bounce drop-shadow-lg whitespace-nowrap">
           {fly}
         </span>
       )}
-      🪙 {coins} • {rank}
+      <span className="bg-fuchsia-600/40 border border-fuchsia-400/50 text-fuchsia-100 px-3 py-1 rounded-lg text-xs font-bold">
+        🪙 {coins} • {rank}
+      </span>
     </span>
   );
 }
