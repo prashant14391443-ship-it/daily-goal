@@ -215,6 +215,7 @@ export default function ProfileMenu() {
         .maybeSingle();
       const total = (cur?.coins || 0) + earned;
       await supabase.from("user_coins").upsert({ user_id: uid, coins: total });
+      playBeep();
       setCoinFly(`+${earned} 🪙`);
       setTimeout(() => setCoinFly(""), 2500);
       window.dispatchEvent(new CustomEvent("dg-coins", { detail: total }));
