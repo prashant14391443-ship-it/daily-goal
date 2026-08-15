@@ -5,12 +5,6 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-type Template = {
-  id: string;
-  title: string;
-  repeat: string;
-};
-
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -18,12 +12,12 @@ function toLocalISO(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
+type Task = { id: string; title: string; repeat: string | null; completed: boolean };
+
 export default function RepeatTasksPage() {
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templates, setTemplates] = useState<Task[]>([]);
+  const [todayTasks, setTodayTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [title, setTitle] = useState("");
-  const [frequency, setFrequency] = useState("daily");
   const router = useRouter();
 
   const load = async () => {
@@ -34,16 +28,29 @@ export default function RepeatTasksPage() {
       router.push("/login");
       return;
     }
+    
+    const today = toLocalISO(new Date());
 
-    // Fetch master templates (tasks where 'repeat' is set)
-    const { data: rows } = await supabase
+    // 1. Fetch tasks that are already set to repeat (The Master Templates)
+    const { data: repeatingData } = await supabase
       .from("tasks")
-      .select("id, title, repeat")
+      .select("id, title, repeat, completed")
       .eq("user_id", userId)
-      .not("repeat", "is", null)
-      .order("created_at", { ascending: false });
+      .not("repeat", "is", null);
 
-    setTemplates(rows || []);
+    // 2. Fetch today's regular tasks (so you can pick from them)
+    // We filter out parent_id so we don't show auto-generated copies here
+    const { data: regularData } = await supabase
+      .from("tasks")
+      .select("id, title, repeat, completed")
+      .eq("user_id", userId)
+      .eq("task_date", today)
+      .is("repeat", null)
+      .is("parent_id", null)
+      .eq("category", "todo");
+      
+    setTemplates((repeatingData as Task[]) || []);
+    setTodayTasks((regularData as Task[]) || []);
     setLoading(false);
   };
 
@@ -51,36 +58,16 @@ export default function RepeatTasksPage() {
     load();
   }, []);
 
-  const addTemplate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData.session?.user.id;
-    
-    if (!userId || !title.trim() || isSubmitting) return;
-
-    setIsSubmitting(true);
-    try {
-      const todayIso = toLocalISO(new Date());
-
-      await supabase.from("tasks").insert({
-        user_id: userId,
-        title: title.trim(),
-        category: "todo",
-        repeat: frequency,
-        task_date: todayIso, // Sets the starting point for your auto-copies
-        completed: false,
-      });
-      setTitle("");
-      await load();
-    } finally {
-      setIsSubmitting(false);
-    }
+  // Turn a regular task into a repeating daily task
+  const makeRepeating = async (t: Task) => {
+    await supabase.from("tasks").update({ repeat: "daily" }).eq("id", t.id);
+    await load(); // Reload to refresh the lists
   };
 
-  const deleteTemplate = async (id: string) => {
-    // Delete the master template
-    await supabase.from("tasks").delete().eq("id", id);
-    setTemplates(templates.filter((t) => t.id !== id));
+  // Stop a task from repeating
+  const stopRepeating = async (t: Task) => {
+    await supabase.from("tasks").update({ repeat: null }).eq("id", t.id);
+    await load(); // Reload to refresh the lists
   };
 
   return (
@@ -90,74 +77,75 @@ export default function RepeatTasksPage() {
           <span className="w-10 h-10 rounded-xl bg-indigo-600/20 border border-indigo-500/40 flex items-center justify-center text-xl">🔁</span>
           Repeat Tasks
         </h1>
-        <p className="text-slate-400">Manage your daily and weekly auto-copies</p>
+        <p className="text-slate-400">Pick tasks from today to automatically copy daily.</p>
       </div>
 
-      <form
-        onSubmit={addTemplate}
-        className="bg-slate-900 p-6 rounded-xl border border-slate-800 mb-8 flex flex-col md:flex-row gap-4"
-      >
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g. Read 10 pages"
-          required
-          className="flex-1 p-3 rounded bg-slate-800 border border-slate-700 focus:outline-none focus:border-indigo-500"
-        />
-        <div className="flex gap-4">
-          <select
-            value={frequency}
-            onChange={(e) => setFrequency(e.target.value)}
-            className="p-3 rounded bg-slate-800 border border-slate-700 focus:outline-none focus:border-indigo-500 cursor-pointer"
-          >
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-          </select>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="px-6 py-3 rounded bg-indigo-600 font-semibold hover:bg-indigo-500 disabled:opacity-50 transition-colors"
-          >
-            {isSubmitting ? "Adding..." : "Add"}
-          </button>
-        </div>
-      </form>
-
       {loading ? (
-        <p className="text-slate-400">Loading routines...</p>
+        <p className="text-slate-400">Loading your tasks...</p>
       ) : (
-        <div className="grid gap-3 mb-8">
-          {templates.map((t) => (
-            <div
-              key={t.id}
-              className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between gap-3"
-            >
-              <div>
-                <p className="font-bold">{t.title}</p>
-                <span className="text-xs px-2 py-1 bg-slate-800 text-slate-400 rounded-md uppercase tracking-wider font-semibold mt-1 inline-block">
-                  {t.repeat}
-                </span>
-              </div>
-              <button
-                onClick={() => deleteTemplate(t.id)}
-                className="text-red-400 hover:text-red-300 text-sm px-3 py-1 bg-red-400/10 rounded-md transition-colors"
+        <>
+          {/* SECTION 1: ACTIVELY REPEATING TASKS */}
+          <div className="grid gap-3 mb-8">
+            {templates.map((t) => (
+              <div
+                key={t.id}
+                className="bg-slate-900 border border-indigo-500/40 rounded-xl p-4 flex items-center justify-between gap-3"
               >
-                Delete
-              </button>
-            </div>
-          ))}
-          {templates.length === 0 && (
-            <div className="text-center p-8 bg-slate-900/50 rounded-xl border border-dashed border-slate-800">
-              <p className="text-slate-400">No repeating tasks set up yet.</p>
-              <p className="text-sm text-slate-500 mt-1">Add a habit above to automate your to-do list!</p>
-            </div>
-          )}
-        </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-indigo-400 text-xl">🔁</span>
+                  <p className="font-bold text-white">
+                    {t.title}
+                  </p>
+                </div>
+                <button
+                  onClick={() => stopRepeating(t)}
+                  className="text-indigo-400 text-sm hover:text-indigo-300"
+                >
+                  Stop Repeating
+                </button>
+              </div>
+            ))}
+            {templates.length === 0 && (
+              <p className="text-slate-400 text-sm">
+                No repeating tasks yet — tap "Repeat Daily" below on the habits you want to build.
+              </p>
+            )}
+          </div>
+
+          {/* SECTION 2: TODAY'S NORMAL TASKS */}
+          <p className="text-sm text-slate-400 mb-2">Other tasks today:</p>
+          <div className="grid gap-2">
+            {todayTasks.map((t) => (
+              <div
+                key={t.id}
+                className="bg-slate-900 rounded p-3 flex items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded border border-slate-600 bg-slate-800"></div>
+                  <p className="text-sm text-slate-300">
+                    {t.title}
+                  </p>
+                </div>
+                <button
+                  onClick={() => makeRepeating(t)}
+                  className="text-slate-500 hover:text-indigo-400 font-semibold text-sm"
+                >
+                  Repeat Daily
+                </button>
+              </div>
+            ))}
+            {todayTasks.length === 0 && (
+              <p className="text-slate-400 text-sm">
+                No regular tasks added today. Go to the Task Log to add some!
+              </p>
+            )}
+          </div>
+        </>
       )}
 
       <Link
         href="/todo"
-        className="inline-block mt-4 text-sm text-slate-400 hover:text-white transition-colors"
+        className="inline-block mt-6 text-sm text-slate-400 hover:text-white"
       >
         ← Back to ToDo
       </Link>
