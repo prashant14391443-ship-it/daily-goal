@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import CoinPill from "@/app/CoinPill";
 
 type Task = { id: string; title: string; completed: boolean };
 type DayStat = { date: string; value: number };
@@ -14,6 +15,9 @@ type Goals = {
   workout_target: number;
   habits_target: number;
 };
+
+// Ready for your component logic:
+// export default function Dashboard() { ... }
 type Countdown = {
   id: string;
   title: string;
@@ -554,6 +558,7 @@ export default function Dashboard() {
           <div
             className={`mt-2 inline-flex items-center gap-3 rounded-xl border px-4 py-2 ${motiveColor}`}
           >
+            <CoinPill />
             <span className="text-sm font-bold text-white">{motivation}</span>
             <span className="text-sm font-black text-white bg-gradient-to-r from-violet-600 to-fuchsia-600 rounded-lg px-2.5 py-0.5 shadow-lg shadow-violet-500/20">
               {overallPct}%

@@ -98,6 +98,7 @@ export default function ProfileMenu() {
   const [preview, setPreview] = useState("");
   const [saving, setSaving] = useState(false);
   const [badgePop, setBadgePop] = useState("");
+  const [coinFly, setCoinFly] = useState("");
   const [light, setLight] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -173,9 +174,60 @@ export default function ProfileMenu() {
     }
   };
 
+  const checkCoinsNow = async () => {
+    const { data } = await supabase.auth.getSession();
+    const uid = data.session?.user.id;
+    if (!uid) return;
+    const today = toLocalISO(new Date());
+    const [s, g, h, t, n] = await Promise.all([
+      supabase.from("study_sessions").select("id").eq("user_id", uid).eq("session_date", today),
+      supabase.from("gym_logs").select("id").eq("user_id", uid).eq("session_date", today),
+      supabase.from("habit_logs").select("id").eq("user_id", uid).eq("log_date", today).eq("completed", true),
+      supabase.from("tasks").select("id").eq("user_id", uid).eq("task_date", today).eq("category", "todo").eq("completed", true),
+      supabase.from("nutrition_logs").select("id").eq("user_id", uid).eq("log_date", today),
+    ]);
+    const actions = [
+      ...(s.data || []).map((r) => ({ key: `s-${r.id}`, coins: 10 })),
+      ...(g.data || []).map((r) => ({ key: `g-${r.id}`, coins: 15 })),
+      ...(h.data || []).map((r) => ({ key: `h-${r.id}`, coins: 5 })),
+      ...(t.data || []).map((r) => ({ key: `t-${r.id}`, coins: 5 })),
+      ...(n.data || []).map((r) => ({ key: `n-${r.id}`, coins: 3 })),
+      { key: `d-${today}`, coins: 20 },
+    ];
+    const { data: logged } = await supabase
+      .from("coin_log")
+      .select("action_key")
+      .eq("user_id", uid);
+    const doneKeys = new Set((logged || []).map((r) => r.action_key));
+    let earned = 0;
+    for (const a of actions) {
+      if (doneKeys.has(a.key)) continue;
+      const { error } = await supabase
+        .from("coin_log")
+        .insert({ user_id: uid, action_key: a.key, coins: a.coins });
+      if (!error) earned += a.coins;
+    }
+    if (earned > 0) {
+      const { data: cur } = await supabase
+        .from("user_coins")
+        .select("coins")
+        .eq("user_id", uid)
+        .maybeSingle();
+      const total = (cur?.coins || 0) + earned;
+      await supabase.from("user_coins").upsert({ user_id: uid, coins: total });
+      setCoinFly(`+${earned} 🪙`);
+      setTimeout(() => setCoinFly(""), 2500);
+      window.dispatchEvent(new CustomEvent("dg-coins", { detail: total }));
+    }
+  };
+
   useEffect(() => {
     if (pathname === "/login" || pathname === "/signup") return;
-    const trigger = () => setTimeout(checkBadgesNow, 1500);
+    const trigger = () => {
+      setTimeout(checkBadgesNow, 1500);
+      setTimeout(checkCoinsNow, 2000);
+    };
+    setTimeout(checkCoinsNow, 2500);
     const chan = supabase
       .channel("badge-watch")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "study_sessions" }, trigger)
