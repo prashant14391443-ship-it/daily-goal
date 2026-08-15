@@ -47,7 +47,16 @@ export default function TodoPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editTime, setEditTime] = useState("");
-  const notified = useRef<Set<string>>(new Set());
+  
+  // NEW: Added state to prevent double-submitting
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // NEW: Keep track of latest todos without restarting the timer
+  const todosRef = useRef<Todo[]>([]);
+  useEffect(() => {
+    todosRef.current = todos;
+  }, [todos]);
+
   const router = useRouter();
 
   const load = async (selectedDate: string) => {
@@ -92,13 +101,14 @@ export default function TodoPage() {
       setRemindersOn(false);
       return;
     }
-    localStorage.setItem("dg-reminders", "1");
-    setRemindersOn(true);
+      localStorage.setItem("dg-reminders", "1");
+      setRemindersOn(true);
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
   };
 
+  // NEW: Updated timer logic to prevent duplicates
   useEffect(() => {
     if (!remindersOn) return;
 
@@ -110,13 +120,18 @@ export default function TodoPage() {
       const nowHM = `${hh}:${mm}`;
       const todayStr = toLocalISO(now);
 
-      todos.forEach((t) => {
-        if (!t.reminder_time || t.completed || t.task_date !== todayStr)
-          return;
+      const cache = JSON.parse(sessionStorage.getItem("dg-notified") || "[]");
+
+      todosRef.current.forEach((t) => {
+        if (!t.reminder_time || t.completed || t.task_date !== todayStr) return;
         const time = t.reminder_time.slice(0, 5);
         const key = `${t.id}-${todayStr}-${time}`;
-        if (time === nowHM && !notified.current.has(key)) {
-                    notified.current.add(key);
+
+        if (time === nowHM && !cache.includes(key)) {
+          cache.push(key);
+          if (cache.length > 50) cache.shift(); 
+          sessionStorage.setItem("dg-notified", JSON.stringify(cache));
+
           recordNotification("DAILY GOAL ⏰", `Time to: ${t.title}`);
           if ("Notification" in window && Notification.permission === "granted") {
             new Notification("DAILY GOAL ⏰", { body: `Time to: ${t.title}` });
@@ -130,24 +145,30 @@ export default function TodoPage() {
     check();
     const id = setInterval(check, 30000);
     return () => clearInterval(id);
-  }, [todos, remindersOn]);
+  }, [remindersOn]);
 
+  // NEW: Updated addTodo to stop double clicks
   const addTodo = async (e: React.FormEvent) => {
     e.preventDefault();
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
-    if (!userId || !newTask.trim()) return;
+    if (!userId || !newTask.trim() || isSubmitting) return;
 
-    await supabase.from("tasks").insert({
-      user_id: userId,
-      title: newTask.trim(),
-      task_date: date,
-      category: "todo",
-      reminder_time: newTime || null,
-    });
-    setNewTask("");
-    setNewTime("");
-    await load(date);
+    setIsSubmitting(true);
+    try {
+      await supabase.from("tasks").insert({
+        user_id: userId,
+        title: newTask.trim(),
+        task_date: date,
+        category: "todo",
+        reminder_time: newTime || null,
+      });
+      setNewTask("");
+      setNewTime("");
+      await load(date);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const toggleTodo = async (id: string, completed: boolean) => {
@@ -259,7 +280,7 @@ export default function TodoPage() {
         <div className="relative flex items-center">
           {newTime === "" && (
             <span className="absolute left-3 text-slate-500 pointer-events-none">
-                                time
+              time
             </span>
           )}
           <input
@@ -272,8 +293,13 @@ export default function TodoPage() {
             title="Reminder time (optional)"
           />
         </div>
-        <button className="px-6 rounded bg-amber-600 font-semibold hover:bg-amber-500">
-          Add
+        
+        {/* NEW: Updated button to disable while submitting */}
+        <button 
+          disabled={isSubmitting}
+          className="px-6 rounded bg-amber-600 font-semibold hover:bg-amber-500 disabled:opacity-50"
+        >
+          {isSubmitting ? "Adding..." : "Add"}
         </button>
       </form>
 
