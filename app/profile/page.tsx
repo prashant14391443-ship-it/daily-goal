@@ -177,7 +177,7 @@ function Inner() {
         if (blob) {
           const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
           const { error: upErr } = await supabase.storage.from("avatars").upload(
-            `${me}.jpg`,
+            `${me}/avatar.jpg`,
             file,
             { upsert: true }
           );
@@ -188,7 +188,7 @@ function Inner() {
             return;
           }
           newAvatarUrl =
-            supabase.storage.from("avatars").getPublicUrl(`${me}.jpg`).data.publicUrl +
+            supabase.storage.from("avatars").getPublicUrl(`${me}/avatar.jpg`).data.publicUrl +
             "?t=" + Date.now();
         }
       }
