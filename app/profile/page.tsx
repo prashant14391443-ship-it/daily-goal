@@ -476,7 +476,7 @@ function Inner() {
       )}
 
       {view && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex flex-col" onClick={() => setView(null)}>
+        <div className="fixed inset-0 z-[70] bg-black/95 flex flex-col" onClick={() => setView(null)}>
           <div className="flex justify-end p-4">
             <span className="text-2xl">✖</span>
           </div>

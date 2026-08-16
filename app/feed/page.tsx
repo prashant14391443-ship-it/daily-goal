@@ -658,7 +658,7 @@ export default function FeedPage() {
 
       {/* STORY VIEWER */}
       {viewStory && (storyMap.get(viewStory.user) || [])[viewStory.index] && (
-        <div className="fixed inset-0 z-50 bg-black flex flex-col">
+        <div className="fixed inset-0 z-[70] bg-black flex flex-col">
           <div className="flex gap-1 p-2">
             {(storyMap.get(viewStory.user) || []).map((s, i) => (
               <div key={s.id} className="flex-1 h-1 bg-slate-700 rounded">
@@ -718,7 +718,7 @@ export default function FeedPage() {
 
       {/* STORY COMPOSER */}
       {creatingStory && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-end" onClick={() => setCreatingStory(false)}>
+        <div className="fixed inset-0 z-[70] bg-black/80 flex items-end" onClick={() => setCreatingStory(false)}>
           <div className="w-full bg-slate-900 rounded-t-2xl p-4 grid gap-3" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center">
               <p className="font-bold">👻 New story (24h)</p>
