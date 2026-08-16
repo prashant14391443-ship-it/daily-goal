@@ -601,6 +601,13 @@ export default function ProfileMenu() {
             🏆 Badges
           </Link>
           <Link
+            href="/feed"
+            onClick={() => setOpen(false)}
+            className="text-sm bg-slate-800 hover:bg-slate-700 p-2 rounded text-white"
+          >
+            📰 Friend Feed
+          </Link>
+          <Link
             href="/ai"
             onClick={() => setOpen(false)}
             className="text-sm bg-violet-600 hover:bg-violet-500 p-2 rounded text-white font-bold"
