@@ -38,7 +38,8 @@ export default function MoveTracker() {
   const [sec, setSec] = useState(0);
   const [speed, setSpeed] = useState(0);
   const [hint, setHint] = useState("");
-  const [last, setLast] = useState<null | { dist: number; sec: number; cal: number; label: string }>(null);
+  // Added coins to the last state
+  const [last, setLast] = useState<null | { dist: number; sec: number; cal: number; label: string; coins: number }>(null);
   const [steps, setSteps] = useState(0);
   const lastStepRef = useRef(0);
   const watchRef = useRef<number | null>(null);
@@ -107,9 +108,16 @@ export default function MoveTracker() {
   const stop = async () => {
     if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current);
     setTracking(false);
+    
     const km = Math.max(distRef.current / 1000, (steps * 0.7) / 1000);
     const mins = Math.max(1, Math.round(sec / 60));
-    const cal = Math.round(((mode.met * 3.5 * 65) / 200) * mins);
+    
+    // FIX: Only calculate calories if distance is greater than 0
+    const cal = km > 0 ? Math.round(((mode.met * 3.5 * 65) / 200) * mins) : 0;
+    
+    // FIX: Calculate coins based strictly on full kilometers
+    const earnedCoins = Math.floor(km) * 15;
+
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
     if (uid && sec >= 10) {
@@ -124,7 +132,9 @@ export default function MoveTracker() {
         calories: cal,
         avg_speed: sec > 0 ? Math.round((km / (sec / 3600)) * 10) / 10 : 0,
       });
-      setLast({ dist: km, sec, cal, label: mode.label });
+      
+      // Save coins to state so we can display them accurately
+      setLast({ dist: km, sec, cal, label: mode.label, coins: earnedCoins });
     } else if (sec < 10) {
       setHint("⏱️ Too short — track at least 10 seconds!");
     }
@@ -134,7 +144,9 @@ export default function MoveTracker() {
   const pace = km > 0 ? sec / 60 / km : 0;
   const paceStr =
     km > 0.05 ? `${Math.floor(pace)}:${String(Math.floor((pace % 1) * 60)).padStart(2, "0")} /km` : "—";
-  const cal = Math.round(((mode.met * 3.5 * 65) / 200) * (sec / 60));
+    
+  // FIX: Live UI calorie tracker only goes up if distance > 0
+  const cal = km > 0 ? Math.round(((mode.met * 3.5 * 65) / 200) * (sec / 60)) : 0;
 
   return (
     <div className="bg-slate-900 rounded-2xl p-4">
@@ -193,7 +205,7 @@ export default function MoveTracker() {
 
       {last && (
         <div className="mt-3 bg-slate-950/60 rounded-xl p-3">
-          <div className="grid grid-cols-3 text-center">
+          <div className="grid grid-cols-3 text-center mb-2">
             <div>
               <p className="text-[10px] text-slate-400">Distance</p>
               <p className="font-bold text-white">{last.dist.toFixed(2)} km</p>
@@ -207,9 +219,17 @@ export default function MoveTracker() {
               <p className="font-bold text-white">{last.cal} kcal</p>
             </div>
           </div>
-          <p className="text-[10px] text-green-400 text-center mt-2">
-            ✅ Saved as COMPLETED {last.label} → +15 🪙
-          </p>
+          
+          {/* FIX: Dynamic coin UI based on actual earned coins */}
+          {last.coins > 0 ? (
+            <p className="text-[10px] text-green-400 text-center">
+              ✅ Saved as COMPLETED {last.label} → +{last.coins} 🪙
+            </p>
+          ) : (
+            <p className="text-[10px] text-slate-400 text-center">
+              ⚠️ Run at least 1 km to earn coins! (0 🪙 earned)
+            </p>
+          )}
         </div>
       )}
     </div>
