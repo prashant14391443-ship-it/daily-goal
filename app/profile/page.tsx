@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -50,6 +50,10 @@ function Inner() {
   const [editName, setEditName] = useState("");
   const [editBio, setEditBio] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editImg, setEditImg] = useState<HTMLImageElement | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [off, setOff] = useState({ x: 0, y: 0 });
+  const dragRef = useRef<{ x: number; y: number } | null>(null);
 
   const load = async () => {
     const { data } = await supabase.auth.getSession();
@@ -108,16 +112,16 @@ function Inner() {
     await supabase.from("profiles").update({ is_private: next }).eq("user_id", me);
     setProf({ ...prof, is_private: next });
   };
-  const onAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onAvatar = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f || !f.type.startsWith("image/")) return;
-    const small = await compressAvatar(f);
-    const path = `${me}.jpg`;
-    await supabase.storage.from("avatars").upload(path, small, { upsert: true });
-    const url = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
-    await supabase.auth.updateUser({ data: { avatar_url: url } });
-    await supabase.from("profiles").update({ avatar_url: url }).eq("user_id", me);
-    load();
+    const img = new Image();
+    img.onload = () => {
+      setEditImg(img);
+      setZoom(1);
+      setOff({ x: 0, y: 0 });
+    };
+    img.src = URL.createObjectURL(f);
   };
 
   const share = async () => {
@@ -130,6 +134,28 @@ function Inner() {
   };
   const saveProfile = async () => {
     setSaving(true);
+    if (editImg) {
+      const size = 512;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        const scale = Math.max(size / editImg.width, size / editImg.height) * zoom;
+        const w = editImg.width * scale;
+        const h = editImg.height * scale;
+        ctx.drawImage(editImg, (size - w) / 2 + off.x * 2, (size - h) / 2 + off.y * 2, w, h);
+        const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.8));
+        if (blob) {
+          const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
+          await supabase.storage.from("avatars").upload(`${me}.jpg`, file, { upsert: true });
+          const url = supabase.storage.from("avatars").getPublicUrl(`${me}.jpg`).data.publicUrl;
+          await supabase.auth.updateUser({ data: { avatar_url: url } });
+          await supabase.from("profiles").update({ avatar_url: url }).eq("user_id", me);
+        }
+      }
+      setEditImg(null);
+    }
     await supabase.from("profiles").upsert(
       {
         user_id: me,
@@ -182,22 +208,17 @@ function Inner() {
               {(prof?.display_name || "?").charAt(0).toUpperCase()}
             </span>
           )}
-          {userId === me && (
-            <label className="absolute bottom-0 right-0 bg-violet-600 border-2 border-slate-950 rounded-full w-7 h-7 text-xs flex items-center justify-center cursor-pointer">
-              📷
-              <input type="file" accept="image/*" onChange={onAvatar} className="hidden" />
-            </label>
-          )}
+
         </span>
         <div className="flex-1 grid grid-cols-3 text-center">
           <div>
             <p className="font-black text-lg">{posts.length}</p>
             <p className="text-xs text-slate-400">posts</p>
           </div>
-          <div>
+          <Link href={`/friends?user=${userId}`} className="block">
             <p className="font-black text-lg">{friendCount}</p>
             <p className="text-xs text-slate-400">friends</p>
-          </div>
+          </Link>
           <div>
             <p className="font-black text-lg">{rank.split(" ")[0]}</p>
             <p className="text-xs text-slate-400">{rank.split(" ")[1]}</p>
@@ -246,9 +267,14 @@ function Inner() {
                 ➕ Add Friend
               </button>
             )}
-            <button onClick={share} className="flex-1 py-2 rounded-lg bg-slate-800 text-xs font-bold">
-              📤 Share
-            </button>
+            {(!prof?.is_private || isFriend) && (
+              <Link
+                href={`/chat?user=${userId}`}
+                className="flex-1 py-2 rounded-lg bg-slate-800 text-xs font-bold text-center"
+              >
+                💬 Message
+              </Link>
+            )}
           </>
         )}
       </div>
@@ -269,6 +295,48 @@ function Inner() {
             rows={2}
             className="p-3 rounded-lg bg-slate-800 border border-slate-700 text-sm resize-none"
           />
+          <label className="py-2 rounded-lg bg-slate-800 text-xs font-bold text-center cursor-pointer">
+            📷 Change photo
+            <input type="file" accept="image/*" onChange={onAvatar} className="hidden" />
+          </label>
+          {editImg && (
+            <div className="grid gap-2 bg-slate-800/50 rounded-xl p-3">
+              <div
+                className="relative w-40 h-40 mx-auto rounded-full overflow-hidden border-2 border-violet-500 touch-none cursor-move"
+                onPointerDown={(e) => {
+                  (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                  dragRef.current = { x: e.clientX, y: e.clientY };
+                }}
+                onPointerMove={(e) => {
+                  if (!dragRef.current) return;
+                  setOff({
+                    x: off.x + (e.clientX - dragRef.current.x),
+                    y: off.y + (e.clientY - dragRef.current.y),
+                  });
+                  dragRef.current = { x: e.clientX, y: e.clientY };
+                }}
+                onPointerUp={() => (dragRef.current = null)}
+              >
+                <img
+                  src={editImg.src}
+                  className="w-full h-full object-cover"
+                  style={{ transform: `translate(${off.x}px, ${off.y}px) scale(${zoom})` }}
+                  alt=""
+                />
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="3"
+                step="0.1"
+                value={zoom}
+                onChange={(e) => setZoom(Number(e.target.value))}
+              />
+              <p className="text-[10px] text-slate-500 text-center">
+                ✋ Drag to move • slider to zoom
+              </p>
+            </div>
+          )}
           <button
             onClick={saveProfile}
             disabled={saving}
@@ -300,7 +368,7 @@ function Inner() {
           <p className="text-xl font-bold">Create your first post</p>
           <p className="text-sm text-slate-400 mt-1">Make this space your own.</p>
           {userId === me && (
-            <Link href="/feed" className="inline-block mt-4 px-8 py-3 rounded-lg bg-violet-600 font-bold text-sm">
+            <Link href="/newpost" className="inline-block mt-4 px-8 py-3 rounded-lg bg-violet-600 font-bold text-sm">
               Create
             </Link>
           )}

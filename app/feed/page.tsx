@@ -78,23 +78,22 @@ export default function FeedPage() {
   const [myProf, setMyProf] = useState<Profile | undefined>();
   const [stories, setStories] = useState<Profile[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
-  const [text, setText] = useState("");
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [preview, setPreview] = useState("");
-  const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<"all" | "friends">("all");
   const [friends, setFriends] = useState<Set<string>>(new Set());
   const [sentReqs, setSentReqs] = useState<Set<string>>(new Set());
   const [incoming, setIncoming] = useState<{ from_id: string; prof?: Profile }[]>([]);
   const [burst, setBurst] = useState("");
-  const [creating, setCreating] = useState(false);
   const [unread, setUnread] = useState(0);
-
-  // FIX Mistake 1, 2, 3: Define state variables q and results
+  
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Profile[]>([]);
 
-  // FIX Mistake 5: loadUnread(uid) was called but is not defined in provided code. Commented out.
+  // ADDED MISSING STATE VARIABLES HERE:
+  const [text, setText] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
+  const [busy, setBusy] = useState(false);
+
   const load = async () => {
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
@@ -121,7 +120,6 @@ export default function FeedPage() {
     setSentReqs(new Set((sent.data || []).map((s) => s.to_id)));
     setIncoming((inc.data || []).map((r) => ({ from_id: r.from_id, prof: profMap.get(r.from_id) })));
 
-    // FIX Mistake 7: Improved variable type robustness with manual casting and manual mapping validation to match Post type.
     setPosts(
       ((p.data as any[]) || []).map((x) => ({
         id: x.id,
@@ -209,7 +207,6 @@ export default function FeedPage() {
 
   const doubleTap = (p: Post) => {
     setBurst(p.id);
-    // FIX Mistake 6: Correct logical error where double tap logic can unlike the post. Moved setTimeout after condition check.
     if (!p.likedByMe) like(p.id);
     setTimeout(() => setBurst(""), 800);
   };
@@ -292,12 +289,9 @@ export default function FeedPage() {
           >
             {tab === "all" ? "🌍 Public" : "🔒 Private"}
           </button>
-          <button
-            onClick={() => setCreating(true)}
-            className="text-base font-bold bg-slate-800 px-3 py-1 rounded-full"
-          >
+          <Link href="/newpost" className="text-base font-bold bg-slate-800 px-3 py-1 rounded-full">
             ➕
-          </button>
+          </Link>
           <Link href="/activity" className="relative text-base font-bold bg-slate-800 px-3 py-1 rounded-full">
             ❤️
             {unread > 0 && (
@@ -328,10 +322,8 @@ export default function FeedPage() {
         ))}
         {stories.length === 0 && (
           <p className="text-[10px] text-slate-500 self-center">Search people below to add friends → they appear here!</p>
-        ) }
+        )}
       </div>
-
-     
 
       {/* REQUESTS */}
       {incoming.length > 0 && (
@@ -352,8 +344,6 @@ export default function FeedPage() {
         </div>
       )}
 
-  
-
       {/* POSTS — INSTA STYLE */}
       {shown.length === 0 && (
         <p className="text-slate-500 text-sm text-center py-10">No posts yet — be the first! 🌟</p>
@@ -363,7 +353,6 @@ export default function FeedPage() {
           {/* header */}
           <div className="flex items-center gap-2 px-4 py-2">
             <Link href={`/profile?user=${p.user_id}`}>
-              {/* FIX Mistake 8: Changed Design mismatch where Avatar was using ringgradient incorrectly. */}
               <Avatar p={p.author} ring={false} />
             </Link>
             <div className="flex-1 min-w-0">
@@ -420,55 +409,6 @@ export default function FeedPage() {
           )}
         </article>
       ))}
-
-      {/* CREATE SHEET */}
-      {creating && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-end" onClick={() => setCreating(false)}>
-          <div className="w-full bg-slate-900 rounded-t-2xl p-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-3">
-              <p className="font-bold">📸 New post</p>
-              <button onClick={() => setCreating(false)} className="text-slate-400">✖</button>
-            </div>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Share your win today... 🏆"
-              rows={3}
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm resize-none"
-            />
-            {preview && (
-              <div className="relative mt-2">
-                <img src={preview} className="rounded-xl max-h-64 w-full object-cover" alt="" />
-                <button
-                  onClick={() => {
-                    setPhoto(null);
-                    setPreview("");
-                  }}
-                  className="absolute top-2 right-2 bg-red-600 rounded-full w-7 h-7 text-xs font-bold"
-                >
-                  ✖
-                </button>
-              </div>
-            )}
-            <div className="flex gap-2 mt-3">
-              <label className="px-4 py-2 rounded-lg bg-slate-800 text-sm font-bold cursor-pointer">
-                📷 Photo
-                <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
-              </label>
-              <button
-                onClick={async () => {
-                  await publish();
-                  setCreating(false);
-                }}
-                disabled={busy}
-                className="flex-1 py-2 rounded-lg bg-violet-600 font-bold text-sm disabled:opacity-50"
-              >
-                🚀 Post
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* INSTA BOTTOM BAR */}
       <nav className="fixed bottom-0 inset-x-0 z-40 bg-slate-900 border-t border-slate-800 grid grid-cols-4 md:hidden">

@@ -601,11 +601,11 @@ export default function ProfileMenu() {
             🏆 Badges
           </Link>
           <Link
-            href="/feed"
+            href="/search"
             onClick={() => setOpen(false)}
             className="text-sm bg-slate-800 hover:bg-slate-700 p-2 rounded text-white"
           >
-            📰 Friend Feed
+            🔍 Find Friends
           </Link>
           <Link
             href="/ai"

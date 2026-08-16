@@ -18,7 +18,10 @@ export default function BottomNav() {
     pathname.startsWith("/feed") ||
     pathname.startsWith("/profile") ||
     pathname.startsWith("/search") ||
-    pathname.startsWith("/activity")
+    pathname.startsWith("/activity") ||
+    pathname.startsWith("/chat") ||
+    pathname.startsWith("/newpost") ||
+    pathname.startsWith("/friends")
   )
     return null;
   return (
