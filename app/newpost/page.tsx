@@ -94,8 +94,8 @@ export default function NewPostPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white flex flex-col">
-      <div className="flex items-center justify-between p-4 border-b border-slate-800">
+    <main className="min-h-screen bg-slate-950 text-white flex flex-col pb-24">
+      <div className="flex items-center justify-between p-4 pr-28 border-b border-slate-800">
         <Link href="/feed" className="text-xl">←</Link>
         <p className="font-bold">📸 New post</p>
         <button
@@ -112,7 +112,7 @@ export default function NewPostPage() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={6}
-          placeholder="Share your win today... 🏆"
+          placeholder="Write something... ✍️"
           className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-sm resize-none"
         />
         {preview ? (
@@ -130,10 +130,17 @@ export default function NewPostPage() {
           </div>
         ) : (
           <label className="py-5 rounded-xl bg-slate-900 border border-dashed border-slate-700 text-center text-sm font-bold cursor-pointer">
-            📷 Add photo
+            📷 Add photo (optional)
             <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
           </label>
         )}
+        <button
+          onClick={publish}
+          disabled={busy}
+          className="py-3 rounded-xl bg-violet-600 hover:bg-violet-500 font-bold disabled:opacity-50"
+        >
+          🚀 Post
+        </button>
       </div>
     </main>
   );

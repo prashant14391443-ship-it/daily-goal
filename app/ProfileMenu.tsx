@@ -603,7 +603,7 @@ export default function ProfileMenu() {
           <Link
             href="/search"
             onClick={() => setOpen(false)}
-            className="text-sm bg-slate-800 hover:bg-slate-700 p-2 rounded text-white"
+            className="text-sm bg-gradient-to-r from-pink-600 to-violet-600 hover:from-pink-500 hover:to-violet-500 p-2 rounded text-white font-bold"
           >
             🔍 Find Friends
           </Link>
