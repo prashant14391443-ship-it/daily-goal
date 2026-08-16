@@ -5,6 +5,36 @@ import { supabase } from "@/lib/supabase";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
+function compressAvatar(f: File): Promise<File> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 256;
+        let w = img.width;
+        let h = img.height;
+        if (w > max || h > max) {
+          const r = Math.min(max / w, max / h);
+          w = Math.round(w * r);
+          h = Math.round(h * r);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d")?.drawImage(img, 0, 0, w, h);
+        canvas.toBlob(
+          (b) => resolve(new File([b || new Blob()], "avatar.jpg", { type: "image/jpeg" })),
+          "image/jpeg",
+          0.8
+        );
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
 function Inner() {
   const params = useSearchParams();
   const userId = params.get("user") || "";
@@ -78,6 +108,18 @@ function Inner() {
     await supabase.from("profiles").update({ is_private: next }).eq("user_id", me);
     setProf({ ...prof, is_private: next });
   };
+  const onAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f || !f.type.startsWith("image/")) return;
+    const small = await compressAvatar(f);
+    const path = `${me}.jpg`;
+    await supabase.storage.from("avatars").upload(path, small, { upsert: true });
+    const url = supabase.storage.from("avatars").getPublicUrl(path).data.publicUrl;
+    await supabase.auth.updateUser({ data: { avatar_url: url } });
+    await supabase.from("profiles").update({ avatar_url: url }).eq("user_id", me);
+    load();
+  };
+
   const share = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -129,13 +171,21 @@ function Inner() {
 
       {/* PROFILE ROW */}
       <div className="flex items-center gap-4 px-4 mb-3">
-        {prof?.avatar_url ? (
-          <img src={prof.avatar_url} className="w-20 h-20 rounded-full object-cover border-2 border-violet-500" alt="" />
-        ) : (
-          <span className="w-20 h-20 rounded-full bg-violet-600 border-2 border-violet-400 flex items-center justify-center text-3xl font-bold">
-            {(prof?.display_name || "?").charAt(0).toUpperCase()}
-          </span>
-        )}
+        <span className="relative inline-block">
+          {prof?.avatar_url ? (
+            <img src={prof.avatar_url} className="w-20 h-20 rounded-full object-cover border-2 border-violet-500" alt="" />
+          ) : (
+            <span className="w-20 h-20 rounded-full bg-violet-600 border-2 border-violet-400 flex items-center justify-center text-3xl font-bold">
+              {(prof?.display_name || "?").charAt(0).toUpperCase()}
+            </span>
+          )}
+          {userId === me && (
+            <label className="absolute bottom-0 right-0 bg-violet-600 border-2 border-slate-950 rounded-full w-7 h-7 text-xs flex items-center justify-center cursor-pointer">
+              📷
+              <input type="file" accept="image/*" onChange={onAvatar} className="hidden" />
+            </label>
+          )}
+        </span>
         <div className="flex-1 grid grid-cols-3 text-center">
           <div>
             <p className="font-black text-lg">{posts.length}</p>

@@ -16,7 +16,9 @@ export default function BottomNav() {
   if (
     pathname.startsWith("/random-talk") ||
     pathname.startsWith("/feed") ||
-    pathname.startsWith("/profile")
+    pathname.startsWith("/profile") ||
+    pathname.startsWith("/search") ||
+    pathname.startsWith("/activity")
   )
     return null;
   return (
