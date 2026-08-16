@@ -10,6 +10,7 @@ type Post = {
   user_id: string;
   content: string;
   image_url: string;
+  bg: number;
   created_at: string;
   likes: number;
   likedByMe: boolean;
@@ -18,6 +19,19 @@ type Post = {
 
 const BANNED = ["fuck", "shit", "bitch", "asshole", "dick", "pussy", "nigga", "nigger", "cunt", "whore", "bastard"];
 const bad = (t: string) => BANNED.some((w) => t.toLowerCase().includes(w));
+
+const BGS = [
+  "from-violet-600/40 via-slate-900 to-fuchsia-600/30",
+  "from-blue-600/40 via-slate-900 to-cyan-500/30",
+  "from-green-600/40 via-slate-900 to-emerald-500/30",
+  "from-orange-600/40 via-slate-900 to-amber-500/30",
+  "from-pink-600/40 via-slate-900 to-rose-500/30",
+  "from-red-600/40 via-slate-900 to-orange-500/30",
+  "from-teal-600/40 via-slate-900 to-green-500/30",
+  "from-indigo-600/40 via-slate-900 to-blue-500/30",
+  "from-fuchsia-600/40 via-slate-900 to-pink-500/30",
+  "from-slate-700/60 via-slate-900 to-slate-600/40",
+];
 
 function ago(iso: string) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -84,6 +98,9 @@ export default function FeedPage() {
   const [incoming, setIncoming] = useState<{ from_id: string; prof?: Profile }[]>([]);
   const [burst, setBurst] = useState("");
   const [unread, setUnread] = useState(0);
+  const [commentsMap, setCommentsMap] = useState<Map<string, any[]>>(new Map());
+  const [commentOpen, setCommentOpen] = useState("");
+  const [commentText, setCommentText] = useState("");
   
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Profile[]>([]);
@@ -100,7 +117,9 @@ export default function FeedPage() {
     if (!uid) return;
     setMe(uid);
     // loadUnread(uid);
-    const [p, prof, likes, myLikes, fr, sent, inc] = await Promise.all([
+    
+    // FIX 2: Add comments fetching to the Promise.all array
+    const [p, prof, likes, myLikes, fr, sent, inc, commentsRes] = await Promise.all([
       supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(50),
       supabase.from("profiles").select("*"),
       supabase.from("post_likes").select("post_id"),
@@ -108,12 +127,25 @@ export default function FeedPage() {
       supabase.from("friends").select("friend_id").eq("user_id", uid),
       supabase.from("friend_requests").select("to_id").eq("from_id", uid).eq("status", "pending"),
       supabase.from("friend_requests").select("from_id").eq("to_id", uid).eq("status", "pending"),
+      supabase.from("post_comments").select("*").order("created_at", { ascending: true }),
     ]);
+
     const profMap = new Map<string, Profile>(((prof.data as any[]) || []).map((x) => [x.user_id, x]));
     const frSet = new Set((fr.data || []).map((f) => f.friend_id));
+    
     const likeCount = new Map<string, number>();
     (likes.data || []).forEach((l) => likeCount.set(l.post_id, (likeCount.get(l.post_id) || 0) + 1));
     const mine = new Set((myLikes.data || []).map((l) => l.post_id));
+    
+    // FIX 2 continued: Process the comments and attach authors
+    const cMap = new Map<string, any[]>();
+    ((commentsRes.data as any[]) || []).forEach((c) => {
+      const arr = cMap.get(c.post_id) || [];
+      arr.push({ ...c, author: profMap.get(c.user_id) });
+      cMap.set(c.post_id, arr);
+    });
+    setCommentsMap(cMap);
+
     setFriends(frSet);
     setMyProf(profMap.get(uid));
     setStories(((prof.data as any[]) || []).filter((x) => frSet.has(x.user_id)));
@@ -126,6 +158,7 @@ export default function FeedPage() {
         user_id: x.user_id,
         content: x.content,
         image_url: (x.image_url as string | null) || "",
+        bg: x.bg || 0, // FIX 1: Add the missing bg mapping to satisfy the 'Post' type
         created_at: x.created_at,
         likes: likeCount.get(x.id) || 0,
         likedByMe: mine.has(x.id),
@@ -172,7 +205,7 @@ export default function FeedPage() {
       await supabase.storage.from("posts").upload(path, small);
       url = supabase.storage.from("posts").getPublicUrl(path).data.publicUrl;
     }
-    await supabase.from("posts").insert({ user_id: me, content: text.trim(), image_url: url || null });
+    await supabase.from("posts").insert({ user_id: me, content: text.trim(), image_url: url || null, bg: Math.floor(Math.random() * BGS.length) });
     const { data: frs } = await supabase.from("friends").select("friend_id").eq("user_id", me);
     const notifs = (frs || []).map((f) => ({
       user_id: f.friend_id,
@@ -211,18 +244,26 @@ export default function FeedPage() {
     setTimeout(() => setBurst(""), 800);
   };
 
-  const sharePost = async (p: Post) => {
-    const txt = `${p.author?.display_name || "Friend"} on FriendFeed: ${p.content || "📸 photo"}`;
-    try {
-      await navigator.share({ text: txt });
-    } catch {
-      try {
-        await navigator.clipboard.writeText(txt);
-        alert("📋 Copied!");
-      } catch {
-        // ignore
-      }
+  const addComment = async (p: Post) => {
+    if (!commentText.trim()) return;
+    if (bad(commentText)) {
+      alert("🚫 Keep it clean!");
+      return;
     }
+    await supabase.from("post_comments").insert({
+      post_id: p.id,
+      user_id: me,
+      content: commentText.trim(),
+    });
+    if (p.user_id !== me)
+      await supabase.from("notifications").insert({
+        user_id: p.user_id,
+        actor_id: me,
+        type: "comment",
+        text: `💬 ${myProf?.display_name || "Someone"} commented on your post`,
+      });
+    setCommentText("");
+    load();
   };
 
   const editPost = async (p: Post) => {
@@ -356,7 +397,9 @@ export default function FeedPage() {
             {p.image_url ? (
               <img src={p.image_url} className="w-full aspect-square object-cover" alt="" />
             ) : (
-              <div className="w-full aspect-square bg-gradient-to-br from-violet-600/30 via-slate-900 to-fuchsia-600/20 flex items-center justify-center p-8">
+              <div
+                className={`w-full aspect-square bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]} flex items-center justify-center p-8`}
+              >
                 <p className="text-center text-lg font-bold whitespace-pre-wrap">{p.content}</p>
               </div>
             )}
@@ -372,8 +415,11 @@ export default function FeedPage() {
             <button onClick={() => like(p.id)} className="text-2xl">
               {p.likedByMe ? "❤️" : "🤍"}
             </button>
-            <button onClick={() => sharePost(p)} className="text-2xl">
-              📤
+            <button
+              onClick={() => setCommentOpen(commentOpen === p.id ? "" : p.id)}
+              className="text-2xl"
+            >
+              💬
             </button>
             <span className="flex-1" />
             {p.user_id === me && (
@@ -389,6 +435,36 @@ export default function FeedPage() {
           </div>
 
           <p className="px-4 text-sm font-bold">{p.likes} likes</p>
+          <p className="px-4 text-[10px] text-slate-500">
+            💬 {(commentsMap.get(p.id) || []).length} comments
+          </p>
+          {commentOpen === p.id && (
+            <div className="px-4 mt-2 grid gap-2">
+              {(commentsMap.get(p.id) || []).length === 0 && (
+                <p className="text-xs text-slate-500">No comments yet — be first!</p>
+              )}
+              {(commentsMap.get(p.id) || []).map((c) => (
+                <div key={c.id} className="text-sm bg-slate-900 rounded-xl px-3 py-2">
+                  <span className="font-bold">{c.author?.display_name || "friend"}</span>{" "}
+                  <span>{c.content}</span>
+                </div>
+              ))}
+              <div className="flex gap-2">
+                <input
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  placeholder="Add a comment..."
+                  className="flex-1 p-2 rounded-full bg-slate-900 border border-slate-700 text-sm"
+                />
+                <button
+                  onClick={() => addComment(p)}
+                  className="px-4 rounded-full bg-violet-600 text-xs font-bold"
+                >
+                  Post
+                </button>
+              </div>
+            </div>
+          )}
           {p.image_url && p.content && (
             <p className="px-4 text-sm mt-1">
               <span className="font-bold">{p.author?.display_name}</span> {p.content}
@@ -399,13 +475,13 @@ export default function FeedPage() {
 
       {/* INSTA BOTTOM BAR */}
       <nav className="fixed bottom-0 inset-x-0 z-40 bg-slate-900 border-t border-slate-800 grid grid-cols-4 md:hidden">
-        <button
-          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="flex flex-col items-center py-2 text-[10px] text-white"
+        <Link
+          href="/dashboard"
+          className="flex flex-col items-center py-2 text-[10px] text-slate-500"
         >
           <span className="text-lg">🏠</span>
-          Feed
-        </button>
+          Home
+        </Link>
         <Link href="/search" className="flex flex-col items-center py-2 text-[10px] text-slate-500">
           <span className="text-lg">🔍</span>
           Search

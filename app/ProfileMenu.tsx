@@ -255,6 +255,12 @@ export default function ProfileMenu() {
       playBeep();
       setCoinFly(`+${earned} 🪙`);
       setTimeout(() => setCoinFly(""), 2500);
+      await supabase
+        .from("user_coins")
+        .upsert({ user_id: uid, coins: total }, { onConflict: "user_id" });
+      await supabase
+        .from("user_coins")
+        .upsert({ user_id: uid, coins: total }, { onConflict: "user_id" });
       window.dispatchEvent(new CustomEvent("dg-coins", { detail: { total, earned } }));
     }
   };
@@ -606,6 +612,13 @@ export default function ProfileMenu() {
             className="text-sm bg-gradient-to-r from-pink-600 to-violet-600 hover:from-pink-500 hover:to-violet-500 p-2 rounded text-white font-bold"
           >
             🔍 Find Friends
+          </Link>
+          <Link
+            href="/feed"
+            onClick={() => setOpen(false)}
+            className="text-sm bg-gradient-to-r from-fuchsia-600 to-pink-600 hover:from-fuchsia-500 hover:to-pink-500 p-2 rounded text-white font-bold"
+          >
+            📰 Friend Feed
           </Link>
           <Link
             href="/ai"

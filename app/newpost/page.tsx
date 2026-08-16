@@ -8,6 +8,19 @@ import Link from "next/link";
 const BANNED = ["fuck", "shit", "bitch", "asshole", "dick", "pussy", "nigga", "nigger", "cunt", "whore", "bastard"];
 const bad = (t: string) => BANNED.some((w) => t.toLowerCase().includes(w));
 
+const BGS = [
+  "from-violet-600/40 via-slate-900 to-fuchsia-600/30",
+  "from-blue-600/40 via-slate-900 to-cyan-500/30",
+  "from-green-600/40 via-slate-900 to-emerald-500/30",
+  "from-orange-600/40 via-slate-900 to-amber-500/30",
+  "from-pink-600/40 via-slate-900 to-rose-500/30",
+  "from-red-600/40 via-slate-900 to-orange-500/30",
+  "from-teal-600/40 via-slate-900 to-green-500/30",
+  "from-indigo-600/40 via-slate-900 to-blue-500/30",
+  "from-fuchsia-600/40 via-slate-900 to-pink-500/30",
+  "from-slate-700/60 via-slate-900 to-slate-600/40",
+];
+
 function compressImage(f: File): Promise<File> {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -44,6 +57,7 @@ export default function NewPostPage() {
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
   const [busy, setBusy] = useState(false);
+  const [bg, setBg] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
@@ -79,7 +93,12 @@ export default function NewPostPage() {
       await supabase.storage.from("posts").upload(path, small);
       url = supabase.storage.from("posts").getPublicUrl(path).data.publicUrl;
     }
-    await supabase.from("posts").insert({ user_id: me, content: text.trim(), image_url: url || null });
+    await supabase.from("posts").insert({
+      user_id: me,
+      content: text.trim(),
+      image_url: url || null,
+      bg,
+    });
     const { data: frs } = await supabase.from("friends").select("friend_id").eq("user_id", me);
     const { data: sess } = await supabase.auth.getSession();
     const myName = ((sess?.session?.user?.user_metadata as any)?.display_name as string) || "A friend";
@@ -108,13 +127,31 @@ export default function NewPostPage() {
       </div>
 
       <div className="p-4 grid gap-3">
+        <div
+          className={`rounded-xl bg-gradient-to-br ${BGS[bg]} p-4 min-h-[120px] flex items-center justify-center`}
+        >
+          <p className="text-center text-lg font-bold whitespace-pre-wrap">
+            {text || "Your text preview..."}
+          </p>
+        </div>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          rows={6}
+          rows={3}
           placeholder="Write something... ✍️"
           className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-sm resize-none"
         />
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {BGS.map((g, i) => (
+            <button
+              key={i}
+              onClick={() => setBg(i)}
+              className={`w-9 h-9 shrink-0 rounded-full bg-gradient-to-br ${g} border-2 ${
+                bg === i ? "border-white" : "border-transparent"
+              }`}
+            />
+          ))}
+        </div>
         {preview ? (
           <div className="relative">
             <img src={preview} className="rounded-xl w-full max-h-96 object-cover" alt="" />

@@ -35,6 +35,19 @@ function compressAvatar(f: File): Promise<File> {
   });
 }
 
+const BGS = [
+  "from-violet-600/40 via-slate-900 to-fuchsia-600/30",
+  "from-blue-600/40 via-slate-900 to-cyan-500/30",
+  "from-green-600/40 via-slate-900 to-emerald-500/30",
+  "from-orange-600/40 via-slate-900 to-amber-500/30",
+  "from-pink-600/40 via-slate-900 to-rose-500/30",
+  "from-red-600/40 via-slate-900 to-orange-500/30",
+  "from-teal-600/40 via-slate-900 to-green-500/30",
+  "from-indigo-600/40 via-slate-900 to-blue-500/30",
+  "from-fuchsia-600/40 via-slate-900 to-pink-500/30",
+  "from-slate-700/60 via-slate-900 to-slate-600/40",
+];
+
 function Inner() {
   const params = useSearchParams();
   const userId = params.get("user") || "";
@@ -50,6 +63,7 @@ function Inner() {
   const [editName, setEditName] = useState("");
   const [editBio, setEditBio] = useState("");
   const [saving, setSaving] = useState(false);
+  const [view, setView] = useState<any>(null);
   const [editImg, setEditImg] = useState<HTMLImageElement | null>(null);
   const [zoom, setZoom] = useState(1);
   const [off, setOff] = useState({ x: 0, y: 0 });
@@ -65,7 +79,7 @@ function Inner() {
       supabase.from("friends").select("friend_id").eq("user_id", uid).eq("friend_id", userId),
       supabase.from("friend_requests").select("from_id").eq("from_id", uid).eq("to_id", userId).eq("status", "pending"),
       supabase.from("friend_requests").select("from_id").eq("from_id", userId).eq("to_id", uid).eq("status", "pending"),
-      supabase.from("user_coins").select("coins").eq("user_id", userId).maybeSingle(),
+      supabase.from("user_coins").select("*").eq("user_id", userId).maybeSingle(),
       supabase.from("posts").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
       supabase.from("post_likes").select("post_id"),
       supabase.from("friends").select("friend_id").eq("user_id", userId),
@@ -88,7 +102,8 @@ function Inner() {
     setIsFriend((fr.data || []).length > 0);
     setSentReq((sReq.data || []).length > 0);
     setRecvReq((rReq.data || []).length > 0);
-    setCoins(Number((cn as any)?.coins || 0));
+    const cRow = (cn as any) || {};
+    setCoins(Number(cRow.coins ?? cRow.total ?? cRow.balance ?? 0));
     setFriendCount((theirFriends.data || []).length);
     const likeCount = new Map<string, number>();
     (likes.data || []).forEach((l) => likeCount.set(l.post_id, (likeCount.get(l.post_id) || 0) + 1));
@@ -229,6 +244,18 @@ function Inner() {
       {/* BIO */}
       <div className="px-4 mb-3">
         <p className="text-sm whitespace-pre-wrap text-slate-200">{prof?.bio || ""}</p>
+        {userId === me && (!prof?.display_name || prof.display_name === "friend") && (
+          <button
+            onClick={() => {
+              setEditName("");
+              setEditBio(prof?.bio || "");
+              setEditing(true);
+            }}
+            className="mt-1 text-xs font-bold text-violet-400"
+          >
+            ✏️ Add your name so friends can find you!
+          </button>
+        )}
       </div>
 
       {/* BUTTONS */}
@@ -376,15 +403,49 @@ function Inner() {
       ) : (
         <div className="grid grid-cols-3 gap-0.5 p-0.5">
           {posts.map((p) => (
-            <div key={p.id} className="aspect-square bg-slate-900 relative overflow-hidden">
+            <div
+              key={p.id}
+              onClick={() => setView(p)}
+              className="aspect-square bg-slate-900 relative overflow-hidden cursor-pointer"
+            >
               {p.image_url ? (
                 <img src={p.image_url} className="w-full h-full object-cover" alt="" />
               ) : (
-                <p className="p-2 text-[10px] text-slate-300 line-clamp-6">{p.content}</p>
+                <div
+                  className={`w-full h-full bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]} flex items-center justify-center p-2`}
+                >
+                  <p className="text-[10px] text-white line-clamp-6 text-center">{p.content}</p>
+                </div>
               )}
               <span className="absolute bottom-1 left-1 text-[10px] font-bold drop-shadow">❤️ {p.likes}</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {view && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex flex-col" onClick={() => setView(null)}>
+          <div className="flex justify-end p-4">
+            <span className="text-2xl">✖</span>
+          </div>
+          <div
+            className="flex-1 overflow-y-auto px-4 pb-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {view.image_url && (
+              <img src={view.image_url} className="w-full rounded-xl object-contain max-h-[70vh]" alt="" />
+            )}
+            {view.content && (
+              <p className="text-sm mt-3 whitespace-pre-wrap">{view.content}</p>
+            )}
+            <p className="text-xs text-slate-500 mt-3">❤️ {view.likes} likes</p>
+            <button
+              onClick={() => setView(null)}
+              className="mt-4 w-full py-2 rounded-lg bg-slate-800 text-xs font-bold"
+            >
+              Close
+            </button>
+          </div>
         </div>
       )}
     </main>
