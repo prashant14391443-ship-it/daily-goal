@@ -102,7 +102,10 @@ function Inner() {
     setIsFriend((fr.data || []).length > 0);
     setSentReq((sReq.data || []).length > 0);
     setRecvReq((rReq.data || []).length > 0);
+    
+    // FIX: Extract coins data from Supabase result and update state
     const cRow = (cn as any) || {};
+    setCoins(cRow.data?.coins || 0);
     
     setFriendCount((theirFriends.data || []).length);
     const likeCount = new Map<string, number>();
