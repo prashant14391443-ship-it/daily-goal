@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
@@ -33,7 +33,7 @@ function compressImage(f: File): Promise<File> {
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        const max = 1080;
+        const max = 900;
         let w = img.width;
         let h = img.height;
         if (w > max || h > max) {
@@ -48,7 +48,7 @@ function compressImage(f: File): Promise<File> {
         canvas.toBlob(
           (b) => resolve(new File([b || new Blob()], "post.jpg", { type: "image/jpeg" })),
           "image/jpeg",
-          0.8
+          0.72
         );
       };
       img.src = e.target?.result as string;
@@ -130,6 +130,12 @@ export default function FeedPage() {
       alert("Images only!");
       return;
     }
+    
+    // FIX Mistake 2: Revoke previous object URL before creating a new one
+    if (preview) {
+      URL.revokeObjectURL(preview);
+    }
+
     setPhoto(f);
     setPreview(URL.createObjectURL(f));
   };
@@ -151,10 +157,28 @@ export default function FeedPage() {
     await supabase.from("posts").insert({ user_id: me, content: text.trim(), image_url: url || null });
     setText("");
     setPhoto(null);
+    
+    // FIX Mistake 2: Revoke object URL after successful post
+    if (preview) {
+      URL.revokeObjectURL(preview);
+    }
+    
     setPreview("");
     setBusy(false);
     load();
   };
+
+  const deletePost = async (p: Post) => {
+    if (!confirm("Delete this post?")) return;
+    if (p.image_url) {
+      const path = decodeURIComponent(p.image_url.split("/posts/")[1] || "");
+      if (path) await supabase.storage.from("posts").remove([path]);
+    }
+    await supabase.from("posts").delete().eq("id", p.id);
+    load();
+  };
+  
+  // FIX Mistake 1: Duplicate deletePost function definition removed.
 
   const toggleLike = async (id: string) => {
     const post = posts.find((p) => p.id === id);
@@ -278,6 +302,12 @@ export default function FeedPage() {
             <button
               onClick={() => {
                 setPhoto(null);
+                
+                // FIX Mistake 2: Revoke object URL on clear
+                if (preview) {
+                  URL.revokeObjectURL(preview);
+                }
+                
                 setPreview("");
               }}
               className="absolute top-2 right-2 bg-red-600 rounded-full w-7 h-7 text-xs font-bold"
@@ -324,12 +354,19 @@ export default function FeedPage() {
             </div>
             {p.content && <p className="text-sm whitespace-pre-wrap mb-2">{p.content}</p>}
             {p.image_url && <img src={p.image_url} className="rounded-xl w-full max-h-96 object-cover mb-2" alt="" />}
-            <button
-              onClick={() => toggleLike(p.id)}
-              className={`text-xs font-bold ${p.likedByMe ? "text-pink-400" : "text-slate-400"}`}
-            >
-              {p.likedByMe ? "❤️" : "🤍"} {p.likes}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => toggleLike(p.id)}
+                className={`text-xs font-bold ${p.likedByMe ? "text-pink-400" : "text-slate-400"}`}
+              >
+                {p.likedByMe ? "❤️" : "🤍"} {p.likes}
+              </button>
+              {p.user_id === me && (
+                <button onClick={() => deletePost(p)} className="text-xs font-bold text-red-400">
+                  🗑 Delete
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>

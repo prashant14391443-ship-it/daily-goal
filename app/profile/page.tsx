@@ -41,7 +41,7 @@ function Inner() {
     setSentReq((sReq.data || []).length > 0);
     setRecvReq((rReq.data || []).length > 0);
     setCoins(Number((cn as any)?.coins || 0));
-    setFriendCount((theirFriends || []).length);
+    setFriendCount((theirFriends.data || []).length);
     const likeCount = new Map<string, number>();
     (likes.data || []).forEach((l) => likeCount.set(l.post_id, (likeCount.get(l.post_id) || 0) + 1));
     setPosts(((p.data as any[]) || []).map((x) => ({ ...x, likes: likeCount.get(x.id) || 0 })));
@@ -78,6 +78,16 @@ function Inner() {
     if (editName.trim()) await supabase.auth.updateUser({ data: { display_name: editName.trim() } });
     setEditing(false);
     setSaving(false);
+    load();
+  };
+
+  const deletePost = async (p: any) => {
+    if (!confirm("Delete this post?")) return;
+    if (p.image_url) {
+      const path = decodeURIComponent(p.image_url.split("/posts/")[1] || "");
+      if (path) await supabase.storage.from("posts").remove([path]);
+    }
+    await supabase.from("posts").delete().eq("id", p.id);
     load();
   };
 
@@ -231,6 +241,14 @@ function Inner() {
                 <p className="p-2 text-[10px] text-slate-300 line-clamp-6">{p.content}</p>
               )}
               <span className="absolute bottom-1 left-1 text-[10px] font-bold drop-shadow">❤️ {p.likes}</span>
+              {userId === me && (
+                <button
+                  onClick={() => deletePost(p)}
+                  className="absolute top-1 right-1 bg-black/60 rounded-full w-6 h-6 text-[10px]"
+                >
+                  🗑
+                </button>
+              )}
             </div>
           ))}
         </div>
