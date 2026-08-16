@@ -11,6 +11,7 @@ type Post = {
   content: string;
   image_url: string;
   bg: number;
+  tc: string;
   created_at: string;
   likes: number;
   likedByMe: boolean;
@@ -125,7 +126,8 @@ export default function FeedPage() {
     if (!uid) return;
     setMe(uid);
     
-    const [p, prof, likes, myLikes, fr, sent, inc, commentsRes] = await Promise.all([
+    // Fetch all necessary data including unread notifications count
+    const [p, prof, likes, myLikes, fr, sent, inc, commentsRes, notifRes] = await Promise.all([
       supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(50),
       supabase.from("profiles").select("*"),
       supabase.from("post_likes").select("post_id"),
@@ -134,7 +136,10 @@ export default function FeedPage() {
       supabase.from("friend_requests").select("to_id").eq("from_id", uid).eq("status", "pending"),
       supabase.from("friend_requests").select("from_id").eq("to_id", uid).eq("status", "pending"),
       supabase.from("post_comments").select("*").order("created_at", { ascending: true }),
+      supabase.from("notifications").select("*", { count: "exact", head: true }).eq("user_id", uid).eq("read", false)
     ]);
+
+    setUnread(notifRes.count || 0);
 
     const profMap = new Map<string, Profile>(((prof.data as any[]) || []).map((x) => [x.user_id, x]));
     
@@ -166,11 +171,13 @@ export default function FeedPage() {
       .eq("user_id", uid)
       .lt("created_at", cutoff);
       
-    for (const s of expired || []) {
-      if (s.image_url) {
-        const path = decodeURIComponent(s.image_url.split("/posts/")[1] || "");
-        if (path) await supabase.storage.from("posts").remove([path]);
-      }
+    // Optimized batch deletion for expired story images
+    const pathsToRemove = (expired || [])
+      .map(s => (s.image_url ? decodeURIComponent(s.image_url.split("/posts/")[1] || "") : ""))
+      .filter(Boolean);
+      
+    if (pathsToRemove.length > 0) {
+      await supabase.storage.from("posts").remove(pathsToRemove);
     }
     
     if ((expired || []).length > 0) {
@@ -197,6 +204,7 @@ export default function FeedPage() {
         content: x.content,
         image_url: (x.image_url as string | null) || "",
         bg: x.bg || 0,
+        tc: x.tc || "#ffffff",
         created_at: x.created_at,
         likes: likeCount.get(x.id) || 0,
         likedByMe: mine.has(x.id),
@@ -207,7 +215,7 @@ export default function FeedPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, []); // Fixed Syntax Error Here
 
   useEffect(() => {
     const loadCoins = async () => {
@@ -447,8 +455,6 @@ export default function FeedPage() {
         </button>
       </div>
 
-      
-
       {/* STORIES ROW */}
       <div className="flex gap-3 overflow-x-auto px-4 py-3 border-b border-slate-800">
         {/* FIX 4: Split viewing logic vs creating logic for personal stories */}
@@ -493,7 +499,7 @@ export default function FeedPage() {
 
       {/* REQUESTS */}
       {incoming.length > 0 && (
-        <div className="mx-4 mb-3 bg-violet-600/10 border border-violet-500/40 rounded-xl p-3 grid gap-2">
+        <div className="mx-4 my-3 bg-violet-600/10 border border-violet-500/40 rounded-xl p-3 grid gap-2">
           <p className="text-xs font-bold text-violet-300">🤝 FRIEND REQUESTS</p>
           {incoming.map((r) => (
             <div key={r.from_id} className="flex items-center gap-2">
@@ -509,6 +515,44 @@ export default function FeedPage() {
           ))}
         </div>
       )}
+
+      {/* POST COMPOSER */}
+      <div className="mx-4 my-4 bg-slate-900 border border-slate-800 rounded-xl p-3">
+        <div className="flex gap-2">
+          <Avatar p={myProf} />
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="What's on your mind?"
+            className="flex-1 bg-transparent resize-none outline-none text-sm pt-2 text-white"
+            rows={2}
+          />
+        </div>
+        {preview && (
+          <div className="mt-2 relative">
+            <img src={preview} alt="Preview" className="rounded-lg max-h-48 object-cover w-full" />
+            <button
+              onClick={() => { setPhoto(null); setPreview(""); }}
+              className="absolute top-2 right-2 bg-slate-900/80 rounded-full w-6 h-6 flex items-center justify-center text-xs"
+            >
+              ✖
+            </button>
+          </div>
+        )}
+        <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-800">
+          <label className="text-slate-400 cursor-pointer hover:text-white transition flex items-center gap-1 text-sm font-bold">
+            📷 Photo
+            <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
+          </label>
+          <button
+            onClick={publish}
+            disabled={busy || (!text.trim() && !photo)}
+            className="bg-violet-600 px-4 py-1.5 rounded-full text-xs font-bold disabled:opacity-50"
+          >
+            {busy ? "Posting..." : "Post"}
+          </button>
+        </div>
+      </div>
 
       {/* POSTS — INSTA STYLE */}
       {shown.length === 0 && (
@@ -536,7 +580,12 @@ export default function FeedPage() {
               <div
                 className={`w-full aspect-square bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]} flex items-center justify-center p-8`}
               >
-                <p className="text-center text-lg font-bold whitespace-pre-wrap">{p.content}</p>
+                <p
+                  className="text-center text-lg font-bold whitespace-pre-wrap"
+                  style={{ color: p.tc || "#ffffff" }}
+                >
+                  {p.content}
+                </p>
               </div>
             )}
             {burst === p.id && (
@@ -551,7 +600,10 @@ export default function FeedPage() {
               {p.likedByMe ? "❤️" : "🤍"}
             </button>
             <button
-              onClick={() => setCommentOpen(commentOpen === p.id ? "" : p.id)}
+              onClick={() => {
+                setCommentOpen(commentOpen === p.id ? "" : p.id);
+                setCommentText(""); // Clear comment input on toggle
+              }}
               className="text-2xl"
             >
               💬

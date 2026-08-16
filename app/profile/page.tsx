@@ -461,7 +461,12 @@ function Inner() {
                 <div
                   className={`w-full h-full bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]} flex items-center justify-center p-2`}
                 >
-                  <p className="text-[10px] text-white line-clamp-6 text-center">{p.content}</p>
+                  <p
+                    className="text-[10px] line-clamp-6 text-center"
+                    style={{ color: p.tc || "#ffffff" }}
+                  >
+                    {p.content}
+                  </p>
                 </div>
               )}
               <span className="absolute bottom-1 left-1 text-[10px] font-bold drop-shadow">❤️ {p.likes}</span>

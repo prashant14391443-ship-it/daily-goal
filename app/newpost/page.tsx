@@ -8,6 +8,8 @@ import Link from "next/link";
 const BANNED = ["fuck", "shit", "bitch", "asshole", "dick", "pussy", "nigga", "nigger", "cunt", "whore", "bastard"];
 const bad = (t: string) => BANNED.some((w) => t.toLowerCase().includes(w));
 
+const TCS = ["#ffffff", "#000000", "#fde047", "#f87171", "#4ade80", "#60a5fa", "#f472b6", "#fb923c"];
+
 const BGS = [
   "from-violet-600/40 via-slate-900 to-fuchsia-600/30",
   "from-blue-600/40 via-slate-900 to-cyan-500/30",
@@ -51,7 +53,7 @@ function compressImage(f: File): Promise<File> {
   });
 }
 
-function burnText(file: File, text: string, pos: { x: number; y: number }): Promise<File> {
+function burnText(file: File, text: string, pos: { x: number; y: number }, color: string): Promise<File> {
   return new Promise((resolve) => {
     if (!text.trim()) return resolve(file);
     const img = new Image();
@@ -66,7 +68,7 @@ function burnText(file: File, text: string, pos: { x: number; y: number }): Prom
       ctx.font = `bold ${size}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = "#ffffff";
+      ctx.fillStyle = color;
       ctx.shadowColor = "rgba(0,0,0,0.9)";
       ctx.shadowBlur = size / 2;
       const lines = text.split("\n");
@@ -92,6 +94,7 @@ export default function NewPostPage() {
   const [preview, setPreview] = useState("");
   const [busy, setBusy] = useState(false);
   const [bg, setBg] = useState(0);
+  const [tc, setTc] = useState("#ffffff");
   const [pos, setPos] = useState({ x: 50, y: 50 });
   const boxRef = useRef<HTMLDivElement | null>(null);
   const dragging = useRef(false);
@@ -135,7 +138,7 @@ export default function NewPostPage() {
     let url = "";
     if (photo) {
       let small = await compressImage(photo);
-      small = await burnText(small, text, pos);
+      small = await burnText(small, text, pos, tc);
       const path = `${me}/${Date.now()}.jpg`;
       await supabase.storage.from("posts").upload(path, small);
       url = supabase.storage.from("posts").getPublicUrl(path).data.publicUrl;
@@ -145,6 +148,7 @@ export default function NewPostPage() {
       content: text.trim(),
       image_url: url || null,
       bg,
+      tc,
     });
     const { data: frs } = await supabase.from("friends").select("friend_id").eq("user_id", me);
     const { data: sess } = await supabase.auth.getSession();
@@ -177,17 +181,32 @@ export default function NewPostPage() {
         <div
           className={`rounded-xl bg-gradient-to-br ${BGS[bg]} p-4 min-h-[120px] flex items-center justify-center`}
         >
-          <p className="text-center text-lg font-bold whitespace-pre-wrap">
+          <p className="text-center text-lg font-bold whitespace-pre-wrap" style={{ color: tc }}>
             {text || "Your text preview..."}
           </p>
         </div>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={3}
-          placeholder="Write something... ✍️"
-          className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-sm resize-none"
-        />
+        <div className="relative">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={4}
+            placeholder="Write something... ✍️"
+            style={{ color: tc }}
+            className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 pr-10 text-sm resize-none"
+          />
+          <div className="absolute right-2 top-2 flex flex-col gap-1">
+            {TCS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setTc(c)}
+                className={`w-4 h-4 rounded-full border-2 ${
+                  tc === c ? "border-white" : "border-slate-600"
+                }`}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+        </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {BGS.map((g, i) => (
             <button
