@@ -68,7 +68,13 @@ export default function SearchPage() {
   };
 
   const term = q.trim().toLowerCase();
-  const shown = term === "" ? people : people.filter((p) => (p.display_name || "").toLowerCase().includes(term));
+  const clean = people.filter(
+    (p) => p.display_name || p.avatar_url || friends.has(p.user_id)
+  );
+  const shown =
+    term === ""
+      ? clean
+      : people.filter((p) => (p.display_name || "").toLowerCase().includes(term));
 
   const Row = ({ p }: { p: P }) => (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center gap-3">
@@ -113,10 +119,33 @@ export default function SearchPage() {
 
       {term === "" && recents.length > 0 && (
         <>
-          <p className="font-bold text-sm mb-2">⭐ Recent</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-bold text-sm">⭐ Recent</p>
+            <button
+              onClick={() => {
+                localStorage.removeItem("ff_recents");
+                setRecents([]);
+              }}
+              className="text-xs text-violet-400 font-bold"
+            >
+              Clear all
+            </button>
+          </div>
           <div className="grid gap-2 mb-4">
             {recents.map((r) => (
-              <Row key={r.user_id} p={r} />
+              <div key={r.user_id} className="relative pr-8">
+                <Row p={r} />
+                <button
+                  onClick={() => {
+                    const list = recents.filter((x) => x.user_id !== r.user_id);
+                    setRecents(list);
+                    localStorage.setItem("ff_recents", JSON.stringify(list));
+                  }}
+                  className="absolute top-1/2 -translate-y-1/2 right-2 text-slate-500 text-sm"
+                >
+                  ✖
+                </button>
+              </div>
             ))}
           </div>
         </>
