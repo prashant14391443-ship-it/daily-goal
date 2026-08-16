@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
@@ -22,9 +22,9 @@ const bad = (t: string) => BANNED.some((w) => t.toLowerCase().includes(w));
 function ago(iso: string) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
   if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
 }
 
 function compressImage(f: File): Promise<File> {
@@ -57,8 +57,26 @@ function compressImage(f: File): Promise<File> {
   });
 }
 
+function Avatar({ p, size = "w-9 h-9", ring = false }: { p?: Profile; size?: string; ring?: boolean }) {
+  const inner = p?.avatar_url ? (
+    <img src={p.avatar_url} className={`${size} rounded-full object-cover border-2 border-slate-950`} alt="" />
+  ) : (
+    <span className={`${size} rounded-full bg-violet-600 border-2 border-slate-950 flex items-center justify-center font-bold`}>
+      {(p?.display_name || "?").charAt(0).toUpperCase()}
+    </span>
+  );
+  if (!ring) return inner;
+  return (
+    <span className="rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-600 p-[2px] inline-block">
+      {inner}
+    </span>
+  );
+}
+
 export default function FeedPage() {
   const [me, setMe] = useState("");
+  const [myProf, setMyProf] = useState<Profile | undefined>();
+  const [stories, setStories] = useState<Profile[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [text, setText] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
@@ -70,6 +88,7 @@ export default function FeedPage() {
   const [incoming, setIncoming] = useState<{ from_id: string; prof?: Profile }[]>([]);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Profile[]>([]);
+  const [burst, setBurst] = useState("");
 
   const load = async () => {
     const { data } = await supabase.auth.getSession();
@@ -77,7 +96,7 @@ export default function FeedPage() {
     if (!uid) return;
     setMe(uid);
     const [p, prof, likes, myLikes, fr, sent, inc] = await Promise.all([
-      supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(100),
+      supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(50),
       supabase.from("profiles").select("*"),
       supabase.from("post_likes").select("post_id"),
       supabase.from("post_likes").select("post_id").eq("user_id", uid),
@@ -85,11 +104,14 @@ export default function FeedPage() {
       supabase.from("friend_requests").select("to_id").eq("from_id", uid).eq("status", "pending"),
       supabase.from("friend_requests").select("from_id").eq("to_id", uid).eq("status", "pending"),
     ]);
-    const profMap = new Map<string, Profile>((prof.data || []).map((x) => [x.user_id, x as Profile]));
+    const profMap = new Map<string, Profile>(((prof.data as any[]) || []).map((x) => [x.user_id, x]));
+    const frSet = new Set((fr.data || []).map((f) => f.friend_id));
     const likeCount = new Map<string, number>();
     (likes.data || []).forEach((l) => likeCount.set(l.post_id, (likeCount.get(l.post_id) || 0) + 1));
     const mine = new Set((myLikes.data || []).map((l) => l.post_id));
-    setFriends(new Set((fr.data || []).map((f) => f.friend_id)));
+    setFriends(frSet);
+    setMyProf(profMap.get(uid));
+    setStories(((prof.data as any[]) || []).filter((x) => frSet.has(x.user_id)));
     setSentReqs(new Set((sent.data || []).map((s) => s.to_id)));
     setIncoming((inc.data || []).map((r) => ({ from_id: r.from_id, prof: profMap.get(r.from_id) })));
     setPosts(
@@ -115,11 +137,7 @@ export default function FeedPage() {
       setResults([]);
       return;
     }
-    const { data } = await supabase
-      .from("profiles")
-      .select("*")
-      .ilike("display_name", `%${q.trim()}%`)
-      .limit(10);
+    const { data } = await supabase.from("profiles").select("*").ilike("display_name", `%${q.trim()}%`).limit(10);
     setResults(((data as any[]) || []).filter((r) => r.user_id !== me));
   };
 
@@ -130,12 +148,6 @@ export default function FeedPage() {
       alert("Images only!");
       return;
     }
-    
-    // FIX Mistake 2: Revoke previous object URL before creating a new one
-    if (preview) {
-      URL.revokeObjectURL(preview);
-    }
-
     setPhoto(f);
     setPreview(URL.createObjectURL(f));
   };
@@ -157,15 +169,37 @@ export default function FeedPage() {
     await supabase.from("posts").insert({ user_id: me, content: text.trim(), image_url: url || null });
     setText("");
     setPhoto(null);
-    
-    // FIX Mistake 2: Revoke object URL after successful post
-    if (preview) {
-      URL.revokeObjectURL(preview);
-    }
-    
     setPreview("");
     setBusy(false);
     load();
+  };
+
+  const like = async (id: string) => {
+    const post = posts.find((p) => p.id === id);
+    if (!post) return;
+    if (post.likedByMe) await supabase.from("post_likes").delete().eq("user_id", me).eq("post_id", id);
+    else await supabase.from("post_likes").insert({ user_id: me, post_id: id });
+    load();
+  };
+
+  const doubleTap = (p: Post) => {
+    setBurst(p.id);
+    setTimeout(() => setBurst(""), 800);
+    if (!p.likedByMe) like(p.id);
+  };
+
+  const sharePost = async (p: Post) => {
+    const txt = `${p.author?.display_name || "Friend"} on FriendFeed: ${p.content || "📸 photo"}`;
+    try {
+      await navigator.share({ text: txt });
+    } catch {
+      try {
+        await navigator.clipboard.writeText(txt);
+        alert("📋 Copied!");
+      } catch {
+        // ignore
+      }
+    }
   };
 
   const deletePost = async (p: Post) => {
@@ -175,16 +209,6 @@ export default function FeedPage() {
       if (path) await supabase.storage.from("posts").remove([path]);
     }
     await supabase.from("posts").delete().eq("id", p.id);
-    load();
-  };
-  
-  // FIX Mistake 1: Duplicate deletePost function definition removed.
-
-  const toggleLike = async (id: string) => {
-    const post = posts.find((p) => p.id === id);
-    if (!post) return;
-    if (post.likedByMe) await supabase.from("post_likes").delete().eq("user_id", me).eq("post_id", id);
-    else await supabase.from("post_likes").insert({ user_id: me, post_id: id });
     load();
   };
 
@@ -204,12 +228,12 @@ export default function FeedPage() {
   const friendBtn = (uid: string) => {
     if (uid === me) return null;
     if (friends.has(uid))
-      return <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-green-400 shrink-0">✓ Friends</span>;
+      return <span className="text-[10px] font-bold text-green-400 shrink-0">✓ Friends</span>;
     if (sentReqs.has(uid))
-      return <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400 shrink-0">⏳ Requested</span>;
+      return <span className="text-[10px] font-bold text-slate-500 shrink-0">⏳ Requested</span>;
     return (
-      <button onClick={() => addFriend(uid)} className="px-3 py-1 rounded-full text-xs font-bold bg-violet-600 shrink-0">
-        + Add
+      <button onClick={() => addFriend(uid)} className="text-[10px] font-bold text-violet-400 shrink-0">
+        + Follow
       </button>
     );
   };
@@ -218,32 +242,61 @@ export default function FeedPage() {
   const shown = tab === "all" ? visible : visible.filter((p) => friends.has(p.user_id) || p.user_id === me);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
-      <h1 className="text-2xl font-bold mb-4">📰 Friend Feed</h1>
+    <main className="min-h-screen bg-slate-950 text-white pb-24">
+      {/* TOP BAR */}
+      <div className="flex items-center justify-between p-4 border-b border-slate-800">
+        <p className="font-black text-xl tracking-tight">
+          📰 Friend<span className="text-fuchsia-400">Feed</span>
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setTab(tab === "all" ? "friends" : "all")}
+            className="text-xs font-bold bg-slate-800 px-3 py-1.5 rounded-full"
+          >
+            {tab === "all" ? "🌍 All" : "🤝 Friends"}
+          </button>
+        </div>
+      </div>
+
+      {/* STORIES ROW */}
+      <div className="flex gap-3 overflow-x-auto px-4 py-3 border-b border-slate-800">
+        <Link href={`/profile?user=${me}`} className="flex flex-col items-center gap-1 shrink-0">
+          <span className="relative inline-block">
+            <Avatar p={myProf} size="w-14 h-14" />
+            <span className="absolute bottom-0 right-0 bg-violet-600 border-2 border-slate-950 rounded-full w-5 h-5 text-[10px] font-bold flex items-center justify-center">
+              +
+            </span>
+          </span>
+          <span className="text-[10px] text-slate-400">You</span>
+        </Link>
+        {stories.map((s) => (
+          <Link key={s.user_id} href={`/profile?user=${s.user_id}`} className="flex flex-col items-center gap-1 shrink-0">
+            <Avatar p={s} size="w-14 h-14" ring />
+            <span className="text-[10px] text-slate-400 max-w-14 truncate">{s.display_name}</span>
+          </Link>
+        ))}
+        {stories.length === 0 && (
+          <p className="text-[10px] text-slate-500 self-center">Search people below to add friends → they appear here!</p>
+        )}
+      </div>
 
       {/* SEARCH */}
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-2 px-4 py-3">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="🔍 Search people..."
-          className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm"
+          className="flex-1 p-2.5 rounded-full bg-slate-900 border border-slate-700 text-sm"
         />
-        <button onClick={search} className="px-4 rounded-xl bg-violet-600 font-bold text-sm">
+        <button onClick={search} className="px-4 rounded-full bg-violet-600 font-bold text-sm">
           Go
         </button>
       </div>
       {results.length > 0 && (
-        <div className="grid gap-2 mb-4">
+        <div className="grid gap-2 px-4 mb-3">
           {results.map((r) => (
             <div key={r.user_id} className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center gap-2">
-              {r.avatar_url ? (
-                <img src={r.avatar_url} className="w-9 h-9 rounded-full object-cover" alt="" />
-              ) : (
-                <span className="w-9 h-9 rounded-full bg-violet-600 flex items-center justify-center font-bold">
-                  {(r.display_name || "?").charAt(0).toUpperCase()}
-                </span>
-              )}
+              <Avatar p={r} />
               <Link href={`/profile?user=${r.user_id}`} className="flex-1 font-bold text-sm hover:underline truncate">
                 {r.display_name || "friend"} {r.is_private ? "🔒" : ""}
               </Link>
@@ -253,17 +306,18 @@ export default function FeedPage() {
         </div>
       )}
 
-      {/* INCOMING REQUESTS */}
+      {/* REQUESTS */}
       {incoming.length > 0 && (
-        <div className="bg-violet-600/10 border border-violet-500/40 rounded-xl p-3 mb-4 grid gap-2">
+        <div className="mx-4 mb-3 bg-violet-600/10 border border-violet-500/40 rounded-xl p-3 grid gap-2">
           <p className="text-xs font-bold text-violet-300">🤝 FRIEND REQUESTS</p>
           {incoming.map((r) => (
             <div key={r.from_id} className="flex items-center gap-2">
+              <Avatar p={r.prof} />
               <span className="flex-1 text-sm font-bold truncate">{r.prof?.display_name || "Someone"}</span>
               <button onClick={() => accept(r.from_id)} className="px-3 py-1 rounded-full text-xs font-bold bg-green-600">
-                ✅ Accept
+                Accept
               </button>
-              <button onClick={() => reject(r.from_id)} className="px-3 py-1 rounded-full text-xs font-bold bg-slate-800">
+              <button onClick={() => reject(r.from_id)} className="px-2 py-1 rounded-full text-xs font-bold bg-slate-800">
                 ✖
               </button>
             </div>
@@ -271,43 +325,34 @@ export default function FeedPage() {
         </div>
       )}
 
-      {/* TABS */}
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => setTab("all")}
-          className={`px-4 py-2 rounded-full text-xs font-bold ${tab === "all" ? "bg-violet-600" : "bg-slate-800 text-slate-400"}`}
-        >
-          🌍 Everyone
-        </button>
-        <button
-          onClick={() => setTab("friends")}
-          className={`px-4 py-2 rounded-full text-xs font-bold ${tab === "friends" ? "bg-violet-600" : "bg-slate-800 text-slate-400"}`}
-        >
-          🤝 Friends
-        </button>
-      </div>
-
       {/* COMPOSER */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 mb-4">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Share your win today... 🏆"
-          rows={2}
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm resize-none"
-        />
+      <div className="px-4 pb-3 border-b border-slate-800">
+        <div className="flex gap-2 items-center">
+          <Avatar p={myProf} />
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Share your win today... 🏆"
+            className="flex-1 p-2.5 rounded-full bg-slate-900 border border-slate-700 text-sm"
+          />
+          <label className="px-3 py-2 rounded-full bg-slate-800 text-sm cursor-pointer">
+            📷
+            <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
+          </label>
+          <button
+            onClick={publish}
+            disabled={busy}
+            className="px-4 py-2 rounded-full bg-violet-600 font-bold text-sm disabled:opacity-50"
+          >
+            {busy ? "..." : "Post"}
+          </button>
+        </div>
         {preview && (
           <div className="relative mt-2">
             <img src={preview} className="rounded-xl max-h-64 w-full object-cover" alt="" />
             <button
               onClick={() => {
                 setPhoto(null);
-                
-                // FIX Mistake 2: Revoke object URL on clear
-                if (preview) {
-                  URL.revokeObjectURL(preview);
-                }
-                
                 setPreview("");
               }}
               className="absolute top-2 right-2 bg-red-600 rounded-full w-7 h-7 text-xs font-bold"
@@ -316,60 +361,68 @@ export default function FeedPage() {
             </button>
           </div>
         )}
-        <div className="flex gap-2 mt-2">
-          <label className="px-4 py-2 rounded-lg bg-slate-800 text-sm font-bold cursor-pointer">
-            📷 Photo
-            <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
-          </label>
-          <button
-            onClick={publish}
-            disabled={busy}
-            className="flex-1 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 font-bold text-sm disabled:opacity-50"
-          >
-            {busy ? "⏳ Posting..." : "🚀 Post"}
-          </button>
-        </div>
       </div>
 
-      {/* POSTS */}
-      <div className="grid gap-3">
-        {shown.length === 0 && <p className="text-slate-500 text-sm">No posts yet — be the first! 🌟</p>}
-        {shown.map((p) => (
-          <div key={p.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              {p.author?.avatar_url ? (
-                <img src={p.author.avatar_url} className="w-9 h-9 rounded-full object-cover" alt="" />
-              ) : (
-                <span className="w-9 h-9 rounded-full bg-violet-600 flex items-center justify-center font-bold">
-                  {(p.author?.display_name || "?").charAt(0).toUpperCase()}
-                </span>
-              )}
-              <div className="flex-1 min-w-0">
-                <Link href={`/profile?user=${p.user_id}`} className="font-bold text-sm hover:underline block truncate">
-                  {p.author?.display_name || "friend"}
-                </Link>
-                <p className="text-[10px] text-slate-500">{ago(p.created_at)}</p>
-              </div>
-              {friendBtn(p.user_id)}
+      {/* POSTS — INSTA STYLE */}
+      {shown.length === 0 && (
+        <p className="text-slate-500 text-sm text-center py-10">No posts yet — be the first! 🌟</p>
+      )}
+      {shown.map((p) => (
+        <article key={p.id} className="border-b border-slate-800 pb-3 mb-3">
+          {/* header */}
+          <div className="flex items-center gap-2 px-4 py-2">
+            <Link href={`/profile?user=${p.user_id}`}>
+              <Avatar p={p.author} ring />
+            </Link>
+            <div className="flex-1 min-w-0">
+              <Link href={`/profile?user=${p.user_id}`} className="font-bold text-sm block truncate">
+                {p.author?.display_name || "friend"}
+              </Link>
+              <p className="text-[10px] text-slate-500">{ago(p.created_at)}</p>
             </div>
-            {p.content && <p className="text-sm whitespace-pre-wrap mb-2">{p.content}</p>}
-            {p.image_url && <img src={p.image_url} className="rounded-xl w-full max-h-96 object-cover mb-2" alt="" />}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => toggleLike(p.id)}
-                className={`text-xs font-bold ${p.likedByMe ? "text-pink-400" : "text-slate-400"}`}
-              >
-                {p.likedByMe ? "❤️" : "🤍"} {p.likes}
-              </button>
-              {p.user_id === me && (
-                <button onClick={() => deletePost(p)} className="text-xs font-bold text-red-400">
-                  🗑 Delete
-                </button>
-              )}
-            </div>
+            {friendBtn(p.user_id)}
           </div>
-        ))}
-      </div>
+
+          {/* media */}
+          <div className="relative" onDoubleClick={() => doubleTap(p)}>
+            {p.image_url ? (
+              <img src={p.image_url} className="w-full aspect-square object-cover" alt="" />
+            ) : (
+              <div className="w-full aspect-square bg-gradient-to-br from-violet-600/30 via-slate-900 to-fuchsia-600/20 flex items-center justify-center p-8">
+                <p className="text-center text-lg font-bold whitespace-pre-wrap">{p.content}</p>
+              </div>
+            )}
+            {burst === p.id && (
+              <span className="absolute inset-0 flex items-center justify-center text-8xl animate-bounce pointer-events-none">
+                ❤️
+              </span>
+            )}
+          </div>
+
+          {/* actions */}
+          <div className="flex items-center gap-3 px-4 py-2">
+            <button onClick={() => like(p.id)} className="text-2xl">
+              {p.likedByMe ? "❤️" : "🤍"}
+            </button>
+            <button onClick={() => sharePost(p)} className="text-2xl">
+              📤
+            </button>
+            <span className="flex-1" />
+            {p.user_id === me && (
+              <button onClick={() => deletePost(p)} className="text-sm">
+                🗑
+              </button>
+            )}
+          </div>
+
+          <p className="px-4 text-sm font-bold">{p.likes} likes</p>
+          {p.image_url && p.content && (
+            <p className="px-4 text-sm mt-1">
+              <span className="font-bold">{p.author?.display_name}</span> {p.content}
+            </p>
+          )}
+        </article>
+      ))}
     </main>
   );
 }
