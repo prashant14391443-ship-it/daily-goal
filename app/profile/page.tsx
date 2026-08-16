@@ -16,54 +16,62 @@ function Inner() {
   const params = useSearchParams();
   const userId = params.get("user") || "";
   const [me, setMe] = useState("");
-  const [prof, setProf] = useState<{ display_name: string; avatar_url: string } | null>(null);
+  const [prof, setProf] = useState<any>(null);
   const [followers, setFollowers] = useState(0);
-  const [followingCount, setFollowingCount] = useState(0);
-  const [iFollow, setIFollow] = useState(false);
+  const [friendCount, setFriendCount] = useState(0);
+  const [isFriend, setIsFriend] = useState(false);
+  const [sentReq, setSentReq] = useState(false);
+  const [recvReq, setRecvReq] = useState(false);
   const [coins, setCoins] = useState(0);
-  const [posts, setPosts] = useState<{ id: string; content: string; created_at: string; likes: number }[]>([]);
+  const [posts, setPosts] = useState<any[]>([]);
+
+  const load = async () => {
+    const { data } = await supabase.auth.getSession();
+    const uid = data.session?.user.id;
+    if (!uid || !userId) return;
+    setMe(uid);
+    const [pr, fr, sReq, rReq, cn, p, likes] = await Promise.all([
+      supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
+      supabase.from("friends").select("friend_id").eq("user_id", uid).eq("friend_id", userId),
+      supabase.from("friend_requests").select("from_id").eq("from_id", uid).eq("to_id", userId).eq("status", "pending"),
+      supabase.from("friend_requests").select("from_id").eq("from_id", userId).eq("to_id", uid).eq("status", "pending"),
+      supabase.from("user_coins").select("coins").eq("user_id", userId).maybeSingle(),
+      supabase.from("posts").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
+      supabase.from("post_likes").select("post_id"),
+    ]);
+    setProf(pr || { display_name: "friend", avatar_url: "", is_private: false });
+    setIsFriend((fr.data || []).length > 0);
+    setSentReq((sReq.data || []).length > 0);
+    setRecvReq((rReq.data || []).length > 0);
+    setCoins(Number((cn as any)?.coins || 0));
+    const likeCount = new Map<string, number>();
+    (likes.data || []).forEach((l) => likeCount.set(l.post_id, (likeCount.get(l.post_id) || 0) + 1));
+    setPosts(((p.data as any[]) || []).map((x) => ({ ...x, likes: likeCount.get(x.id) || 0 })));
+    const { data: theirFriends } = await supabase.from("friends").select("friend_id").eq("user_id", userId);
+    setFriendCount((theirFriends || []).length);
+    setFollowers(friendCount);
+  };
 
   useEffect(() => {
-    const load = async () => {
-      const { data } = await supabase.auth.getSession();
-      const uid = data.session?.user.id;
-      if (!uid || !userId) return;
-      setMe(uid);
-      const [pr, fol, foling, myFol, cn, p, likes] = await Promise.all([
-        supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
-        supabase.from("follows").select("follower_id").eq("following_id", userId),
-        supabase.from("follows").select("following_id").eq("follower_id", userId),
-        supabase.from("follows").select("follower_id").eq("follower_id", uid).eq("following_id", userId),
-        supabase.from("user_coins").select("coins").eq("user_id", userId).maybeSingle(),
-        supabase.from("posts").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
-        supabase.from("post_likes").select("post_id"),
-      ]);
-      const profRow = pr as any;
-      setProf(
-        profRow
-          ? { display_name: profRow.display_name || "friend", avatar_url: profRow.avatar_url || "" }
-          : { display_name: "friend", avatar_url: "" }
-      );
-      setFollowers((fol.data || []).length);
-      setFollowingCount((foling.data || []).length);
-      setIFollow((myFol.data || []).length > 0);
-      const coinRow = cn as any;
-      setCoins(Number(coinRow?.coins || 0));
-      const likeCount = new Map<string, number>();
-      (likes.data || []).forEach((l) => likeCount.set(l.post_id, (likeCount.get(l.post_id) || 0) + 1));
-      setPosts((p.data || []).map((x) => ({ id: x.id, content: x.content, created_at: x.created_at, likes: likeCount.get(x.id) || 0 })));
-    };
     load();
   }, [userId]);
 
-  const toggleFollow = async () => {
-    if (iFollow) await supabase.from("follows").delete().eq("follower_id", me).eq("following_id", userId);
-    else await supabase.from("follows").insert({ follower_id: me, following_id: userId });
-    setIFollow(!iFollow);
-    setFollowers(followers + (iFollow ? -1 : 1));
+  const addFriend = async () => {
+    await supabase.from("friend_requests").insert({ from_id: me, to_id: userId });
+    load();
+  };
+  const accept = async () => {
+    await supabase.rpc("accept_friend", { req_from: userId, req_to: me });
+    load();
+  };
+  const togglePrivate = async () => {
+    const next = !prof?.is_private;
+    await supabase.from("profiles").update({ is_private: next }).eq("user_id", me);
+    setProf({ ...prof, is_private: next });
   };
 
   const rank = coins >= 1000 ? "🦸 Hero" : coins >= 500 ? "🥇 Gold" : coins >= 100 ? "🥈 Silver" : "🥉 Bronze";
+  const locked = prof?.is_private && userId !== me && !isFriend;
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
@@ -77,34 +85,61 @@ function Inner() {
             </span>
           )}
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold truncate">{prof?.display_name || "..."}</h1>
+            <h1 className="text-xl font-bold truncate">
+              {prof?.display_name || "..."} {prof?.is_private ? "🔒" : ""}
+            </h1>
             <p className="text-xs text-slate-400">
-              {followers} followers • {followingCount} following • 🪙 {coins} {rank}
+              {friendCount} friends • 🪙 {coins} {rank}
             </p>
           </div>
-          {userId !== me && (
+        </div>
+        <div className="mt-3">
+          {userId === me ? (
             <button
-              onClick={toggleFollow}
-              className={`px-4 py-2 rounded-full text-xs font-bold ${iFollow ? "bg-slate-800 text-slate-400" : "bg-violet-600"}`}
+              onClick={togglePrivate}
+              className={`w-full py-2 rounded-full text-xs font-bold ${
+                prof?.is_private ? "bg-slate-800 text-slate-300" : "bg-green-600/20 text-green-300"
+              }`}
             >
-              {iFollow ? "Following ✓" : "+ Follow"}
+              {prof?.is_private ? "🔒 Private — only friends see my posts" : "🌍 Public — everyone sees my posts"}
+            </button>
+          ) : isFriend ? (
+            <span className="block text-center py-2 rounded-full text-xs font-bold bg-slate-800 text-green-400">✓ Friends</span>
+          ) : recvReq ? (
+            <button onClick={accept} className="w-full py-2 rounded-full text-xs font-bold bg-green-600">
+              ✅ Accept Request
+            </button>
+          ) : sentReq ? (
+            <span className="block text-center py-2 rounded-full text-xs font-bold bg-slate-800 text-slate-400">⏳ Requested</span>
+          ) : (
+            <button onClick={addFriend} className="w-full py-2 rounded-full text-xs font-bold bg-violet-600">
+              ➕ Add Friend
             </button>
           )}
         </div>
       </div>
 
       <h2 className="font-bold mb-2">📝 Posts</h2>
-      <div className="grid gap-3">
-        {posts.length === 0 && <p className="text-slate-500 text-sm">No posts yet.</p>}
-        {posts.map((p) => (
-          <div key={p.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <p className="text-sm whitespace-pre-wrap">{p.content}</p>
-            <p className="text-[10px] text-slate-500 mt-2">
-              {ago(p.created_at)} • ❤️ {p.likes}
-            </p>
-          </div>
-        ))}
-      </div>
+      {locked ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
+          <p className="text-4xl mb-2">🔒</p>
+          <p className="text-sm text-slate-400">This account is private.</p>
+          <p className="text-xs text-slate-500">Become a friend to see their posts!</p>
+        </div>
+      ) : (
+        <div className="grid gap-3">
+          {posts.length === 0 && <p className="text-slate-500 text-sm">No posts yet.</p>}
+          {posts.map((p) => (
+            <div key={p.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+              {p.content && <p className="text-sm whitespace-pre-wrap">{p.content}</p>}
+              {p.image_url && <img src={p.image_url} className="rounded-xl w-full max-h-96 object-cover mt-2" alt="" />}
+              <p className="text-[10px] text-slate-500 mt-2">
+                {ago(p.created_at)} • ❤️ {p.likes}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </main>
   );
 }
