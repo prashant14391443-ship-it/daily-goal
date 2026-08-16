@@ -482,11 +482,7 @@ export default function FeedPage() {
               </div>
             </div>
           )}
-          {p.image_url && p.content && (
-            <p className="px-4 text-sm mt-1">
-              <span className="font-bold">{p.author?.display_name}</span> {p.content}
-            </p>
-          )}
+
         </article>
       ))}
 

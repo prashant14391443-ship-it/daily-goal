@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -51,6 +51,40 @@ function compressImage(f: File): Promise<File> {
   });
 }
 
+function burnText(file: File, text: string, pos: { x: number; y: number }): Promise<File> {
+  return new Promise((resolve) => {
+    if (!text.trim()) return resolve(file);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return resolve(file);
+      ctx.drawImage(img, 0, 0);
+      const size = Math.max(18, Math.round(img.width / 18));
+      ctx.font = `bold ${size}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "#ffffff";
+      ctx.shadowColor = "rgba(0,0,0,0.9)";
+      ctx.shadowBlur = size / 2;
+      const lines = text.split("\n");
+      const cx = (pos.x / 100) * img.width;
+      const cy = (pos.y / 100) * img.height;
+      lines.forEach((ln, i) => {
+        ctx.fillText(ln, cx, cy + (i - (lines.length - 1) / 2) * size * 1.3);
+      });
+      canvas.toBlob(
+        (b) => resolve(new File([b || new Blob()], "post.jpg", { type: "image/jpeg" })),
+        "image/jpeg",
+        0.72
+      );
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export default function NewPostPage() {
   const [me, setMe] = useState("");
   const [text, setText] = useState("");
@@ -58,6 +92,9 @@ export default function NewPostPage() {
   const [preview, setPreview] = useState("");
   const [busy, setBusy] = useState(false);
   const [bg, setBg] = useState(0);
+  const [pos, setPos] = useState({ x: 50, y: 50 });
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const dragging = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -69,6 +106,14 @@ export default function NewPostPage() {
     load();
   }, []);
 
+  const moveText = (clientX: number, clientY: number) => {
+    const r = boxRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const x = Math.min(95, Math.max(5, ((clientX - r.left) / r.width) * 100));
+    const y = Math.min(95, Math.max(5, ((clientY - r.top) / r.height) * 100));
+    setPos({ x, y });
+  };
+
   const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f || !f.type.startsWith("image/")) {
@@ -77,6 +122,7 @@ export default function NewPostPage() {
     }
     setPhoto(f);
     setPreview(URL.createObjectURL(f));
+    setPos({ x: 50, y: 50 });
   };
 
   const publish = async () => {
@@ -88,7 +134,8 @@ export default function NewPostPage() {
     setBusy(true);
     let url = "";
     if (photo) {
-      const small = await compressImage(photo);
+      let small = await compressImage(photo);
+      small = await burnText(small, text, pos);
       const path = `${me}/${Date.now()}.jpg`;
       await supabase.storage.from("posts").upload(path, small);
       url = supabase.storage.from("posts").getPublicUrl(path).data.publicUrl;
@@ -153,16 +200,45 @@ export default function NewPostPage() {
           ))}
         </div>
         {preview ? (
-          <div className="relative">
-            <img src={preview} className="rounded-xl w-full max-h-96 object-cover" alt="" />
+          <div>
+            <div
+              ref={boxRef}
+              className="relative rounded-xl overflow-hidden touch-none select-none cursor-move"
+              onPointerDown={(e) => {
+                dragging.current = true;
+                moveText(e.clientX, e.clientY);
+              }}
+              onPointerMove={(e) => {
+                if (dragging.current) moveText(e.clientX, e.clientY);
+              }}
+              onPointerUp={() => (dragging.current = false)}
+            >
+              <img src={preview} className="w-full max-h-96 object-cover" alt="" />
+              {text.trim() && (
+                <p
+                  className="absolute font-bold text-white text-center px-2 pointer-events-none"
+                  style={{
+                    left: `${pos.x}%`,
+                    top: `${pos.y}%`,
+                    transform: "translate(-50%, -50%)",
+                    textShadow: "0 2px 8px rgba(0,0,0,0.9)",
+                  }}
+                >
+                  {text}
+                </p>
+              )}
+            </div>
+            <p className="text-[10px] text-slate-500 text-center mt-1">
+              ✋ Drag on photo to place your text
+            </p>
             <button
               onClick={() => {
                 setPhoto(null);
                 setPreview("");
               }}
-              className="absolute top-2 right-2 bg-red-600 rounded-full w-8 h-8 text-sm font-bold"
+              className="mt-2 w-full py-2 rounded-lg bg-red-600/20 text-red-400 text-xs font-bold"
             >
-              ✖
+              ✖ Remove photo
             </button>
           </div>
         ) : (

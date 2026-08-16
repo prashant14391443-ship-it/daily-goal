@@ -482,7 +482,7 @@ function Inner() {
             {view.image_url && (
               <img src={view.image_url} className="w-full rounded-xl object-contain max-h-[70vh]" alt="" />
             )}
-            {view.content && (
+            {!view.image_url && view.content && (
               <p className="text-sm mt-3 whitespace-pre-wrap">{view.content}</p>
             )}
             <p className="text-xs text-slate-500 mt-3">❤️ {view.likes} likes</p>
