@@ -596,15 +596,7 @@ export default function ProfileMenu() {
             <span>Theme</span>
             <span>{light ? "☀️ Light" : "🌙 Dark"}</span>
           </button>
-          <button
-            onClick={async () => {
-              await checkCoinsNow();
-              alert("✅ Coins synced! Refresh profile page to see update.");
-            }}
-            className="text-sm bg-green-600 hover:bg-green-500 p-2 rounded text-white font-bold"
-          >
-            🔄 Sync Coins Now
-          </button>
+
           <Link
             href="/dashboard"
             onClick={() => setOpen(false)}

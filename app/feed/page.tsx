@@ -33,6 +33,8 @@ const BGS = [
   "from-slate-700/60 via-slate-900 to-slate-600/40",
 ];
 
+const rankOf = (c: number) => (c >= 1000 ? "🦸" : c >= 500 ? "🥇" : c >= 100 ? "🥈" : "🥉");
+
 function ago(iso: string) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
   if (s < 60) return "just now";
@@ -101,6 +103,7 @@ export default function FeedPage() {
   const [commentsMap, setCommentsMap] = useState<Map<string, any[]>>(new Map());
   const [commentOpen, setCommentOpen] = useState("");
   const [commentText, setCommentText] = useState("");
+  const [coinMap, setCoinMap] = useState<Map<string, number>>(new Map());
   
   const [q, setQ] = useState("");
   const [results, setResults] = useState<Profile[]>([]);
@@ -170,6 +173,18 @@ export default function FeedPage() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    const loadCoins = async () => {
+      const { data } = await supabase.from("coin_log").select("user_id, coins");
+      const m = new Map<string, number>();
+      ((data as any[]) || []).forEach((r) =>
+        m.set(r.user_id, (m.get(r.user_id) || 0) + (Number(r.coins) || 0))
+      );
+      setCoinMap(m);
+    };
+    loadCoins();
+  }, [posts.length]);
 
   const search = async () => {
     if (!q.trim()) {
@@ -345,7 +360,9 @@ export default function FeedPage() {
         {stories.map((s) => (
           <Link key={s.user_id} href={`/profile?user=${s.user_id}`} className="flex flex-col items-center gap-1 shrink-0">
             <Avatar p={s} size="w-14 h-14" ring />
-            <span className="text-[10px] text-slate-400 max-w-14 truncate">{s.display_name}</span>
+            <span className="text-[10px] text-slate-400 max-w-14 truncate">
+              {rankOf(coinMap.get(s.user_id) || 0)} {s.display_name}
+            </span>
           </Link>
         ))}
         {stories.length === 0 && (
@@ -385,7 +402,7 @@ export default function FeedPage() {
             </Link>
             <div className="flex-1 min-w-0">
               <Link href={`/profile?user=${p.user_id}`} className="font-bold text-sm block truncate">
-                {p.author?.display_name || "friend"}
+                {rankOf(coinMap.get(p.user_id) || 0)} {p.author?.display_name || "friend"}
               </Link>
               <p className="text-[10px] text-slate-500">{ago(p.created_at)}</p>
             </div>

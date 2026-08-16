@@ -91,12 +91,16 @@ function Inner() {
         display_name: md.display_name || md.name || "friend",
         avatar_url: md.avatar_url || "",
         is_private: profRow?.is_private || false,
-        bio: profRow?.bio || "",
+        bio: md.bio || profRow?.bio || "",
       };
       await supabase.from("profiles").upsert(
         { user_id: uid, display_name: profRow.display_name, avatar_url: profRow.avatar_url },
         { onConflict: "user_id" }
       );
+    }
+    if (userId === uid && profRow) {
+      const md2 = (data.session?.user?.user_metadata || {}) as any;
+      profRow.bio = profRow.bio || md2.bio || "";
     }
     setProf(profRow || { display_name: "friend", avatar_url: "", is_private: false, bio: "" });
     setIsFriend((fr.data || []).length > 0);
@@ -198,8 +202,8 @@ function Inner() {
     const finalName = editName.trim() || prof?.display_name || "friend";
 
     // 1. Update auth user metadata
-    await supabase.auth.updateUser({ 
-      data: { display_name: finalName, avatar_url: newAvatarUrl } 
+    await supabase.auth.updateUser({
+      data: { display_name: finalName, avatar_url: newAvatarUrl, bio: editBio },
     });
 
     const { error: saveErr } = await supabase.from("profiles").upsert(
