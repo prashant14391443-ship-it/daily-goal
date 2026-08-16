@@ -204,27 +204,38 @@ export default function ProfileMenu() {
     const uid = data.session?.user.id;
     if (!uid) return;
     const today = toLocalISO(new Date());
+    
+    // FIX 1: We added "distance_km" to the gym_logs select query so we can calculate the coins
     const [s, g, h, t, n] = await Promise.all([
       supabase.from("study_sessions").select("id").eq("user_id", uid).eq("session_date", today).eq("completed", true),
-      supabase.from("gym_logs").select("id").eq("user_id", uid).eq("session_date", today).eq("completed", true),
+      supabase.from("gym_logs").select("id, distance_km").eq("user_id", uid).eq("session_date", today).eq("completed", true),
       supabase.from("habit_logs").select("id").eq("user_id", uid).eq("log_date", today).eq("completed", true),
       supabase.from("tasks").select("id").eq("user_id", uid).eq("task_date", today).eq("category", "todo").eq("completed", true),
       supabase.from("nutrition_logs").select("id").eq("user_id", uid).eq("log_date", today),
     ]);
+    
     const actions = [
       ...(s.data || []).map((r) => ({ key: `s-${r.id}`, coins: 10 })),
-      ...(g.data || []).map((r) => ({ key: `g-${r.id}`, coins: 15 })),
+      
+      // FIX 2: Calculate 15 coins per km, and filter out any runs that result in 0 coins
+      ...(g.data || [])
+        .map((r) => ({ key: `g-${r.id}`, coins: Math.floor(r.distance_km || 0) * 15 }))
+        .filter((a) => a.coins > 0),
+        
       ...(h.data || []).map((r) => ({ key: `h-${r.id}`, coins: 5 })),
       ...(t.data || []).map((r) => ({ key: `t-${r.id}`, coins: 5 })),
       ...(n.data || []).map((r) => ({ key: `n-${r.id}`, coins: 3 })),
       { key: `d-${today}`, coins: 20 },
     ];
+    
     const { data: logged } = await supabase
       .from("coin_log")
       .select("action_key")
       .eq("user_id", uid);
+      
     const doneKeys = new Set((logged || []).map((r) => r.action_key));
     let earned = 0;
+    
     for (const a of actions) {
       if (doneKeys.has(a.key)) continue;
       const { error } = await supabase
@@ -232,6 +243,7 @@ export default function ProfileMenu() {
         .insert({ user_id: uid, action_key: a.key, coins: a.coins });
       if (!error) earned += a.coins;
     }
+    
     if (earned > 0) {
       const { data: cur } = await supabase
         .from("user_coins")

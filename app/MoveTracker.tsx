@@ -38,6 +38,7 @@ export default function MoveTracker() {
   const [sec, setSec] = useState(0);
   const [speed, setSpeed] = useState(0);
   const [hint, setHint] = useState("");
+  const [weight, setWeight] = useState("65"); // Added weight state
   const [last, setLast] = useState<null | { dist: number; sec: number; cal: number; label: string; coins: number }>(null);
   const [steps, setSteps] = useState(0);
   const lastStepRef = useRef(0);
@@ -77,7 +78,7 @@ export default function MoveTracker() {
     setSec(0);
     setSteps(0);
     setHint("");
-    setLast(null); // FIX: This wipes out the ghost state from old runs when you start a new one
+    setLast(null);
     prevRef.current = null;
     setTracking(true);
     watchRef.current = navigator.geolocation.watchPosition(
@@ -111,9 +112,10 @@ export default function MoveTracker() {
     
     const km = Math.max(distRef.current / 1000, (steps * 0.7) / 1000);
     const mins = Math.max(1, Math.round(sec / 60));
+    const userWeight = Number(weight) || 65;
     
-    // FIX: Strictly 0 calories if distance is 0
-    const cal = km > 0 ? Math.round(((mode.met * 3.5 * 65) / 200) * mins) : 0;
+    // FIX: Require at least 10 meters (0.01 km) to register any calories
+    const cal = km > 0.01 ? Math.round(((mode.met * 3.5 * userWeight) / 200) * mins) : 0;
     const earnedCoins = Math.floor(km) * 15;
 
     const { data } = await supabase.auth.getSession();
@@ -140,9 +142,21 @@ export default function MoveTracker() {
 
   // LIVE CALCULATIONS
   const km = Math.max(dist / 1000, (steps * 0.7) / 1000);
-  const pace = km > 0 ? sec / 60 / km : 0;
-  const paceStr = km > 0 ? `${Math.floor(pace)}:${String(Math.floor((pace % 1) * 60)).padStart(2, "0")}` : "—";
-  const cal = km > 0 ? Math.round(((mode.met * 3.5 * 65) / 200) * (sec / 60)) : 0;
+  const userWeight = Number(weight) || 65;
+  
+  // FIX: Require at least 10 meters to calculate pace, cap at 99:59 to prevent box blowout
+  let paceStr = "—";
+  if (km > 0.01 && sec > 0) {
+    const currentPace = (sec / 60) / km;
+    if (currentPace > 99) {
+      paceStr = "99:59+";
+    } else {
+      paceStr = `${Math.floor(currentPace)}:${String(Math.floor((currentPace % 1) * 60)).padStart(2, "0")}`;
+    }
+  }
+
+  // FIX: Require at least 10 meters to register live calories
+  const cal = km > 0.01 ? Math.round(((mode.met * 3.5 * userWeight) / 200) * (sec / 60)) : 0;
 
   return (
     <div className="bg-slate-950 p-4 min-h-screen text-white">
@@ -159,7 +173,7 @@ export default function MoveTracker() {
         </div>
 
         {/* Mode Selector */}
-        <div className="grid grid-cols-4 gap-2 mb-6">
+        <div className="grid grid-cols-4 gap-2 mb-4">
           {MODES.map((m) => (
             <button
               key={m.id}
@@ -175,7 +189,22 @@ export default function MoveTracker() {
           ))}
         </div>
 
-        {/* 🚀 NEW UI: EXACT MATCH TO IMAGE 2 🚀 */}
+        {/* NEW: Weight Input for Accurate Calories */}
+        <div className="flex items-center justify-between bg-slate-800/50 rounded-xl p-3 mb-4 border border-slate-700">
+          <span className="text-sm font-medium text-slate-400">Body Weight (kg)</span>
+          <input
+            type="number"
+            min="20"
+            max="300"
+            value={weight}
+            onChange={(e) => setWeight(e.target.value)}
+            disabled={tracking}
+            className="bg-slate-900 border border-slate-700 rounded-lg w-20 text-center text-white py-1 outline-none focus:border-green-500 disabled:opacity-50"
+            placeholder="65"
+          />
+        </div>
+
+        {/* Stats Grid */}
         <div className="bg-slate-800/50 rounded-xl p-4 grid gap-4 mb-6 border border-slate-700">
           
           {/* Top Row: Total Steps & Distance Run */}
