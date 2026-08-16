@@ -43,7 +43,8 @@ function ago(iso: string) {
   return `${Math.floor(s / 86400)}d`;
 }
 
-function compressImage(f: File): Promise<File> {
+// FIX 1: Merged duplicate compressImage functions and added dynamic filename
+function compressImage(f: File, fileName: string = "image.jpg"): Promise<File> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -62,7 +63,7 @@ function compressImage(f: File): Promise<File> {
         canvas.height = h;
         canvas.getContext("2d")?.drawImage(img, 0, 0, w, h);
         canvas.toBlob(
-          (b) => resolve(new File([b || new Blob()], "post.jpg", { type: "image/jpeg" })),
+          (b) => resolve(new File([b || new Blob()], fileName, { type: "image/jpeg" })),
           "image/jpeg",
           0.72
         );
@@ -92,7 +93,14 @@ function Avatar({ p, size = "w-9 h-9", ring = false }: { p?: Profile; size?: str
 export default function FeedPage() {
   const [me, setMe] = useState("");
   const [myProf, setMyProf] = useState<Profile | undefined>();
-  const [stories, setStories] = useState<Profile[]>([]);
+  const [storyMap, setStoryMap] = useState<Map<string, any[]>>(new Map());
+  const [profById, setProfById] = useState<Map<string, Profile>>(new Map());
+  const [viewStory, setViewStory] = useState<{ user: string; index: number } | null>(null);
+  const [creatingStory, setCreatingStory] = useState(false);
+  const [sText, setSText] = useState("");
+  const [sBg, setSBg] = useState(0);
+  const [sPhoto, setSPhoto] = useState<File | null>(null);
+  const [sPreview, setSPreview] = useState("");
   const [posts, setPosts] = useState<Post[]>([]);
   const [tab, setTab] = useState<"all" | "friends">("all");
   const [friends, setFriends] = useState<Set<string>>(new Set());
@@ -102,13 +110,9 @@ export default function FeedPage() {
   const [unread, setUnread] = useState(0);
   const [commentsMap, setCommentsMap] = useState<Map<string, any[]>>(new Map());
   const [commentOpen, setCommentOpen] = useState("");
-  const [commentText, setCommentText] = useState("");
   const [coinMap, setCoinMap] = useState<Map<string, number>>(new Map());
-  
-  const [q, setQ] = useState("");
-  const [results, setResults] = useState<Profile[]>([]);
+  const [commentText, setCommentText] = useState("");
 
-  // ADDED MISSING STATE VARIABLES HERE:
   const [text, setText] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
@@ -119,9 +123,7 @@ export default function FeedPage() {
     const uid = data.session?.user.id;
     if (!uid) return;
     setMe(uid);
-    // loadUnread(uid);
     
-    // FIX 2: Add comments fetching to the Promise.all array
     const [p, prof, likes, myLikes, fr, sent, inc, commentsRes] = await Promise.all([
       supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(50),
       supabase.from("profiles").select("*"),
@@ -134,13 +136,16 @@ export default function FeedPage() {
     ]);
 
     const profMap = new Map<string, Profile>(((prof.data as any[]) || []).map((x) => [x.user_id, x]));
-    const frSet = new Set((fr.data || []).map((f) => f.friend_id));
     
+    // FIX 2: Set the profile map so stories and avatars render correctly
+    setProfById(profMap);
+    setMyProf(profMap.get(uid));
+
+    const frSet = new Set((fr.data || []).map((f) => f.friend_id));
     const likeCount = new Map<string, number>();
     (likes.data || []).forEach((l) => likeCount.set(l.post_id, (likeCount.get(l.post_id) || 0) + 1));
     const mine = new Set((myLikes.data || []).map((l) => l.post_id));
     
-    // FIX 2 continued: Process the comments and attach authors
     const cMap = new Map<string, any[]>();
     ((commentsRes.data as any[]) || []).forEach((c) => {
       const arr = cMap.get(c.post_id) || [];
@@ -150,10 +155,39 @@ export default function FeedPage() {
     setCommentsMap(cMap);
 
     setFriends(frSet);
-    setMyProf(profMap.get(uid));
-    setStories(((prof.data as any[]) || []).filter((x) => frSet.has(x.user_id)));
     setSentReqs(new Set((sent.data || []).map((s) => s.to_id)));
     setIncoming((inc.data || []).map((r) => ({ from_id: r.from_id, prof: profMap.get(r.from_id) })));
+    
+    const cutoff = new Date(Date.now() - 24 * 3600000).toISOString();
+    const { data: expired } = await supabase
+      .from("stories")
+      .select("*")
+      .eq("user_id", uid)
+      .lt("created_at", cutoff);
+      
+    for (const s of expired || []) {
+      if (s.image_url) {
+        const path = decodeURIComponent(s.image_url.split("/posts/")[1] || "");
+        if (path) await supabase.storage.from("posts").remove([path]);
+      }
+    }
+    
+    if ((expired || []).length > 0) {
+      await supabase.from("stories").delete().eq("user_id", uid).lt("created_at", cutoff);
+    }
+
+    const { data: st } = await supabase
+      .from("stories")
+      .select("*")
+      .gte("created_at", cutoff)
+      .order("created_at");
+      
+    const smap = new Map<string, any[]>();
+    ((st as any[]) || []).forEach((s) => {
+      if (!smap.has(s.user_id)) smap.set(s.user_id, []);
+      smap.get(s.user_id)!.push(s);
+    });
+    setStoryMap(smap);
 
     setPosts(
       ((p.data as any[]) || []).map((x) => ({
@@ -161,7 +195,7 @@ export default function FeedPage() {
         user_id: x.user_id,
         content: x.content,
         image_url: (x.image_url as string | null) || "",
-        bg: x.bg || 0, // FIX 1: Add the missing bg mapping to satisfy the 'Post' type
+        bg: x.bg || 0,
         created_at: x.created_at,
         likes: likeCount.get(x.id) || 0,
         likedByMe: mine.has(x.id),
@@ -186,15 +220,6 @@ export default function FeedPage() {
     loadCoins();
   }, [posts.length]);
 
-  const search = async () => {
-    if (!q.trim()) {
-      setResults([]);
-      return;
-    }
-    const { data } = await supabase.from("profiles").select("*").ilike("display_name", `%${q.trim()}%`).limit(10);
-    setResults(((data as any[]) || []).filter((r) => r.user_id !== me));
-  };
-
   const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -215,12 +240,18 @@ export default function FeedPage() {
     setBusy(true);
     let url = "";
     if (photo) {
-      const small = await compressImage(photo);
+      const small = await compressImage(photo, "post.jpg");
       const path = `${me}/${Date.now()}.jpg`;
       await supabase.storage.from("posts").upload(path, small);
       url = supabase.storage.from("posts").getPublicUrl(path).data.publicUrl;
     }
-    await supabase.from("posts").insert({ user_id: me, content: text.trim(), image_url: url || null, bg: Math.floor(Math.random() * BGS.length) });
+    await supabase.from("posts").insert({ 
+      user_id: me, 
+      content: text.trim(), 
+      image_url: url || null, 
+      bg: Math.floor(Math.random() * BGS.length) 
+    });
+    
     const { data: frs } = await supabase.from("friends").select("friend_id").eq("user_id", me);
     const notifs = (frs || []).map((f) => ({
       user_id: f.friend_id,
@@ -229,12 +260,46 @@ export default function FeedPage() {
       text: `📸 ${myProf?.display_name || "A friend"} shared a new post`,
     }));
     if (notifs.length > 0) await supabase.from("notifications").insert(notifs);
+    
     setText("");
     setPhoto(null);
     setPreview("");
     setBusy(false);
     load();
   };
+
+  const shareStory = async () => {
+    if (!sText.trim() && !sPhoto) return;
+    let url = "";
+    if (sPhoto) {
+      const small = await compressImage(sPhoto, "story.jpg");
+      const path = `${me}/story-${Date.now()}.jpg`;
+      await supabase.storage.from("posts").upload(path, small);
+      url = supabase.storage.from("posts").getPublicUrl(path).data.publicUrl;
+    }
+    await supabase.from("stories").insert({
+      user_id: me,
+      content: sText.trim(),
+      image_url: url || null, // FIX 5: Fallback to null instead of empty string
+      bg: sBg,
+    });
+    setCreatingStory(false);
+    setSText("");
+    setSPhoto(null);
+    setSPreview("");
+    load();
+  };
+
+  useEffect(() => {
+    if (!viewStory) return;
+    const t = setTimeout(() => {
+      const arr = storyMap.get(viewStory.user) || [];
+      if (viewStory.index + 1 < arr.length)
+        setViewStory({ user: viewStory.user, index: viewStory.index + 1 });
+      else setViewStory(null);
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [viewStory, storyMap]);
 
   const like = async (id: string) => {
     const post = posts.find((p) => p.id === id);
@@ -346,27 +411,85 @@ export default function FeedPage() {
         </button>
       </div>
 
+      {/* FIX 3: ADDED POST COMPOSER UI */}
+      <div className="p-4 border-b border-slate-800 bg-slate-950">
+        <div className="flex gap-3">
+          <Avatar p={myProf} />
+          <div className="flex-1">
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="What's on your mind?"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-sm resize-none focus:outline-none focus:border-violet-500"
+              rows={2}
+            />
+            {preview && (
+              <div className="relative inline-block mt-2">
+                <img src={preview} className="max-h-32 rounded-lg object-cover border border-slate-700" alt="Preview" />
+                <button 
+                  onClick={() => { setPhoto(null); setPreview(""); }} 
+                  className="absolute -top-2 -right-2 bg-slate-800 border border-slate-600 rounded-full w-6 h-6 flex items-center justify-center text-xs"
+                >
+                  ✖
+                </button>
+              </div>
+            )}
+            <div className="flex justify-between items-center mt-2">
+              <label className="cursor-pointer text-violet-400 hover:text-violet-300 flex items-center gap-1 text-sm font-bold">
+                📷 Photo
+                <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
+              </label>
+              <button
+                onClick={publish}
+                disabled={busy || (!text.trim() && !photo)}
+                className="bg-violet-600 text-white px-5 py-1.5 rounded-full text-sm font-bold disabled:opacity-50"
+              >
+                {busy ? "Posting..." : "Post"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* STORIES ROW */}
       <div className="flex gap-3 overflow-x-auto px-4 py-3 border-b border-slate-800">
-        <Link href={`/profile?user=${me}`} className="flex flex-col items-center gap-1 shrink-0">
+        {/* FIX 4: Split viewing logic vs creating logic for personal stories */}
+        <div className="flex flex-col items-center gap-1 shrink-0 cursor-pointer">
           <span className="relative inline-block">
-            <Avatar p={myProf} size="w-14 h-14" />
-            <span className="absolute bottom-0 right-0 bg-violet-600 border-2 border-slate-950 rounded-full w-5 h-5 text-[10px] font-bold flex items-center justify-center">
+            <span 
+              onClick={() => storyMap.has(me) ? setViewStory({ user: me, index: 0 }) : setCreatingStory(true)}
+              className={storyMap.has(me) ? "rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-600 p-[2px] inline-block" : "inline-block"}
+            >
+              <Avatar p={myProf} size="w-14 h-14" />
+            </span>
+            <button 
+              onClick={(e) => { e.stopPropagation(); setCreatingStory(true); }}
+              className="absolute bottom-0 right-0 bg-violet-600 border-2 border-slate-950 rounded-full w-5 h-5 text-[10px] font-bold flex items-center justify-center"
+            >
               +
-            </span>
+            </button>
           </span>
-          <span className="text-[10px] text-slate-400">You</span>
-        </Link>
-        {stories.map((s) => (
-          <Link key={s.user_id} href={`/profile?user=${s.user_id}`} className="flex flex-col items-center gap-1 shrink-0">
-            <Avatar p={s} size="w-14 h-14" ring />
-            <span className="text-[10px] text-slate-400 max-w-14 truncate">
-              {rankOf(coinMap.get(s.user_id) || 0)} {s.display_name}
-            </span>
-          </Link>
-        ))}
-        {stories.length === 0 && (
-          <p className="text-[10px] text-slate-500 self-center">Search people below to add friends → they appear here!</p>
+          <span className="text-[10px] text-slate-400">Your story</span>
+        </div>
+
+        {Array.from(storyMap.keys())
+          .filter((u) => u !== me)
+          .map((u) => (
+            <button
+              key={u}
+              onClick={() => setViewStory({ user: u, index: 0 })}
+              className="flex flex-col items-center gap-1 shrink-0"
+            >
+              <Avatar p={profById.get(u)} size="w-14 h-14" ring />
+              <span className="text-[10px] text-slate-400 max-w-14 truncate">
+                {rankOf(coinMap.get(u) || 0)} {profById.get(u)?.display_name || "friend"}
+              </span>
+            </button>
+          ))}
+        {storyMap.size <= (storyMap.has(me) ? 1 : 0) && (
+          <p className="text-[10px] text-slate-500 self-center">
+            Tap "Your story" to share a 24h status! 👻
+          </p>
         )}
       </div>
 
@@ -395,7 +518,6 @@ export default function FeedPage() {
       )}
       {shown.map((p) => (
         <article key={p.id} className="border-b border-slate-800 pb-3 mb-3">
-          {/* header */}
           <div className="flex items-center gap-2 px-4 py-2">
             <Link href={`/profile?user=${p.user_id}`}>
               <Avatar p={p.author} ring={false} />
@@ -409,7 +531,6 @@ export default function FeedPage() {
             {friendBtn(p.user_id)}
           </div>
 
-          {/* media */}
           <div className="relative" onDoubleClick={() => doubleTap(p)}>
             {p.image_url ? (
               <img src={p.image_url} className="w-full aspect-square object-cover" alt="" />
@@ -427,7 +548,6 @@ export default function FeedPage() {
             )}
           </div>
 
-          {/* actions */}
           <div className="flex items-center gap-3 px-4 py-2">
             <button onClick={() => like(p.id)} className="text-2xl">
               {p.likedByMe ? "❤️" : "🤍"}
@@ -485,6 +605,113 @@ export default function FeedPage() {
 
         </article>
       ))}
+
+      {/* STORY VIEWER */}
+      {viewStory && (storyMap.get(viewStory.user) || [])[viewStory.index] && (
+        <div className="fixed inset-0 z-50 bg-black flex flex-col">
+          <div className="flex gap-1 p-2">
+            {(storyMap.get(viewStory.user) || []).map((s, i) => (
+              <div key={s.id} className="flex-1 h-1 bg-slate-700 rounded">
+                {i <= viewStory.index && <div className="h-full bg-white rounded" />}
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 px-3 py-2">
+            <Avatar p={profById.get(viewStory.user)} size="w-8 h-8" />
+            <p className="text-xs font-bold flex-1 text-white">
+              {profById.get(viewStory.user)?.display_name || "friend"}
+            </p>
+            <button onClick={() => setViewStory(null)} className="text-xl text-white">✖</button>
+          </div>
+          <div
+            className="flex-1 relative flex items-center justify-center"
+            onClick={() => {
+              const arr = storyMap.get(viewStory.user) || [];
+              if (viewStory.index + 1 < arr.length)
+                setViewStory({ user: viewStory.user, index: viewStory.index + 1 });
+              else setViewStory(null);
+            }}
+          >
+            {(storyMap.get(viewStory.user) || [])[viewStory.index].image_url ? (
+              <img
+                src={(storyMap.get(viewStory.user) || [])[viewStory.index].image_url}
+                className="w-full h-full object-contain"
+                alt=""
+              />
+            ) : (
+              <div
+                className={`w-full h-full bg-gradient-to-br ${
+                  BGS[((storyMap.get(viewStory.user) || [])[viewStory.index].bg || 0) % BGS.length]
+                } flex items-center justify-center p-8`}
+              >
+                <p className="text-center text-2xl font-bold whitespace-pre-wrap text-white">
+                  {(storyMap.get(viewStory.user) || [])[viewStory.index].content}
+                </p>
+              </div>
+            )}
+          </div>
+          <p className="p-3 text-[10px] text-slate-400 text-center">
+            ⏳ Disappears in 24h • tap to next
+          </p>
+        </div>
+      )}
+
+      {/* STORY COMPOSER */}
+      {creatingStory && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-end" onClick={() => setCreatingStory(false)}>
+          <div className="w-full bg-slate-900 rounded-t-2xl p-4 grid gap-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <p className="font-bold">👻 New story (24h)</p>
+              <button onClick={() => setCreatingStory(false)} className="text-slate-400">✖</button>
+            </div>
+            <div className={`rounded-xl bg-gradient-to-br ${BGS[sBg]} min-h-[140px] flex items-center justify-center p-4`}>
+              {sPreview ? (
+                <img src={sPreview} className="rounded-xl max-h-56 w-full object-cover" alt="" />
+              ) : (
+                <p className="text-center font-bold">{sText || "Type below..."}</p>
+              )}
+            </div>
+            <textarea
+              value={sText}
+              onChange={(e) => setSText(e.target.value)}
+              rows={2}
+              placeholder="Write a status..."
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm resize-none"
+            />
+            <div className="flex gap-2 overflow-x-auto">
+              {BGS.map((g, i) => (
+                <button
+                  key={i}
+                  onClick={() => setSBg(i)}
+                  className={`w-8 h-8 shrink-0 rounded-full bg-gradient-to-br ${g} border-2 ${
+                    sBg === i ? "border-white" : "border-transparent"
+                  }`}
+                />
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <label className="px-4 py-2 rounded-lg bg-slate-800 text-sm font-bold cursor-pointer">
+                📷
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                      setSPhoto(f);
+                      setSPreview(URL.createObjectURL(f));
+                    }
+                  }}
+                  className="hidden"
+                />
+              </label>
+              <button onClick={shareStory} className="flex-1 py-2 rounded-lg bg-violet-600 font-bold text-sm">
+                Share story
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* INSTA BOTTOM BAR */}
       <nav className="fixed bottom-0 inset-x-0 z-40 bg-slate-900 border-t border-slate-800 grid grid-cols-4 md:hidden">
