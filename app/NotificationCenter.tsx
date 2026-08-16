@@ -77,7 +77,7 @@ export default function NotificationCenter() {
 
   return (
     <div
-      className="absolute top-3 right-14 z-50"
+      className="absolute top-5 right-14 z-50"
       ref={boxRef}
       data-version="v6-bell"
     >

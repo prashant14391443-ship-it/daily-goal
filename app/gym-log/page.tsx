@@ -57,6 +57,17 @@ export default function GymHub() {
             Speed, pace & race predictions
           </p>
         </Link>
+
+        <Link
+          href="/move"
+          className="bg-slate-900 border-2 border-green-500/50 rounded-xl p-6 text-center hover:bg-slate-800"
+        >
+          <span className="text-4xl">🛰️</span>
+          <h3 className="font-bold mt-3 text-green-400">Auto Tracker</h3>
+          <p className="text-xs text-slate-400 mt-1">
+            GPS: walk, run, ride, hike — Strava style!
+          </p>
+        </Link>
       </div>
     </main>
   );
