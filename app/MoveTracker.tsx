@@ -38,7 +38,8 @@ export default function MoveTracker() {
   const [sec, setSec] = useState(0);
   const [speed, setSpeed] = useState(0);
   const [hint, setHint] = useState("");
-  const [weight, setWeight] = useState("65"); // Added weight state
+  // FIX: Start with an empty string so the user has to type their weight.
+  const [weight, setWeight] = useState(""); 
   const [last, setLast] = useState<null | { dist: number; sec: number; cal: number; label: string; coins: number }>(null);
   const [steps, setSteps] = useState(0);
   const lastStepRef = useRef(0);
@@ -112,6 +113,7 @@ export default function MoveTracker() {
     
     const km = Math.max(distRef.current / 1000, (steps * 0.7) / 1000);
     const mins = Math.max(1, Math.round(sec / 60));
+    // Number("") is 0, which defaults to 65. If they type something, it uses their value.
     const userWeight = Number(weight) || 65;
     
     // FIX: Require at least 10 meters (0.01 km) to register any calories
@@ -189,22 +191,23 @@ export default function MoveTracker() {
           ))}
         </div>
 
-        {/* NEW: Weight Input for Accurate Calories */}
+        {/* Updated Body Weight Input Section */}
         <div className="flex items-center justify-between bg-slate-800/50 rounded-xl p-3 mb-4 border border-slate-700">
           <span className="text-sm font-medium text-slate-400">Body Weight (kg)</span>
           <input
             type="number"
             min="20"
             max="300"
-            value={weight}
+            value={weight} // Accurate user-definable state
             onChange={(e) => setWeight(e.target.value)}
             disabled={tracking}
             className="bg-slate-900 border border-slate-700 rounded-lg w-20 text-center text-white py-1 outline-none focus:border-green-500 disabled:opacity-50"
-            placeholder="65"
+            // FIX: This placeholder is visible because the initial state is now ""
+            placeholder="65" 
           />
         </div>
 
-        {/* Stats Grid */}
+        {/* Stats Grid Structure Matching Image 4 */}
         <div className="bg-slate-800/50 rounded-xl p-4 grid gap-4 mb-6 border border-slate-700">
           
           {/* Top Row: Total Steps & Distance Run */}
