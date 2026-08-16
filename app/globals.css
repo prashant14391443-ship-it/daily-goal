@@ -75,10 +75,9 @@ button.text-red-400 {
   font-weight: 700;
   font-size: 11px;
 }
-/* keep page titles clear of bell + avatar */
+/* titles shrink + wrap, never cover bell/avatar */
 h1 {
   max-width: calc(100% - 7.5rem);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: clamp(1.1rem, 5.5vw, 1.875rem);
+  overflow-wrap: break-word;
 }

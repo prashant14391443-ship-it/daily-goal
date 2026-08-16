@@ -65,7 +65,7 @@ export default function GymHub() {
           <span className="text-4xl">🛰️</span>
           <h3 className="font-bold mt-3 text-green-400">Auto Tracker</h3>
           <p className="text-xs text-slate-400 mt-1">
-            GPS: walk, run, ride, hike — Strava style!
+            GPS: walk, run, ride, hike — auto calories!
           </p>
         </Link>
       </div>
