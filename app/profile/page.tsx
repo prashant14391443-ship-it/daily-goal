@@ -70,7 +70,7 @@ function Inner() {
     if (userId === uid && (!profRow || !profRow.display_name)) {
       const md = (data.session?.user?.user_metadata || {}) as any;
       profRow = {
-        display_name: md.display_name || "friend",
+        display_name: md.display_name || md.name || "friend",
         avatar_url: md.avatar_url || "",
         is_private: profRow?.is_private || false,
         bio: profRow?.bio || "",
@@ -164,7 +164,10 @@ function Inner() {
       <div className="flex items-center justify-between p-4">
         <Link href="/feed" className="text-xl">←</Link>
         <p className="font-bold flex items-center gap-1 truncate max-w-[60%]">
-          {prof?.is_private ? "🔒" : ""} {prof?.display_name || "..."}
+          {prof?.is_private ? "🔒" : ""}{" "}
+          {userId === me && (!prof?.display_name || prof.display_name === "friend")
+            ? "Your profile"
+            : prof?.display_name || "..."}
         </p>
         <span className="text-xs text-amber-400 font-bold">🪙 {coins}</span>
       </div>

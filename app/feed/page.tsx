@@ -281,7 +281,7 @@ export default function FeedPage() {
   return (
     <main className="min-h-screen bg-slate-950 text-white pb-24">
       {/* TOP BAR */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-800">
+      <div className="flex items-center justify-between p-4 pr-28 border-b border-slate-800">
         <p className="font-black text-xl tracking-tight">
           📰 Friend<span className="text-fuchsia-400">Feed</span>
         </p>
@@ -290,7 +290,7 @@ export default function FeedPage() {
             onClick={() => setTab(tab === "all" ? "friends" : "all")}
             className="text-xs font-bold bg-slate-800 px-3 py-1.5 rounded-full"
           >
-            {tab === "all" ? "🌍 All" : "🤝 Friends"}
+            {tab === "all" ? "🌍 Public" : "🔒 Private"}
           </button>
           <button
             onClick={() => setCreating(true)}

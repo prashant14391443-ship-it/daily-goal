@@ -72,7 +72,7 @@ export default function SearchPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 pb-24">
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4 pr-24">
         <Link href="/feed" className="text-xl">←</Link>
         <input
           autoFocus
@@ -80,6 +80,9 @@ export default function SearchPage() {
           onChange={(e) => {
             setQ(e.target.value);
             search(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           }}
           placeholder="🔍 Search people"
           className="flex-1 p-3 rounded-full bg-slate-900 border border-slate-700 text-sm"
