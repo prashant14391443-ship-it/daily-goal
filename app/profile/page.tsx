@@ -36,7 +36,21 @@ function Inner() {
       supabase.from("post_likes").select("post_id"),
       supabase.from("friends").select("friend_id").eq("user_id", userId),
     ]);
-    setProf(pr || { display_name: "friend", avatar_url: "", is_private: false, bio: "" });
+    let profRow = (pr as any) || null;
+    if (userId === uid && (!profRow || !profRow.display_name)) {
+      const md = (data.session?.user?.user_metadata || {}) as any;
+      profRow = {
+        display_name: md.display_name || "friend",
+        avatar_url: md.avatar_url || "",
+        is_private: profRow?.is_private || false,
+        bio: profRow?.bio || "",
+      };
+      await supabase.from("profiles").upsert(
+        { user_id: uid, display_name: profRow.display_name, avatar_url: profRow.avatar_url },
+        { onConflict: "user_id" }
+      );
+    }
+    setProf(profRow || { display_name: "friend", avatar_url: "", is_private: false, bio: "" });
     setIsFriend((fr.data || []).length > 0);
     setSentReq((sReq.data || []).length > 0);
     setRecvReq((rReq.data || []).length > 0);
@@ -74,7 +88,14 @@ function Inner() {
   };
   const saveProfile = async () => {
     setSaving(true);
-    await supabase.from("profiles").update({ bio: editBio }).eq("user_id", me);
+    await supabase.from("profiles").upsert(
+      {
+        user_id: me,
+        bio: editBio,
+        display_name: editName.trim() || prof?.display_name || "friend",
+      },
+      { onConflict: "user_id" }
+    );
     if (editName.trim()) await supabase.auth.updateUser({ data: { display_name: editName.trim() } });
     setEditing(false);
     setSaving(false);
@@ -241,14 +262,6 @@ function Inner() {
                 <p className="p-2 text-[10px] text-slate-300 line-clamp-6">{p.content}</p>
               )}
               <span className="absolute bottom-1 left-1 text-[10px] font-bold drop-shadow">❤️ {p.likes}</span>
-              {userId === me && (
-                <button
-                  onClick={() => deletePost(p)}
-                  className="absolute top-1 right-1 bg-black/60 rounded-full w-6 h-6 text-[10px]"
-                >
-                  🗑
-                </button>
-              )}
             </div>
           ))}
         </div>

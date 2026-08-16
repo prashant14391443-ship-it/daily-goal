@@ -202,6 +202,17 @@ export default function FeedPage() {
     }
   };
 
+  const editPost = async (p: Post) => {
+    const t = prompt("Edit your post:", p.content || "");
+    if (t === null) return;
+    if (bad(t)) {
+      alert("🚫 Keep it clean!");
+      return;
+    }
+    await supabase.from("posts").update({ content: t.trim() }).eq("id", p.id);
+    load();
+  };
+
   const deletePost = async (p: Post) => {
     if (!confirm("Delete this post?")) return;
     if (p.image_url) {
@@ -282,12 +293,12 @@ export default function FeedPage() {
 
       {/* SEARCH */}
       <div className="flex gap-2 px-4 py-3">
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="🔍 Search people..."
-          className="flex-1 p-2.5 rounded-full bg-slate-900 border border-slate-700 text-sm"
-        />
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Share your win today... 🏆"
+            className="flex-1 p-2.5 rounded-full bg-slate-900 border border-slate-700 text-sm"
+          />
         <button onClick={search} className="px-4 rounded-full bg-violet-600 font-bold text-sm">
           Go
         </button>
@@ -409,9 +420,14 @@ export default function FeedPage() {
             </button>
             <span className="flex-1" />
             {p.user_id === me && (
-              <button onClick={() => deletePost(p)} className="text-sm">
-                🗑
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => editPost(p)} className="text-sm">
+                  ✏️
+                </button>
+                <button onClick={() => deletePost(p)} className="text-sm">
+                  🗑
+                </button>
+              </div>
             )}
           </div>
 
@@ -423,6 +439,46 @@ export default function FeedPage() {
           )}
         </article>
       ))}
+
+      {/* INSTA BOTTOM BAR */}
+      <nav className="fixed bottom-0 inset-x-0 z-40 bg-slate-900 border-t border-slate-800 grid grid-cols-4 md:hidden">
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="flex flex-col items-center py-2 text-[10px] text-white"
+        >
+          <span className="text-lg">🏠</span>
+          Feed
+        </button>
+        <button
+          onClick={() => {
+            const el = document.getElementById("feed-search");
+            el?.scrollIntoView({ behavior: "smooth" });
+            (el as HTMLInputElement | null)?.focus();
+          }}
+          className="flex flex-col items-center py-2 text-[10px] text-slate-500"
+        >
+          <span className="text-lg">🔍</span>
+          Search
+        </button>
+        <button
+          onClick={() => {
+            const el = document.getElementById("feed-compose");
+            el?.scrollIntoView({ behavior: "smooth" });
+            (el as HTMLInputElement | null)?.focus();
+          }}
+          className="flex flex-col items-center py-2 text-[10px] text-slate-500"
+        >
+          <span className="text-lg">➕</span>
+          Post
+        </button>
+        <Link
+          href={`/profile?user=${me}`}
+          className="flex flex-col items-center py-2 text-[10px] text-slate-500"
+        >
+          <span className="text-lg">👤</span>
+          Profile
+        </Link>
+      </nav>
     </main>
   );
 }
