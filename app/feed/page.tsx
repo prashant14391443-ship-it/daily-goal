@@ -101,6 +101,7 @@ export default function FeedPage() {
   const [sBg, setSBg] = useState(0);
   const [sPhoto, setSPhoto] = useState<File | null>(null);
   const [sPreview, setSPreview] = useState("");
+  const [viewers, setViewers] = useState<string[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [tab, setTab] = useState<"all" | "friends">("all");
   const [friends, setFriends] = useState<Set<string>>(new Set());
@@ -289,6 +290,30 @@ export default function FeedPage() {
     setSPreview("");
     load();
   };
+
+  useEffect(() => {
+    const record = async () => {
+      if (!viewStory) return;
+      const s = (storyMap.get(viewStory.user) || [])[viewStory.index];
+      if (!s) return;
+      if (s.user_id !== me) {
+        await supabase
+          .from("story_views")
+          .upsert({ story_id: s.id, user_id: me }, { onConflict: "story_id,user_id" });
+      } else {
+        const { data: v } = await supabase
+          .from("story_views")
+          .select("user_id")
+          .eq("story_id", s.id);
+        const ids = (v || []).map((x) => x.user_id);
+        if (ids.length > 0) {
+          const { data: pr } = await supabase.from("profiles").select("*").in("user_id", ids);
+          setViewers(((pr as any[]) || []).map((p) => p.display_name || "friend"));
+        } else setViewers([]);
+      }
+    };
+    record();
+  }, [viewStory, storyMap, me]);
 
   useEffect(() => {
     if (!viewStory) return;
@@ -651,7 +676,9 @@ export default function FeedPage() {
             )}
           </div>
           <p className="p-3 text-[10px] text-slate-400 text-center">
-            ⏳ Disappears in 24h • tap to next
+            {(storyMap.get(viewStory.user) || [])[viewStory.index]?.user_id === me
+              ? `👁 Seen by ${viewers.length}: ${viewers.slice(0, 5).join(", ") || "no one yet"}`
+              : "⏳ Disappears in 24h • tap to next"}
           </p>
         </div>
       )}
