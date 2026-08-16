@@ -174,6 +174,31 @@ export default function ProfileMenu() {
     }
   };
 
+  const checkStreaksNow = async () => {
+    const { data } = await supabase.auth.getSession();
+    const uid = data.session?.user.id;
+    if (!uid) return;
+    const [s, g, m, h, t] = await Promise.all([
+      supabase.from("study_sessions").select("session_date").eq("user_id", uid).eq("completed", true),
+      supabase.from("gym_logs").select("session_date").eq("user_id", uid).eq("completed", true).is("activity_type", null),
+      supabase.from("gym_logs").select("session_date").eq("user_id", uid).eq("completed", true).not("activity_type", "is", null),
+      supabase.from("habit_logs").select("log_date").eq("user_id", uid).eq("completed", true),
+      supabase.from("tasks").select("task_date").eq("user_id", uid).eq("category", "todo").eq("completed", true),
+    ]);
+    const rows = [
+      ...(s.data || []).map((r) => ({ user_id: uid, category: "study", day: r.session_date })),
+      ...(g.data || []).map((r) => ({ user_id: uid, category: "workout", day: r.session_date })),
+      ...(m.data || []).map((r) => ({ user_id: uid, category: "move", day: r.session_date })),
+      ...(h.data || []).map((r) => ({ user_id: uid, category: "habits", day: r.log_date })),
+      ...(t.data || []).map((r) => ({ user_id: uid, category: "todo", day: r.task_date })),
+    ];
+    if (rows.length > 0) {
+      await supabase
+        .from("streak_ledger")
+        .upsert(rows, { onConflict: "user_id,category,day" });
+    }
+  };
+
   const checkCoinsNow = async () => {
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
@@ -227,8 +252,10 @@ export default function ProfileMenu() {
     const trigger = () => {
       setTimeout(checkBadgesNow, 1500);
       setTimeout(checkCoinsNow, 2000);
+      setTimeout(checkStreaksNow, 2200);
     };
     setTimeout(checkCoinsNow, 2500);
+    setTimeout(checkStreaksNow, 2700);
     const chan = supabase
       .channel("badge-watch")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "study_sessions" }, trigger)
