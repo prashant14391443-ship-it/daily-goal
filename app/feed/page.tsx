@@ -436,45 +436,7 @@ export default function FeedPage() {
         </button>
       </div>
 
-      {/* FIX 3: ADDED POST COMPOSER UI */}
-      <div className="p-4 border-b border-slate-800 bg-slate-950">
-        <div className="flex gap-3">
-          <Avatar p={myProf} />
-          <div className="flex-1">
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="What's on your mind?"
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl p-3 text-sm resize-none focus:outline-none focus:border-violet-500"
-              rows={2}
-            />
-            {preview && (
-              <div className="relative inline-block mt-2">
-                <img src={preview} className="max-h-32 rounded-lg object-cover border border-slate-700" alt="Preview" />
-                <button 
-                  onClick={() => { setPhoto(null); setPreview(""); }} 
-                  className="absolute -top-2 -right-2 bg-slate-800 border border-slate-600 rounded-full w-6 h-6 flex items-center justify-center text-xs"
-                >
-                  ✖
-                </button>
-              </div>
-            )}
-            <div className="flex justify-between items-center mt-2">
-              <label className="cursor-pointer text-violet-400 hover:text-violet-300 flex items-center gap-1 text-sm font-bold">
-                📷 Photo
-                <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
-              </label>
-              <button
-                onClick={publish}
-                disabled={busy || (!text.trim() && !photo)}
-                className="bg-violet-600 text-white px-5 py-1.5 rounded-full text-sm font-bold disabled:opacity-50"
-              >
-                {busy ? "Posting..." : "Post"}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      
 
       {/* STORIES ROW */}
       <div className="flex gap-3 overflow-x-auto px-4 py-3 border-b border-slate-800">
