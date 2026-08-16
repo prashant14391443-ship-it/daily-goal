@@ -103,8 +103,15 @@ function Inner() {
     setSentReq((sReq.data || []).length > 0);
     setRecvReq((rReq.data || []).length > 0);
     
-    const cRow = (cn as any) || {};
-    setCoins(cRow.data?.coins || 0);
+    const { data: coinRows } = await supabase
+      .from("coin_log")
+      .select("coins")
+      .eq("user_id", userId);
+    const totalCoins = ((coinRows as any[]) || []).reduce(
+      (a, r) => a + (Number(r.coins) || 0),
+      0
+    );
+    setCoins(totalCoins);
     
     setFriendCount((theirFriends.data || []).length);
     const likeCount = new Map<string, number>();
@@ -169,9 +176,20 @@ function Inner() {
         
         if (blob) {
           const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
-          await supabase.storage.from("avatars").upload(`${me}.jpg`, file, { upsert: true });
-          // Add a cache-busting timestamp so the browser updates the image instantly
-          newAvatarUrl = supabase.storage.from("avatars").getPublicUrl(`${me}.jpg`).data.publicUrl + "?t=" + Date.now();
+          const { error: upErr } = await supabase.storage.from("avatars").upload(
+            `${me}.jpg`,
+            file,
+            { upsert: true }
+          );
+          if (upErr) {
+            alert("Photo upload failed: " + upErr.message);
+            setSaving(false);
+            setEditImg(null);
+            return;
+          }
+          newAvatarUrl =
+            supabase.storage.from("avatars").getPublicUrl(`${me}.jpg`).data.publicUrl +
+            "?t=" + Date.now();
         }
       }
       setEditImg(null);
@@ -184,8 +202,7 @@ function Inner() {
       data: { display_name: finalName, avatar_url: newAvatarUrl } 
     });
 
-    // 2. Upsert profile database exactly once with all current data
-    await supabase.from("profiles").upsert(
+    const { error: saveErr } = await supabase.from("profiles").upsert(
       {
         user_id: me,
         bio: editBio,
@@ -194,6 +211,9 @@ function Inner() {
       },
       { onConflict: "user_id" }
     );
+    if (saveErr) {
+      alert("Save failed: " + saveErr.message);
+    }
 
     // 3. Immediately update the React state so the UI reflects the changes instantly
     setProf((prev: any) => ({
