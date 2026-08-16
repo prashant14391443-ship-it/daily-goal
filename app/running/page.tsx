@@ -12,10 +12,13 @@ function fmtTime(totalSec: number) {
 }
 
 type Result = {
+  distance: string;
   speed: number;
   paceMin: number;
   paceSec: number;
   calories: number;
+  steps: number;
+  coins: number;
   preds: { label: string; text: string }[];
 };
 
@@ -31,19 +34,36 @@ export default function RunningPage() {
     const d = Number(distance);
     const totalSec = (Number(mins) || 0) * 60 + (Number(secs) || 0);
     const w = Number(weight);
-    if (d <= 0 || totalSec <= 0 || w <= 0) return;
+
+    // Allow calculation if time and weight exist (even if distance is 0)
+    if (totalSec <= 0 || w <= 0) return;
 
     const hours = totalSec / 3600;
-    const speed = d / hours;
-    const paceTotal = totalSec / d;
-    const paceMin = Math.floor(paceTotal / 60);
-    const paceSec = Math.round(paceTotal % 60);
+    const speed = d > 0 ? d / hours : 0;
+    const paceTotal = d > 0 ? totalSec / d : 0;
+    const paceMin = d > 0 ? Math.floor(paceTotal / 60) : 0;
+    const paceSec = d > 0 ? Math.round(paceTotal % 60) : 0;
 
-    const met =
-      speed < 8 ? 7 : speed < 10 ? 9.8 : speed < 13 ? 11.5 : speed < 16 ? 12.8 : 14.5;
-    const calories = Math.round(met * w * hours);
+    // FIX 1: Accurate Calorie calculation
+    // Set MET to 0 if distance is 0, so no fake calories are burned just from time passing
+    let met = 0;
+    if (speed === 0) met = 0; 
+    else if (speed < 4) met = 3; // Walking
+    else if (speed < 8) met = 7; // Jogging
+    else if (speed < 10) met = 9.8;
+    else if (speed < 13) met = 11.5;
+    else if (speed < 16) met = 12.8;
+    else met = 14.5;
 
-    const preds = [
+    const calories = d > 0 ? Math.round(met * w * hours) : 0;
+
+    // FIX 2: Estimate steps (assuming average human stride length of ~0.78m)
+    const steps = Math.round((d * 1000) / 0.78);
+
+    // FIX 3: Calculate coins (Strictly 15 coins per full km)
+    const coins = Math.floor(d) * 15;
+
+    const preds = d > 0 ? [
       { label: "1 km", dist: 1 },
       { label: "5 km", dist: 5 },
       { label: "10 km", dist: 10 },
@@ -51,13 +71,16 @@ export default function RunningPage() {
     ].map((p) => ({
       label: p.label,
       text: fmtTime(totalSec * Math.pow(p.dist / d, 1.06)),
-    }));
+    })) : [];
 
     setResult({
+      distance: d.toFixed(2),
       speed: Math.round(speed * 10) / 10,
       paceMin,
       paceSec,
       calories,
+      steps,
+      coins,
       preds,
     });
   };
@@ -72,7 +95,7 @@ export default function RunningPage() {
           Running Calculator
         </h1>
         <p className="text-slate-400">
-          Calculate speed, pace & race predictions from your run
+          Calculate speed, pace, steps & coin rewards from your run
         </p>
       </div>
 
@@ -82,8 +105,8 @@ export default function RunningPage() {
       >
         <input
           type="number"
-          min="0.1"
-          step="0.1"
+          min="0"
+          step="0.01"
           value={distance}
           onChange={(e) => setDistance(e.target.value)}
           placeholder="Distance (km)"
@@ -125,33 +148,64 @@ export default function RunningPage() {
 
       {result && (
         <div className="bg-slate-900 rounded-xl p-6 grid gap-5 border border-slate-800">
-          <div className="grid grid-cols-3 gap-3 text-center">
+          {/* Top Row: Total Steps & Distance Run */}
+          <div className="grid grid-cols-2 gap-3 text-center">
             <div className="bg-slate-800 rounded p-4">
-              <p className="text-xs text-slate-400">Speed</p>
-              <p className="text-2xl font-extrabold text-orange-400">
-                {result.speed}
+              <p className="text-sm font-medium text-slate-400 mb-1">Total Steps</p>
+              <p className="text-3xl font-bold text-white">
+                {result.steps}
               </p>
-              <p className="text-[10px] text-slate-400">km/h</p>
             </div>
             <div className="bg-slate-800 rounded p-4">
-              <p className="text-xs text-slate-400">Pace</p>
-              <p className="text-2xl font-extrabold text-green-400">
-                {result.paceMin}:{String(result.paceSec).padStart(2, "0")}
+              <p className="text-sm font-medium text-slate-400 mb-1">Distance Run</p>
+              <p className="text-3xl font-bold text-white">
+                {result.distance} <span className="text-xl">km</span>
               </p>
-              <p className="text-[10px] text-slate-400">min / km</p>
-            </div>
-            <div className="bg-slate-800 rounded p-4">
-              <p className="text-xs text-slate-400">Burned</p>
-              <p className="text-2xl font-extrabold text-red-400">
-                {result.calories}
-              </p>
-              <p className="text-[10px] text-slate-400">kcal</p>
             </div>
           </div>
 
+          {/* Bottom Row: Speed, Pace, Burned */}
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="bg-slate-800 rounded p-4 flex flex-col justify-center">
+              <p className="text-xs text-slate-400 mb-1">Speed</p>
+              <p className="text-2xl font-extrabold text-orange-400">
+                {result.speed}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-1">km/h</p>
+            </div>
+            <div className="bg-slate-800 rounded p-4 flex flex-col justify-center">
+              <p className="text-xs text-slate-400 mb-1">Pace</p>
+              <p className="text-2xl font-extrabold text-green-400">
+                {result.paceMin > 0 || result.paceSec > 0 
+                  ? `${result.paceMin}:${String(result.paceSec).padStart(2, "0")}` 
+                  : "-"}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-1">min / km</p>
+            </div>
+            <div className="bg-slate-800 rounded p-4 flex flex-col justify-center">
+              <p className="text-xs text-slate-400 mb-1">Burned</p>
+              <p className="text-2xl font-extrabold text-red-400">
+                {result.calories}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-1">kcal</p>
+            </div>
+          </div>
+
+          {/* Coins Tracker */}
+          {result.coins > 0 ? (
+            <div className="bg-green-900/30 border border-green-800 rounded p-3 text-center text-green-400 text-sm font-medium">
+              ✅ Saved as COMPLETED Run → +{result.coins} 🪙
+            </div>
+          ) : (
+            <div className="bg-slate-800/50 border border-slate-700 rounded p-3 text-center text-slate-400 text-sm font-medium">
+              Run at least 1 km to earn coins! (1 km = 15 🪙)
+            </div>
+          )}
+
+          {/* Predictions Grid (Hidden if distance is 0) */}
           {result.preds.length > 0 && (
-            <div>
-              <p className="text-sm font-bold text-slate-300 mb-2">🏁 Race Predictions</p>
+            <div className="mt-2">
+              <p className="text-sm font-bold text-slate-300 mb-3">🏁 Race Predictions</p>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {result.preds.map((p) => (
                   <div
