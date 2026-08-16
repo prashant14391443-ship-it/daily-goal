@@ -103,7 +103,6 @@ function Inner() {
     setSentReq((sReq.data || []).length > 0);
     setRecvReq((rReq.data || []).length > 0);
     
-    // FIX: Extract coins data from Supabase result and update state
     const cRow = (cn as any) || {};
     setCoins(cRow.data?.coins || 0);
     
@@ -150,8 +149,11 @@ function Inner() {
       alert("Copy the link from the address bar!");
     }
   };
+
   const saveProfile = async () => {
     setSaving(true);
+    let newAvatarUrl = prof?.avatar_url; // Keep current image by default
+
     if (editImg) {
       const size = 512;
       const canvas = document.createElement("canvas");
@@ -164,25 +166,43 @@ function Inner() {
         const h = editImg.height * scale;
         ctx.drawImage(editImg, (size - w) / 2 + off.x * 2, (size - h) / 2 + off.y * 2, w, h);
         const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.8));
+        
         if (blob) {
           const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
           await supabase.storage.from("avatars").upload(`${me}.jpg`, file, { upsert: true });
-          const url = supabase.storage.from("avatars").getPublicUrl(`${me}.jpg`).data.publicUrl;
-          await supabase.auth.updateUser({ data: { avatar_url: url } });
-          await supabase.from("profiles").update({ avatar_url: url }).eq("user_id", me);
+          // Add a cache-busting timestamp so the browser updates the image instantly
+          newAvatarUrl = supabase.storage.from("avatars").getPublicUrl(`${me}.jpg`).data.publicUrl + "?t=" + Date.now();
         }
       }
       setEditImg(null);
     }
+
+    const finalName = editName.trim() || prof?.display_name || "friend";
+
+    // 1. Update auth user metadata
+    await supabase.auth.updateUser({ 
+      data: { display_name: finalName, avatar_url: newAvatarUrl } 
+    });
+
+    // 2. Upsert profile database exactly once with all current data
     await supabase.from("profiles").upsert(
       {
         user_id: me,
         bio: editBio,
-        display_name: editName.trim() || prof?.display_name || "friend",
+        display_name: finalName,
+        avatar_url: newAvatarUrl,
       },
       { onConflict: "user_id" }
     );
-    if (editName.trim()) await supabase.auth.updateUser({ data: { display_name: editName.trim() } });
+
+    // 3. Immediately update the React state so the UI reflects the changes instantly
+    setProf((prev: any) => ({
+      ...prev,
+      display_name: finalName,
+      bio: editBio,
+      avatar_url: newAvatarUrl,
+    }));
+
     setEditing(false);
     setSaving(false);
     load();
