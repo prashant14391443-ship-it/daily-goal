@@ -269,6 +269,17 @@ export default function FeedPage() {
     load();
   };
 
+  const deleteStory = async (s: any) => {
+    if (!confirm("Delete this story?")) return;
+    if (s.image_url) {
+      const path = decodeURIComponent(s.image_url.split("/posts/")[1] || "");
+      if (path) await supabase.storage.from("posts").remove([path]);
+    }
+    await supabase.from("stories").delete().eq("id", s.id);
+    setViewStory(null);
+    load();
+  };
+
   const shareStory = async () => {
     if (!sText.trim() && !sPhoto) return;
     let url = "";
@@ -608,6 +619,14 @@ export default function FeedPage() {
             <p className="text-xs font-bold flex-1 text-white">
               {profById.get(viewStory.user)?.display_name || "friend"}
             </p>
+            {(storyMap.get(viewStory.user) || [])[viewStory.index]?.user_id === me && (
+              <button
+                onClick={() => deleteStory((storyMap.get(viewStory.user) || [])[viewStory.index])}
+                className="text-lg"
+              >
+                🗑
+              </button>
+            )}
             <button onClick={() => setViewStory(null)} className="text-xl text-white">✖</button>
           </div>
           <div
