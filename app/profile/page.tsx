@@ -103,7 +103,7 @@ function Inner() {
     setSentReq((sReq.data || []).length > 0);
     setRecvReq((rReq.data || []).length > 0);
     const cRow = (cn as any) || {};
-    setCoins(Number(cRow.coins ?? cRow.total ?? cRow.balance ?? 0));
+    
     setFriendCount((theirFriends.data || []).length);
     const likeCount = new Map<string, number>();
     (likes.data || []).forEach((l) => likeCount.set(l.post_id, (likeCount.get(l.post_id) || 0) + 1));
