@@ -205,7 +205,6 @@ export default function ProfileMenu() {
     if (!uid) return;
     const today = toLocalISO(new Date());
     
-    // FIX 1: We added "distance_km" to the gym_logs select query so we can calculate the coins
     const [s, g, h, t, n] = await Promise.all([
       supabase.from("study_sessions").select("id").eq("user_id", uid).eq("session_date", today).eq("completed", true),
       supabase.from("gym_logs").select("id, distance_km").eq("user_id", uid).eq("session_date", today).eq("completed", true),
@@ -216,12 +215,9 @@ export default function ProfileMenu() {
     
     const actions = [
       ...(s.data || []).map((r) => ({ key: `s-${r.id}`, coins: 10 })),
-      
-      // FIX 2: Calculate 15 coins per km, and filter out any runs that result in 0 coins
       ...(g.data || [])
         .map((r) => ({ key: `g-${r.id}`, coins: Math.floor(r.distance_km || 0) * 15 }))
         .filter((a) => a.coins > 0),
-        
       ...(h.data || []).map((r) => ({ key: `h-${r.id}`, coins: 5 })),
       ...(t.data || []).map((r) => ({ key: `t-${r.id}`, coins: 5 })),
       ...(n.data || []).map((r) => ({ key: `n-${r.id}`, coins: 3 })),
@@ -250,17 +246,16 @@ export default function ProfileMenu() {
         .select("coins")
         .eq("user_id", uid)
         .maybeSingle();
+
       const total = (cur?.coins || 0) + earned;
+
+      // This upsert statement accurately replaces all the redundant/duplicated blocks you had.
       await supabase.from("user_coins").upsert({ user_id: uid, coins: total });
+      
       playBeep();
       setCoinFly(`+${earned} 🪙`);
       setTimeout(() => setCoinFly(""), 2500);
-      await supabase
-        .from("user_coins")
-        .upsert({ user_id: uid, coins: total }, { onConflict: "user_id" });
-      await supabase
-        .from("user_coins")
-        .upsert({ user_id: uid, coins: total }, { onConflict: "user_id" });
+
       window.dispatchEvent(new CustomEvent("dg-coins", { detail: { total, earned } }));
     }
   };
@@ -505,7 +500,7 @@ export default function ProfileMenu() {
 
   return (
     <div className="absolute top-5 right-3 z-50" ref={boxRef}>
-      {badgePop &&
+      {badgePop && typeof window !== "undefined" &&
         createPortal(
           <div className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-4">
           <div className="bg-slate-900 border-2 border-amber-500 rounded-2xl p-8 text-center max-w-sm w-full shadow-2xl">
@@ -522,9 +517,17 @@ export default function ProfileMenu() {
         </div>,
           document.body
         )}
+      
+      {/* Tiny popup animation for coins */}
+      {coinFly && (
+        <div className="absolute -left-10 top-2 z-[60] font-black text-amber-400 animate-bounce pointer-events-none drop-shadow-md">
+          {coinFly}
+        </div>
+      )}
+
       <button
         onClick={() => setOpen(!open)}
-        className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center justify-center overflow-hidden"
+        className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center justify-center overflow-hidden relative"
       >
         {avatarUrl ? (
           <img src={avatarUrl} alt="me" className="w-9 h-9 rounded-full object-cover" />
@@ -532,6 +535,7 @@ export default function ProfileMenu() {
           initial
         )}
       </button>
+
       {open && (
         <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl p-4 grid gap-3 shadow-xl">
           <div>
@@ -606,13 +610,7 @@ export default function ProfileMenu() {
           >
             🏆 Badges
           </Link>
-          <Link
-            href="/search"
-            onClick={() => setOpen(false)}
-            className="text-sm bg-gradient-to-r from-pink-600 to-violet-600 hover:from-pink-500 hover:to-violet-500 p-2 rounded text-white font-bold"
-          >
-            🔍 Find Friends
-          </Link>
+
           <Link
             href="/feed"
             onClick={() => setOpen(false)}

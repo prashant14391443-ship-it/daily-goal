@@ -24,7 +24,11 @@ export default function SearchPage() {
       supabase.from("friends").select("friend_id").eq("user_id", uid),
       supabase.from("friend_requests").select("to_id").eq("from_id", uid).eq("status", "pending"),
     ]);
-    setPeople(((prof.data as any[]) || []).filter((x) => x.user_id !== uid));
+    setPeople(
+      ((prof.data as any[]) || [])
+        .filter((x) => x.user_id !== uid)
+        .sort((a, b) => (b.display_name ? 1 : 0) - (a.display_name ? 1 : 0))
+    );
     setFriends(new Set((fr.data || []).map((f) => f.friend_id)));
     setSentReqs(new Set((sent.data || []).map((s) => s.to_id)));
     try {
@@ -81,7 +85,9 @@ export default function SearchPage() {
           </span>
         )}
         <span className="min-w-0">
-          <span className="font-bold text-sm block truncate">{p.display_name || "friend"}</span>
+          <span className="font-bold text-sm block truncate">
+            {p.display_name || `User-${p.user_id.slice(0, 4)}`}
+          </span>
           <span className="text-[10px] text-slate-500">{p.is_private ? "🔒 Private" : "🌍 Public"}</span>
         </span>
       </Link>
