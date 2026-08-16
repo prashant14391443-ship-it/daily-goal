@@ -21,7 +21,8 @@ export default function BottomNav() {
     pathname.startsWith("/activity") ||
     pathname.startsWith("/chat") ||
     pathname.startsWith("/newpost") ||
-    pathname.startsWith("/friends")
+    pathname.startsWith("/friends") ||
+    pathname.startsWith("/inbox")
   )
     return null;
   return (

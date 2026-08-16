@@ -45,25 +45,39 @@ export default function ActivityPage() {
       <div className="flex items-center justify-between mb-4">
         <Link href="/feed" className="text-xl">←</Link>
         <p className="font-bold">❤️ Activity</p>
-        <button onClick={markAll} className="text-xs text-violet-400 font-bold">
-          Mark all read
-        </button>
+        <div className="flex gap-2">
+          <Link href="/inbox" className="text-xs bg-violet-600 px-3 py-1 rounded-full font-bold">
+            💬 Inbox
+          </Link>
+          <button onClick={markAll} className="text-xs text-violet-400 font-bold">
+            Read all
+          </button>
+        </div>
       </div>
       <div className="grid gap-2">
         {items.length === 0 && (
           <p className="text-slate-500 text-sm text-center py-10">No activity yet — make some friends! 🤝</p>
         )}
-        {items.map((n) => (
-          <div
-            key={n.id}
-            className={`p-3 rounded-xl border ${
-              n.read ? "bg-slate-900 border-slate-800" : "bg-violet-600/10 border-violet-500/40"
-            }`}
-          >
-            <p className="text-sm">{n.text}</p>
-            <p className="text-[10px] text-slate-500 mt-1">{ago(n.created_at)}</p>
-          </div>
-        ))}
+        {items.map((n) => {
+          const inner = (
+            <>
+              <p className="text-sm">{n.text}</p>
+              <p className="text-[10px] text-slate-500 mt-1">{ago(n.created_at)}</p>
+            </>
+          );
+          const cls = `p-3 rounded-xl border block ${
+            n.read ? "bg-slate-900 border-slate-800" : "bg-violet-600/10 border-violet-500/40"
+          }`;
+          return n.type === "message" && n.actor_id ? (
+            <Link key={n.id} href={`/chat?user=${n.actor_id}`} className={cls}>
+              {inner}
+            </Link>
+          ) : (
+            <div key={n.id} className={cls}>
+              {inner}
+            </div>
+          );
+        })}
       </div>
     </main>
   );

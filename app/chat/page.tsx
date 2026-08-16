@@ -53,6 +53,17 @@ function Inner() {
   const send = async () => {
     if (!text.trim()) return;
     await supabase.from("messages").insert({ sender_id: me, receiver_id: other, content: text.trim() });
+    
+    // Create notification for the receiver
+    const { data: sess } = await supabase.auth.getSession();
+    const myName = ((sess?.session?.user?.user_metadata as any)?.display_name as string) || "Someone";
+    await supabase.from("notifications").insert({
+      user_id: other,
+      actor_id: me,
+      type: "message",
+      text: `💬 ${myName} sent you a message`,
+    });
+    
     setText("");
     load();
   };
