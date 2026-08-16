@@ -39,6 +39,8 @@ export default function MoveTracker() {
   const [speed, setSpeed] = useState(0);
   const [hint, setHint] = useState("");
   const [last, setLast] = useState<null | { dist: number; sec: number; cal: number; label: string }>(null);
+  const [steps, setSteps] = useState(0);
+  const lastStepRef = useRef(0);
   const watchRef = useRef<number | null>(null);
   const prevRef = useRef<{ lat: number; lon: number } | null>(null);
   const distRef = useRef(0);
@@ -49,6 +51,22 @@ export default function MoveTracker() {
     return () => clearInterval(id);
   }, [tracking]);
 
+  useEffect(() => {
+    if (!tracking) return;
+    const handler = (e: DeviceMotionEvent) => {
+      const a = e.accelerationIncludingGravity;
+      if (!a || a.x == null || a.y == null || a.z == null) return;
+      const mag = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
+      const now = Date.now();
+      if (mag > 13 && now - lastStepRef.current > 350) {
+        lastStepRef.current = now;
+        setSteps((s) => s + 1);
+      }
+    };
+    window.addEventListener("devicemotion", handler);
+    return () => window.removeEventListener("devicemotion", handler);
+  }, [tracking]);
+
   const start = () => {
     if (!navigator.geolocation) {
       alert("GPS not supported on this device!");
@@ -57,6 +75,7 @@ export default function MoveTracker() {
     distRef.current = 0;
     setDist(0);
     setSec(0);
+    setSteps(0);
     setHint("");
     prevRef.current = null;
     setTracking(true);
@@ -88,7 +107,7 @@ export default function MoveTracker() {
   const stop = async () => {
     if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current);
     setTracking(false);
-    const km = distRef.current / 1000;
+    const km = Math.max(distRef.current / 1000, (steps * 0.7) / 1000);
     const mins = Math.max(1, Math.round(sec / 60));
     const cal = Math.round(((mode.met * 3.5 * 65) / 200) * mins);
     const { data } = await supabase.auth.getSession();
@@ -100,6 +119,10 @@ export default function MoveTracker() {
         duration_minutes: mins,
         session_date: todayStr(),
         completed: true,
+        activity_type: mode.id,
+        distance_km: Math.round(km * 100) / 100,
+        calories: cal,
+        avg_speed: sec > 0 ? Math.round((km / (sec / 3600)) * 10) / 10 : 0,
       });
       setLast({ dist: km, sec, cal, label: mode.label });
     } else if (sec < 10) {
@@ -107,7 +130,7 @@ export default function MoveTracker() {
     }
   };
 
-  const km = dist / 1000;
+  const km = Math.max(dist / 1000, (steps * 0.7) / 1000);
   const pace = km > 0 ? sec / 60 / km : 0;
   const paceStr =
     km > 0.05 ? `${Math.floor(pace)}:${String(Math.floor((pace % 1) * 60)).padStart(2, "0")} /km` : "—";
@@ -134,7 +157,7 @@ export default function MoveTracker() {
       </div>
 
       {/* STRAVA-STYLE STATS */}
-      <div className="grid grid-cols-3 gap-2 text-center mb-2">
+      <div className="grid grid-cols-4 gap-2 text-center mb-2">
         <div>
           <p className="text-[10px] text-slate-400">Distance</p>
           <p className="font-black text-lg text-white">{km.toFixed(2)} km</p>
@@ -146,6 +169,10 @@ export default function MoveTracker() {
         <div>
           <p className="text-[10px] text-slate-400">Time</p>
           <p className="font-black text-lg text-white">{fmtTime(sec)}</p>
+        </div>
+        <div>
+          <p className="text-[10px] text-slate-400">Steps</p>
+          <p className="font-black text-lg text-blue-400">{steps}</p>
         </div>
       </div>
       <div className="flex justify-between text-xs text-slate-400 mb-3">

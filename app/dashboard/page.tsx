@@ -158,6 +158,60 @@ export default function Dashboard() {
   const [cdEmoji, setCdEmoji] = useState("📚");
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const [moveStreak, setMoveStreak] = useState(0);
+  const [moveStats, setMoveStats] = useState({
+    dist: 0,
+    cal: 0,
+    speed: 0,
+    pace: "0:00",
+    sessions: 0,
+  });
+
+  useEffect(() => {
+    const loadMove = async () => {
+      const { data } = await supabase.auth.getSession();
+      const uid = data.session?.user.id;
+      if (!uid) return;
+      const { data: rows } = await supabase
+        .from("gym_logs")
+        .select("session_date, distance_km, calories, avg_speed, duration_minutes")
+        .eq("user_id", uid)
+        .eq("completed", true)
+        .not("activity_type", "is", null);
+      if (!rows || rows.length === 0) return;
+
+      const days = [...new Set(rows.map((r) => r.session_date))].sort().reverse();
+      const isDay = (d: Date) => days.includes(toLocalISO(d));
+      let streak = 0;
+      let cursor = new Date();
+      if (!isDay(cursor)) cursor.setDate(cursor.getDate() - 1);
+      while (isDay(cursor)) {
+        streak++;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      setMoveStreak(streak);
+
+      const weekStr = toLocalISO(new Date(Date.now() - 6 * 86400000));
+      const week = rows.filter((r) => r.session_date >= weekStr);
+      const dist = week.reduce((a, r) => a + (r.distance_km || 0), 0);
+      const cal = week.reduce((a, r) => a + (r.calories || 0), 0);
+      const mins = week.reduce((a, r) => a + (r.duration_minutes || 0), 0);
+      const speedAvg = week.length
+        ? week.reduce((a, r) => a + (r.avg_speed || 0), 0) / week.length
+        : 0;
+      const pace = dist > 0 ? mins / dist : 0;
+      const paceMin = Math.floor(pace);
+      const paceSec = Math.round((pace - paceMin) * 60);
+      setMoveStats({
+        dist: Math.round(dist * 10) / 10,
+        cal: Math.round(cal),
+        speed: Math.round(speedAvg * 10) / 10,
+        pace: dist > 0 ? `${paceMin}:${String(paceSec).padStart(2, "0")}` : "0:00",
+        sessions: week.length,
+      });
+    };
+    loadMove();
+  }, []);
 
   const load = async () => {
     const { data } = await supabase.auth.getSession();
@@ -671,12 +725,18 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <div className="flex justify-between text-xs md:text-sm">
-                    <span>🏋️ Gym</span>
+                    <span>🏋️ Workout</span>
                     <span className="text-orange-400 font-semibold">{gymStreak} 🔥</span>
                   </div>
                   {gymBroken >= 2 && (
                     <p className="text-[10px] text-red-400">💔 broke {gymBroken}-day streak</p>
                   )}
+                </div>
+                <div>
+                  <div className="flex justify-between text-xs md:text-sm">
+                    <span>🏃 Move</span>
+                    <span className="text-orange-400 font-semibold">{moveStreak} 🔥</span>
+                  </div>
                 </div>
                 <div>
                   <div className="flex justify-between text-xs md:text-sm">
