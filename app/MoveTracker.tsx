@@ -38,7 +38,6 @@ export default function MoveTracker() {
   const [sec, setSec] = useState(0);
   const [speed, setSpeed] = useState(0);
   const [hint, setHint] = useState("");
-  // Added coins to the last state
   const [last, setLast] = useState<null | { dist: number; sec: number; cal: number; label: string; coins: number }>(null);
   const [steps, setSteps] = useState(0);
   const lastStepRef = useRef(0);
@@ -78,6 +77,7 @@ export default function MoveTracker() {
     setSec(0);
     setSteps(0);
     setHint("");
+    setLast(null); // FIX: This wipes out the ghost state from old runs when you start a new one
     prevRef.current = null;
     setTracking(true);
     watchRef.current = navigator.geolocation.watchPosition(
@@ -112,14 +112,13 @@ export default function MoveTracker() {
     const km = Math.max(distRef.current / 1000, (steps * 0.7) / 1000);
     const mins = Math.max(1, Math.round(sec / 60));
     
-    // FIX: Only calculate calories if distance is greater than 0
+    // FIX: Strictly 0 calories if distance is 0
     const cal = km > 0 ? Math.round(((mode.met * 3.5 * 65) / 200) * mins) : 0;
-    
-    // FIX: Calculate coins based strictly on full kilometers
     const earnedCoins = Math.floor(km) * 15;
 
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
+    
     if (uid && sec >= 10) {
       await supabase.from("gym_logs").insert({
         user_id: uid,
@@ -133,105 +132,122 @@ export default function MoveTracker() {
         avg_speed: sec > 0 ? Math.round((km / (sec / 3600)) * 10) / 10 : 0,
       });
       
-      // Save coins to state so we can display them accurately
       setLast({ dist: km, sec, cal, label: mode.label, coins: earnedCoins });
     } else if (sec < 10) {
       setHint("⏱️ Too short — track at least 10 seconds!");
     }
   };
 
+  // LIVE CALCULATIONS
   const km = Math.max(dist / 1000, (steps * 0.7) / 1000);
   const pace = km > 0 ? sec / 60 / km : 0;
-  const paceStr =
-    km > 0.05 ? `${Math.floor(pace)}:${String(Math.floor((pace % 1) * 60)).padStart(2, "0")} /km` : "—";
-    
-  // FIX: Live UI calorie tracker only goes up if distance > 0
+  const paceStr = km > 0 ? `${Math.floor(pace)}:${String(Math.floor((pace % 1) * 60)).padStart(2, "0")}` : "—";
   const cal = km > 0 ? Math.round(((mode.met * 3.5 * 65) / 200) * (sec / 60)) : 0;
 
   return (
-    <div className="bg-slate-900 rounded-2xl p-4">
-      <p className="font-bold text-white mb-2">🏃 Auto Tracker — walk, run, ride, hike</p>
-
-      <div className="grid grid-cols-4 gap-2 mb-3">
-        {MODES.map((m) => (
-          <button
-            key={m.id}
-            onClick={() => !tracking && setMode(m)}
-            className={`py-2 rounded-xl text-xs font-bold border ${
-              mode.id === m.id
-                ? "bg-green-600 border-green-500 text-white"
-                : "bg-slate-800 border-slate-700 text-slate-300"
-            }`}
-          >
-            {m.icon} {m.label}
-          </button>
-        ))}
-      </div>
-
-      {/* STRAVA-STYLE STATS */}
-      <div className="grid grid-cols-4 gap-2 text-center mb-2">
-        <div>
-          <p className="text-[10px] text-slate-400">Distance</p>
-          <p className="font-black text-lg text-white">{km.toFixed(2)} km</p>
+    <div className="bg-slate-950 p-4 min-h-screen text-white">
+      <div className="bg-slate-900 rounded-2xl p-4 shadow-lg border border-slate-800">
+        
+        {/* Header & Timer */}
+        <div className="flex justify-between items-center mb-4">
+          <p className="font-bold text-white text-lg flex items-center gap-2">
+            🏃 Auto Tracker
+          </p>
+          <div className="bg-slate-800 px-3 py-1 rounded-full text-slate-300 text-sm font-medium">
+            ⏱️ {fmtTime(sec)}
+          </div>
         </div>
-        <div>
-          <p className="text-[10px] text-slate-400">Pace</p>
-          <p className="font-black text-lg text-white">{paceStr}</p>
-        </div>
-        <div>
-          <p className="text-[10px] text-slate-400">Time</p>
-          <p className="font-black text-lg text-white">{fmtTime(sec)}</p>
-        </div>
-        <div>
-          <p className="text-[10px] text-slate-400">Steps</p>
-          <p className="font-black text-lg text-blue-400">{steps}</p>
-        </div>
-      </div>
-      <div className="flex justify-between text-xs text-slate-400 mb-3">
-        <span>⚡ {speed} km/h now</span>
-        <span>🔥 {cal} kcal</span>
-      </div>
 
-      {hint && <p className="text-xs text-amber-400 mb-2">{hint}</p>}
+        {/* Mode Selector */}
+        <div className="grid grid-cols-4 gap-2 mb-6">
+          {MODES.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => !tracking && setMode(m)}
+              className={`py-2 rounded-xl text-xs font-bold border transition-colors ${
+                mode.id === m.id
+                  ? "bg-green-600 border-green-500 text-white shadow-md shadow-green-900/20"
+                  : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+              }`}
+            >
+              {m.icon} {m.label}
+            </button>
+          ))}
+        </div>
 
-      <button
-        onClick={tracking ? stop : start}
-        className={`w-full py-3 rounded-xl font-black text-lg ${
-          tracking ? "bg-red-600 hover:bg-red-500" : "bg-green-600 hover:bg-green-500"
-        }`}
-      >
-        {tracking ? "⏹ STOP & SAVE" : "▶ START TRACKING"}
-      </button>
-
-      {last && (
-        <div className="mt-3 bg-slate-950/60 rounded-xl p-3">
-          <div className="grid grid-cols-3 text-center mb-2">
-            <div>
-              <p className="text-[10px] text-slate-400">Distance</p>
-              <p className="font-bold text-white">{last.dist.toFixed(2)} km</p>
+        {/* 🚀 NEW UI: EXACT MATCH TO IMAGE 2 🚀 */}
+        <div className="bg-slate-800/50 rounded-xl p-4 grid gap-4 mb-6 border border-slate-700">
+          
+          {/* Top Row: Total Steps & Distance Run */}
+          <div className="grid grid-cols-2 gap-3 text-center">
+            <div className="bg-slate-800 rounded-xl p-4 shadow-sm">
+              <p className="text-sm font-medium text-slate-400 mb-1">Total Steps</p>
+              <p className="text-3xl font-bold text-white">{steps}</p>
             </div>
-            <div>
-              <p className="text-[10px] text-slate-400">Time</p>
-              <p className="font-bold text-white">{fmtTime(last.sec)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400">Calories</p>
-              <p className="font-bold text-white">{last.cal} kcal</p>
+            <div className="bg-slate-800 rounded-xl p-4 shadow-sm">
+              <p className="text-sm font-medium text-slate-400 mb-1">Distance Run</p>
+              <p className="text-3xl font-bold text-white">
+                {km.toFixed(2)} <span className="text-lg text-slate-300">km</span>
+              </p>
             </div>
           </div>
-          
-          {/* FIX: Dynamic coin UI based on actual earned coins */}
-          {last.coins > 0 ? (
-            <p className="text-[10px] text-green-400 text-center">
-              ✅ Saved as COMPLETED {last.label} → +{last.coins} 🪙
-            </p>
-          ) : (
-            <p className="text-[10px] text-slate-400 text-center">
-              ⚠️ Run at least 1 km to earn coins! (0 🪙 earned)
-            </p>
-          )}
+
+          {/* Bottom Row: Speed, Pace, Burned */}
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="bg-slate-800 rounded-xl p-3 flex flex-col justify-center shadow-sm">
+              <p className="text-xs font-medium text-slate-400 mb-1">Speed</p>
+              <p className="text-2xl font-black text-orange-400">{speed || "0.0"}</p>
+              <p className="text-[10px] text-slate-500 mt-1">km/h</p>
+            </div>
+            <div className="bg-slate-800 rounded-xl p-3 flex flex-col justify-center shadow-sm">
+              <p className="text-xs font-medium text-slate-400 mb-1">Pace</p>
+              <p className="text-2xl font-black text-green-400">{paceStr}</p>
+              <p className="text-[10px] text-slate-500 mt-1">min / km</p>
+            </div>
+            <div className="bg-slate-800 rounded-xl p-3 flex flex-col justify-center shadow-sm">
+              <p className="text-xs font-medium text-slate-400 mb-1">Burned</p>
+              <p className="text-2xl font-black text-red-400">{cal}</p>
+              <p className="text-[10px] text-slate-500 mt-1">kcal</p>
+            </div>
+          </div>
         </div>
-      )}
+
+        {hint && (
+          <div className="bg-amber-900/20 border border-amber-900/50 rounded-lg p-2 mb-4 text-center">
+            <p className="text-xs text-amber-400">{hint}</p>
+          </div>
+        )}
+
+        <button
+          onClick={tracking ? stop : start}
+          className={`w-full py-4 rounded-xl font-black text-lg tracking-wide transition-all ${
+            tracking 
+              ? "bg-red-600 hover:bg-red-500 shadow-lg shadow-red-900/20" 
+              : "bg-green-600 hover:bg-green-500 shadow-lg shadow-green-900/20"
+          }`}
+        >
+          {tracking ? "⏹ STOP & SAVE" : "▶ START TRACKING"}
+        </button>
+
+        {/* Post-Run summary message */}
+        {last && (
+          <div className="mt-4 bg-slate-950/80 rounded-xl p-4 border border-slate-800">
+            <div className="flex justify-between items-center text-sm font-bold text-white mb-2">
+              <span>🏁 Run Saved!</span>
+              <span className="text-slate-400">{fmtTime(last.sec)}</span>
+            </div>
+            {last.coins > 0 ? (
+              <div className="bg-green-900/30 border border-green-800 rounded-lg p-3 text-center text-green-400 text-sm font-medium">
+                ✅ COMPLETED {last.label} → Earned +{last.coins} 🪙
+              </div>
+            ) : (
+              <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 text-center text-slate-400 text-sm font-medium">
+                ⚠️ Run at least 1 km to earn coins! (0 🪙 earned)
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
