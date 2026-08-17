@@ -249,7 +249,6 @@ export default function ProfileMenu() {
 
       const total = (cur?.coins || 0) + earned;
 
-      // This upsert statement accurately replaces all the redundant/duplicated blocks you had.
       await supabase.from("user_coins").upsert({ user_id: uid, coins: total });
       
       playBeep();
@@ -364,7 +363,7 @@ export default function ProfileMenu() {
           }
         });
 
-        // 🔥 AUTOMATION 1: STREAK RESCUE (7-9 PM, nothing done)
+        // STREAK RESCUE
         const doneAnything =
           (s.data || []).filter((r) => r.completed).length +
           (g.data || []).filter((r) => r.completed).length +
@@ -378,7 +377,7 @@ export default function ProfileMenu() {
           reg.showNotification("🔥 STREAK RESCUE", { body: "One small habit now saves your streak!" });
         }
 
-        // 🏆 AUTOMATION 4: INSTANT BADGES (within 30 sec of earning!)
+        // INSTANT BADGES
         for (const b of BADGES) {
           if (
             !b.ok({
@@ -401,7 +400,7 @@ export default function ProfileMenu() {
           }
         }
 
-        // 📊 AUTOMATION 5: SUNDAY AI WEEKLY REPORT
+        // SUNDAY AI WEEKLY REPORT
         if (now.getDay() === 0) {
           const weekKey = `dg-weekrep-${todayStr}`;
           if (!localStorage.getItem(weekKey)) {
@@ -499,48 +498,53 @@ export default function ProfileMenu() {
   };
 
   return (
-    <div className="absolute top-5 right-3 z-50" ref={boxRef}>
+    <div className="fixed top-4 right-4 md:top-6 md:right-8 z-[60]" ref={boxRef}>
+      
+      {/* Badge Earned Modal */}
       {badgePop && typeof window !== "undefined" &&
         createPortal(
-          <div className="fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border-2 border-amber-500 rounded-2xl p-8 text-center max-w-sm w-full shadow-2xl">
-            <p className="text-6xl mb-3">🏆</p>
-            <p className="text-xl font-black text-amber-400 mb-1">BADGE EARNED!</p>
-            <p className="text-white font-bold mb-4">{badgePop}</p>
-            <button
-              onClick={() => setBadgePop("")}
-              className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold"
-            >
-              🎉 YAY!
-            </button>
-          </div>
-        </div>,
+          <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-slate-900 border-2 border-amber-500 rounded-3xl p-8 text-center max-w-sm w-full shadow-2xl">
+              <p className="text-7xl mb-4 animate-bounce">🏆</p>
+              <p className="text-2xl font-black text-amber-400 mb-2">BADGE EARNED!</p>
+              <p className="text-white font-bold mb-6 text-lg">{badgePop}</p>
+              <button
+                onClick={() => setBadgePop("")}
+                className="w-full py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-black transition-colors"
+              >
+                🎉 YAY!
+              </button>
+            </div>
+          </div>,
           document.body
         )}
       
       {/* Tiny popup animation for coins */}
       {coinFly && (
-        <div className="absolute -left-10 top-2 z-[60] font-black text-amber-400 animate-bounce pointer-events-none drop-shadow-md">
+        <div className="absolute -left-12 top-3 z-[60] font-black text-amber-400 animate-bounce pointer-events-none drop-shadow-md text-lg">
           {coinFly}
         </div>
       )}
 
+      {/* Floating Profile Button */}
       <button
         onClick={() => setOpen(!open)}
-        className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center justify-center overflow-hidden relative"
+        className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold flex items-center justify-center overflow-hidden relative shadow-lg hover:shadow-xl hover:scale-105 transition-all ring-2 ring-transparent hover:ring-blue-400"
       >
         {avatarUrl ? (
-          <img src={avatarUrl} alt="me" className="w-9 h-9 rounded-full object-cover" />
+          <img src={avatarUrl} alt="me" className="w-full h-full object-cover" />
         ) : (
-          initial
+          <span className="text-lg md:text-xl">{initial}</span>
         )}
       </button>
 
+      {/* Dropdown Menu */}
       {open && (
-        <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl p-4 grid gap-3 shadow-xl">
-          <div>
-            <p className="font-bold text-white capitalize">{name}</p>
-            <p className="text-xs text-slate-400 break-all">{email}</p>
+        <div className="absolute right-0 mt-3 w-72 md:w-80 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-2xl p-5 grid gap-3 shadow-2xl origin-top-right animate-in fade-in zoom-in-95 duration-200 text-white">
+          
+          <div className="pb-3 border-b border-slate-800">
+            <p className="font-bold text-lg capitalize truncate">{name}</p>
+            <p className="text-xs text-slate-400 truncate">{email}</p>
           </div>
 
           {!editing ? (
@@ -549,41 +553,46 @@ export default function ProfileMenu() {
                 setEditName(displayName || "");
                 setEditing(true);
               }}
-              className="text-sm bg-slate-800 hover:bg-slate-700 p-2 rounded text-white"
+              className="text-sm bg-slate-800 hover:bg-slate-700 p-2.5 rounded-xl font-medium transition-colors text-left flex items-center gap-2"
             >
               ✏️ Edit Profile
             </button>
           ) : (
-            <div className="bg-slate-800 rounded p-3 grid gap-2">
-              <div className="flex items-center gap-2">
-                <label className="w-12 h-12 rounded-full bg-slate-700 hover:bg-slate-600 cursor-pointer flex items-center justify-center text-xl overflow-hidden shrink-0">
-                  {preview ? (
-                    <img src={preview} alt="preview" className="w-12 h-12 object-cover" />
-                  ) : (
-                    "📷"
-                  )}
-                  <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
-                </label>
-                <input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  placeholder="Your name"
-                  className="flex-1 p-2 rounded bg-slate-900 border border-slate-700 text-sm"
-                />
+            <div className="bg-slate-800 rounded-xl p-4 grid gap-3 border border-slate-700">
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <label className="w-14 h-14 rounded-full bg-slate-700 hover:bg-slate-600 transition-colors cursor-pointer flex items-center justify-center text-xl overflow-hidden shrink-0 border border-slate-500">
+                    {preview ? (
+                      <img src={preview} alt="preview" className="w-full h-full object-cover" />
+                    ) : (
+                      "📷"
+                    )}
+                    <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
+                  </label>
+                  <div className="flex-1">
+                    <p className="text-xs text-slate-400 mb-1 font-medium">Display Name</p>
+                    <input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="Your name"
+                      className="w-full p-2.5 rounded-lg bg-slate-900 border border-slate-700 text-sm focus:outline-none focus:border-violet-500 transition-colors"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 mt-1">
                 <button
                   onClick={saveProfile}
                   disabled={saving}
-                  className="flex-1 py-2 rounded bg-violet-600 hover:bg-violet-500 text-xs font-bold disabled:opacity-50"
+                  className="flex-1 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 transition-colors text-sm font-bold disabled:opacity-50"
                 >
-                  💾 Save
+                  {saving ? "..." : "💾 Save"}
                 </button>
                 <button
                   onClick={() => setEditing(false)}
-                  className="px-3 py-2 rounded bg-slate-700 text-xs"
+                  className="px-4 py-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 transition-colors text-sm font-bold"
                 >
-                  ✖
+                  Cancel
                 </button>
               </div>
             </div>
@@ -591,45 +600,45 @@ export default function ProfileMenu() {
 
           <button
             onClick={toggleTheme}
-            className="flex justify-between items-center text-sm bg-slate-800 hover:bg-slate-700 p-2 rounded text-white"
+            className="flex justify-between items-center text-sm bg-slate-800 hover:bg-slate-700 transition-colors p-3 rounded-xl font-medium"
           >
             <span>Theme</span>
-            <span>{light ? "☀️ Light" : "🌙 Dark"}</span>
+            <span className="bg-slate-900 px-3 py-1 rounded-lg text-xs font-bold">{light ? "☀️ Light" : "🌙 Dark"}</span>
           </button>
 
           <Link
             href="/dashboard"
             onClick={() => setOpen(false)}
-            className="text-sm bg-slate-800 hover:bg-slate-700 p-2 rounded text-white"
+            className="text-sm bg-slate-800 hover:bg-slate-700 transition-colors p-3 rounded-xl font-medium flex items-center gap-2"
           >
-            🎯 Settings / Goals
+            🎯 Settings & Goals
           </Link>
           <Link
             href="/badges"
             onClick={() => setOpen(false)}
-            className="text-sm bg-slate-800 hover:bg-slate-700 p-2 rounded text-white"
+            className="text-sm bg-slate-800 hover:bg-slate-700 transition-colors p-3 rounded-xl font-medium flex items-center gap-2"
           >
-            🏆 Badges
+            🏆 Earned Badges
           </Link>
 
           <Link
             href="/feed"
             onClick={() => setOpen(false)}
-            className="text-sm bg-gradient-to-r from-fuchsia-600 to-pink-600 hover:from-fuchsia-500 hover:to-pink-500 p-2 rounded text-white font-bold"
+            className="text-sm bg-gradient-to-r from-fuchsia-600 to-pink-600 hover:from-fuchsia-500 hover:to-pink-500 transition-all p-3 rounded-xl font-bold flex items-center gap-2 shadow-md"
           >
             📰 Friend Feed
           </Link>
           <Link
             href="/ai"
             onClick={() => setOpen(false)}
-            className="text-sm bg-violet-600 hover:bg-violet-500 p-2 rounded text-white font-bold"
+            className="text-sm bg-violet-600 hover:bg-violet-500 transition-colors p-3 rounded-xl font-bold flex items-center gap-2 shadow-md"
           >
-            🤖 Personal AI
+            🤖 Personal AI Coach
           </Link>
           <Link
             href="/report"
             onClick={() => setOpen(false)}
-            className="text-sm bg-slate-800 hover:bg-slate-700 p-2 rounded text-white"
+            className="text-sm bg-slate-800 hover:bg-slate-700 transition-colors p-3 rounded-xl font-medium flex items-center gap-2"
           >
             📊 Weekly Report
           </Link>
@@ -637,17 +646,19 @@ export default function ProfileMenu() {
             <Link
               href="/admin"
               onClick={() => setOpen(false)}
-              className="text-sm bg-amber-600 hover:bg-amber-500 p-2 rounded text-white font-bold text-center"
+              className="text-sm bg-amber-600 hover:bg-amber-500 transition-colors p-3 rounded-xl font-bold flex justify-center mt-2 shadow-md"
             >
               👑 Admin Panel
             </Link>
           )}
-          <button
-            onClick={logout}
-            className="text-sm bg-red-600 hover:bg-red-500 p-2 rounded font-semibold text-white"
-          >
-            Logout
-          </button>
+          <div className="border-t border-slate-800 pt-3 mt-1">
+            <button
+              onClick={logout}
+              className="w-full text-sm bg-red-600/20 hover:bg-red-600/30 text-red-400 transition-colors p-2.5 rounded-xl font-bold"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       )}
     </div>

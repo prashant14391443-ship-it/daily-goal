@@ -168,7 +168,7 @@ function Avatar({ p, size = "w-9 h-9", ring = false }: { p?: Profile; size?: str
   );
   if (!ring) return inner;
   return (
-    <span className="rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-600 p-[2px] inline-block">
+    <span className="rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-600 p-[2px] inline-block hover:scale-105 transition-transform cursor-pointer">
       {inner}
     </span>
   );
@@ -491,7 +491,7 @@ export default function FeedPage() {
     if (sentReqs.has(uid))
       return <span className="text-[10px] font-bold text-slate-500 shrink-0">⏳ Requested</span>;
     return (
-      <button onClick={() => addFriend(uid)} className="text-[10px] font-bold text-violet-400 shrink-0">
+      <button onClick={() => addFriend(uid)} className="text-[10px] font-bold text-violet-400 hover:text-violet-300 transition-colors shrink-0">
         + Follow
       </button>
     );
@@ -501,291 +501,311 @@ export default function FeedPage() {
   const shown = tab === "all" ? visible : visible.filter((p) => friends.has(p.user_id) || p.user_id === me);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white pb-24">
-      {/* TOP BAR */}
-      <div className="flex items-center justify-between p-4 pr-28 border-b border-slate-800">
-        <p className="font-black text-xl tracking-tight">
-          📰 Friend<span className="text-fuchsia-400">Feed</span>
-        </p>
-        <div className="flex items-center gap-2">
-          <Link href="/leaderboard" className="text-lg">
-            🏆
-          </Link>
-          <button
-            onClick={() => setTab(tab === "all" ? "friends" : "all")}
-            className="text-xs font-bold bg-slate-800 px-3 py-1.5 rounded-full"
-          >
-            {tab === "all" ? "🌍 Public" : "🔒 Private"}
-          </button>
-        </div>
-      </div>
-
-      {/* STORIES ROW */}
-      <div className="flex gap-3 overflow-x-auto px-4 py-3 border-b border-slate-800">
-        <div className="flex flex-col items-center gap-1 shrink-0 cursor-pointer">
-          <span className="relative inline-block">
-            <span
-              onClick={() => (storyMap.has(me) ? setViewStory({ user: me, index: 0 }) : setCreatingStory(true))}
-              className={
-                storyMap.has(me)
-                  ? "rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-600 p-[2px] inline-block"
-                  : "inline-block"
-              }
-            >
-              <Avatar p={myProf} size="w-14 h-14" />
-            </span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setCreatingStory(true);
-              }}
-              className="absolute bottom-0 right-0 bg-violet-600 border-2 border-slate-950 rounded-full w-5 h-5 text-[10px] font-bold flex items-center justify-center"
-            >
-              +
-            </button>
-          </span>
-          <span className="text-[10px] text-slate-400">Your story</span>
-        </div>
-
-        {Array.from(storyMap.keys())
-          .filter((u) => u !== me)
-          .map((u) => (
-            <button
-              key={u}
-              onClick={() => setViewStory({ user: u, index: 0 })}
-              className="flex flex-col items-center gap-1 shrink-0"
-            >
-              <Avatar p={profById.get(u)} size="w-14 h-14" ring />
-              <span className="text-[10px] text-slate-400 max-w-14 truncate">
-                {rankOf(coinMap.get(u) || 0)} {profById.get(u)?.display_name || "friend"}
-              </span>
-            </button>
-          ))}
-        {storyMap.size <= (storyMap.has(me) ? 1 : 0) && (
-          <p className="text-[10px] text-slate-500 self-center">
-            Tap "Your story" to share a 24h status! 👻
+    <main className="min-h-screen bg-slate-950 text-white flex justify-center pb-[70px]">
+      {/* 
+        Responsive Container: 
+        max-w-xl limits the width to look like a standard phone/feed width on a desktop.
+        border-x gives it a nice column layout feel on large screens. 
+      */}
+      <div className="w-full max-w-xl bg-slate-950 min-h-screen md:border-x md:border-slate-800/50 relative">
+        
+        {/* TOP BAR */}
+        <div className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur flex items-center justify-between p-4 border-b border-slate-800">
+          <p className="font-black text-xl tracking-tight cursor-pointer hover:opacity-80 transition-opacity">
+            📰 Friend<span className="text-fuchsia-400">Feed</span>
           </p>
-        )}
-      </div>
-
-      {/* REQUESTS */}
-      {incoming.length > 0 && (
-        <div className="mx-4 my-3 bg-violet-600/10 border border-violet-500/40 rounded-xl p-3 grid gap-2">
-          <p className="text-xs font-bold text-violet-300">🤝 FRIEND REQUESTS</p>
-          {incoming.map((r) => (
-            <div key={r.from_id} className="flex items-center gap-2">
-              <Avatar p={r.prof} />
-              <span className="flex-1 text-sm font-bold truncate">{r.prof?.display_name || "Someone"}</span>
-              <button onClick={() => accept(r.from_id)} className="px-3 py-1 rounded-full text-xs font-bold bg-green-600">
-                Accept
-              </button>
-              <button onClick={() => reject(r.from_id)} className="px-2 py-1 rounded-full text-xs font-bold bg-slate-800">
-                ✖
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* POSTS */}
-      {shown.length === 0 && (
-        <p className="text-slate-500 text-sm text-center py-10">No posts yet — be the first! 🌟</p>
-      )}
-      {shown.map((p) => (
-        <article key={p.id} className="border-b border-slate-800 pb-3 mb-3">
-          <div className="flex items-center gap-2 px-4 py-2">
-            <Link href={`/profile?user=${p.user_id}`}>
-              <Avatar p={p.author} ring={false} />
+          <div className="flex items-center gap-3">
+            <Link href="/leaderboard" className="text-lg hover:scale-110 transition-transform">
+              🏆
             </Link>
-            <div className="flex-1 min-w-0">
-              <Link href={`/profile?user=${p.user_id}`} className="font-bold text-sm block truncate">
-                {rankOf(coinMap.get(p.user_id) || 0)} {p.author?.display_name || "friend"}
-              </Link>
-              <p className="text-[10px] text-slate-500">{ago(p.created_at)}</p>
-            </div>
-            {friendBtn(p.user_id)}
-          </div>
-
-          <div className="relative" onDoubleClick={() => doubleTap(p)}>
-            {p.image_url ? (
-              <img src={p.image_url} className="w-full aspect-square object-cover" alt="" />
-            ) : (
-              <div
-                className={`relative w-full aspect-square ${
-                  p.bgc ? "" : `bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]}`
-                }`}
-                style={p.bgc ? { background: p.bgc } : undefined}
-              >
-                <p
-                  className="absolute text-center text-2xl font-bold whitespace-pre-wrap px-4"
-                  style={{
-                    left: `${p.tx ?? 50}%`,
-                    top: `${p.ty ?? 50}%`,
-                    transform: "translate(-50%, -50%)",
-                    color: p.tc || "#ffffff",
-                  }}
-                >
-                  {p.content}
-                </p>
-              </div>
-            )}
-            {burst === p.id && (
-              <span className="absolute inset-0 flex items-center justify-center text-8xl animate-bounce pointer-events-none">
-                ❤️
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3 px-4 py-2">
-            <button onClick={() => like(p.id)} className="text-2xl">
-              {p.likedByMe ? "❤️" : "🤍"}
-            </button>
             <button
-              onClick={() => {
-                setCommentOpen(commentOpen === p.id ? "" : p.id);
-                setCommentText("");
-              }}
-              className="text-2xl"
+              onClick={() => setTab(tab === "all" ? "friends" : "all")}
+              className="text-xs font-bold bg-slate-800 hover:bg-slate-700 transition-colors px-3 py-1.5 rounded-full"
             >
-              💬
+              {tab === "all" ? "🌍 Public" : "🔒 Private"}
             </button>
-            <button onClick={() => setShareOpen(p)} className="text-2xl">
-              📤
-            </button>
-            <span className="flex-1" />
-            {p.user_id === me && (
-              <button onClick={() => deletePost(p)} className="text-sm">
-                🗑
+          </div>
+        </div>
+
+        {/* STORIES ROW */}
+        <div className="flex gap-4 overflow-x-auto px-4 py-4 border-b border-slate-800 scrollbar-hide">
+          <div className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group">
+            <span className="relative inline-block">
+              <span
+                onClick={() => (storyMap.has(me) ? setViewStory({ user: me, index: 0 }) : setCreatingStory(true))}
+                className={
+                  storyMap.has(me)
+                    ? "rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-600 p-[2px] inline-block hover:scale-105 transition-transform"
+                    : "inline-block group-hover:scale-105 transition-transform"
+                }
+              >
+                <Avatar p={myProf} size="w-16 h-16" />
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCreatingStory(true);
+                }}
+                className="absolute bottom-0 right-0 bg-violet-600 hover:bg-violet-500 transition-colors border-2 border-slate-950 rounded-full w-6 h-6 text-[12px] font-bold flex items-center justify-center"
+              >
+                +
               </button>
-            )}
+            </span>
+            <span className="text-[11px] text-slate-400">Your story</span>
           </div>
 
-          <p className="px-4 text-sm font-bold">{p.likes} likes</p>
-          <p className="px-4 text-[10px] text-slate-500">
-            💬 {(commentsMap.get(p.id) || []).length} comments
-          </p>
-          {commentOpen === p.id && (
-            <div className="px-4 mt-2 grid gap-2">
-              {(commentsMap.get(p.id) || []).length === 0 && (
-                <p className="text-xs text-slate-500">No comments yet — be first!</p>
-              )}
-              {(commentsMap.get(p.id) || []).map((c) => (
-                <div key={c.id} className="text-sm bg-slate-900 rounded-xl px-3 py-2">
-                  <span className="font-bold">{c.author?.display_name || "friend"}</span>{" "}
-                  <span>{c.content}</span>
-                </div>
-              ))}
-              <div className="flex gap-2">
-                <input
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  placeholder="Add a comment..."
-                  className="flex-1 p-2 rounded-full bg-slate-900 border border-slate-700 text-sm"
-                />
-                <button
-                  onClick={() => addComment(p)}
-                  className="px-4 rounded-full bg-violet-600 text-xs font-bold"
-                >
-                  Post
-                </button>
-              </div>
-            </div>
+          {Array.from(storyMap.keys())
+            .filter((u) => u !== me)
+            .map((u) => (
+              <button
+                key={u}
+                onClick={() => setViewStory({ user: u, index: 0 })}
+                className="flex flex-col items-center gap-1.5 shrink-0 group"
+              >
+                <Avatar p={profById.get(u)} size="w-16 h-16" ring />
+                <span className="text-[11px] text-slate-400 max-w-[64px] truncate group-hover:text-slate-300 transition-colors">
+                  {rankOf(coinMap.get(u) || 0)} {profById.get(u)?.display_name || "friend"}
+                </span>
+              </button>
+            ))}
+          {storyMap.size <= (storyMap.has(me) ? 1 : 0) && (
+            <p className="text-xs text-slate-500 self-center ml-2">
+              Tap "Your story" to share a 24h status! 👻
+            </p>
           )}
-        </article>
-      ))}
+        </div>
 
-      {/* STORY VIEWER */}
-      {viewStory && (storyMap.get(viewStory.user) || [])[viewStory.index] && (
-        <div className="fixed inset-0 z-[70] bg-black flex flex-col">
-          <div className="flex gap-1 p-2">
-            {(storyMap.get(viewStory.user) || []).map((s, i) => (
-              <div key={s.id} className="flex-1 h-1 bg-slate-700 rounded">
-                {i <= viewStory.index && <div className="h-full bg-white rounded" />}
+        {/* REQUESTS */}
+        {incoming.length > 0 && (
+          <div className="mx-4 my-4 bg-violet-600/10 border border-violet-500/40 rounded-xl p-3 grid gap-3">
+            <p className="text-xs font-bold text-violet-300">🤝 FRIEND REQUESTS</p>
+            {incoming.map((r) => (
+              <div key={r.from_id} className="flex items-center gap-3">
+                <Avatar p={r.prof} />
+                <span className="flex-1 text-sm font-bold truncate">{r.prof?.display_name || "Someone"}</span>
+                <button onClick={() => accept(r.from_id)} className="px-4 py-1.5 rounded-full text-xs font-bold bg-green-600 hover:bg-green-500 transition-colors">
+                  Accept
+                </button>
+                <button onClick={() => reject(r.from_id)} className="px-3 py-1.5 rounded-full text-xs font-bold bg-slate-800 hover:bg-slate-700 transition-colors">
+                  ✖
+                </button>
               </div>
             ))}
           </div>
-          <div className="flex items-center gap-2 px-3 py-2">
-            <Avatar p={profById.get(viewStory.user)} size="w-8 h-8" />
-            <p className="text-xs font-bold flex-1 text-white">
-              {profById.get(viewStory.user)?.display_name || "friend"}
-            </p>
-            {(storyMap.get(viewStory.user) || [])[viewStory.index]?.user_id === me && (
-              <button
-                onClick={() => deleteStory((storyMap.get(viewStory.user) || [])[viewStory.index])}
-                className="text-lg"
-              >
-                🗑
-              </button>
-            )}
-            <button onClick={() => setViewStory(null)} className="text-xl text-white">
-              ✖
-            </button>
+        )}
+
+        {/* POSTS */}
+        {shown.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+            <span className="text-4xl mb-3">🌟</span>
+            <p className="text-sm">No posts yet — be the first!</p>
           </div>
-          <div
-            className="flex-1 relative flex items-center justify-center"
-            onClick={() => {
-              const arr = storyMap.get(viewStory.user) || [];
-              if (viewStory.index + 1 < arr.length)
-                setViewStory({ user: viewStory.user, index: viewStory.index + 1 });
-              else setViewStory(null);
-            }}
-          >
-            {(storyMap.get(viewStory.user) || [])[viewStory.index].image_url ? (
-              <img
-                src={(storyMap.get(viewStory.user) || [])[viewStory.index].image_url}
-                className="w-full h-full object-contain"
-                alt=""
-              />
-            ) : (
-              <div
-                className={`w-full h-full flex items-center justify-center p-8 ${
-                  (storyMap.get(viewStory.user) || [])[viewStory.index].bgc
-                    ? ""
-                    : `bg-gradient-to-br ${
-                        BGS[((storyMap.get(viewStory.user) || [])[viewStory.index].bg || 0) % BGS.length]
-                      }`
-                }`}
-                style={
-                  (storyMap.get(viewStory.user) || [])[viewStory.index].bgc
-                    ? { background: (storyMap.get(viewStory.user) || [])[viewStory.index].bgc }
-                    : undefined
-                }
-              >
-                <p
-                  className="absolute text-center text-2xl font-bold whitespace-pre-wrap px-6"
-                  style={{
-                    left: `${(storyMap.get(viewStory.user) || [])[viewStory.index].tx ?? 50}%`,
-                    top: `${(storyMap.get(viewStory.user) || [])[viewStory.index].ty ?? 50}%`,
-                    transform: "translate(-50%, -50%)",
-                    color: (storyMap.get(viewStory.user) || [])[viewStory.index].tc || "#ffffff",
-                  }}
+        )}
+        {shown.map((p) => (
+          <article key={p.id} className="border-b border-slate-800 pb-4 mb-2">
+            <div className="flex items-center gap-3 px-4 py-3">
+              <Link href={`/profile?user=${p.user_id}`}>
+                <Avatar p={p.author} ring={false} />
+              </Link>
+              <div className="flex-1 min-w-0">
+                <Link href={`/profile?user=${p.user_id}`} className="font-bold text-[15px] hover:underline block truncate">
+                  {rankOf(coinMap.get(p.user_id) || 0)} {p.author?.display_name || "friend"}
+                </Link>
+                <p className="text-xs text-slate-500">{ago(p.created_at)}</p>
+              </div>
+              {friendBtn(p.user_id)}
+            </div>
+
+            <div className="relative cursor-pointer" onDoubleClick={() => doubleTap(p)}>
+              {p.image_url ? (
+                <img src={p.image_url} className="w-full aspect-square object-cover" alt="" />
+              ) : (
+                <div
+                  className={`relative w-full aspect-square ${
+                    p.bgc ? "" : `bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]}`
+                  }`}
+                  style={p.bgc ? { background: p.bgc } : undefined}
                 >
-                  {(storyMap.get(viewStory.user) || [])[viewStory.index].content}
-                </p>
+                  <p
+                    className="absolute text-center text-3xl font-bold whitespace-pre-wrap px-6 leading-snug w-full"
+                    style={{
+                      left: `${p.tx ?? 50}%`,
+                      top: `${p.ty ?? 50}%`,
+                      transform: "translate(-50%, -50%)",
+                      color: p.tc || "#ffffff",
+                    }}
+                  >
+                    {p.content}
+                  </p>
+                </div>
+              )}
+              {burst === p.id && (
+                <span className="absolute inset-0 flex items-center justify-center text-9xl animate-bounce pointer-events-none drop-shadow-2xl">
+                  ❤️
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-4 px-4 py-3">
+              <button onClick={() => like(p.id)} className="text-2xl hover:scale-110 transition-transform">
+                {p.likedByMe ? "❤️" : "🤍"}
+              </button>
+              <button
+                onClick={() => {
+                  setCommentOpen(commentOpen === p.id ? "" : p.id);
+                  setCommentText("");
+                }}
+                className="text-2xl hover:scale-110 transition-transform grayscale hover:grayscale-0"
+              >
+                💬
+              </button>
+              <button onClick={() => setShareOpen(p)} className="text-2xl hover:scale-110 transition-transform grayscale hover:grayscale-0">
+                📤
+              </button>
+              <span className="flex-1" />
+              {p.user_id === me && (
+                <button onClick={() => deletePost(p)} className="text-lg opacity-50 hover:opacity-100 hover:text-red-400 transition-all">
+                  🗑
+                </button>
+              )}
+            </div>
+
+            <p className="px-4 text-[15px] font-bold">{p.likes} likes</p>
+            <p className="px-4 text-xs text-slate-500 mt-1 cursor-pointer hover:underline" onClick={() => setCommentOpen(commentOpen === p.id ? "" : p.id)}>
+              View all {(commentsMap.get(p.id) || []).length} comments
+            </p>
+
+            {commentOpen === p.id && (
+              <div className="px-4 mt-3 grid gap-3 animate-in fade-in slide-in-from-top-2">
+                {(commentsMap.get(p.id) || []).length === 0 && (
+                  <p className="text-xs text-slate-500 italic">No comments yet — be first!</p>
+                )}
+                {(commentsMap.get(p.id) || []).map((c) => (
+                  <div key={c.id} className="text-[14px] bg-slate-900 rounded-xl px-3 py-2 leading-relaxed">
+                    <span className="font-bold mr-2">{c.author?.display_name || "friend"}</span>
+                    <span className="text-slate-200">{c.content}</span>
+                  </div>
+                ))}
+                <div className="flex gap-2 mt-1">
+                  <input
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    onKeyDown={(e) => { if(e.key === 'Enter') addComment(p) }}
+                    placeholder="Add a comment..."
+                    className="flex-1 px-4 py-2 rounded-full bg-slate-900 border border-slate-700 text-sm focus:outline-none focus:border-violet-500"
+                  />
+                  <button
+                    onClick={() => addComment(p)}
+                    disabled={!commentText.trim()}
+                    className="px-5 rounded-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-xs font-bold transition-colors"
+                  >
+                    Post
+                  </button>
+                </div>
               </div>
             )}
+          </article>
+        ))}
+      </div>
+
+      {/* STORY VIEWER MODAL - Centered for Desktop */}
+      {viewStory && (storyMap.get(viewStory.user) || [])[viewStory.index] && (
+        <div className="fixed inset-0 z-[70] bg-black flex justify-center items-center backdrop-blur-sm">
+          <div className="w-full max-w-md h-[100dvh] md:h-[90vh] md:rounded-2xl md:overflow-hidden bg-slate-950 flex flex-col relative shadow-2xl">
+            <div className="flex gap-1 p-2 absolute top-0 inset-x-0 z-10 bg-gradient-to-b from-black/60 to-transparent">
+              {(storyMap.get(viewStory.user) || []).map((s, i) => (
+                <div key={s.id} className="flex-1 h-1 bg-slate-700/50 rounded overflow-hidden">
+                  {i <= viewStory.index && <div className="h-full bg-white rounded" />}
+                </div>
+              ))}
+            </div>
+            
+            <div className="flex items-center gap-3 px-4 py-3 absolute top-4 inset-x-0 z-10">
+              <Avatar p={profById.get(viewStory.user)} size="w-9 h-9" />
+              <p className="text-sm font-bold flex-1 text-white drop-shadow-md">
+                {profById.get(viewStory.user)?.display_name || "friend"}
+              </p>
+              {(storyMap.get(viewStory.user) || [])[viewStory.index]?.user_id === me && (
+                <button
+                  onClick={() => deleteStory((storyMap.get(viewStory.user) || [])[viewStory.index])}
+                  className="text-xl opacity-80 hover:opacity-100 hover:text-red-400 drop-shadow-md"
+                >
+                  🗑
+                </button>
+              )}
+              <button onClick={() => setViewStory(null)} className="text-2xl text-white opacity-80 hover:opacity-100 ml-2 drop-shadow-md">
+                ✖
+              </button>
+            </div>
+
+            <div
+              className="flex-1 relative flex items-center justify-center cursor-pointer"
+              onClick={() => {
+                const arr = storyMap.get(viewStory.user) || [];
+                if (viewStory.index + 1 < arr.length)
+                  setViewStory({ user: viewStory.user, index: viewStory.index + 1 });
+                else setViewStory(null);
+              }}
+            >
+              {(storyMap.get(viewStory.user) || [])[viewStory.index].image_url ? (
+                <img
+                  src={(storyMap.get(viewStory.user) || [])[viewStory.index].image_url}
+                  className="w-full h-full object-contain"
+                  alt=""
+                />
+              ) : (
+                <div
+                  className={`w-full h-full flex items-center justify-center p-8 ${
+                    (storyMap.get(viewStory.user) || [])[viewStory.index].bgc
+                      ? ""
+                      : `bg-gradient-to-br ${
+                          BGS[((storyMap.get(viewStory.user) || [])[viewStory.index].bg || 0) % BGS.length]
+                        }`
+                  }`}
+                  style={
+                    (storyMap.get(viewStory.user) || [])[viewStory.index].bgc
+                      ? { background: (storyMap.get(viewStory.user) || [])[viewStory.index].bgc }
+                      : undefined
+                  }
+                >
+                  <p
+                    className="absolute text-center text-3xl font-bold whitespace-pre-wrap px-6 leading-snug w-full"
+                    style={{
+                      left: `${(storyMap.get(viewStory.user) || [])[viewStory.index].tx ?? 50}%`,
+                      top: `${(storyMap.get(viewStory.user) || [])[viewStory.index].ty ?? 50}%`,
+                      transform: "translate(-50%, -50%)",
+                      color: (storyMap.get(viewStory.user) || [])[viewStory.index].tc || "#ffffff",
+                    }}
+                  >
+                    {(storyMap.get(viewStory.user) || [])[viewStory.index].content}
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-4 text-center">
+              <p className="text-xs text-slate-300 font-medium">
+                {(storyMap.get(viewStory.user) || [])[viewStory.index]?.user_id === me
+                  ? `👁 Seen by ${viewers.length}: ${viewers.slice(0, 5).join(", ") || "no one yet"}`
+                  : "⏳ Disappears in 24h • tap to next"}
+              </p>
+            </div>
           </div>
-          <p className="p-3 text-[10px] text-slate-400 text-center">
-            {(storyMap.get(viewStory.user) || [])[viewStory.index]?.user_id === me
-              ? `👁 Seen by ${viewers.length}: ${viewers.slice(0, 5).join(", ") || "no one yet"}`
-              : "⏳ Disappears in 24h • tap to next"}
-          </p>
         </div>
       )}
 
-      {/* STORY COMPOSER */}
+      {/* STORY COMPOSER MODAL - Centered for Desktop */}
       {creatingStory && (
         <div
-          className="fixed inset-0 z-[70] bg-black/80 flex items-end"
+          className="fixed inset-0 z-[70] bg-black/80 flex items-end md:items-center md:justify-center backdrop-blur-sm"
           onClick={() => setCreatingStory(false)}
         >
           <div
-            className="w-full bg-slate-900 rounded-t-2xl p-4 grid gap-3 max-h-[90vh] overflow-y-auto"
+            className="w-full md:max-w-md bg-slate-900 rounded-t-2xl md:rounded-2xl p-5 grid gap-4 max-h-[90vh] overflow-y-auto shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center">
-              <p className="font-bold">👻 New story (24h)</p>
-              <button onClick={() => setCreatingStory(false)} className="text-slate-400">
+              <p className="font-bold text-lg">👻 New story (24h)</p>
+              <button onClick={() => setCreatingStory(false)} className="text-slate-400 hover:text-white text-xl">
                 ✖
               </button>
             </div>
@@ -794,7 +814,7 @@ export default function FeedPage() {
               <div>
                 <div
                   ref={sBoxRef}
-                  className="relative rounded-xl overflow-hidden touch-none select-none cursor-move"
+                  className="relative rounded-xl overflow-hidden touch-none select-none cursor-move border border-slate-700"
                   onPointerDown={(e) => {
                     sDragging.current = true;
                     moveSText(e.clientX, e.clientY);
@@ -804,31 +824,32 @@ export default function FeedPage() {
                   }}
                   onPointerUp={() => (sDragging.current = false)}
                 >
-                  <img src={sPreview} className="w-full max-h-72 object-cover" alt="" />
+                  <img src={sPreview} className="w-full max-h-80 object-cover" alt="" />
                   {sText.trim() && (
                     <p
-                      className="absolute font-bold text-center px-3 py-1 rounded-lg pointer-events-none"
+                      className="absolute font-bold text-center px-4 py-2 rounded-lg pointer-events-none text-lg shadow-lg"
                       style={{
                         left: `${sPos.x}%`,
                         top: `${sPos.y}%`,
                         transform: "translate(-50%, -50%)",
                         color: sTc,
-                        background: "rgba(0,0,0,0.45)",
+                        background: "rgba(0,0,0,0.55)",
+                        backdropFilter: "blur(4px)"
                       }}
                     >
                       {sText}
                     </p>
                   )}
                 </div>
-                <p className="text-[10px] text-slate-500 text-center mt-1">
-                  ✋ Drag on photo to place your text
+                <p className="text-xs text-slate-400 text-center mt-2 flex items-center justify-center gap-1">
+                  👆 Drag on photo to place your text
                 </p>
                 <button
                   onClick={() => {
                     setSPhoto(null);
                     setSPreview("");
                   }}
-                  className="mt-1 w-full py-2 rounded-lg bg-red-600/20 text-red-400 text-xs font-bold"
+                  className="mt-3 w-full py-2.5 rounded-xl bg-red-600/10 hover:bg-red-600/20 text-red-400 text-sm font-bold transition-colors"
                 >
                   ✖ Remove photo
                 </button>
@@ -836,7 +857,7 @@ export default function FeedPage() {
             ) : (
               <div
                 ref={sBoxRef}
-                className={`relative rounded-xl overflow-hidden touch-none select-none cursor-move aspect-square ${
+                className={`relative rounded-xl overflow-hidden touch-none select-none cursor-move aspect-square shadow-inner ${
                   sBgc ? "" : `bg-gradient-to-br ${BGS[sBg]}`
                 }`}
                 style={sBgc ? { background: sBgc } : undefined}
@@ -850,7 +871,7 @@ export default function FeedPage() {
                 onPointerUp={() => (sDragging.current = false)}
               >
                 <p
-                  className="absolute font-bold text-center text-2xl whitespace-pre-wrap px-4 pointer-events-none"
+                  className="absolute font-bold text-center text-3xl whitespace-pre-wrap px-6 pointer-events-none w-full"
                   style={{
                     left: `${sPos.x}%`,
                     top: `${sPos.y}%`,
@@ -870,31 +891,31 @@ export default function FeedPage() {
                 rows={2}
                 placeholder="Write a status..."
                 style={{ color: sTc }}
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 pb-9 text-sm resize-none"
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 pb-10 text-[15px] resize-none focus:outline-none focus:border-violet-500 transition-colors"
               />
-              <div className="absolute right-2 bottom-2 flex items-center gap-3">
-                <label className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+              <div className="absolute right-3 bottom-3 flex items-center gap-3">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-400 cursor-pointer hover:text-slate-200">
                   BG
                   <input
                     type="color"
                     value={sBgc || "#1e293b"}
                     onChange={(e) => setSBgc(e.target.value)}
-                    className="w-6 h-6 rounded-md cursor-pointer p-0 border border-slate-600 bg-transparent"
+                    className="w-7 h-7 rounded-md cursor-pointer p-0 border border-slate-600 bg-transparent"
                   />
                 </label>
-                <label className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-slate-400 cursor-pointer hover:text-slate-200">
                   Text
                   <input
                     type="color"
                     value={sTc}
                     onChange={(e) => setSTc(e.target.value)}
-                    className="w-6 h-6 rounded-md cursor-pointer p-0 border border-slate-600 bg-transparent"
+                    className="w-7 h-7 rounded-md cursor-pointer p-0 border border-slate-600 bg-transparent"
                   />
                 </label>
               </div>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto">
+            <div className="flex gap-2 overflow-x-auto py-1 scrollbar-hide">
               {BGS.map((g, i) => (
                 <button
                   key={i}
@@ -902,15 +923,15 @@ export default function FeedPage() {
                     setSBg(i);
                     setSBgc("");
                   }}
-                  className={`w-8 h-8 shrink-0 rounded-full bg-gradient-to-br ${g} border-2 ${
-                    sBg === i && !sBgc ? "border-white" : "border-transparent"
+                  className={`w-10 h-10 shrink-0 rounded-full bg-gradient-to-br ${g} border-2 transition-transform ${
+                    sBg === i && !sBgc ? "border-white scale-110 shadow-lg" : "border-transparent hover:scale-105"
                   }`}
                 />
               ))}
             </div>
 
-            <div className="flex gap-2">
-              <label className="px-4 py-2 rounded-lg bg-slate-800 text-sm font-bold cursor-pointer">
+            <div className="flex gap-3 pt-2 border-t border-slate-800">
+              <label className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 transition-colors text-lg font-bold cursor-pointer flex items-center justify-center">
                 📷
                 <input
                   type="file"
@@ -928,7 +949,7 @@ export default function FeedPage() {
               </label>
               <button
                 onClick={shareStory}
-                className="flex-1 py-2 rounded-lg bg-violet-600 font-bold text-sm"
+                className="flex-1 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 transition-colors font-bold text-[15px]"
               >
                 Share story
               </button>
@@ -937,75 +958,82 @@ export default function FeedPage() {
         </div>
       )}
 
-      {/* SHARE SHEET */}
+      {/* SHARE SHEET MODAL - Centered for Desktop */}
       {shareOpen && (
-        <div className="fixed inset-0 z-[70] bg-black/80 flex items-end" onClick={() => setShareOpen(null)}>
+        <div className="fixed inset-0 z-[70] bg-black/80 flex items-end md:items-center md:justify-center backdrop-blur-sm" onClick={() => setShareOpen(null)}>
           <div
-            className="w-full bg-slate-900 rounded-t-2xl p-4 grid gap-2 max-h-[70vh] overflow-y-auto"
+            className="w-full md:max-w-sm bg-slate-900 rounded-t-2xl md:rounded-2xl p-5 grid gap-3 max-h-[70vh] overflow-y-auto shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center">
-              <p className="font-bold">📤 Share post</p>
-              <button onClick={() => setShareOpen(null)}>✖</button>
+            <div className="flex justify-between items-center mb-1">
+              <p className="font-bold text-lg">📤 Share post</p>
+              <button onClick={() => setShareOpen(null)} className="text-slate-400 hover:text-white text-xl">✖</button>
             </div>
+            
             <button
               onClick={() => externalShare(shareOpen)}
-              className="py-2 rounded-lg bg-slate-800 text-sm font-bold"
+              className="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 transition-colors text-[15px] font-bold"
             >
               📱 Share outside (WhatsApp etc.)
             </button>
-            <p className="text-xs text-slate-500">Send to friend:</p>
-            {Array.from(friends)
-              .map((id) => profById.get(id))
-              .filter((x) => !!x)
-              .map((f) => (
-                <button
-                  key={f!.user_id}
-                  onClick={() => sendToFriend(f!.user_id, f!.display_name || "friend")}
-                  className="flex items-center gap-3 p-2 rounded-lg bg-slate-800/60 text-left"
-                >
-                  {f!.avatar_url ? (
-                    <img src={f!.avatar_url} className="w-9 h-9 rounded-full object-cover" alt="" />
-                  ) : (
-                    <span className="w-9 h-9 rounded-full bg-violet-600 flex items-center justify-center font-bold text-sm">
-                      {(f!.display_name || "?").charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                  <span className="flex-1 text-sm font-bold">{f!.display_name || "friend"}</span>
-                  <span>📤</span>
-                </button>
-              ))}
-            {friends.size === 0 && (
-              <p className="text-xs text-slate-500 text-center py-2">No friends yet — find some first!</p>
-            )}
+
+            <div className="w-full h-px bg-slate-800 my-2" />
+
+            <p className="text-xs text-slate-400 font-bold tracking-wide uppercase">Send to friend:</p>
+            <div className="grid gap-2">
+              {Array.from(friends)
+                .map((id) => profById.get(id))
+                .filter((x) => !!x)
+                .map((f) => (
+                  <button
+                    key={f!.user_id}
+                    onClick={() => sendToFriend(f!.user_id, f!.display_name || "friend")}
+                    className="flex items-center gap-3 p-3 rounded-xl bg-slate-950/50 hover:bg-slate-800 transition-colors text-left group"
+                  >
+                    {f!.avatar_url ? (
+                      <img src={f!.avatar_url} className="w-10 h-10 rounded-full object-cover" alt="" />
+                    ) : (
+                      <span className="w-10 h-10 rounded-full bg-violet-600 flex items-center justify-center font-bold text-sm">
+                        {(f!.display_name || "?").charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <span className="flex-1 text-[15px] font-bold group-hover:text-violet-300 transition-colors">{f!.display_name || "friend"}</span>
+                    <span className="text-xl group-hover:scale-110 transition-transform">📤</span>
+                  </button>
+                ))}
+              {friends.size === 0 && (
+                <p className="text-sm text-slate-500 text-center py-6 bg-slate-950/30 rounded-xl">No friends yet — find some first!</p>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {/* INSTA BOTTOM BAR */}
-      <nav className="fixed bottom-0 inset-x-0 z-40 bg-slate-900 border-t border-slate-800 grid grid-cols-4 md:hidden">
-        <Link
-          href="/dashboard"
-          className="flex flex-col items-center py-2 text-[10px] text-slate-500"
-        >
-          <span className="text-lg">🏠</span>
+      {/* 
+        Aligning fixed bottom bar to exactly match the max-w-xl column.
+        left-1/2 & -translate-x-1/2 perfectly centers it on big screens.
+      */}
+      <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-xl z-40 bg-slate-950/95 backdrop-blur border-t border-slate-800 grid grid-cols-4 md:border-x md:border-slate-800/50">
+        <Link href="/dashboard" className="flex flex-col items-center py-3 text-xs text-slate-500 hover:text-white transition-colors">
+          <span className="text-2xl mb-1">🏠</span>
           Home
         </Link>
-        <Link href="/search" className="flex flex-col items-center py-2 text-[10px] text-slate-500">
-          <span className="text-lg">🔍</span>
+        <Link href="/search" className="flex flex-col items-center py-3 text-xs text-slate-500 hover:text-white transition-colors">
+          <span className="text-2xl mb-1">🔍</span>
           Search
         </Link>
-        <Link href="/activity" className="relative flex flex-col items-center py-2 text-[10px] text-slate-500">
-          <span className="text-lg">❤️</span>
+        <Link href="/activity" className="relative flex flex-col items-center py-3 text-xs text-slate-500 hover:text-white transition-colors">
+          <span className="text-2xl mb-1">❤️</span>
           Activity
           {unread > 0 && (
-            <span className="absolute top-1 left-1/2 ml-2 bg-red-600 text-white text-[8px] font-bold rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5">
+            <span className="absolute top-2 left-1/2 ml-2 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-[16px] h-[16px] flex items-center justify-center px-1 shadow-md">
               {unread}
             </span>
           )}
         </Link>
-        <Link href={`/profile?user=${me}`} className="flex flex-col items-center py-2 text-[10px] text-slate-500">
-          <span className="text-lg">👤</span>
+        <Link href={`/profile?user=${me}`} className="flex flex-col items-center py-3 text-xs text-slate-500 hover:text-white transition-colors">
+          <span className="text-2xl mb-1">👤</span>
           Profile
         </Link>
       </nav>
