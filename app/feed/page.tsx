@@ -507,12 +507,17 @@ export default function FeedPage() {
         <p className="font-black text-xl tracking-tight">
           📰 Friend<span className="text-fuchsia-400">Feed</span>
         </p>
-        <button
-          onClick={() => setTab(tab === "all" ? "friends" : "all")}
-          className="text-xs font-bold bg-slate-800 px-3 py-1.5 rounded-full"
-        >
-          {tab === "all" ? "🌍 Public" : "🔒 Private"}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link href="/leaderboard" className="text-lg">
+            🏆
+          </Link>
+          <button
+            onClick={() => setTab(tab === "all" ? "friends" : "all")}
+            className="text-xs font-bold bg-slate-800 px-3 py-1.5 rounded-full"
+          >
+            {tab === "all" ? "🌍 Public" : "🔒 Private"}
+          </button>
+        </div>
       </div>
 
       {/* STORIES ROW */}
