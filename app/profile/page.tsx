@@ -84,7 +84,11 @@ function Inner() {
       supabase.from("post_likes").select("post_id"),
       supabase.from("friends").select("friend_id").eq("user_id", userId),
     ]);
-    let profRow = (pr as any) || null;
+
+    // FIX 1: Read the actual profile row from maybeSingle() response
+    let profRow = ((pr as any)?.data as any) || null;
+
+    // If it's MY profile and missing data, seed from auth metadata
     if (userId === uid && (!profRow || !profRow.display_name)) {
       const md = (data.session?.user?.user_metadata || {}) as any;
       profRow = {
@@ -98,15 +102,19 @@ function Inner() {
         { onConflict: "user_id" }
       );
     }
+
+    // Merge bio from metadata if missing
     if (userId === uid && profRow) {
       const md2 = (data.session?.user?.user_metadata || {}) as any;
       profRow.bio = profRow.bio || md2.bio || "";
     }
+
     setProf(profRow || { display_name: "friend", avatar_url: "", is_private: false, bio: "" });
     setIsFriend((fr.data || []).length > 0);
     setSentReq((sReq.data || []).length > 0);
     setRecvReq((rReq.data || []).length > 0);
-    
+
+    // FIX 2: Real rank from coin_log (same source as dashboard)
     const { data: coinRows } = await supabase
       .from("coin_log")
       .select("coins")
@@ -116,7 +124,7 @@ function Inner() {
       0
     );
     setCoins(totalCoins);
-    
+
     setFriendCount((theirFriends.data || []).length);
     const likeCount = new Map<string, number>();
     (likes.data || []).forEach((l) => likeCount.set(l.post_id, (likeCount.get(l.post_id) || 0) + 1));
@@ -163,7 +171,7 @@ function Inner() {
 
   const saveProfile = async () => {
     setSaving(true);
-    let newAvatarUrl = prof?.avatar_url; // Keep current image by default
+    let newAvatarUrl = prof?.avatar_url;
 
     if (editImg) {
       const size = 512;
@@ -177,7 +185,7 @@ function Inner() {
         const h = editImg.height * scale;
         ctx.drawImage(editImg, (size - w) / 2 + off.x * 2, (size - h) / 2 + off.y * 2, w, h);
         const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.8));
-        
+
         if (blob) {
           const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
           const { error: upErr } = await supabase.storage.from("avatars").upload(
@@ -201,7 +209,6 @@ function Inner() {
 
     const finalName = editName.trim() || prof?.display_name || "friend";
 
-    // 1. Update auth user metadata
     await supabase.auth.updateUser({
       data: { display_name: finalName, avatar_url: newAvatarUrl, bio: editBio },
     });
@@ -219,7 +226,6 @@ function Inner() {
       alert("Save failed: " + saveErr.message);
     }
 
-    // 3. Immediately update the React state so the UI reflects the changes instantly
     setProf((prev: any) => ({
       ...prev,
       display_name: finalName,
@@ -270,7 +276,6 @@ function Inner() {
               {(prof?.display_name || "?").charAt(0).toUpperCase()}
             </span>
           )}
-
         </span>
         <div className="flex-1 grid grid-cols-3 text-center">
           <div>
@@ -495,7 +500,7 @@ function Inner() {
             {view.image_url && (
               <img src={view.image_url} className="w-full rounded-xl object-contain max-h-[70vh]" alt="" />
             )}
-                       {!view.image_url && (
+            {!view.image_url && (
               <div
                 className={`relative w-full aspect-square rounded-xl ${
                   view.bgc ? "" : `bg-gradient-to-br ${BGS[(view.bg || 0) % BGS.length]}`
