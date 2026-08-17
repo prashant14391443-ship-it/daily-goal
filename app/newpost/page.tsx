@@ -1,12 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-
-const BANNED = ["fuck", "shit", "bitch", "asshole", "dick", "pussy", "nigga", "nigger", "cunt", "whore", "bastard"];
-const bad = (t: string) => BANNED.some((w) => t.toLowerCase().includes(w));
 
 const BGS = [
   "from-violet-600/40 via-slate-900 to-fuchsia-600/30",
@@ -21,7 +18,7 @@ const BGS = [
   "from-slate-700/60 via-slate-900 to-slate-600/40",
 ];
 
-function compressImage(f: File): Promise<File> {
+function compressImage(f: File, fileName: string = "image.jpg"): Promise<File> {
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -40,9 +37,9 @@ function compressImage(f: File): Promise<File> {
         canvas.height = h;
         canvas.getContext("2d")?.drawImage(img, 0, 0, w, h);
         canvas.toBlob(
-          (b) => resolve(new File([b || new Blob()], "post.jpg", { type: "image/jpeg" })),
+          (b) => resolve(new File([b || new Blob()], fileName, { type: "image/jpeg" })),
           "image/jpeg",
-          0.72
+          0.8
         );
       };
       img.src = e.target?.result as string;
@@ -51,88 +48,24 @@ function compressImage(f: File): Promise<File> {
   });
 }
 
-function burnText(
-  file: File,
-  text: string,
-  pos: { x: number; y: number },
-  color: string
-): Promise<File> {
-  return new Promise((resolve) => {
-    if (!text.trim()) return resolve(file);
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return resolve(file);
-      ctx.drawImage(img, 0, 0);
-      const size = Math.max(16, Math.round(img.width / 20));
-      ctx.font = `bold ${size}px sans-serif`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      const maxW = img.width * 0.9;
-      const words = text.split(/\s+/);
-      const lines: string[] = [];
-      let cur = "";
-      for (const w of words) {
-        const t = cur ? cur + " " + w : w;
-        if (ctx.measureText(t).width > maxW && cur) {
-          lines.push(cur);
-          cur = w;
-        } else cur = t;
-      }
-      if (cur) lines.push(cur);
-      const cx = (pos.x / 100) * img.width;
-      const cy = (pos.y / 100) * img.height;
-      const boxH = lines.length * size * 1.4 + size * 0.6;
-      const boxW = Math.min(
-        maxW,
-        Math.max(...lines.map((l) => ctx.measureText(l).width)) + size
-      );
-      ctx.fillStyle = "rgba(0,0,0,0.45)";
-      const x0 = cx - boxW / 2;
-      const y0 = cy - boxH / 2;
-      ctx.beginPath();
-      if (typeof (ctx as any).roundRect === "function") {
-        (ctx as any).roundRect(x0, y0, boxW, boxH, size * 0.5);
-      } else {
-        ctx.rect(x0, y0, boxW, boxH);
-      }
-      ctx.fill();
-      ctx.fillStyle = color;
-      lines.forEach((ln, i) => {
-        ctx.fillText(ln, cx, cy + (i - (lines.length - 1) / 2) * size * 1.4);
-      });
-      canvas.toBlob(
-        (b) => resolve(new File([b || new Blob()], "post.jpg", { type: "image/jpeg" })),
-        "image/jpeg",
-        0.72
-      );
-    };
-    img.src = URL.createObjectURL(file);
-  });
-}
-
 export default function NewPostPage() {
+  const router = useRouter();
   const [me, setMe] = useState("");
   const [text, setText] = useState("");
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [preview, setPreview] = useState("");
-  const [busy, setBusy] = useState(false);
   const [bg, setBg] = useState(0);
   const [bgc, setBgc] = useState("");
   const [tc, setTc] = useState("#ffffff");
   const [pos, setPos] = useState({ x: 50, y: 50 });
   const boxRef = useRef<HTMLDivElement | null>(null);
   const dragging = useRef(false);
-  const router = useRouter();
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [preview, setPreview] = useState("");
+  const [posting, setPosting] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase.auth.getSession();
-      const uid = data.session?.user.id;
-      if (uid) setMe(uid);
+      if (data.session?.user.id) setMe(data.session.user.id);
     };
     load();
   }, []);
@@ -145,38 +78,19 @@ export default function NewPostPage() {
     setPos({ x, y });
   };
 
-  const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f || !f.type.startsWith("image/")) {
-      alert("Images only!");
-      return;
-    }
-    setPhoto(f);
-    setPreview(URL.createObjectURL(f));
-    setPos({ x: 50, y: 50 });
-  };
-
-  const publish = async () => {
+  const handlePost = async () => {
     if (!text.trim() && !photo) return;
-    if (bad(text)) {
-      alert("🚫 Keep it clean — banned word detected!");
-      return;
-    }
-    setBusy(true);
+    setPosting(true);
     let url = "";
+
     if (photo) {
-      let small = await compressImage(photo);
-      small = await burnText(small, text, pos, tc);
-      const path = `${me}/${Date.now()}.jpg`;
-      const { error: upErr } = await supabase.storage.from("posts").upload(path, small);
-      if (upErr) {
-        alert("Upload failed: " + upErr.message);
-        setBusy(false);
-        return;
-      }
+      const small = await compressImage(photo, "post.jpg");
+      const path = `${me}/post-${Date.now()}.jpg`;
+      await supabase.storage.from("posts").upload(path, small);
       url = supabase.storage.from("posts").getPublicUrl(path).data.publicUrl;
     }
-    const { error: postErr } = await supabase.from("posts").insert({
+
+    await supabase.from("posts").insert({
       user_id: me,
       content: text.trim(),
       image_url: url || null,
@@ -186,121 +100,113 @@ export default function NewPostPage() {
       tx: Math.round(pos.x),
       ty: Math.round(pos.y),
     });
-    if (postErr) {
-      alert("Post failed: " + postErr.message);
-      setBusy(false);
-      return;
-    }
+
     router.push("/feed");
   };
 
-  const dragProps = {
-    onPointerDown: (e: React.PointerEvent) => {
-      dragging.current = true;
-      moveText(e.clientX, e.clientY);
-    },
-    onPointerMove: (e: React.PointerEvent) => {
-      if (dragging.current) moveText(e.clientX, e.clientY);
-    },
-    onPointerUp: () => (dragging.current = false),
-  };
-
   return (
-    <main className="min-h-screen bg-slate-950 text-white flex flex-col pb-24">
-      <div className="flex items-center justify-between p-4 pr-28 border-b border-slate-800">
-        <Link href="/feed" className="text-xl">←</Link>
-        <p className="font-bold">📸 New post</p>
-        <button
-          onClick={publish}
-          disabled={busy}
-          className="px-5 py-1.5 rounded-full bg-violet-600 font-bold text-sm disabled:opacity-50"
-        >
-          {busy ? "..." : "Post"}
-        </button>
-      </div>
+    <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
+      {/* Centered, compact card layout mirroring the "New Story" modal */}
+      <div className="w-full max-w-md bg-slate-900 rounded-2xl p-5 grid gap-4 shadow-2xl border border-slate-800">
+        
+        {/* Header */}
+        <div className="flex justify-between items-center mb-1">
+          <Link href="/feed" className="text-slate-400 hover:text-white text-xl px-2 py-1 -ml-2 rounded-lg transition-colors">
+            ←
+          </Link>
+          <p className="font-bold text-lg flex items-center gap-2">
+            📸 New post
+          </p>
+          <div className="w-8"></div> {/* Spacer to perfectly center the title */}
+        </div>
 
-      <div className="p-4 grid gap-3">
-        {/* PREVIEW AT TOP — BIG (photo OR background) */}
+        {/* Preview Area - Constrained height so controls always fit on screen */}
         {preview ? (
-          <div>
+          <div className="relative group">
             <div
               ref={boxRef}
-              className="relative rounded-xl overflow-hidden touch-none select-none cursor-move"
-              {...dragProps}
+              className="relative rounded-xl overflow-hidden touch-none select-none cursor-move border border-slate-700 bg-black aspect-square max-h-[45vh] w-full flex items-center justify-center"
+              onPointerDown={(e) => {
+                dragging.current = true;
+                moveText(e.clientX, e.clientY);
+              }}
+              onPointerMove={(e) => {
+                if (dragging.current) moveText(e.clientX, e.clientY);
+              }}
+              onPointerUp={() => (dragging.current = false)}
             >
-              <img src={preview} className="w-full max-h-96 object-cover" alt="" />
+              <img src={preview} className="w-full h-full object-contain" alt="preview" />
               {text.trim() && (
                 <p
-                  className="absolute font-bold text-center px-3 py-1 rounded-lg pointer-events-none"
+                  className="absolute font-bold text-center px-4 py-2 rounded-lg pointer-events-none text-xl shadow-lg"
                   style={{
                     left: `${pos.x}%`,
                     top: `${pos.y}%`,
                     transform: "translate(-50%, -50%)",
                     color: tc,
-                    background: "rgba(0,0,0,0.45)",
+                    background: "rgba(0,0,0,0.55)",
+                    backdropFilter: "blur(4px)",
                   }}
                 >
                   {text}
                 </p>
               )}
             </div>
-            <p className="text-[10px] text-slate-500 text-center mt-1">
-              ✋ Drag to place your text
+            <p className="text-xs text-slate-400 text-center mt-2">
+              👆 Drag on photo to place your text
             </p>
             <button
               onClick={() => {
                 setPhoto(null);
                 setPreview("");
               }}
-              className="mt-2 w-full py-2 rounded-lg bg-red-600/20 text-red-400 text-xs font-bold"
+              className="mt-2 w-full py-2.5 rounded-xl bg-red-600/10 hover:bg-red-600/20 text-red-400 text-sm font-bold transition-colors"
             >
               ✖ Remove photo
             </button>
           </div>
         ) : (
-          <div>
-            <div
-              ref={boxRef}
-              className={`relative rounded-xl overflow-hidden touch-none select-none cursor-move aspect-square ${
-                bgc ? "" : `bg-gradient-to-br ${BGS[bg]}`
-              }`}
-              style={bgc ? { background: bgc } : undefined}
-              {...dragProps}
+          <div
+            ref={boxRef}
+            className={`relative rounded-xl overflow-hidden touch-none select-none cursor-move aspect-square max-h-[45vh] w-full shadow-inner border border-slate-800 ${
+              bgc ? "" : `bg-gradient-to-br ${BGS[bg]}`
+            }`}
+            style={bgc ? { background: bgc } : undefined}
+            onPointerDown={(e) => {
+              dragging.current = true;
+              moveText(e.clientX, e.clientY);
+            }}
+            onPointerMove={(e) => {
+              if (dragging.current) moveText(e.clientX, e.clientY);
+            }}
+            onPointerUp={() => (dragging.current = false)}
+          >
+            <p
+              className="absolute font-bold text-center text-3xl whitespace-pre-wrap px-6 pointer-events-none w-full"
+              style={{
+                left: `${pos.x}%`,
+                top: `${pos.y}%`,
+                transform: "translate(-50%, -50%)",
+                color: tc,
+              }}
             >
-              <p
-                className="absolute font-bold text-center text-2xl whitespace-pre-wrap px-4 pointer-events-none"
-                style={{
-                  left: `${pos.x}%`,
-                  top: `${pos.y}%`,
-                  transform: "translate(-50%, -50%)",
-                  color: tc,
-                }}
-              >
-                {text || "Your text preview..."}
-              </p>
-            </div>
-            <p className="text-[10px] text-slate-500 text-center mt-1">
-              ✋ Drag to place your text on the background
+              {text || "Type below..."}
             </p>
-            <label className="mt-2 block py-3 rounded-xl bg-slate-900 border border-dashed border-slate-700 text-center text-sm font-bold cursor-pointer">
-              📷 Add photo (optional)
-              <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
-            </label>
           </div>
         )}
 
-        {/* EDITING AT BOTTOM */}
-        <div className="relative">
+        {/* Text Input & Colors */}
+        <div className="relative mt-2">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            rows={3}
+            rows={2}
             placeholder="Write something... ✍️"
             style={{ color: tc }}
-            className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 pb-10 text-sm resize-none"
+            className="w-full bg-slate-950 border border-slate-700 rounded-xl p-4 pb-12 text-[15px] resize-none focus:outline-none focus:border-violet-500 transition-colors"
           />
-          <div className="absolute right-2 bottom-2 flex items-center gap-3">
-            <label className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+          <div className="absolute right-3 bottom-3 flex items-center gap-3">
+            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-400 cursor-pointer hover:text-slate-200">
               BG
               <input
                 type="color"
@@ -309,7 +215,7 @@ export default function NewPostPage() {
                 className="w-7 h-7 rounded-md cursor-pointer p-0 border border-slate-600 bg-transparent"
               />
             </label>
-            <label className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+            <label className="flex items-center gap-1.5 text-xs font-bold text-slate-400 cursor-pointer hover:text-slate-200">
               Text
               <input
                 type="color"
@@ -321,7 +227,8 @@ export default function NewPostPage() {
           </div>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1">
+        {/* Gradient Selectors */}
+        <div className="flex gap-2 overflow-x-auto py-1 scrollbar-hide">
           {BGS.map((g, i) => (
             <button
               key={i}
@@ -329,20 +236,39 @@ export default function NewPostPage() {
                 setBg(i);
                 setBgc("");
               }}
-              className={`w-9 h-9 shrink-0 rounded-full bg-gradient-to-br ${g} border-2 ${
-                bg === i && !bgc ? "border-white" : "border-transparent"
+              className={`w-10 h-10 shrink-0 rounded-full bg-gradient-to-br ${g} border-2 transition-transform ${
+                bg === i && !bgc ? "border-white scale-110 shadow-lg" : "border-transparent hover:scale-105"
               }`}
             />
           ))}
         </div>
 
-        <button
-          onClick={publish}
-          disabled={busy}
-          className="py-3 rounded-xl bg-violet-600 hover:bg-violet-500 font-bold disabled:opacity-50"
-        >
-          🚀 Post
-        </button>
+        {/* Bottom Actions */}
+        <div className="flex gap-3 pt-2 border-t border-slate-800">
+          <label className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 transition-colors text-lg font-bold cursor-pointer flex items-center justify-center">
+            📷
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) {
+                  setPhoto(f);
+                  setPreview(URL.createObjectURL(f));
+                  setPos({ x: 50, y: 50 });
+                }
+              }}
+              className="hidden"
+            />
+          </label>
+          <button
+            onClick={handlePost}
+            disabled={posting || (!text.trim() && !photo)}
+            className="flex-1 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:bg-slate-800 disabled:text-slate-500 transition-colors font-bold text-[15px] flex items-center justify-center gap-2"
+          >
+            {posting ? "Posting..." : "🚀 Post"}
+          </button>
+        </div>
       </div>
     </main>
   );
