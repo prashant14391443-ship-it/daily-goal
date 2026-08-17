@@ -8,8 +8,6 @@ import Link from "next/link";
 const BANNED = ["fuck", "shit", "bitch", "asshole", "dick", "pussy", "nigga", "nigger", "cunt", "whore", "bastard"];
 const bad = (t: string) => BANNED.some((w) => t.toLowerCase().includes(w));
 
-
-
 const BGS = [
   "from-violet-600/40 via-slate-900 to-fuchsia-600/30",
   "from-blue-600/40 via-slate-900 to-cyan-500/30",
@@ -53,7 +51,12 @@ function compressImage(f: File): Promise<File> {
   });
 }
 
-function burnText(file: File, text: string, pos: { x: number; y: number }, color: string): Promise<File> {
+function burnText(
+  file: File,
+  text: string,
+  pos: { x: number; y: number },
+  color: string
+): Promise<File> {
   return new Promise((resolve) => {
     if (!text.trim()) return resolve(file);
     const img = new Image();
@@ -64,18 +67,42 @@ function burnText(file: File, text: string, pos: { x: number; y: number }, color
       const ctx = canvas.getContext("2d");
       if (!ctx) return resolve(file);
       ctx.drawImage(img, 0, 0);
-      const size = Math.max(18, Math.round(img.width / 18));
+      const size = Math.max(16, Math.round(img.width / 20));
       ctx.font = `bold ${size}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = color;
-      ctx.shadowColor = "rgba(0,0,0,0.9)";
-      ctx.shadowBlur = size / 2;
-      const lines = text.split("\n");
+      const maxW = img.width * 0.9;
+      const words = text.split(/\s+/);
+      const lines: string[] = [];
+      let cur = "";
+      for (const w of words) {
+        const t = cur ? cur + " " + w : w;
+        if (ctx.measureText(t).width > maxW && cur) {
+          lines.push(cur);
+          cur = w;
+        } else cur = t;
+      }
+      if (cur) lines.push(cur);
       const cx = (pos.x / 100) * img.width;
       const cy = (pos.y / 100) * img.height;
+      const boxH = lines.length * size * 1.4 + size * 0.6;
+      const boxW = Math.min(
+        maxW,
+        Math.max(...lines.map((l) => ctx.measureText(l).width)) + size
+      );
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      const x0 = cx - boxW / 2;
+      const y0 = cy - boxH / 2;
+      ctx.beginPath();
+      if (typeof (ctx as any).roundRect === "function") {
+        (ctx as any).roundRect(x0, y0, boxW, boxH, size * 0.5);
+      } else {
+        ctx.rect(x0, y0, boxW, boxH);
+      }
+      ctx.fill();
+      ctx.fillStyle = color;
       lines.forEach((ln, i) => {
-        ctx.fillText(ln, cx, cy + (i - (lines.length - 1) / 2) * size * 1.3);
+        ctx.fillText(ln, cx, cy + (i - (lines.length - 1) / 2) * size * 1.4);
       });
       canvas.toBlob(
         (b) => resolve(new File([b || new Blob()], "post.jpg", { type: "image/jpeg" })),
@@ -94,8 +121,8 @@ export default function NewPostPage() {
   const [preview, setPreview] = useState("");
   const [busy, setBusy] = useState(false);
   const [bg, setBg] = useState(0);
-  const [tc, setTc] = useState("#ffffff");
   const [bgc, setBgc] = useState("");
+  const [tc, setTc] = useState("#ffffff");
   const [pos, setPos] = useState({ x: 50, y: 50 });
   const boxRef = useRef<HTMLDivElement | null>(null);
   const dragging = useRef(false);
@@ -141,10 +168,15 @@ export default function NewPostPage() {
       let small = await compressImage(photo);
       small = await burnText(small, text, pos, tc);
       const path = `${me}/${Date.now()}.jpg`;
-      await supabase.storage.from("posts").upload(path, small);
+      const { error: upErr } = await supabase.storage.from("posts").upload(path, small);
+      if (upErr) {
+        alert("Upload failed: " + upErr.message);
+        setBusy(false);
+        return;
+      }
       url = supabase.storage.from("posts").getPublicUrl(path).data.publicUrl;
     }
-       const { error: postErr } = await supabase.from("posts").insert({
+    const { error: postErr } = await supabase.from("posts").insert({
       user_id: me,
       content: text.trim(),
       image_url: url || null,
@@ -185,6 +217,7 @@ export default function NewPostPage() {
             {text || "Your text preview..."}
           </p>
         </div>
+
         <div className="relative">
           <textarea
             value={text}
@@ -215,6 +248,7 @@ export default function NewPostPage() {
             </label>
           </div>
         </div>
+
         <div className="flex gap-2 overflow-x-auto pb-1">
           {BGS.map((g, i) => (
             <button
@@ -224,11 +258,12 @@ export default function NewPostPage() {
                 setBgc("");
               }}
               className={`w-9 h-9 shrink-0 rounded-full bg-gradient-to-br ${g} border-2 ${
-                bg === i ? "border-white" : "border-transparent"
+                bg === i && !bgc ? "border-white" : "border-transparent"
               }`}
             />
           ))}
         </div>
+
         {preview ? (
           <div>
             <div
@@ -246,12 +281,13 @@ export default function NewPostPage() {
               <img src={preview} className="w-full max-h-96 object-cover" alt="" />
               {text.trim() && (
                 <p
-                  className="absolute font-bold text-white text-center px-2 pointer-events-none"
+                  className="absolute font-bold text-center px-3 py-1 rounded-lg pointer-events-none"
                   style={{
                     left: `${pos.x}%`,
                     top: `${pos.y}%`,
                     transform: "translate(-50%, -50%)",
-                    textShadow: "0 2px 8px rgba(0,0,0,0.9)",
+                    color: tc,
+                    background: "rgba(0,0,0,0.45)",
                   }}
                 >
                   {text}
@@ -277,6 +313,7 @@ export default function NewPostPage() {
             <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
           </label>
         )}
+
         <button
           onClick={publish}
           disabled={busy}
