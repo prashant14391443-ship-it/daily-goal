@@ -438,7 +438,7 @@ export default function ProfileMenu() {
     return () => clearInterval(id);
   }, [pathname]);
 
-  if (["/login", "/signup", "/activity", "/inbox"].includes(pathname)) return null;
+  if (["/login", "/signup", "/activity", "/inbox", "/profile"].includes(pathname)) return null;
 
   const name = displayName || (email ? email.split("@")[0] : "friend");
   const initial = name.charAt(0).toUpperCase();
