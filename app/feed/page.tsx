@@ -37,7 +37,25 @@ const BGS = [
   "from-slate-700/60 via-slate-900 to-slate-600/40",
 ];
 
-const rankOf = (c: number) => (c >= 1000 ? "🦸" : c >= 500 ? "🥇" : c >= 100 ? "🥈" : "🥉");
+const LEVELS = [
+  { icon: "🥉", need: 0 },
+  { icon: "🥈", need: 500 },
+  { icon: "⚪", need: 1000 },
+  { icon: "🥇", need: 2000 },
+  { icon: "💎", need: 4000 },
+  { icon: "🦸", need: 8000 },
+  { icon: "⚡", need: 16000 },
+  { icon: "🎓", need: 32000 },
+  { icon: "👑", need: 64000 },
+  { icon: "🐉", need: 128000 },
+  { icon: "🌌", need: 256000 },
+  { icon: "🦇", need: 512000 },
+];
+const rankOf = (c: number) => {
+  let icon = LEVELS[0].icon;
+  for (const l of LEVELS) if (c >= l.need) icon = l.icon;
+  return icon;
+};
 
 function ago(iso: string) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;

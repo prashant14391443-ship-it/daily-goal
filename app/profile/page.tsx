@@ -248,8 +248,23 @@ function Inner() {
     load();
   };
 
-  const rank =
-    coins >= 1000 ? "🦸 Hero" : coins >= 500 ? "🥇 Gold" : coins >= 100 ? "🥈 Silver" : "🥉 Bronze";
+  const LEVELS = [
+    { name: "Bronze", icon: "🥉", need: 0 },
+    { name: "Silver", icon: "🥈", need: 500 },
+    { name: "Platinum", icon: "⚪", need: 1000 },
+    { name: "Gold", icon: "🥇", need: 2000 },
+    { name: "Diamond", icon: "💎", need: 4000 },
+    { name: "Hero", icon: "🦸", need: 8000 },
+    { name: "Elite Hero", icon: "⚡", need: 16000 },
+    { name: "Master", icon: "🎓", need: 32000 },
+    { name: "Legend", icon: "👑", need: 64000 },
+    { name: "Dragon", icon: "🐉", need: 128000 },
+    { name: "Immortal", icon: "🌌", need: 256000 },
+    { name: "BATMAN", icon: "🦇", need: 512000 },
+  ];
+  const lvlIdx = LEVELS.reduce((acc, l, i) => (coins >= l.need ? i : acc), 0);
+  const lvl = LEVELS[lvlIdx];
+  const next = LEVELS[lvlIdx + 1];
   const locked = prof?.is_private && userId !== me && !isFriend;
 
   return (
@@ -287,10 +302,38 @@ function Inner() {
             <p className="text-xs text-slate-400">friends</p>
           </Link>
           <div>
-            <p className="font-black text-lg">{rank.split(" ")[0]}</p>
-            <p className="text-xs text-slate-400">{rank.split(" ")[1]}</p>
+            <p className="font-black text-lg">{lvl.icon}</p>
+            <p className="text-xs text-slate-400">{lvl.name}</p>
           </div>
         </div>
+      </div>
+
+      {/* LEVEL PROGRESS */}
+      <div className="px-4 mb-3">
+        {next ? (
+          <>
+            <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+              <span>
+                {lvl.icon} {lvl.name}
+              </span>
+              <span>
+                {next.need - coins} 🪙 to {next.icon} {next.name}
+              </span>
+            </div>
+            <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-amber-400 to-fuchsia-500"
+                style={{
+                  width: `${Math.min(100, ((coins - lvl.need) / (next.need - lvl.need)) * 100)}%`,
+                }}
+              />
+            </div>
+          </>
+        ) : (
+          <p className="text-[10px] text-amber-400 font-bold text-center">
+            🦇 MAX LEVEL — YOU ARE THE BATMAN!
+          </p>
+        )}
       </div>
 
       {/* BIO */}
