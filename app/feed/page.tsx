@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
@@ -12,6 +12,7 @@ type Post = {
   image_url: string;
   bg: number;
   tc: string;
+  bgc: string;
   created_at: string;
   likes: number;
   likedByMe: boolean;
@@ -44,7 +45,6 @@ function ago(iso: string) {
   return `${Math.floor(s / 86400)}d`;
 }
 
-// FIX 1: Merged duplicate compressImage functions and added dynamic filename
 function compressImage(f: File, fileName: string = "image.jpg"): Promise<File> {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -75,6 +75,69 @@ function compressImage(f: File, fileName: string = "image.jpg"): Promise<File> {
   });
 }
 
+function burnText(
+  file: File,
+  text: string,
+  pos: { x: number; y: number },
+  color: string
+): Promise<File> {
+  return new Promise((resolve) => {
+    if (!text.trim()) return resolve(file);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return resolve(file);
+      ctx.drawImage(img, 0, 0);
+      const size = Math.max(16, Math.round(img.width / 20));
+      ctx.font = `bold ${size}px sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const maxW = img.width * 0.9;
+      const words = text.split(/\s+/);
+      const lines: string[] = [];
+      let cur = "";
+      for (const w of words) {
+        const t = cur ? cur + " " + w : w;
+        if (ctx.measureText(t).width > maxW && cur) {
+          lines.push(cur);
+          cur = w;
+        } else cur = t;
+      }
+      if (cur) lines.push(cur);
+      const cx = (pos.x / 100) * img.width;
+      const cy = (pos.y / 100) * img.height;
+      const boxH = lines.length * size * 1.4 + size * 0.6;
+      const boxW = Math.min(
+        maxW,
+        Math.max(...lines.map((l) => ctx.measureText(l).width)) + size
+      );
+      ctx.fillStyle = "rgba(0,0,0,0.45)";
+      const x0 = cx - boxW / 2;
+      const y0 = cy - boxH / 2;
+      ctx.beginPath();
+      if (typeof (ctx as any).roundRect === "function") {
+        (ctx as any).roundRect(x0, y0, boxW, boxH, size * 0.5);
+      } else {
+        ctx.rect(x0, y0, boxW, boxH);
+      }
+      ctx.fill();
+      ctx.fillStyle = color;
+      lines.forEach((ln, i) => {
+        ctx.fillText(ln, cx, cy + (i - (lines.length - 1) / 2) * size * 1.4);
+      });
+      canvas.toBlob(
+        (b) => resolve(new File([b || new Blob()], "story.jpg", { type: "image/jpeg" })),
+        "image/jpeg",
+        0.72
+      );
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 function Avatar({ p, size = "w-9 h-9", ring = false }: { p?: Profile; size?: string; ring?: boolean }) {
   const inner = p?.avatar_url ? (
     <img src={p.avatar_url} className={`${size} rounded-full object-cover border-2 border-slate-950`} alt="" />
@@ -100,6 +163,11 @@ export default function FeedPage() {
   const [creatingStory, setCreatingStory] = useState(false);
   const [sText, setSText] = useState("");
   const [sBg, setSBg] = useState(0);
+  const [sBgc, setSBgc] = useState("");
+  const [sTc, setSTc] = useState("#ffffff");
+  const [sPos, setSPos] = useState({ x: 50, y: 50 });
+  const sBoxRef = useRef<HTMLDivElement | null>(null);
+  const sDragging = useRef(false);
   const [sPhoto, setSPhoto] = useState<File | null>(null);
   const [sPreview, setSPreview] = useState("");
   const [viewers, setViewers] = useState<string[]>([]);
@@ -116,18 +184,12 @@ export default function FeedPage() {
   const [commentText, setCommentText] = useState("");
   const [shareOpen, setShareOpen] = useState<Post | null>(null);
 
-  const [text, setText] = useState("");
-  const [photo, setPhoto] = useState<File | null>(null);
-  const [preview, setPreview] = useState("");
-  const [busy, setBusy] = useState(false);
-
   const load = async () => {
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
     if (!uid) return;
     setMe(uid);
-    
-    // Fetch all necessary data including unread notifications count
+
     const [p, prof, likes, myLikes, fr, sent, inc, commentsRes, notifRes] = await Promise.all([
       supabase.from("posts").select("*").order("created_at", { ascending: false }).limit(50),
       supabase.from("profiles").select("*"),
@@ -137,14 +199,12 @@ export default function FeedPage() {
       supabase.from("friend_requests").select("to_id").eq("from_id", uid).eq("status", "pending"),
       supabase.from("friend_requests").select("from_id").eq("to_id", uid).eq("status", "pending"),
       supabase.from("post_comments").select("*").order("created_at", { ascending: true }),
-      supabase.from("notifications").select("*", { count: "exact", head: true }).eq("user_id", uid).eq("read", false)
+      supabase.from("notifications").select("*", { count: "exact", head: true }).eq("user_id", uid).eq("read", false),
     ]);
 
     setUnread(notifRes.count || 0);
 
     const profMap = new Map<string, Profile>(((prof.data as any[]) || []).map((x) => [x.user_id, x]));
-    
-    // FIX 2: Set the profile map so stories and avatars render correctly
     setProfById(profMap);
     setMyProf(profMap.get(uid));
 
@@ -152,7 +212,7 @@ export default function FeedPage() {
     const likeCount = new Map<string, number>();
     (likes.data || []).forEach((l) => likeCount.set(l.post_id, (likeCount.get(l.post_id) || 0) + 1));
     const mine = new Set((myLikes.data || []).map((l) => l.post_id));
-    
+
     const cMap = new Map<string, any[]>();
     ((commentsRes.data as any[]) || []).forEach((c) => {
       const arr = cMap.get(c.post_id) || [];
@@ -164,23 +224,22 @@ export default function FeedPage() {
     setFriends(frSet);
     setSentReqs(new Set((sent.data || []).map((s) => s.to_id)));
     setIncoming((inc.data || []).map((r) => ({ from_id: r.from_id, prof: profMap.get(r.from_id) })));
-    
+
     const cutoff = new Date(Date.now() - 24 * 3600000).toISOString();
     const { data: expired } = await supabase
       .from("stories")
       .select("*")
       .eq("user_id", uid)
       .lt("created_at", cutoff);
-      
-    // Optimized batch deletion for expired story images
+
     const pathsToRemove = (expired || [])
-      .map(s => (s.image_url ? decodeURIComponent(s.image_url.split("/posts/")[1] || "") : ""))
+      .map((s) => (s.image_url ? decodeURIComponent(s.image_url.split("/posts/")[1] || "") : ""))
       .filter(Boolean);
-      
+
     if (pathsToRemove.length > 0) {
       await supabase.storage.from("posts").remove(pathsToRemove);
     }
-    
+
     if ((expired || []).length > 0) {
       await supabase.from("stories").delete().eq("user_id", uid).lt("created_at", cutoff);
     }
@@ -190,7 +249,7 @@ export default function FeedPage() {
       .select("*")
       .gte("created_at", cutoff)
       .order("created_at");
-      
+
     const smap = new Map<string, any[]>();
     ((st as any[]) || []).forEach((s) => {
       if (!smap.has(s.user_id)) smap.set(s.user_id, []);
@@ -217,7 +276,7 @@ export default function FeedPage() {
 
   useEffect(() => {
     load();
-  }, []); // Fixed Syntax Error Here
+  }, []);
 
   useEffect(() => {
     const loadCoins = async () => {
@@ -231,52 +290,12 @@ export default function FeedPage() {
     loadCoins();
   }, [posts.length]);
 
-  const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    if (!f.type.startsWith("image/")) {
-      alert("Images only!");
-      return;
-    }
-    setPhoto(f);
-    setPreview(URL.createObjectURL(f));
-  };
-
-  const publish = async () => {
-    if (!text.trim() && !photo) return;
-    if (bad(text)) {
-      alert("🚫 Keep it clean — banned word detected!");
-      return;
-    }
-    setBusy(true);
-    let url = "";
-    if (photo) {
-      const small = await compressImage(photo, "post.jpg");
-      const path = `${me}/${Date.now()}.jpg`;
-      await supabase.storage.from("posts").upload(path, small);
-      url = supabase.storage.from("posts").getPublicUrl(path).data.publicUrl;
-    }
-    await supabase.from("posts").insert({ 
-      user_id: me, 
-      content: text.trim(), 
-      image_url: url || null, 
-      bg: Math.floor(Math.random() * BGS.length) 
-    });
-    
-    const { data: frs } = await supabase.from("friends").select("friend_id").eq("user_id", me);
-    const notifs = (frs || []).map((f) => ({
-      user_id: f.friend_id,
-      actor_id: me,
-      type: "post",
-      text: `📸 ${myProf?.display_name || "A friend"} shared a new post`,
-    }));
-    if (notifs.length > 0) await supabase.from("notifications").insert(notifs);
-    
-    setText("");
-    setPhoto(null);
-    setPreview("");
-    setBusy(false);
-    load();
+  const moveSText = (clientX: number, clientY: number) => {
+    const r = sBoxRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const x = Math.min(95, Math.max(5, ((clientX - r.left) / r.width) * 100));
+    const y = Math.min(95, Math.max(5, ((clientY - r.top) / r.height) * 100));
+    setSPos({ x, y });
   };
 
   const deleteStory = async (s: any) => {
@@ -294,7 +313,8 @@ export default function FeedPage() {
     if (!sText.trim() && !sPhoto) return;
     let url = "";
     if (sPhoto) {
-      const small = await compressImage(sPhoto, "story.jpg");
+      let small = await compressImage(sPhoto, "story.jpg");
+      small = await burnText(small, sText, sPos, sTc);
       const path = `${me}/story-${Date.now()}.jpg`;
       await supabase.storage.from("posts").upload(path, small);
       url = supabase.storage.from("posts").getPublicUrl(path).data.publicUrl;
@@ -302,8 +322,10 @@ export default function FeedPage() {
     await supabase.from("stories").insert({
       user_id: me,
       content: sText.trim(),
-      image_url: url || null, // FIX 5: Fallback to null instead of empty string
+      image_url: url || null,
       bg: sBg,
+      tc: sTc,
+      bgc: sBgc,
     });
     setCreatingStory(false);
     setSText("");
@@ -383,7 +405,6 @@ export default function FeedPage() {
     if (post.likedByMe) await supabase.from("post_likes").delete().eq("user_id", me).eq("post_id", id);
     else {
       await supabase.from("post_likes").insert({ user_id: me, post_id: id });
-
     }
     load();
   };
@@ -413,17 +434,6 @@ export default function FeedPage() {
         text: `💬 ${myProf?.display_name || "Someone"} commented on your post`,
       });
     setCommentText("");
-    load();
-  };
-
-  const editPost = async (p: Post) => {
-    const t = prompt("Edit your post:", p.content || "");
-    if (t === null) return;
-    if (bad(t)) {
-      alert("🚫 Keep it clean!");
-      return;
-    }
-    await supabase.from("posts").update({ content: t.trim() }).eq("id", p.id);
     load();
   };
 
@@ -483,17 +493,23 @@ export default function FeedPage() {
 
       {/* STORIES ROW */}
       <div className="flex gap-3 overflow-x-auto px-4 py-3 border-b border-slate-800">
-        {/* FIX 4: Split viewing logic vs creating logic for personal stories */}
         <div className="flex flex-col items-center gap-1 shrink-0 cursor-pointer">
           <span className="relative inline-block">
-            <span 
-              onClick={() => storyMap.has(me) ? setViewStory({ user: me, index: 0 }) : setCreatingStory(true)}
-              className={storyMap.has(me) ? "rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-600 p-[2px] inline-block" : "inline-block"}
+            <span
+              onClick={() => (storyMap.has(me) ? setViewStory({ user: me, index: 0 }) : setCreatingStory(true))}
+              className={
+                storyMap.has(me)
+                  ? "rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-600 p-[2px] inline-block"
+                  : "inline-block"
+              }
             >
               <Avatar p={myProf} size="w-14 h-14" />
             </span>
-            <button 
-              onClick={(e) => { e.stopPropagation(); setCreatingStory(true); }}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setCreatingStory(true);
+              }}
               className="absolute bottom-0 right-0 bg-violet-600 border-2 border-slate-950 rounded-full w-5 h-5 text-[10px] font-bold flex items-center justify-center"
             >
               +
@@ -542,9 +558,7 @@ export default function FeedPage() {
         </div>
       )}
 
-     
-
-      {/* POSTS — INSTA STYLE */}
+      {/* POSTS */}
       {shown.length === 0 && (
         <p className="text-slate-500 text-sm text-center py-10">No posts yet — be the first! 🌟</p>
       )}
@@ -568,7 +582,10 @@ export default function FeedPage() {
               <img src={p.image_url} className="w-full aspect-square object-cover" alt="" />
             ) : (
               <div
-                className={`w-full aspect-square bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]} flex items-center justify-center p-8`}
+                className={`w-full aspect-square flex items-center justify-center p-8 ${
+                  p.bgc ? "" : `bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]}`
+                }`}
+                style={p.bgc ? { background: p.bgc } : undefined}
               >
                 <p
                   className="text-center text-2xl font-bold whitespace-pre-wrap"
@@ -592,22 +609,20 @@ export default function FeedPage() {
             <button
               onClick={() => {
                 setCommentOpen(commentOpen === p.id ? "" : p.id);
-                setCommentText(""); // Clear comment input on toggle
+                setCommentText("");
               }}
               className="text-2xl"
             >
               💬
             </button>
+            <button onClick={() => setShareOpen(p)} className="text-2xl">
+              📤
+            </button>
             <span className="flex-1" />
             {p.user_id === me && (
-              <div className="flex items-center gap-2">
-                <button onClick={() => externalShare(p)} className="text-sm">
-                  📤
-                </button>
-                <button onClick={() => deletePost(p)} className="text-sm">
-                  🗑
-                </button>
-              </div>
+              <button onClick={() => deletePost(p)} className="text-sm">
+                🗑
+              </button>
             )}
           </div>
 
@@ -642,7 +657,6 @@ export default function FeedPage() {
               </div>
             </div>
           )}
-
         </article>
       ))}
 
@@ -669,7 +683,9 @@ export default function FeedPage() {
                 🗑
               </button>
             )}
-            <button onClick={() => setViewStory(null)} className="text-xl text-white">✖</button>
+            <button onClick={() => setViewStory(null)} className="text-xl text-white">
+              ✖
+            </button>
           </div>
           <div
             className="flex-1 relative flex items-center justify-center"
@@ -688,11 +704,25 @@ export default function FeedPage() {
               />
             ) : (
               <div
-                className={`w-full h-full bg-gradient-to-br ${
-                  BGS[((storyMap.get(viewStory.user) || [])[viewStory.index].bg || 0) % BGS.length]
-                } flex items-center justify-center p-8`}
+                className={`w-full h-full flex items-center justify-center p-8 ${
+                  (storyMap.get(viewStory.user) || [])[viewStory.index].bgc
+                    ? ""
+                    : `bg-gradient-to-br ${
+                        BGS[((storyMap.get(viewStory.user) || [])[viewStory.index].bg || 0) % BGS.length]
+                      }`
+                }`}
+                style={
+                  (storyMap.get(viewStory.user) || [])[viewStory.index].bgc
+                    ? { background: (storyMap.get(viewStory.user) || [])[viewStory.index].bgc }
+                    : undefined
+                }
               >
-                <p className="text-center text-2xl font-bold whitespace-pre-wrap text-white">
+                <p
+                  className="text-center text-2xl font-bold whitespace-pre-wrap"
+                  style={{
+                    color: (storyMap.get(viewStory.user) || [])[viewStory.index].tc || "#ffffff",
+                  }}
+                >
                   {(storyMap.get(viewStory.user) || [])[viewStory.index].content}
                 </p>
               </div>
@@ -708,37 +738,123 @@ export default function FeedPage() {
 
       {/* STORY COMPOSER */}
       {creatingStory && (
-        <div className="fixed inset-0 z-[70] bg-black/80 flex items-end" onClick={() => setCreatingStory(false)}>
-          <div className="w-full bg-slate-900 rounded-t-2xl p-4 grid gap-3" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[70] bg-black/80 flex items-end"
+          onClick={() => setCreatingStory(false)}
+        >
+          <div
+            className="w-full bg-slate-900 rounded-t-2xl p-4 grid gap-3 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex justify-between items-center">
               <p className="font-bold">👻 New story (24h)</p>
-              <button onClick={() => setCreatingStory(false)} className="text-slate-400">✖</button>
+              <button onClick={() => setCreatingStory(false)} className="text-slate-400">
+                ✖
+              </button>
             </div>
-            <div className={`rounded-xl bg-gradient-to-br ${BGS[sBg]} min-h-[140px] flex items-center justify-center p-4`}>
-              {sPreview ? (
-                <img src={sPreview} className="rounded-xl max-h-56 w-full object-cover" alt="" />
-              ) : (
-                <p className="text-center font-bold">{sText || "Type below..."}</p>
-              )}
+
+            {sPreview ? (
+              <div>
+                <div
+                  ref={sBoxRef}
+                  className="relative rounded-xl overflow-hidden touch-none select-none cursor-move"
+                  onPointerDown={(e) => {
+                    sDragging.current = true;
+                    moveSText(e.clientX, e.clientY);
+                  }}
+                  onPointerMove={(e) => {
+                    if (sDragging.current) moveSText(e.clientX, e.clientY);
+                  }}
+                  onPointerUp={() => (sDragging.current = false)}
+                >
+                  <img src={sPreview} className="w-full max-h-72 object-cover" alt="" />
+                  {sText.trim() && (
+                    <p
+                      className="absolute font-bold text-center px-3 py-1 rounded-lg pointer-events-none"
+                      style={{
+                        left: `${sPos.x}%`,
+                        top: `${sPos.y}%`,
+                        transform: "translate(-50%, -50%)",
+                        color: sTc,
+                        background: "rgba(0,0,0,0.45)",
+                      }}
+                    >
+                      {sText}
+                    </p>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-500 text-center mt-1">
+                  ✋ Drag on photo to place your text
+                </p>
+                <button
+                  onClick={() => {
+                    setSPhoto(null);
+                    setSPreview("");
+                  }}
+                  className="mt-1 w-full py-2 rounded-lg bg-red-600/20 text-red-400 text-xs font-bold"
+                >
+                  ✖ Remove photo
+                </button>
+              </div>
+            ) : (
+              <div
+                className={`rounded-xl min-h-[140px] flex items-center justify-center p-4 ${
+                  sBgc ? "" : `bg-gradient-to-br ${BGS[sBg]}`
+                }`}
+                style={sBgc ? { background: sBgc } : undefined}
+              >
+                <p className="text-center font-bold whitespace-pre-wrap" style={{ color: sTc }}>
+                  {sText || "Type below..."}
+                </p>
+              </div>
+            )}
+
+            <div className="relative">
+              <textarea
+                value={sText}
+                onChange={(e) => setSText(e.target.value)}
+                rows={2}
+                placeholder="Write a status..."
+                style={{ color: sTc }}
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 pb-9 text-sm resize-none"
+              />
+              <div className="absolute right-2 bottom-2 flex items-center gap-3">
+                <label className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+                  BG
+                  <input
+                    type="color"
+                    value={sBgc || "#1e293b"}
+                    onChange={(e) => setSBgc(e.target.value)}
+                    className="w-6 h-6 rounded-md cursor-pointer p-0 border border-slate-600 bg-transparent"
+                  />
+                </label>
+                <label className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+                  Text
+                  <input
+                    type="color"
+                    value={sTc}
+                    onChange={(e) => setSTc(e.target.value)}
+                    className="w-6 h-6 rounded-md cursor-pointer p-0 border border-slate-600 bg-transparent"
+                  />
+                </label>
+              </div>
             </div>
-            <textarea
-              value={sText}
-              onChange={(e) => setSText(e.target.value)}
-              rows={2}
-              placeholder="Write a status..."
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm resize-none"
-            />
+
             <div className="flex gap-2 overflow-x-auto">
               {BGS.map((g, i) => (
                 <button
                   key={i}
-                  onClick={() => setSBg(i)}
+                  onClick={() => {
+                    setSBg(i);
+                    setSBgc("");
+                  }}
                   className={`w-8 h-8 shrink-0 rounded-full bg-gradient-to-br ${g} border-2 ${
-                    sBg === i ? "border-white" : "border-transparent"
+                    sBg === i && !sBgc ? "border-white" : "border-transparent"
                   }`}
                 />
               ))}
             </div>
+
             <div className="flex gap-2">
               <label className="px-4 py-2 rounded-lg bg-slate-800 text-sm font-bold cursor-pointer">
                 📷
@@ -750,12 +866,16 @@ export default function FeedPage() {
                     if (f) {
                       setSPhoto(f);
                       setSPreview(URL.createObjectURL(f));
+                      setSPos({ x: 50, y: 50 });
                     }
                   }}
                   className="hidden"
                 />
               </label>
-              <button onClick={shareStory} className="flex-1 py-2 rounded-lg bg-violet-600 font-bold text-sm">
+              <button
+                onClick={shareStory}
+                className="flex-1 py-2 rounded-lg bg-violet-600 font-bold text-sm"
+              >
                 Share story
               </button>
             </div>
