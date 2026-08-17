@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { SEASON_LEVELS, levelOf, seasonInfo } from "@/lib/seasons";
+
 
 type Profile = { user_id: string; display_name: string; avatar_url: string; is_private: boolean };
 type Post = {
@@ -37,25 +39,7 @@ const BGS = [
   "from-slate-700/60 via-slate-900 to-slate-600/40",
 ];
 
-const LEVELS = [
-  { icon: "🥉", need: 0 },
-  { icon: "🥈", need: 500 },
-  { icon: "⚪", need: 1000 },
-  { icon: "🥇", need: 2000 },
-  { icon: "💎", need: 4000 },
-  { icon: "🦸", need: 8000 },
-  { icon: "⚡", need: 16000 },
-  { icon: "🎓", need: 32000 },
-  { icon: "👑", need: 64000 },
-  { icon: "🐉", need: 128000 },
-  { icon: "🌌", need: 256000 },
-  { icon: "🦇", need: 512000 },
-];
-const rankOf = (c: number) => {
-  let icon = LEVELS[0].icon;
-  for (const l of LEVELS) if (c >= l.need) icon = l.icon;
-  return icon;
-};
+const rankOf = (c: number) => levelOf(SEASON_LEVELS, c).icon;
 
 function ago(iso: string) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -86,7 +70,7 @@ function compressImage(f: File, fileName: string = "image.jpg"): Promise<File> {
         canvas.toBlob(
           (b) => resolve(new File([b || new Blob()], fileName, { type: "image/jpeg" })),
           "image/jpeg",
-          0.72
+        0.72
         );
       };
       img.src = e.target?.result as string;
@@ -302,11 +286,16 @@ export default function FeedPage() {
 
   useEffect(() => {
     const loadCoins = async () => {
-      const { data } = await supabase.from("coin_log").select("user_id, coins");
+      const s = seasonInfo();
+      const { data } = await supabase
+        .from("coin_log")
+        .select("user_id, coins, created_at");
       const m = new Map<string, number>();
-      ((data as any[]) || []).forEach((r) =>
-        m.set(r.user_id, (m.get(r.user_id) || 0) + (Number(r.coins) || 0))
-      );
+      ((data as any[]) || [])
+        .filter((r) => r.created_at >= s.startISO)
+        .forEach((r) =>
+          m.set(r.user_id, (m.get(r.user_id) || 0) + (Number(r.coins) || 0))
+        );
       setCoinMap(m);
     };
     loadCoins();

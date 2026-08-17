@@ -4,6 +4,14 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import {
+  SEASON_LEVELS,
+  LIFETIME_LEVELS,
+  SEASON_EPOCH,
+  SEASON_MS,
+  levelOf,
+  seasonInfo,
+} from "@/lib/seasons";
 
 function compressAvatar(f: File): Promise<File> {
   return new Promise((resolve) => {
@@ -58,6 +66,9 @@ function Inner() {
   const [sentReq, setSentReq] = useState(false);
   const [recvReq, setRecvReq] = useState(false);
   const [coins, setCoins] = useState(0);
+  const [life, setLife] = useState(0);
+  const [trophies, setTrophies] = useState<string[]>([]);
+  const [daysLeft, setDaysLeft] = useState(0);
   const [posts, setPosts] = useState<any[]>([]);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
@@ -111,15 +122,30 @@ function Inner() {
     setSentReq((sReq.data || []).length > 0);
     setRecvReq((rReq.data || []).length > 0);
 
+    const s = seasonInfo();
     const { data: coinRows } = await supabase
       .from("coin_log")
-      .select("coins")
+      .select("coins, created_at")
       .eq("user_id", userId);
-    const totalCoins = ((coinRows as any[]) || []).reduce(
-      (a, r) => a + (Number(r.coins) || 0),
-      0
+    let seasonCoins = 0;
+    let lifeCoins = 0;
+    const past = new Map<number, number>();
+    ((coinRows as any[]) || []).forEach((r) => {
+      const c = Number(r.coins) || 0;
+      lifeCoins += c;
+      if (r.created_at >= s.startISO) seasonCoins += c;
+      const si =
+        Math.floor((new Date(r.created_at).getTime() - SEASON_EPOCH) / SEASON_MS) + 1;
+      if (si < s.index && c > 0) past.set(si, (past.get(si) || 0) + c);
+    });
+    setCoins(seasonCoins);
+    setLife(lifeCoins);
+    setDaysLeft(s.daysLeft);
+    setTrophies(
+      Array.from(past.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([i, c]) => `S${i} ${levelOf(SEASON_LEVELS, c).icon}`)
     );
-    setCoins(totalCoins);
 
     setFriendCount((theirFriends.data || []).length);
     const likeCount = new Map<string, number>();
@@ -234,23 +260,8 @@ function Inner() {
     load();
   };
 
-  const LEVELS = [
-    { name: "Bronze", icon: "🥉", need: 0 },
-    { name: "Silver", icon: "🥈", need: 500 },
-    { name: "Platinum", icon: "⚪", need: 1000 },
-    { name: "Gold", icon: "🥇", need: 2000 },
-    { name: "Diamond", icon: "💎", need: 4000 },
-    { name: "Hero", icon: "🦸", need: 8000 },
-    { name: "Elite Hero", icon: "⚡", need: 16000 },
-    { name: "Master", icon: "🎓", need: 32000 },
-    { name: "Legend", icon: "👑", need: 64000 },
-    { name: "Dragon", icon: "🐉", need: 128000 },
-    { name: "Immortal", icon: "🌌", need: 256000 },
-    { name: "BATMAN", icon: "🦇", need: 512000 },
-  ];
-  const lvlIdx = LEVELS.reduce((acc, l, i) => (coins >= l.need ? i : acc), 0);
-  const lvl = LEVELS[lvlIdx];
-  const next = LEVELS[lvlIdx + 1];
+  const lvl = levelOf(SEASON_LEVELS, coins);
+  const lifeLvl = levelOf(LIFETIME_LEVELS, life);
   const locked = prof?.is_private && userId !== me && !isFriend;
 
   return (
@@ -304,33 +315,48 @@ function Inner() {
           </div>
         </div>
 
-        {/* LEVEL PROGRESS */}
-        <div className="px-5 mb-5">
-          {next ? (
+      {/* SEASON PROGRESS */}
+      <div className="px-4 mb-3 grid gap-2">
+        {lvl.next ? (
+          <>
+            <div className="flex justify-between text-[10px] text-slate-400">
+              <span>
+                🏁 {lvl.icon} {lvl.name}
+              </span>
+              <span>
+                {lvl.next.need - coins} 🪙 to {lvl.next.icon} {lvl.next.name} • ⏳ {daysLeft}d left
+              </span>
+            </div>
+            <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-amber-400 to-fuchsia-500"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    ((coins - lvl.need) / (lvl.next.need - lvl.need)) * 100
+                  )}%`,
+                }}
+              />
+            </div>
+          </>
+        ) : (
+          <p className="text-[10px] text-amber-400 font-bold text-center">
+            🎓 SEASON CHAMPION — defend your throne!
+          </p>
+        )}
+        <p className="text-[10px] text-slate-400">
+          {life >= LIFETIME_LEVELS[0].need ? (
             <>
-              <div className="flex justify-between text-xs text-slate-400 mb-1.5 font-medium">
-                <span>
-                  {lvl.icon} {lvl.name}
-                </span>
-                <span>
-                  {next.need - coins} 🪙 to {next.icon} {next.name}
-                </span>
-              </div>
-              <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-amber-400 to-fuchsia-500 transition-all duration-500 ease-out"
-                  style={{
-                    width: `${Math.min(100, ((coins - lvl.need) / (next.need - lvl.need)) * 100)}%`,
-                  }}
-                />
-              </div>
+              🌟 Lifetime: {lifeLvl.icon} {lifeLvl.name} • {life} 🪙
             </>
           ) : (
-            <p className="text-xs text-amber-400 font-bold text-center bg-amber-400/10 py-2 rounded-lg">
-              🦇 MAX LEVEL — YOU ARE THE BATMAN!
-            </p>
+            <>🌟 Lifetime: {life} 🪙 (👑 Legend at 64,000)</>
           )}
-        </div>
+        </p>
+        {trophies.length > 0 && (
+          <p className="text-[10px] text-amber-400">🏆 {trophies.join(" • ")}</p>
+        )}
+      </div>
 
         {/* BIO */}
         <div className="px-5 mb-5">

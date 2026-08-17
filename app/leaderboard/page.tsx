@@ -3,28 +3,18 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { SEASON_LEVELS, LIFETIME_LEVELS, levelOf, seasonInfo } from "@/lib/seasons";
 
-const LEVELS = [
-  { icon: "🥉", need: 0 },
-  { icon: "🥈", need: 500 },
-  { icon: "⚪", need: 1000 },
-  { icon: "🥇", need: 2000 },
-  { icon: "💎", need: 4000 },
-  { icon: "🦸", need: 8000 },
-  { icon: "⚡", need: 16000 },
-  { icon: "🎓", need: 32000 },
-  { icon: "👑", need: 64000 },
-  { icon: "🐉", need: 128000 },
-  { icon: "🌌", need: 256000 },
-  { icon: "🦇", need: 512000 },
-];
-const rankOf = (c: number) => {
-  let icon = LEVELS[0].icon;
-  for (const l of LEVELS) if (c >= l.need) icon = l.icon;
-  return icon;
+type Row = {
+  user_id: string;
+  season: number;
+  life: number;
+  name: string;
+  avatar: string;
 };
 
-type Row = { user_id: string; total: number; name: string; avatar: string };
+const lifeTitle = (life: number) =>
+  life >= LIFETIME_LEVELS[0].need ? levelOf(LIFETIME_LEVELS, life).icon : "";
 
 function Podium({ r, place, medal, h }: { r: Row; place: number; medal: string; h: string }) {
   return (
@@ -38,9 +28,9 @@ function Podium({ r, place, medal, h }: { r: Row; place: number; medal: string; 
         </span>
       )}
       <p className="text-xs font-bold truncate w-full text-center">
-        {rankOf(r.total)} {r.name}
+        {levelOf(SEASON_LEVELS, r.season).icon} {lifeTitle(r.life)} {r.name}
       </p>
-      <p className="text-[10px] text-amber-400 font-bold">{r.total} 🪙</p>
+      <p className="text-[10px] text-amber-400 font-bold">{r.season} 🪙</p>
       <div
         className={`w-full ${h} rounded-t-xl bg-gradient-to-t from-violet-900 to-violet-600 flex items-start justify-center pt-1 text-[10px] font-black`}
       >
@@ -66,9 +56,10 @@ function RowCard({ r, place, me }: { r: Row; place: number; me: string }) {
         </span>
       )}
       <span className="flex-1 min-w-0 font-bold text-sm truncate">
-        {rankOf(r.total)} {r.name} {r.user_id === me && "(YOU)"}
+        {levelOf(SEASON_LEVELS, r.season).icon} {lifeTitle(r.life)} {r.name}{" "}
+        {r.user_id === me && "(YOU)"}
       </span>
-      <span className="text-xs font-bold text-amber-400">{r.total} 🪙</span>
+      <span className="text-xs font-bold text-amber-400">{r.season} 🪙</span>
     </div>
   );
 }
@@ -77,28 +68,36 @@ export default function LeaderboardPage() {
   const [me, setMe] = useState("");
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
+  const [seasonIdx, setSeasonIdx] = useState(1);
 
   const load = async () => {
     setLoading(true);
+    const s = seasonInfo();
+    setSeasonIdx(s.index);
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id || "";
     setMe(uid);
-    const { data: logs } = await supabase.from("coin_log").select("user_id, coins");
-    const sums = new Map<string, number>();
-    ((logs as any[]) || []).forEach((r) =>
-      sums.set(r.user_id, (sums.get(r.user_id) || 0) + (Number(r.coins) || 0))
-    );
-    if (uid && !sums.has(uid)) sums.set(uid, 0);
-    const ids = Array.from(sums.keys());
+    const { data: logs } = await supabase.from("coin_log").select("user_id, coins, created_at");
+    const season = new Map<string, number>();
+    const life = new Map<string, number>();
+    ((logs as any[]) || []).forEach((r) => {
+      const c = Number(r.coins) || 0;
+      life.set(r.user_id, (life.get(r.user_id) || 0) + c);
+      if (r.created_at >= s.startISO)
+        season.set(r.user_id, (season.get(r.user_id) || 0) + c);
+    });
+    if (uid && !season.has(uid)) season.set(uid, 0);
+    const ids = Array.from(new Set([...season.keys(), ...life.keys()]));
     const { data: profs } = await supabase.from("profiles").select("*").in("user_id", ids);
     const pmap = new Map<string, any>(((profs as any[]) || []).map((x) => [x.user_id, x]));
     const list: Row[] = ids.map((id) => ({
       user_id: id,
-      total: sums.get(id) || 0,
+      season: season.get(id) || 0,
+      life: life.get(id) || 0,
       name: pmap.get(id)?.display_name || "friend",
       avatar: pmap.get(id)?.avatar_url || "",
     }));
-    list.sort((a, b) => b.total - a.total);
+    list.sort((a, b) => b.season - a.season);
     setRows(list);
     setLoading(false);
   };
@@ -113,11 +112,19 @@ export default function LeaderboardPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 pb-24">
-      <div className="flex items-center justify-between mb-4 pr-24">
+      <div className="flex items-center justify-between mb-1 pr-24">
         <Link href="/feed" className="text-xl">←</Link>
         <p className="font-black text-lg">🏆 LEADERBOARD</p>
         <button onClick={load} className="text-lg">🔄</button>
       </div>
+      <p className="text-center text-[10px] text-slate-400 mb-3">
+        🏁 Season {seasonIdx} • resets every 90 days
+      </p>
+      {top10[0] && top10[0].season > 0 && (
+        <p className="text-center text-[10px] text-amber-400 font-bold mb-3">
+          🦇 Current Batman: {top10[0].name}
+        </p>
+      )}
 
       {loading ? (
         <p className="text-center text-slate-500 text-sm py-10">Loading ranks...</p>
@@ -143,14 +150,14 @@ export default function LeaderboardPage() {
               <RowCard r={rows[myIndex]} place={myIndex + 1} me={me} />
             </div>
           )}
-          {above && (
+          {above && myIndex >= 0 && (
             <p className="text-[10px] text-amber-400 font-bold text-center mt-3">
-              ⚡ {above.total - rows[myIndex].total} 🪙 to pass {above.name}!
+              ⚡ {above.season - rows[myIndex].season} 🪙 to pass {above.name}!
             </p>
           )}
           {myIndex === 0 && rows.length > 1 && (
             <p className="text-[10px] text-amber-400 font-bold text-center mt-3">
-              👑 You are the BATMAN of this app! Defend your throne!
+              👑 You are the BATMAN of this season! Defend your throne!
             </p>
           )}
         </>
