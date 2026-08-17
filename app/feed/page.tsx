@@ -114,6 +114,7 @@ export default function FeedPage() {
   const [commentOpen, setCommentOpen] = useState("");
   const [coinMap, setCoinMap] = useState<Map<string, number>>(new Map());
   const [commentText, setCommentText] = useState("");
+  const [shareOpen, setShareOpen] = useState<Post | null>(null);
 
   const [text, setText] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
@@ -205,6 +206,7 @@ export default function FeedPage() {
         image_url: (x.image_url as string | null) || "",
         bg: x.bg || 0,
         tc: x.tc || "#ffffff",
+        bgc: x.bgc || "",
         created_at: x.created_at,
         likes: likeCount.get(x.id) || 0,
         likedByMe: mine.has(x.id),
@@ -345,19 +347,43 @@ export default function FeedPage() {
     return () => clearTimeout(t);
   }, [viewStory, storyMap]);
 
+  const externalShare = async (p: Post) => {
+    const txt = `${p.author?.display_name || "Friend"} on FriendFeed: ${p.content || "📸 photo"}`;
+    try {
+      await navigator.share({ text: txt });
+    } catch {
+      try {
+        await navigator.clipboard.writeText(txt);
+        alert("📋 Copied!");
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const sendToFriend = async (fid: string, fname: string) => {
+    if (!shareOpen) return;
+    const txt = `📤 Shared post: "${shareOpen.content || "📸 photo"}" — by ${
+      shareOpen.author?.display_name || "friend"
+    }`;
+    await supabase.from("messages").insert({ sender_id: me, receiver_id: fid, content: txt });
+    await supabase.from("notifications").insert({
+      user_id: fid,
+      actor_id: me,
+      type: "message",
+      text: `📤 ${myProf?.display_name || "Someone"} shared a post with you`,
+    });
+    setShareOpen(null);
+    alert(`✅ Sent to ${fname}!`);
+  };
+
   const like = async (id: string) => {
     const post = posts.find((p) => p.id === id);
     if (!post) return;
     if (post.likedByMe) await supabase.from("post_likes").delete().eq("user_id", me).eq("post_id", id);
     else {
       await supabase.from("post_likes").insert({ user_id: me, post_id: id });
-      if (post.user_id !== me)
-        await supabase.from("notifications").insert({
-          user_id: post.user_id,
-          actor_id: me,
-          type: "like",
-          text: `❤️ ${myProf?.display_name || "Someone"} liked your post`,
-        });
+
     }
     load();
   };
@@ -516,43 +542,7 @@ export default function FeedPage() {
         </div>
       )}
 
-      {/* POST COMPOSER */}
-      <div className="mx-4 my-4 bg-slate-900 border border-slate-800 rounded-xl p-3">
-        <div className="flex gap-2">
-          <Avatar p={myProf} />
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="What's on your mind?"
-            className="flex-1 bg-transparent resize-none outline-none text-sm pt-2 text-white"
-            rows={2}
-          />
-        </div>
-        {preview && (
-          <div className="mt-2 relative">
-            <img src={preview} alt="Preview" className="rounded-lg max-h-48 object-cover w-full" />
-            <button
-              onClick={() => { setPhoto(null); setPreview(""); }}
-              className="absolute top-2 right-2 bg-slate-900/80 rounded-full w-6 h-6 flex items-center justify-center text-xs"
-            >
-              ✖
-            </button>
-          </div>
-        )}
-        <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-800">
-          <label className="text-slate-400 cursor-pointer hover:text-white transition flex items-center gap-1 text-sm font-bold">
-            📷 Photo
-            <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
-          </label>
-          <button
-            onClick={publish}
-            disabled={busy || (!text.trim() && !photo)}
-            className="bg-violet-600 px-4 py-1.5 rounded-full text-xs font-bold disabled:opacity-50"
-          >
-            {busy ? "Posting..." : "Post"}
-          </button>
-        </div>
-      </div>
+     
 
       {/* POSTS — INSTA STYLE */}
       {shown.length === 0 && (
@@ -581,7 +571,7 @@ export default function FeedPage() {
                 className={`w-full aspect-square bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]} flex items-center justify-center p-8`}
               >
                 <p
-                  className="text-center text-lg font-bold whitespace-pre-wrap"
+                  className="text-center text-2xl font-bold whitespace-pre-wrap"
                   style={{ color: p.tc || "#ffffff" }}
                 >
                   {p.content}
@@ -611,8 +601,8 @@ export default function FeedPage() {
             <span className="flex-1" />
             {p.user_id === me && (
               <div className="flex items-center gap-2">
-                <button onClick={() => editPost(p)} className="text-sm">
-                  ✏️
+                <button onClick={() => externalShare(p)} className="text-sm">
+                  📤
                 </button>
                 <button onClick={() => deletePost(p)} className="text-sm">
                   🗑
@@ -769,6 +759,51 @@ export default function FeedPage() {
                 Share story
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SHARE SHEET */}
+      {shareOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/80 flex items-end" onClick={() => setShareOpen(null)}>
+          <div
+            className="w-full bg-slate-900 rounded-t-2xl p-4 grid gap-2 max-h-[70vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center">
+              <p className="font-bold">📤 Share post</p>
+              <button onClick={() => setShareOpen(null)}>✖</button>
+            </div>
+            <button
+              onClick={() => externalShare(shareOpen)}
+              className="py-2 rounded-lg bg-slate-800 text-sm font-bold"
+            >
+              📱 Share outside (WhatsApp etc.)
+            </button>
+            <p className="text-xs text-slate-500">Send to friend:</p>
+            {Array.from(friends)
+              .map((id) => profById.get(id))
+              .filter((x) => !!x)
+              .map((f) => (
+                <button
+                  key={f!.user_id}
+                  onClick={() => sendToFriend(f!.user_id, f!.display_name || "friend")}
+                  className="flex items-center gap-3 p-2 rounded-lg bg-slate-800/60 text-left"
+                >
+                  {f!.avatar_url ? (
+                    <img src={f!.avatar_url} className="w-9 h-9 rounded-full object-cover" alt="" />
+                  ) : (
+                    <span className="w-9 h-9 rounded-full bg-violet-600 flex items-center justify-center font-bold text-sm">
+                      {(f!.display_name || "?").charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  <span className="flex-1 text-sm font-bold">{f!.display_name || "friend"}</span>
+                  <span>📤</span>
+                </button>
+              ))}
+            {friends.size === 0 && (
+              <p className="text-xs text-slate-500 text-center py-2">No friends yet — find some first!</p>
+            )}
           </div>
         </div>
       )}

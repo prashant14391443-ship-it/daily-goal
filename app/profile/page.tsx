@@ -459,7 +459,10 @@ function Inner() {
                 <img src={p.image_url} className="w-full h-full object-cover" alt="" />
               ) : (
                 <div
-                  className={`w-full h-full bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]} flex items-center justify-center p-2`}
+                  className={`w-full h-full flex items-center justify-center p-2 ${
+                    p.bgc ? "" : `bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]}`
+                  }`}
+                  style={p.bgc ? { background: p.bgc } : undefined}
                 >
                   <p
                     className="text-[10px] line-clamp-6 text-center"

@@ -19,10 +19,16 @@ export default function ActivityPage() {
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
     if (!uid) return;
+    await supabase
+      .from("notifications")
+      .update({ read: true })
+      .eq("user_id", uid)
+      .eq("read", false);
     const { data: rows } = await supabase
       .from("notifications")
       .select("*")
       .eq("user_id", uid)
+      .not("type", "in", "(like,post)")
       .order("created_at", { ascending: false })
       .limit(50);
     setItems((rows as any[]) || []);

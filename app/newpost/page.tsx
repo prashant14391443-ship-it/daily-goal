@@ -8,7 +8,7 @@ import Link from "next/link";
 const BANNED = ["fuck", "shit", "bitch", "asshole", "dick", "pussy", "nigga", "nigger", "cunt", "whore", "bastard"];
 const bad = (t: string) => BANNED.some((w) => t.toLowerCase().includes(w));
 
-const TCS = ["#ffffff", "#000000", "#fde047", "#f87171", "#4ade80", "#60a5fa", "#f472b6", "#fb923c"];
+
 
 const BGS = [
   "from-violet-600/40 via-slate-900 to-fuchsia-600/30",
@@ -95,6 +95,7 @@ export default function NewPostPage() {
   const [busy, setBusy] = useState(false);
   const [bg, setBg] = useState(0);
   const [tc, setTc] = useState("#ffffff");
+  const [bgc, setBgc] = useState("");
   const [pos, setPos] = useState({ x: 50, y: 50 });
   const boxRef = useRef<HTMLDivElement | null>(null);
   const dragging = useRef(false);
@@ -149,17 +150,9 @@ export default function NewPostPage() {
       image_url: url || null,
       bg,
       tc,
+      bgc,
     });
-    const { data: frs } = await supabase.from("friends").select("friend_id").eq("user_id", me);
-    const { data: sess } = await supabase.auth.getSession();
-    const myName = ((sess?.session?.user?.user_metadata as any)?.display_name as string) || "A friend";
-    const notifs = (frs || []).map((f) => ({
-      user_id: f.friend_id,
-      actor_id: me,
-      type: "post",
-      text: `📸 ${myName} shared a new post`,
-    }));
-    if (notifs.length > 0) await supabase.from("notifications").insert(notifs);
+
     router.push("/feed");
   };
 
@@ -179,7 +172,10 @@ export default function NewPostPage() {
 
       <div className="p-4 grid gap-3">
         <div
-          className={`rounded-xl bg-gradient-to-br ${BGS[bg]} p-4 min-h-[120px] flex items-center justify-center`}
+          className={`rounded-xl p-4 min-h-[120px] flex items-center justify-center ${
+            bgc ? "" : `bg-gradient-to-br ${BGS[bg]}`
+          }`}
+          style={bgc ? { background: bgc } : undefined}
         >
           <p className="text-center text-lg font-bold whitespace-pre-wrap" style={{ color: tc }}>
             {text || "Your text preview..."}
@@ -192,26 +188,37 @@ export default function NewPostPage() {
             rows={4}
             placeholder="Write something... ✍️"
             style={{ color: tc }}
-            className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 pr-10 text-sm resize-none"
+            className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 pb-10 text-sm resize-none"
           />
-          <div className="absolute right-2 top-2 flex flex-col gap-1">
-            {TCS.map((c) => (
-              <button
-                key={c}
-                onClick={() => setTc(c)}
-                className={`w-4 h-4 rounded-full border-2 ${
-                  tc === c ? "border-white" : "border-slate-600"
-                }`}
-                style={{ background: c }}
+          <div className="absolute right-2 bottom-2 flex items-center gap-3">
+            <label className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+              BG
+              <input
+                type="color"
+                value={bgc || "#1e293b"}
+                onChange={(e) => setBgc(e.target.value)}
+                className="w-7 h-7 rounded-md cursor-pointer p-0 border border-slate-600 bg-transparent"
               />
-            ))}
+            </label>
+            <label className="flex items-center gap-1 text-[10px] font-bold text-slate-400">
+              Text
+              <input
+                type="color"
+                value={tc}
+                onChange={(e) => setTc(e.target.value)}
+                className="w-7 h-7 rounded-md cursor-pointer p-0 border border-slate-600 bg-transparent"
+              />
+            </label>
           </div>
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {BGS.map((g, i) => (
             <button
               key={i}
-              onClick={() => setBg(i)}
+              onClick={() => {
+                setBg(i);
+                setBgc("");
+              }}
               className={`w-9 h-9 shrink-0 rounded-full bg-gradient-to-br ${g} border-2 ${
                 bg === i ? "border-white" : "border-transparent"
               }`}
