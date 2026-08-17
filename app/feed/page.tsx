@@ -13,6 +13,8 @@ type Post = {
   bg: number;
   tc: string;
   bgc: string;
+  tx: number;
+  ty: number;
   created_at: string;
   likes: number;
   likedByMe: boolean;
@@ -266,6 +268,8 @@ export default function FeedPage() {
         bg: x.bg || 0,
         tc: x.tc || "#ffffff",
         bgc: x.bgc || "",
+        tx: x.tx ?? 50,
+        ty: x.ty ?? 50,
         created_at: x.created_at,
         likes: likeCount.get(x.id) || 0,
         likedByMe: mine.has(x.id),
@@ -326,6 +330,8 @@ export default function FeedPage() {
       bg: sBg,
       tc: sTc,
       bgc: sBgc,
+      tx: Math.round(sPos.x),
+      ty: Math.round(sPos.y),
     });
     setCreatingStory(false);
     setSText("");
@@ -582,14 +588,19 @@ export default function FeedPage() {
               <img src={p.image_url} className="w-full aspect-square object-cover" alt="" />
             ) : (
               <div
-                className={`w-full aspect-square flex items-center justify-center p-8 ${
+                className={`relative w-full aspect-square ${
                   p.bgc ? "" : `bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]}`
                 }`}
                 style={p.bgc ? { background: p.bgc } : undefined}
               >
                 <p
-                  className="text-center text-2xl font-bold whitespace-pre-wrap"
-                  style={{ color: p.tc || "#ffffff" }}
+                  className="absolute text-center text-2xl font-bold whitespace-pre-wrap px-4"
+                  style={{
+                    left: `${p.tx ?? 50}%`,
+                    top: `${p.ty ?? 50}%`,
+                    transform: "translate(-50%, -50%)",
+                    color: p.tc || "#ffffff",
+                  }}
                 >
                   {p.content}
                 </p>
@@ -718,8 +729,11 @@ export default function FeedPage() {
                 }
               >
                 <p
-                  className="text-center text-2xl font-bold whitespace-pre-wrap"
+                  className="absolute text-center text-2xl font-bold whitespace-pre-wrap px-6"
                   style={{
+                    left: `${(storyMap.get(viewStory.user) || [])[viewStory.index].tx ?? 50}%`,
+                    top: `${(storyMap.get(viewStory.user) || [])[viewStory.index].ty ?? 50}%`,
+                    transform: "translate(-50%, -50%)",
                     color: (storyMap.get(viewStory.user) || [])[viewStory.index].tc || "#ffffff",
                   }}
                 >
@@ -798,12 +812,29 @@ export default function FeedPage() {
               </div>
             ) : (
               <div
-                className={`rounded-xl min-h-[140px] flex items-center justify-center p-4 ${
+                ref={sBoxRef}
+                className={`relative rounded-xl overflow-hidden touch-none select-none cursor-move aspect-square ${
                   sBgc ? "" : `bg-gradient-to-br ${BGS[sBg]}`
                 }`}
                 style={sBgc ? { background: sBgc } : undefined}
+                onPointerDown={(e) => {
+                  sDragging.current = true;
+                  moveSText(e.clientX, e.clientY);
+                }}
+                onPointerMove={(e) => {
+                  if (sDragging.current) moveSText(e.clientX, e.clientY);
+                }}
+                onPointerUp={() => (sDragging.current = false)}
               >
-                <p className="text-center font-bold whitespace-pre-wrap" style={{ color: sTc }}>
+                <p
+                  className="absolute font-bold text-center text-2xl whitespace-pre-wrap px-4 pointer-events-none"
+                  style={{
+                    left: `${sPos.x}%`,
+                    top: `${sPos.y}%`,
+                    transform: "translate(-50%, -50%)",
+                    color: sTc,
+                  }}
+                >
                   {sText || "Type below..."}
                 </p>
               </div>

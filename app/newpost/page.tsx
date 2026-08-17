@@ -183,6 +183,8 @@ export default function NewPostPage() {
       bg,
       tc,
       bgc,
+      tx: Math.round(pos.x),
+      ty: Math.round(pos.y),
     });
     if (postErr) {
       alert("Post failed: " + postErr.message);
@@ -190,6 +192,17 @@ export default function NewPostPage() {
       return;
     }
     router.push("/feed");
+  };
+
+  const dragProps = {
+    onPointerDown: (e: React.PointerEvent) => {
+      dragging.current = true;
+      moveText(e.clientX, e.clientY);
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      if (dragging.current) moveText(e.clientX, e.clientY);
+    },
+    onPointerUp: () => (dragging.current = false),
   };
 
   return (
@@ -207,22 +220,81 @@ export default function NewPostPage() {
       </div>
 
       <div className="p-4 grid gap-3">
-        <div
-          className={`rounded-xl p-4 min-h-[120px] flex items-center justify-center ${
-            bgc ? "" : `bg-gradient-to-br ${BGS[bg]}`
-          }`}
-          style={bgc ? { background: bgc } : undefined}
-        >
-          <p className="text-center text-lg font-bold whitespace-pre-wrap" style={{ color: tc }}>
-            {text || "Your text preview..."}
-          </p>
-        </div>
+        {/* PREVIEW AT TOP — BIG (photo OR background) */}
+        {preview ? (
+          <div>
+            <div
+              ref={boxRef}
+              className="relative rounded-xl overflow-hidden touch-none select-none cursor-move"
+              {...dragProps}
+            >
+              <img src={preview} className="w-full max-h-96 object-cover" alt="" />
+              {text.trim() && (
+                <p
+                  className="absolute font-bold text-center px-3 py-1 rounded-lg pointer-events-none"
+                  style={{
+                    left: `${pos.x}%`,
+                    top: `${pos.y}%`,
+                    transform: "translate(-50%, -50%)",
+                    color: tc,
+                    background: "rgba(0,0,0,0.45)",
+                  }}
+                >
+                  {text}
+                </p>
+              )}
+            </div>
+            <p className="text-[10px] text-slate-500 text-center mt-1">
+              ✋ Drag to place your text
+            </p>
+            <button
+              onClick={() => {
+                setPhoto(null);
+                setPreview("");
+              }}
+              className="mt-2 w-full py-2 rounded-lg bg-red-600/20 text-red-400 text-xs font-bold"
+            >
+              ✖ Remove photo
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div
+              ref={boxRef}
+              className={`relative rounded-xl overflow-hidden touch-none select-none cursor-move aspect-square ${
+                bgc ? "" : `bg-gradient-to-br ${BGS[bg]}`
+              }`}
+              style={bgc ? { background: bgc } : undefined}
+              {...dragProps}
+            >
+              <p
+                className="absolute font-bold text-center text-2xl whitespace-pre-wrap px-4 pointer-events-none"
+                style={{
+                  left: `${pos.x}%`,
+                  top: `${pos.y}%`,
+                  transform: "translate(-50%, -50%)",
+                  color: tc,
+                }}
+              >
+                {text || "Your text preview..."}
+              </p>
+            </div>
+            <p className="text-[10px] text-slate-500 text-center mt-1">
+              ✋ Drag to place your text on the background
+            </p>
+            <label className="mt-2 block py-3 rounded-xl bg-slate-900 border border-dashed border-slate-700 text-center text-sm font-bold cursor-pointer">
+              📷 Add photo (optional)
+              <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
+            </label>
+          </div>
+        )}
 
+        {/* EDITING AT BOTTOM */}
         <div className="relative">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            rows={4}
+            rows={3}
             placeholder="Write something... ✍️"
             style={{ color: tc }}
             className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 pb-10 text-sm resize-none"
@@ -263,56 +335,6 @@ export default function NewPostPage() {
             />
           ))}
         </div>
-
-        {preview ? (
-          <div>
-            <div
-              ref={boxRef}
-              className="relative rounded-xl overflow-hidden touch-none select-none cursor-move"
-              onPointerDown={(e) => {
-                dragging.current = true;
-                moveText(e.clientX, e.clientY);
-              }}
-              onPointerMove={(e) => {
-                if (dragging.current) moveText(e.clientX, e.clientY);
-              }}
-              onPointerUp={() => (dragging.current = false)}
-            >
-              <img src={preview} className="w-full max-h-96 object-cover" alt="" />
-              {text.trim() && (
-                <p
-                  className="absolute font-bold text-center px-3 py-1 rounded-lg pointer-events-none"
-                  style={{
-                    left: `${pos.x}%`,
-                    top: `${pos.y}%`,
-                    transform: "translate(-50%, -50%)",
-                    color: tc,
-                    background: "rgba(0,0,0,0.45)",
-                  }}
-                >
-                  {text}
-                </p>
-              )}
-            </div>
-            <p className="text-[10px] text-slate-500 text-center mt-1">
-              ✋ Drag on photo to place your text
-            </p>
-            <button
-              onClick={() => {
-                setPhoto(null);
-                setPreview("");
-              }}
-              className="mt-2 w-full py-2 rounded-lg bg-red-600/20 text-red-400 text-xs font-bold"
-            >
-              ✖ Remove photo
-            </button>
-          </div>
-        ) : (
-          <label className="py-5 rounded-xl bg-slate-900 border border-dashed border-slate-700 text-center text-sm font-bold cursor-pointer">
-            📷 Add photo (optional)
-            <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
-          </label>
-        )}
 
         <button
           onClick={publish}

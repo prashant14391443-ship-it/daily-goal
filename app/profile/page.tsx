@@ -459,14 +459,19 @@ function Inner() {
                 <img src={p.image_url} className="w-full h-full object-cover" alt="" />
               ) : (
                 <div
-                  className={`w-full h-full flex items-center justify-center p-2 ${
+                  className={`relative w-full h-full ${
                     p.bgc ? "" : `bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]}`
                   }`}
                   style={p.bgc ? { background: p.bgc } : undefined}
                 >
                   <p
-                    className="text-[10px] line-clamp-6 text-center"
-                    style={{ color: p.tc || "#ffffff" }}
+                    className="absolute text-[10px] text-center line-clamp-6 px-1"
+                    style={{
+                      left: `${p.tx ?? 50}%`,
+                      top: `${p.ty ?? 50}%`,
+                      transform: "translate(-50%, -50%)",
+                      color: p.tc || "#ffffff",
+                    }}
                   >
                     {p.content}
                   </p>
@@ -490,8 +495,25 @@ function Inner() {
             {view.image_url && (
               <img src={view.image_url} className="w-full rounded-xl object-contain max-h-[70vh]" alt="" />
             )}
-            {!view.image_url && view.content && (
-              <p className="text-sm mt-3 whitespace-pre-wrap">{view.content}</p>
+                       {!view.image_url && (
+              <div
+                className={`relative w-full aspect-square rounded-xl ${
+                  view.bgc ? "" : `bg-gradient-to-br ${BGS[(view.bg || 0) % BGS.length]}`
+                }`}
+                style={view.bgc ? { background: view.bgc } : undefined}
+              >
+                <p
+                  className="absolute text-xl font-bold text-center whitespace-pre-wrap px-4"
+                  style={{
+                    left: `${view.tx ?? 50}%`,
+                    top: `${view.ty ?? 50}%`,
+                    transform: "translate(-50%, -50%)",
+                    color: view.tc || "#ffffff",
+                  }}
+                >
+                  {view.content}
+                </p>
+              </div>
             )}
             <p className="text-xs text-slate-500 mt-3">❤️ {view.likes} likes</p>
             <button
