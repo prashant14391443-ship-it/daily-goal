@@ -144,7 +144,7 @@ export default function NewPostPage() {
       await supabase.storage.from("posts").upload(path, small);
       url = supabase.storage.from("posts").getPublicUrl(path).data.publicUrl;
     }
-    await supabase.from("posts").insert({
+       const { error: postErr } = await supabase.from("posts").insert({
       user_id: me,
       content: text.trim(),
       image_url: url || null,
@@ -152,7 +152,11 @@ export default function NewPostPage() {
       tc,
       bgc,
     });
-
+    if (postErr) {
+      alert("Post failed: " + postErr.message);
+      setBusy(false);
+      return;
+    }
     router.push("/feed");
   };
 
