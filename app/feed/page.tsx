@@ -410,7 +410,7 @@ export default function FeedPage() {
   }, [viewStory, storyMap]);
 
   const externalShare = async (p: Post) => {
-    const txt = `${p.author?.display_name || "Friend"} on FriendFeed: ${p.content || "📸 photo"}`;
+    const txt = `${p.author?.display_name || "Friend"} on Daily Goal: ${p.content || "📸 photo"}`;
     try {
       await navigator.share({ text: txt });
     } catch {
@@ -528,7 +528,7 @@ export default function FeedPage() {
         {/* TOP BAR */}
         <div className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur flex items-center justify-between p-4 border-b border-slate-800">
           <p className="font-black text-xl tracking-tight cursor-pointer hover:opacity-80 transition-opacity">
-            📰 Friend<span className="text-fuchsia-400">Feed</span>
+            🎯 Daily<span className="text-fuchsia-400">Goal</span>
           </p>
           <div className="flex items-center gap-3">
             <Link href="/leaderboard" className="text-lg hover:scale-110 transition-transform">

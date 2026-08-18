@@ -206,7 +206,7 @@ function Inner() {
   const waInvite = () => {
     window.open(
       `https://wa.me/?text=${encodeURIComponent(
-        `Join me on FriendFeed! 🦇 Study, compete & win coins 🪙 → ${inviteLink()}`
+        `Join me on Daily Goal! 🦇 Study, compete & win coins 🪙 → ${inviteLink()}`
       )}`
     );
   };
@@ -354,7 +354,8 @@ function Inner() {
         {prof?.bio && <p className="text-sm whitespace-pre-wrap text-slate-200">{prof.bio}</p>}
       </div>
 
-      {/* INVITE CARD */}
+      {/* INVITE CARD — only on MY profile */}
+      {userId === me && (
       <div className="mx-4 mb-4 rounded-2xl bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 border border-violet-500/40 p-4 grid gap-2">
         <p className="text-sm font-black">🔗 Invite friends = +10 🪙 each!</p>
         <p className="text-[10px] text-slate-400">They get +5 🪙 too. Everyone wins!</p>
@@ -367,6 +368,7 @@ function Inner() {
           </button>
         </div>
       </div>
+      )}
 
       {/* BUTTONS */}
       <div className="flex gap-2 px-4 mt-4 mb-4">
