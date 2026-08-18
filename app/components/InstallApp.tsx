@@ -8,7 +8,8 @@ export default function InstallApp() {
   const [inApp, setInApp] = useState(false);
 
   useEffect(() => {
-    setHidden(localStorage.getItem("ff-install-hide") === "1");
+    const hidAt = Number(localStorage.getItem("ff-install-hide") || 0);
+    setHidden(Date.now() - hidAt < 1 * 86400000);
     const standalone =
       (navigator as any).standalone === true ||
       matchMedia("(display-mode: standalone)").matches;
@@ -22,7 +23,7 @@ export default function InstallApp() {
     const onInstalled = () => {
       setPromptEvt(null);
       setHidden(true);
-      localStorage.setItem("ff-install-hide", "1");
+      localStorage.setItem("ff-install-hide", String(Date.now()));
     };
     window.addEventListener("beforeinstallprompt", onPrompt);
     window.addEventListener("appinstalled", onInstalled);
@@ -54,7 +55,7 @@ export default function InstallApp() {
             promptEvt.prompt();
             setPromptEvt(null);
             setHidden(true);
-            localStorage.setItem("ff-install-hide", "1");
+            localStorage.setItem("ff-install-hide", String(Date.now()));
           }}
           className="px-3 py-1.5 rounded-full bg-violet-600 hover:bg-violet-500 text-xs font-bold"
         >
@@ -71,7 +72,7 @@ export default function InstallApp() {
       <button
         onClick={() => {
           setHidden(true);
-          localStorage.setItem("ff-install-hide", "1");
+          localStorage.setItem("ff-install-hide", String(Date.now()));
         }}
         className="text-slate-400"
       >
