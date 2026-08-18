@@ -498,7 +498,7 @@ export default function ProfileMenu() {
   };
 
   return (
-    <div ref={boxRef} style={{ position: "fixed", top: 16, right: 16, zIndex: 60 }}>
+    <div ref={boxRef} style={{ position: "absolute", top: 16, right: 16, zIndex: 60 }}>
       
       {/* Badge Earned Modal */}
       {badgePop && typeof window !== "undefined" &&
