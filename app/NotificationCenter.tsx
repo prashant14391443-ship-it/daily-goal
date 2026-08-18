@@ -77,9 +77,9 @@ export default function NotificationCenter() {
 
   return (
     <div
-      className="fixed top-5 right-14 z-50"
       ref={boxRef}
-      data-version="v6-bell"
+      data-version="v7-bell"
+      style={{ position: "fixed", top: 22, right: 76, zIndex: 60 }}
     >
       <span className="sr-only">bell-v6</span>
       <button
