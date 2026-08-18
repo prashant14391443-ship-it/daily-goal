@@ -295,14 +295,14 @@ export default function FeedPage() {
         .insert({ inviter_id: inv, invitee_id: me });
       if (!error) {
         await supabase.from("coin_log").insert([
-          { user_id: me, action_key: `inv-${me}`, coins: 25 },
-          { user_id: inv, action_key: `inv-${me}`, coins: 50 },
+          { user_id: me, action_key: `inv-${me}`, coins: 5 },
+          { user_id: inv, action_key: `inv-${me}`, coins: 10 },
         ]);
         await supabase.from("notifications").insert({
           user_id: inv,
           actor_id: me,
           type: "friend",
-          text: `🎉 A friend joined via your invite! +50 🪙`,
+          text: `🎉 A friend joined via your invite! +10 🪙`,
         });
         localStorage.removeItem("ff-inv");
         load();

@@ -47,9 +47,7 @@ export default function InstallApp() {
   return (
     <div className="mx-4 mt-3 rounded-xl bg-violet-600/15 border border-violet-500/40 p-3 flex items-center gap-3">
       <span className="text-xl">📲</span>
-      <p className="flex-1 text-xs font-bold">
-        Install FriendFeed — feels like a real app!
-      </p>
+      <p className="flex-1 text-xs font-bold">Install App — one tap!</p>
       {promptEvt ? (
         <button
           onClick={async () => {

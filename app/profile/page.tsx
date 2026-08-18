@@ -64,7 +64,7 @@ const EARN = [
   { icon: "✅", name: "Habit done", coins: "5" },
   { icon: "📝", name: "Task done", coins: "5" },
   { icon: "🍽", name: "Meal logged", coins: "3" },
-  { icon: "🔗", name: "Friend joins via you", coins: "50" },
+
 ];
 
 function Inner() {
@@ -356,8 +356,8 @@ function Inner() {
 
       {/* INVITE CARD */}
       <div className="mx-4 mb-4 rounded-2xl bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 border border-violet-500/40 p-4 grid gap-2">
-        <p className="text-sm font-black">🔗 Invite friends = +50 🪙 each!</p>
-        <p className="text-[10px] text-slate-400">They get +25 🪙 too. Everyone wins!</p>
+        <p className="text-sm font-black">🔗 Invite friends = +10 🪙 each!</p>
+        <p className="text-[10px] text-slate-400">They get +5 🪙 too. Everyone wins!</p>
         <div className="flex gap-2">
           <button onClick={copyInvite} className="flex-1 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold transition-colors">
             📋 Copy link
