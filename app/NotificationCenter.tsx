@@ -88,13 +88,13 @@ export default function NotificationCenter() {
       >
         🔔
         {unread > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+          <span className="fixed -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
             {unread}
           </span>
         )}
       </button>
       {open && (
-        <div className="absolute top-11 right-0 w-72 bg-slate-900 border border-slate-700 rounded-xl p-3 grid gap-2 shadow-xl max-h-80 overflow-y-auto">
+        <div className="fixed top-11 right-0 w-72 bg-slate-900 border border-slate-700 rounded-xl p-3 grid gap-2 shadow-xl max-h-80 overflow-y-auto">
           <div className="flex justify-between items-center">
             <p className="font-bold text-white text-sm">🔔 Notifications</p>
             <button

@@ -521,7 +521,7 @@ export default function ProfileMenu() {
       
       {/* Tiny popup animation for coins */}
       {coinFly && (
-        <div className="absolute -left-24 top-2 z-[60] font-black text-amber-400 animate-bounce pointer-events-none drop-shadow-md text-lg whitespace-nowrap">
+        <div className="fixed -left-24 top-2 z-[60] font-black text-amber-400 animate-bounce pointer-events-none drop-shadow-md text-lg whitespace-nowrap">
           {coinFly}
         </div>
       )}
@@ -540,7 +540,7 @@ export default function ProfileMenu() {
 
       {/* Dropdown Menu */}
       {open && (
-        <div className="absolute top-14 right-0 w-72 md:w-80 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-2xl p-5 grid gap-3 shadow-2xl origin-top-right animate-in fade-in zoom-in-95 duration-200 text-white max-h-[80vh] overflow-y-auto">
+        <div className="fixed top-14 right-0 w-72 md:w-80 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-2xl p-5 grid gap-3 shadow-2xl origin-top-right animate-in fade-in zoom-in-95 duration-200 text-white max-h-[80vh] overflow-y-auto">
           
           <div className="pb-3 border-b border-slate-800">
             <p className="font-bold text-lg capitalize truncate">{name}</p>
