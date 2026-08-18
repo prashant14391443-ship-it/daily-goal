@@ -56,6 +56,15 @@ const BGS = [
   "from-slate-700/60 via-slate-900 to-slate-600/40",
 ];
 
+const EARN = [
+  { icon: "📅", name: "Open app daily", coins: "20" },
+  { icon: "📚", name: "Study session", coins: "10" },
+  { icon: "💪", name: "Workout", coins: "15 / km" },
+  { icon: "✅", name: "Habit done", coins: "5" },
+  { icon: "📝", name: "Task done", coins: "5" },
+  { icon: "🍽", name: "Meal logged", coins: "3" },
+];
+
 function Inner() {
   const params = useSearchParams();
   const userId = params.get("user") || "";
@@ -69,12 +78,15 @@ function Inner() {
   const [life, setLife] = useState(0);
   const [trophies, setTrophies] = useState<string[]>([]);
   const [daysLeft, setDaysLeft] = useState(0);
+  const [seasonIdx, setSeasonIdx] = useState(1);
   const [posts, setPosts] = useState<any[]>([]);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editBio, setEditBio] = useState("");
   const [saving, setSaving] = useState(false);
   const [view, setView] = useState<any>(null);
+  const [rankOpen, setRankOpen] = useState(false);
+  const [coinOpen, setCoinOpen] = useState(false);
   const [editImg, setEditImg] = useState<HTMLImageElement | null>(null);
   const [zoom, setZoom] = useState(1);
   const [off, setOff] = useState({ x: 0, y: 0 });
@@ -97,7 +109,6 @@ function Inner() {
     ]);
 
     let profRow = ((pr as any)?.data as any) || null;
-
     if (userId === uid && (!profRow || !profRow.display_name)) {
       const md = (data.session?.user?.user_metadata || {}) as any;
       profRow = {
@@ -111,18 +122,17 @@ function Inner() {
         { onConflict: "user_id" }
       );
     }
-
     if (userId === uid && profRow) {
       const md2 = (data.session?.user?.user_metadata || {}) as any;
       profRow.bio = profRow.bio || md2.bio || "";
     }
-
     setProf(profRow || { display_name: "friend", avatar_url: "", is_private: false, bio: "" });
     setIsFriend((fr.data || []).length > 0);
     setSentReq((sReq.data || []).length > 0);
     setRecvReq((rReq.data || []).length > 0);
 
     const s = seasonInfo();
+    setSeasonIdx(s.index);
     const { data: coinRows } = await supabase
       .from("coin_log")
       .select("coins, created_at")
@@ -207,7 +217,6 @@ function Inner() {
         const h = editImg.height * scale;
         ctx.drawImage(editImg, (size - w) / 2 + off.x * 2, (size - h) / 2 + off.y * 2, w, h);
         const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.8));
-
         if (blob) {
           const file = new File([blob], "avatar.jpg", { type: "image/jpeg" });
           const { error: upErr } = await supabase.storage.from("avatars").upload(
@@ -230,33 +239,27 @@ function Inner() {
     }
 
     const finalName = editName.trim() || prof?.display_name || "friend";
-
     await supabase.auth.updateUser({
       data: { display_name: finalName, avatar_url: newAvatarUrl, bio: editBio },
     });
-
     const { error: saveErr } = await supabase.from("profiles").upsert(
-      {
-        user_id: me,
-        bio: editBio,
-        display_name: finalName,
-        avatar_url: newAvatarUrl,
-      },
+      { user_id: me, bio: editBio, display_name: finalName, avatar_url: newAvatarUrl },
       { onConflict: "user_id" }
     );
-    if (saveErr) {
-      alert("Save failed: " + saveErr.message);
-    }
-
-    setProf((prev: any) => ({
-      ...prev,
-      display_name: finalName,
-      bio: editBio,
-      avatar_url: newAvatarUrl,
-    }));
-
+    if (saveErr) alert("Save failed: " + saveErr.message);
+    setProf((prev: any) => ({ ...prev, display_name: finalName, bio: editBio, avatar_url: newAvatarUrl }));
     setEditing(false);
     setSaving(false);
+    load();
+  };
+
+  const deletePost = async (p: any) => {
+    if (!confirm("Delete this post?")) return;
+    if (p.image_url) {
+      const path = decodeURIComponent(p.image_url.split("/posts/")[1] || "");
+      if (path) await supabase.storage.from("posts").remove([path]);
+    }
+    await supabase.from("posts").delete().eq("id", p.id);
     load();
   };
 
@@ -265,361 +268,398 @@ function Inner() {
   const locked = prof?.is_private && userId !== me && !isFriend;
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white flex justify-center">
-      {/* 
-        Responsive Container:
-        Restricts the layout to max-w-xl on desktop so it reads like a mobile app column.
-      */}
-      <div className="w-full max-w-xl bg-slate-950 min-h-screen md:border-x md:border-slate-800/50 relative pb-24 md:pb-12">
-        
-        {/* TOP BAR - Sticky */}
-        <div className="sticky top-0 z-20 bg-slate-950/90 backdrop-blur flex items-center justify-between p-4 border-b border-slate-800">
-          <Link href="/feed" className="text-xl hover:text-slate-400 transition-colors px-2 py-1 -ml-2 rounded-lg">
-            ←
-          </Link>
-          <p className="font-bold flex items-center gap-1.5 truncate max-w-[60%] text-lg">
-            {prof?.is_private ? "🔒" : ""}{" "}
-            {userId === me && (!prof?.display_name || prof.display_name === "friend")
-              ? "Your profile"
-              : prof?.display_name || "..."}
-          </p>
-          <span className="text-sm text-amber-400 font-bold bg-amber-400/10 px-3 py-1 rounded-full">
-            🪙 {coins}
-          </span>
-        </div>
+    <main className="min-h-screen bg-slate-950 text-white pb-24">
+      {/* TOP BAR */}
+      <div className="flex items-center justify-between p-4">
+        <Link href="/feed" className="text-xl">←</Link>
+        <p className="font-black text-lg truncate max-w-[50%]">
+          {prof?.is_private ? "🔒 " : ""}
+          {userId === me && (!prof?.display_name || prof.display_name === "friend")
+            ? "Your profile"
+            : prof?.display_name || "..."}
+        </p>
+        <button
+          onClick={() => setCoinOpen(true)}
+          className="px-3 py-1.5 rounded-full bg-amber-400/10 border border-amber-400/30 text-amber-400 text-xs font-black hover:bg-amber-400/20 transition-colors"
+        >
+          🪙 {coins}
+        </button>
+      </div>
 
-        {/* PROFILE ROW */}
-        <div className="flex items-center gap-5 px-5 my-6">
-          <span className="relative inline-block shrink-0">
+      {/* HERO CARD */}
+      <div className="mx-4 rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-4 grid gap-4">
+        <div className="flex items-center gap-4">
+          <span className="rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-600 p-[2px] shrink-0">
             {prof?.avatar_url ? (
-              <img src={prof.avatar_url} className="w-24 h-24 rounded-full object-cover border-2 border-violet-500 shadow-lg" alt="" />
+              <img src={prof.avatar_url} className="w-20 h-20 rounded-full object-cover border-2 border-slate-950" alt="" />
             ) : (
-              <span className="w-24 h-24 rounded-full bg-violet-600 border-2 border-violet-400 flex items-center justify-center text-4xl font-bold shadow-lg">
+              <span className="w-20 h-20 rounded-full bg-violet-600 border-2 border-slate-950 flex items-center justify-center text-3xl font-bold">
                 {(prof?.display_name || "?").charAt(0).toUpperCase()}
               </span>
             )}
           </span>
-          <div className="flex-1 grid grid-cols-3 text-center gap-2">
-            <div className="flex flex-col justify-center">
-              <p className="font-black text-xl">{posts.length}</p>
-              <p className="text-xs text-slate-400 font-medium mt-0.5">posts</p>
+          <div className="flex-1 grid grid-cols-3 text-center">
+            <div>
+              <p className="font-black text-lg">{posts.length}</p>
+              <p className="text-[10px] text-slate-400">posts</p>
             </div>
-            <Link href={`/friends?user=${userId}`} className="flex flex-col justify-center hover:bg-slate-900 rounded-xl transition-colors py-1 cursor-pointer">
-              <p className="font-black text-xl">{friendCount}</p>
-              <p className="text-xs text-slate-400 font-medium mt-0.5">friends</p>
+            <Link href={`/friends?user=${userId}`} className="block">
+              <p className="font-black text-lg">{friendCount}</p>
+              <p className="text-[10px] text-slate-400">friends</p>
             </Link>
-            <div className="flex flex-col justify-center">
-              <p className="font-black text-2xl mb-[-2px]">{lvl.icon}</p>
-              <p className="text-xs text-slate-400 font-medium mt-0.5 truncate">{lvl.name}</p>
-            </div>
+            <button onClick={() => setRankOpen(true)} className="hover:scale-105 transition-transform">
+              <p className="font-black text-lg">{lvl.icon}</p>
+              <p className="text-[10px] text-slate-400">{lvl.name}</p>
+            </button>
           </div>
         </div>
 
-      {/* SEASON PROGRESS */}
-      <div className="px-4 mb-3 grid gap-2">
-        {lvl.next ? (
+        {/* SEASON PROGRESS */}
+        <button onClick={() => setRankOpen(true)} className="text-left grid gap-1.5">
+          <div className="flex justify-between text-[10px] text-slate-400">
+            <span>🏁 {lvl.icon} {lvl.name}</span>
+            <span>
+              {lvl.next ? `${lvl.next.need - coins} 🪙 to ${lvl.next.icon} ${lvl.next.name}` : "🎓 CHAMPION"} • ⏳ {daysLeft}d
+            </span>
+          </div>
+          <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-amber-400 to-fuchsia-500"
+              style={{
+                width: `${lvl.next ? Math.min(100, ((coins - lvl.need) / (lvl.next.need - lvl.need)) * 100) : 100}%`,
+              }}
+            />
+          </div>
+        </button>
+
+        {prof?.bio && <p className="text-sm whitespace-pre-wrap text-slate-200">{prof.bio}</p>}
+      </div>
+
+      {/* BUTTONS */}
+      <div className="flex gap-2 px-4 mt-4 mb-4">
+        {userId === me ? (
           <>
-            <div className="flex justify-between text-[10px] text-slate-400">
-              <span>
-                🏁 {lvl.icon} {lvl.name}
-              </span>
-              <span>
-                {lvl.next.need - coins} 🪙 to {lvl.next.icon} {lvl.next.name} • ⏳ {daysLeft}d left
-              </span>
-            </div>
-            <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-amber-400 to-fuchsia-500"
-                style={{
-                  width: `${Math.min(
-                    100,
-                    ((coins - lvl.need) / (lvl.next.need - lvl.need)) * 100
-                  )}%`,
-                }}
-              />
-            </div>
+            <button
+              onClick={() => {
+                setEditName(prof?.display_name || "");
+                setEditBio(prof?.bio || "");
+                setEditing(!editing);
+              }}
+              className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold transition-colors"
+            >
+              {editing ? "✖ Close" : "✏️ Edit profile"}
+            </button>
+            <button onClick={share} className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold transition-colors">
+              📤 Share profile
+            </button>
+            <button onClick={togglePrivate} className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold transition-colors">
+              {prof?.is_private ? "🔒" : "🌍"}
+            </button>
           </>
         ) : (
-          <p className="text-[10px] text-amber-400 font-bold text-center">
-            🎓 SEASON CHAMPION — defend your throne!
-          </p>
-        )}
-        <p className="text-[10px] text-slate-400">
-          {life >= LIFETIME_LEVELS[0].need ? (
-            <>
-              🌟 Lifetime: {lifeLvl.icon} {lifeLvl.name} • {life} 🪙
-            </>
-          ) : (
-            <>🌟 Lifetime: {life} 🪙 (👑 Legend at 64,000)</>
-          )}
-        </p>
-        {trophies.length > 0 && (
-          <p className="text-[10px] text-amber-400">🏆 {trophies.join(" • ")}</p>
+          <>
+            {isFriend ? (
+              <span className="flex-1 py-2.5 rounded-xl bg-slate-800 text-xs font-bold text-center text-green-400">✓ Friends</span>
+            ) : recvReq ? (
+              <button onClick={accept} className="flex-1 py-2.5 rounded-xl bg-green-600 hover:bg-green-500 text-xs font-bold transition-colors">
+                ✅ Accept Request
+              </button>
+            ) : sentReq ? (
+              <span className="flex-1 py-2.5 rounded-xl bg-slate-800 text-xs font-bold text-center text-slate-400">⏳ Requested</span>
+            ) : (
+              <button onClick={addFriend} className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold transition-colors">
+                ➕ Add Friend
+              </button>
+            )}
+            {(!prof?.is_private || isFriend) && (
+              <Link href={`/chat?user=${userId}`} className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-center transition-colors">
+                💬 Message
+              </Link>
+            )}
+          </>
         )}
       </div>
 
-        {/* BIO */}
-        <div className="px-5 mb-5">
-          <p className="text-[15px] leading-relaxed whitespace-pre-wrap text-slate-200">{prof?.bio || ""}</p>
-          {userId === me && (!prof?.display_name || prof.display_name === "friend") && (
-            <button
-              onClick={() => {
-                setEditName("");
-                setEditBio(prof?.bio || "");
-                setEditing(true);
-              }}
-              className="mt-2 text-sm font-bold text-violet-400 hover:text-violet-300 transition-colors"
-            >
-              ✏️ Add your name so friends can find you!
-            </button>
-          )}
-        </div>
-
-        {/* BUTTONS */}
-        <div className="flex gap-2 px-5 mb-6">
-          {userId === me ? (
-            <>
-              <button
-                onClick={() => {
-                  setEditName(prof?.display_name || "");
-                  setEditBio(prof?.bio || "");
-                  setEditing(!editing);
+      {/* EDIT PANEL */}
+      {editing && userId === me && (
+        <div className="px-4 mb-4 grid gap-2">
+          <input
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            placeholder="Your name"
+            className="p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm"
+          />
+          <textarea
+            value={editBio}
+            onChange={(e) => setEditBio(e.target.value)}
+            placeholder="Write your bio... (like: I AM THE NIGHT 🦇)"
+            rows={2}
+            className="p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm resize-none"
+          />
+          <label className="py-2 rounded-xl bg-slate-800 text-xs font-bold text-center cursor-pointer">
+            📷 Change photo
+            <input type="file" accept="image/*" onChange={onAvatar} className="hidden" />
+          </label>
+          {editImg && (
+            <div className="grid gap-2 bg-slate-800/50 rounded-xl p-3">
+              <div
+                className="relative w-40 h-40 mx-auto rounded-full overflow-hidden border-2 border-violet-500 touch-none cursor-move"
+                onPointerDown={(e) => {
+                  (e.target as HTMLElement).setPointerCapture(e.pointerId);
+                  dragRef.current = { x: e.clientX, y: e.clientY };
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 transition-colors text-sm font-bold"
+                onPointerMove={(e) => {
+                  if (!dragRef.current) return;
+                  setOff({ x: off.x + (e.clientX - dragRef.current.x), y: off.y + (e.clientY - dragRef.current.y) });
+                  dragRef.current = { x: e.clientX, y: e.clientY };
+                }}
+                onPointerUp={() => (dragRef.current = null)}
               >
-                {editing ? "✖ Close" : "✏️ Edit profile"}
-              </button>
-              <button onClick={share} className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 transition-colors text-sm font-bold">
-                📤 Share profile
-              </button>
-              <button onClick={togglePrivate} className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 transition-colors text-sm font-bold" aria-label="Toggle privacy">
-                {prof?.is_private ? "🔒" : "🌍"}
-              </button>
-            </>
-          ) : (
-            <>
-              {isFriend ? (
-                <span className="flex-1 py-2.5 rounded-xl bg-slate-800 text-sm font-bold text-center text-green-400">✓ Friends</span>
-              ) : recvReq ? (
-                <button onClick={accept} className="flex-1 py-2.5 rounded-xl bg-green-600 hover:bg-green-500 transition-colors text-sm font-bold">
-                  ✅ Accept Request
-                </button>
-              ) : sentReq ? (
-                <span className="flex-1 py-2.5 rounded-xl bg-slate-800 text-sm font-bold text-center text-slate-400">⏳ Requested</span>
-              ) : (
-                <button onClick={addFriend} className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 transition-colors text-sm font-bold">
-                  ➕ Add Friend
-                </button>
-              )}
-              {(!prof?.is_private || isFriend) && (
-                <Link
-                  href={`/chat?user=${userId}`}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 transition-colors text-sm font-bold text-center"
-                >
-                  💬 Message
-                </Link>
-              )}
-            </>
+                <img
+                  src={editImg.src}
+                  className="w-full h-full object-cover"
+                  style={{ transform: `translate(${off.x}px, ${off.y}px) scale(${zoom})` }}
+                  alt=""
+                />
+              </div>
+              <input type="range" min="1" max="3" step="0.1" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
+              <p className="text-[10px] text-slate-500 text-center">✋ Drag to move • slider to zoom</p>
+            </div>
+          )}
+          <button onClick={saveProfile} disabled={saving} className="py-2.5 rounded-xl bg-violet-600 text-xs font-bold disabled:opacity-50">
+            💾 Save
+          </button>
+        </div>
+      )}
+
+      {/* TABS */}
+      <div className="flex border-b border-slate-800 mb-1">
+        <span className="flex-1 text-center py-2 border-b-2 border-white">▦</span>
+        <span className="flex-1 text-center py-2 text-slate-600">▶</span>
+        <span className="flex-1 text-center py-2 text-slate-600">🔁</span>
+        <span className="flex-1 text-center py-2 text-slate-600">👤</span>
+      </div>
+
+      {/* CONTENT */}
+      {locked ? (
+        <div className="text-center py-16 px-6">
+          <p className="text-5xl mb-3">🔒</p>
+          <p className="text-xl font-bold">This account is private</p>
+          <p className="text-sm text-slate-400 mt-1">Become a friend to see their posts!</p>
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="text-center py-16 px-6">
+          <p className="text-5xl mb-3">📸</p>
+          <p className="text-xl font-bold">Create your first post</p>
+          <p className="text-sm text-slate-400 mt-1">Make this space your own.</p>
+          {userId === me && (
+            <Link href="/newpost" className="inline-block mt-4 px-8 py-3 rounded-xl bg-violet-600 font-bold text-sm">
+              Create
+            </Link>
           )}
         </div>
-
-        {/* EDIT PANEL */}
-        {editing && userId === me && (
-          <div className="px-5 mb-6 grid gap-3 animate-in fade-in slide-in-from-top-2">
-            <input
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              placeholder="Your name"
-              className="p-3.5 rounded-xl bg-slate-900 border border-slate-700 text-sm focus:outline-none focus:border-violet-500 transition-colors"
-            />
-            <textarea
-              value={editBio}
-              onChange={(e) => setEditBio(e.target.value)}
-              placeholder="Write your bio... (like: I AM THE NIGHT 🦇)"
-              rows={3}
-              className="p-3.5 rounded-xl bg-slate-900 border border-slate-700 text-sm resize-none focus:outline-none focus:border-violet-500 transition-colors"
-            />
-            <label className="py-3 rounded-xl bg-slate-900 hover:bg-slate-800 transition-colors border border-dashed border-slate-600 text-sm font-bold text-center cursor-pointer">
-              📷 Change photo
-              <input type="file" accept="image/*" onChange={onAvatar} className="hidden" />
-            </label>
-            {editImg && (
-              <div className="grid gap-3 bg-slate-900 rounded-xl p-4 border border-slate-800">
+      ) : (
+        <div className="grid grid-cols-3 gap-0.5 p-0.5">
+          {posts.map((p) => (
+            <div key={p.id} onClick={() => setView(p)} className="aspect-square bg-slate-900 relative overflow-hidden cursor-pointer">
+              {p.image_url ? (
+                <img src={p.image_url} className="w-full h-full object-cover" alt="" />
+              ) : (
                 <div
-                  className="relative w-48 h-48 mx-auto rounded-full overflow-hidden border-4 border-violet-500 touch-none cursor-move shadow-inner"
-                  onPointerDown={(e) => {
-                    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-                    dragRef.current = { x: e.clientX, y: e.clientY };
-                  }}
-                  onPointerMove={(e) => {
-                    if (!dragRef.current) return;
-                    setOff({
-                      x: off.x + (e.clientX - dragRef.current.x),
-                      y: off.y + (e.clientY - dragRef.current.y),
-                    });
-                    dragRef.current = { x: e.clientX, y: e.clientY };
-                  }}
-                  onPointerUp={() => (dragRef.current = null)}
+                  className={`relative w-full h-full ${p.bgc ? "" : `bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]}`}`}
+                  style={p.bgc ? { background: p.bgc } : undefined}
                 >
-                  <img
-                    src={editImg.src}
-                    className="w-full h-full object-cover"
-                    style={{ transform: `translate(${off.x}px, ${off.y}px) scale(${zoom})` }}
-                    alt=""
-                  />
+                  <p
+                    className="absolute text-[10px] text-center line-clamp-6 px-1"
+                    style={{
+                      left: `${p.tx ?? 50}%`,
+                      top: `${p.ty ?? 50}%`,
+                      transform: "translate(-50%, -50%)",
+                      color: p.tc || "#ffffff",
+                    }}
+                  >
+                    {p.content}
+                  </p>
                 </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="3"
-                  step="0.1"
-                  value={zoom}
-                  onChange={(e) => setZoom(Number(e.target.value))}
-                  className="accent-violet-500"
-                />
-                <p className="text-xs text-slate-500 text-center font-medium">
-                  ✋ Drag to move • Slider to zoom
+              )}
+              <span className="absolute bottom-1 left-1 text-[10px] font-bold drop-shadow">❤️ {p.likes}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* POST VIEWER */}
+      {view && (
+        <div className="fixed inset-0 z-[70] bg-black/95 flex flex-col" onClick={() => setView(null)}>
+          <div className="flex justify-end p-4">
+            <span className="text-2xl">✖</span>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 pb-8" onClick={(e) => e.stopPropagation()}>
+            {view.image_url && (
+              <img src={view.image_url} className="w-full rounded-xl object-contain max-h-[70vh]" alt="" />
+            )}
+            {!view.image_url && (
+              <div
+                className={`relative w-full aspect-square rounded-xl ${view.bgc ? "" : `bg-gradient-to-br ${BGS[(view.bg || 0) % BGS.length]}`}`}
+                style={view.bgc ? { background: view.bgc } : undefined}
+              >
+                <p
+                  className="absolute text-xl font-bold text-center whitespace-pre-wrap px-4"
+                  style={{
+                    left: `${view.tx ?? 50}%`,
+                    top: `${view.ty ?? 50}%`,
+                    transform: "translate(-50%, -50%)",
+                    color: view.tc || "#ffffff",
+                  }}
+                >
+                  {view.content}
                 </p>
               </div>
             )}
-            <button
-              onClick={saveProfile}
-              disabled={saving}
-              className="py-3.5 rounded-xl bg-violet-600 hover:bg-violet-500 transition-colors text-sm font-bold disabled:opacity-50 mt-1"
-            >
-              {saving ? "Saving..." : "💾 Save Changes"}
+            <p className="text-xs text-slate-500 mt-3">❤️ {view.likes} likes</p>
+            {view.user_id === me && (
+              <button onClick={() => { deletePost(view); setView(null); }} className="mt-3 w-full py-2 rounded-xl bg-red-600/20 text-red-400 text-xs font-bold">
+                🗑 Delete post
+              </button>
+            )}
+            <button onClick={() => setView(null)} className="mt-3 w-full py-2 rounded-xl bg-slate-800 text-xs font-bold">
+              Close
             </button>
           </div>
-        )}
-
-        {/* TABS */}
-        <div className="flex border-b border-slate-800 mb-1 sticky top-[72px] bg-slate-950 z-10">
-          <span className="flex-1 text-center py-3 border-b-2 border-white cursor-pointer hover:bg-slate-900 transition-colors">▦</span>
-          <span className="flex-1 text-center py-3 text-slate-600 cursor-not-allowed">▶</span>
-          <span className="flex-1 text-center py-3 text-slate-600 cursor-not-allowed">🔁</span>
-          <span className="flex-1 text-center py-3 text-slate-600 cursor-not-allowed">👤</span>
         </div>
+      )}
 
-        {/* CONTENT */}
-        {locked ? (
-          <div className="text-center py-20 px-6">
-            <p className="text-6xl mb-4">🔒</p>
-            <p className="text-xl font-bold">This account is private</p>
-            <p className="text-[15px] text-slate-400 mt-2">Become a friend to see their posts!</p>
-          </div>
-        ) : posts.length === 0 ? (
-          <div className="text-center py-20 px-6">
-            <p className="text-6xl mb-4">📸</p>
-            <p className="text-xl font-bold">Create your first post</p>
-            <p className="text-[15px] text-slate-400 mt-2">Make this space your own.</p>
-            {userId === me && (
-              <Link href="/newpost" className="inline-block mt-6 px-10 py-3.5 rounded-xl bg-violet-600 hover:bg-violet-500 transition-colors font-bold text-[15px]">
-                Create Post
-              </Link>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-1 p-1">
-            {posts.map((p) => (
-              <div
-                key={p.id}
-                onClick={() => setView(p)}
-                className="aspect-square bg-slate-900 relative overflow-hidden cursor-pointer group"
-              >
-                {p.image_url ? (
-                  <img 
-                    src={p.image_url} 
-                    className="w-full h-full object-cover group-hover:scale-105 group-hover:opacity-90 transition-all duration-300" 
-                    alt="" 
-                  />
-                ) : (
-                  <div
-                    className={`relative w-full h-full group-hover:opacity-90 transition-opacity ${
-                      p.bgc ? "" : `bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]}`
-                    }`}
-                    style={p.bgc ? { background: p.bgc } : undefined}
-                  >
-                    <p
-                      className="absolute text-[11px] md:text-sm font-medium text-center line-clamp-5 px-2 w-full"
-                      style={{
-                        left: `${p.tx ?? 50}%`,
-                        top: `${p.ty ?? 50}%`,
-                        transform: "translate(-50%, -50%)",
-                        color: p.tc || "#ffffff",
-                      }}
-                    >
-                      {p.content}
-                    </p>
-                  </div>
-                )}
-                {/* Hover overlay for likes */}
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                  <span className="text-white font-bold text-lg drop-shadow-md">❤️ {p.likes}</span>
+      {/* RANK MODAL */}
+      {rankOpen && (
+        <div className="fixed inset-0 z-[80] bg-black/80 flex items-end sm:items-center sm:justify-center" onClick={() => setRankOpen(false)}>
+          <div className="w-full max-w-md bg-slate-900 rounded-t-2xl sm:rounded-2xl p-5 grid gap-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <p className="font-black">🎖 Ranks</p>
+              <button onClick={() => setRankOpen(false)} className="text-slate-400 text-xl">✖</button>
+            </div>
+
+            <div className="rounded-xl bg-slate-950 border border-slate-800 p-4 grid gap-2">
+              <p className="text-[10px] font-black text-slate-400">🏁 SEASON {seasonIdx}</p>
+              <div className="flex items-center gap-3">
+                <span className="text-4xl">{lvl.icon}</span>
+                <div>
+                  <p className="font-black">{lvl.name}</p>
+                  <p className="text-xs text-slate-400">{coins} 🪙 this season</p>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* POST VIEWER MODAL - Centered for Desktop */}
-        {view && (
-          <div className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center backdrop-blur-sm" onClick={() => setView(null)}>
-            <div
-              className="w-full max-w-md h-[100dvh] md:h-auto md:max-h-[90vh] md:rounded-2xl bg-slate-950 flex flex-col relative shadow-2xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-center p-4 border-b border-slate-800">
-                <p className="font-bold text-sm">Post</p>
-                <button onClick={() => setView(null)} className="text-xl text-slate-400 hover:text-white transition-colors">
-                  ✖
-                </button>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-center bg-black/50">
-                {view.image_url ? (
-                  <img src={view.image_url} className="w-full rounded-xl object-contain max-h-[60vh] mx-auto shadow-lg" alt="" />
-                ) : (
-                  <div
-                    className={`relative w-full aspect-square rounded-xl shadow-lg ${
-                      view.bgc ? "" : `bg-gradient-to-br ${BGS[(view.bg || 0) % BGS.length]}`
-                    }`}
-                    style={view.bgc ? { background: view.bgc } : undefined}
-                  >
-                    <p
-                      className="absolute text-2xl font-bold text-center whitespace-pre-wrap px-6 leading-relaxed w-full"
-                      style={{
-                        left: `${view.tx ?? 50}%`,
-                        top: `${view.ty ?? 50}%`,
-                        transform: "translate(-50%, -50%)",
-                        color: view.tc || "#ffffff",
-                      }}
-                    >
-                      {view.content}
-                    </p>
+              {lvl.next ? (
+                <>
+                  <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-400 to-fuchsia-500"
+                      style={{ width: `${Math.min(100, ((coins - lvl.need) / (lvl.next.need - lvl.need)) * 100)}%` }}
+                    />
                   </div>
-                )}
-              </div>
+                  <p className="text-[10px] text-slate-500">
+                    {lvl.next.need - coins} 🪙 to {lvl.next.icon} {lvl.next.name} • ⏳ resets in {daysLeft}d
+                  </p>
+                </>
+              ) : (
+                <p className="text-[10px] text-amber-400 font-bold">🎓 SEASON CHAMPION!</p>
+              )}
+            </div>
 
-              <div className="p-5 bg-slate-950 border-t border-slate-800">
-                <p className="text-sm font-bold text-white mb-4">❤️ {view.likes} likes</p>
-                <button
-                  onClick={() => setView(null)}
-                  className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 transition-colors text-sm font-bold"
-                >
-                  Close
-                </button>
+            <div className="rounded-xl bg-slate-950 border border-slate-800 p-4 grid gap-2">
+              <p className="text-[10px] font-black text-slate-400">🌟 LIFETIME (never resets)</p>
+              <div className="flex items-center gap-3">
+                <span className="text-4xl">{life >= LIFETIME_LEVELS[0].need ? lifeLvl.icon : "🌱"}</span>
+                <div>
+                  <p className="font-black">
+                    {life >= LIFETIME_LEVELS[0].need ? lifeLvl.name : "Rookie"}
+                  </p>
+                  <p className="text-xs text-slate-400">{life.toLocaleString()} 🪙 all-time</p>
+                </div>
+              </div>
+              {life < LIFETIME_LEVELS[0].need && (
+                <p className="text-[10px] text-slate-500">
+                  {(64000 - life).toLocaleString()} 🪙 to 👑 Legend
+                </p>
+              )}
+            </div>
+
+            {trophies.length > 0 && (
+              <p className="text-xs text-amber-400 text-center">🏆 {trophies.join(" • ")}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* COIN MODAL */}
+      {coinOpen && (
+        <div className="fixed inset-0 z-[80] bg-black/80 flex items-end sm:items-center sm:justify-center" onClick={() => setCoinOpen(false)}>
+          <div className="w-full max-w-md bg-slate-900 rounded-t-2xl sm:rounded-2xl p-5 grid gap-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <p className="font-black">🪙 Coins</p>
+              <button onClick={() => setCoinOpen(false)} className="text-slate-400 text-xl">✖</button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-xl bg-slate-950 border border-slate-800 p-3 text-center">
+                <p className="text-lg font-black text-amber-400">{coins}</p>
+                <p className="text-[10px] text-slate-400">🏁 this season</p>
+              </div>
+              <div className="rounded-xl bg-slate-950 border border-slate-800 p-3 text-center">
+                <p className="text-lg font-black text-fuchsia-400">{life.toLocaleString()}</p>
+                <p className="text-[10px] text-slate-400">🌟 lifetime</p>
               </div>
             </div>
+
+            <div className="rounded-xl bg-slate-950 border border-slate-800 p-4 grid gap-2">
+              <p className="text-[10px] font-black text-slate-400">💪 EARN EVERY DAY</p>
+              {EARN.map((e) => (
+                <div key={e.name} className="flex items-center justify-between text-sm">
+                  <span>{e.icon} {e.name}</span>
+                  <span className="font-bold text-amber-400">+{e.coins}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-xl bg-slate-950 border border-slate-800 p-4 grid gap-1.5">
+              <p className="text-[10px] font-black text-slate-400">🏁 SEASON TITLES (reset every 90d)</p>
+              {SEASON_LEVELS.map((l) => (
+                <div
+                  key={l.name}
+                  className={`flex items-center justify-between text-sm rounded-lg px-2 py-1 ${
+                    lvl.name === l.name ? "bg-violet-600/20 border border-violet-500/40" : ""
+                  }`}
+                >
+                  <span>{l.icon} {l.name}</span>
+                  <span className="text-xs text-slate-400">{l.need.toLocaleString()} 🪙</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="rounded-xl bg-slate-950 border border-slate-800 p-4 grid gap-1.5">
+              <p className="text-[10px] font-black text-slate-400">🌟 LIFETIME TITLES (forever)</p>
+              {LIFETIME_LEVELS.map((l) => (
+                <div
+                  key={l.name}
+                  className={`flex items-center justify-between text-sm rounded-lg px-2 py-1 ${
+                    life >= LIFETIME_LEVELS[0].need && lifeLvl.name === l.name
+                      ? "bg-fuchsia-600/20 border border-fuchsia-500/40"
+                      : ""
+                  }`}
+                >
+                  <span>{l.icon} {l.name}</span>
+                  <span className="text-xs text-slate-400">{l.need.toLocaleString()} 🪙</span>
+                </div>
+              ))}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </main>
   );
 }
 
 export default function ProfilePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400">Loading...</div>}>
+    <Suspense fallback={<p className="text-slate-400 p-4">Loading...</p>}>
       <Inner />
     </Suspense>
   );
