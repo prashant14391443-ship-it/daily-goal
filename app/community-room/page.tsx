@@ -558,7 +558,7 @@ export default function CommunityRoomPage() {
       {/* BIG GREEN JOIN BUTTON (ONLY SHOWS WHEN NOT IN VOICE) */}
       {!voiceOn && (
         <button
-          onClick={() => setVoiceOn(true)}
+          onClick={() => alert("🎙 Group calls unlock at Season 2 (self-host era)! 1-on-1 calls are open ✅")}
           className="w-full shrink-0 mt-3 py-4 rounded-2xl font-extrabold text-lg shadow-lg bg-green-600 hover:bg-green-500 shadow-green-900/20 text-white transition-all active:scale-[0.98]"
         >
           🎙️ Join Voice Channel

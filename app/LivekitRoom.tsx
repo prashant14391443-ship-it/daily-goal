@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Room, RoomEvent } from "livekit-client";
+import { supabase } from "@/lib/supabase";
+import { callBudget, addCallSeconds } from "@/lib/callLimits";
 
 type ChatMsg = { who: string; text: string; me: boolean };
 
@@ -29,11 +31,18 @@ export default function LivekitRoom({
   const [sec, setSec] = useState(0);
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState("");
+  const [myId, setMyId] = useState("");
+  const [myLeft, setMyLeft] = useState(900); // 15 min in seconds
+  const [poolLeft, setPoolLeft] = useState(18000); // 300 min in seconds
   const roomRef = useRef<Room | null>(null);
   const elsRef = useRef<HTMLMediaElement[]>([]);
   const soundRef = useRef(true);
   const aloneRef = useRef<number | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const secRef = useRef(0);
+  const syncRef = useRef<number | null>(null);
+  const startedAtRef = useRef(0);
+  const lastSyncedRef = useRef(0);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -41,25 +50,47 @@ export default function LivekitRoom({
 
   useEffect(() => {
     if (status !== "live") return;
-    const id = setInterval(() => setSec((x) => x + 1), 1000);
+    const id = setInterval(() => {
+      setSec((x) => {
+        const next = x + 1;
+        secRef.current = next;
+        return next;
+      });
+    }, 1000);
     return () => clearInterval(id);
   }, [status]);
 
   useEffect(() => {
     let cancelled = false;
+    
     const connect = async () => {
       try {
+        // 🔒 CHECK BUDGET BEFORE CONNECTING
+        const { data } = await supabase.auth.getSession();
+        const uid = data.session?.user.id;
+        if (!uid) throw new Error("Not logged in");
+        setMyId(uid);
+
+        const budget = await callBudget(uid);
+        setMyLeft(budget.myLeft);
+        setPoolLeft(budget.poolLeft);
+        if (!budget.ok) {
+          alert(budget.reason);
+          onLeave();
+          return;
+        }
+
         const res = await fetch("/api/voice-token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ room: roomName, identity }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Token failed");
+        const data2 = await res.json();
+        if (!res.ok) throw new Error(data2.error || "Token failed");
 
         const r = new Room();
         roomRef.current = r;
-        await r.connect(data.url, data.token);
+        await r.connect(data2.url, data2.token);
         if (cancelled) {
           r.disconnect();
           return;
@@ -73,7 +104,10 @@ export default function LivekitRoom({
 
         r.on(RoomEvent.ParticipantConnected, update);
         r.on(RoomEvent.ParticipantDisconnected, update);
-        r.on(RoomEvent.Disconnected, () => onLeave());
+        r.on(RoomEvent.Disconnected, () => {
+          clearInterval(syncRef.current!);
+          onLeave();
+        });
 
         r.on(RoomEvent.DataReceived, (payload, participant) => {
           try {
@@ -103,6 +137,19 @@ export default function LivekitRoom({
 
         update();
         setStatus("live");
+        startedAtRef.current = Date.now();
+        lastSyncedRef.current = Date.now();
+
+        // 📊 SYNC USAGE EVERY 30 SECONDS
+        syncRef.current = window.setInterval(() => {
+          const now = Date.now();
+          const delta = Math.floor((now - lastSyncedRef.current) / 1000);
+          if (delta > 0 && uid) {
+            addCallSeconds(uid, delta);
+            lastSyncedRef.current = now;
+          }
+        }, 30000);
+
         try {
           await (r as unknown as { startAudio?: () => Promise<void> }).startAudio?.();
         } catch {
@@ -118,9 +165,16 @@ export default function LivekitRoom({
         setError(e instanceof Error ? e.message : "Connect failed");
       }
     };
+    
     connect();
     return () => {
       cancelled = true;
+      if (syncRef.current) clearInterval(syncRef.current);
+      // SYNC REMAINING SECONDS ON DISCONNECT
+      if (myId && startedAtRef.current > 0) {
+        const delta = Math.floor((Date.now() - lastSyncedRef.current) / 1000);
+        if (delta > 0) addCallSeconds(myId, delta);
+      }
       roomRef.current?.disconnect();
       elsRef.current.forEach((el) => el.remove());
       elsRef.current = [];
@@ -175,7 +229,6 @@ export default function LivekitRoom({
     if (!text || !roomRef.current) return;
     const bytes = new TextEncoder().encode(JSON.stringify({ who: identity, text }));
     try {
-      // ✅ Corrected: publishData now takes { reliable: true } instead of the DataPacket_Kind enum
       await roomRef.current.localParticipant.publishData(bytes, { reliable: true });
       setMsgs((prev) => [...prev, { who: identity, text, me: true }]);
       setInput("");
@@ -197,20 +250,25 @@ export default function LivekitRoom({
   if (status === "connecting")
     return (
       <p className="text-slate-400 text-center p-6 animate-pulse bg-slate-900/60 rounded-2xl">
-        📡 Connecting...
+        📡 Checking call budget & connecting...
       </p>
     );
 
   return (
     <div className="min-h-[calc(100dvh-150px)] flex flex-col rounded-3xl bg-slate-900/70 p-4">
-      {/* 1️⃣ SINGLE CLEAN HEADER + TIMER */}
-      <p className="text-center text-white font-bold mb-3">
-        {names.length > 0 ? (
-          <>🟢 Talking with {names.join(", ")} • {fmt(sec)}</>
-        ) : (
-          <>🟢 Connected — waiting for someone • {fmt(sec)}</>
-        )}
-      </p>
+      {/* 1️⃣ SINGLE CLEAN HEADER + TIMER + BUDGET */}
+      <div className="text-center mb-3">
+        <p className="text-white font-bold">
+          {names.length > 0 ? (
+            <>🟢 Talking with {names.join(", ")} • {fmt(sec)}</>
+          ) : (
+            <>🟢 Connected — waiting for someone • {fmt(sec)}</>
+          )}
+        </p>
+        <p className="text-[10px] text-slate-400 mt-1">
+          🎙 {fmt(myLeft - secRef.current)} left today • 🌍 {fmt(poolLeft)} pool left
+        </p>
+      </div>
 
       {micMsg && (
         <p className="text-xs text-amber-400 text-center mb-3">{micMsg}</p>
