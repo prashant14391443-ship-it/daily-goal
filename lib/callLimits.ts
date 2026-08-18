@@ -1,5 +1,4 @@
 import { supabase } from "@/lib/supabase";
-import { callBudget, addCallSeconds } from "@/lib/callLimits";
 
 const USER_DAILY = 15 * 60; // 15 min per user per day
 const POOL_DAILY = 300 * 60; // 300 participant-min app-wide per day
@@ -10,8 +9,10 @@ export async function callBudget(me: string) {
     supabase.from("call_usage").select("seconds").eq("user_id", me).eq("day", today).maybeSingle(),
     supabase.from("call_usage").select("seconds").eq("day", today),
   ]);
+  
   const mySec = mine?.seconds || 0;
   const poolSec = ((all as any[]) || []).reduce((a, r) => a + (r.seconds || 0), 0);
+  
   return {
     myLeft: Math.max(0, USER_DAILY - mySec),
     poolLeft: Math.max(0, POOL_DAILY - poolSec),
@@ -32,6 +33,7 @@ export async function addCallSeconds(me: string, sec: number) {
     .eq("user_id", me)
     .eq("day", today)
     .maybeSingle();
+    
   await supabase.from("call_usage").upsert(
     { user_id: me, day: today, seconds: (data?.seconds || 0) + sec },
     { onConflict: "user_id,day" }
