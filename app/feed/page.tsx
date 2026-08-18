@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { SEASON_LEVELS, levelOf, seasonInfo } from "@/lib/seasons";
+import InstallApp from "@/app/components/InstallApp";
 
 
 type Profile = { user_id: string; display_name: string; avatar_url: string; is_private: boolean };
@@ -285,6 +286,32 @@ export default function FeedPage() {
   }, []);
 
   useEffect(() => {
+    const claim = async () => {
+      if (!me) return;
+      const inv = localStorage.getItem("ff-inv");
+      if (!inv || inv === me) return;
+      const { error } = await supabase
+        .from("invites")
+        .insert({ inviter_id: inv, invitee_id: me });
+      if (!error) {
+        await supabase.from("coin_log").insert([
+          { user_id: me, action_key: `inv-${me}`, coins: 25 },
+          { user_id: inv, action_key: `inv-${me}`, coins: 50 },
+        ]);
+        await supabase.from("notifications").insert({
+          user_id: inv,
+          actor_id: me,
+          type: "friend",
+          text: `🎉 A friend joined via your invite! +50 🪙`,
+        });
+        localStorage.removeItem("ff-inv");
+        load();
+      }
+    };
+    claim();
+  }, [me]);
+
+  useEffect(() => {
     const loadCoins = async () => {
       const s = seasonInfo();
       const { data } = await supabase
@@ -515,6 +542,8 @@ export default function FeedPage() {
             </button>
           </div>
         </div>
+
+        <InstallApp />
 
         {/* STORIES ROW */}
         <div className="flex gap-4 overflow-x-auto px-4 py-4 border-b border-slate-800 scrollbar-hide">
