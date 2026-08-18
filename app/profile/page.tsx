@@ -59,7 +59,8 @@ const BGS = [
 const EARN = [
   { icon: "📅", name: "Open app daily", coins: "20" },
   { icon: "📚", name: "Study session", coins: "10" },
-  { icon: "💪", name: "Workout", coins: "15 / km" },
+  { icon: "🏃", name: "Running", coins: "10 / km" },
+  { icon: "💪", name: "Gym exercise", coins: "5 / session" },
   { icon: "✅", name: "Habit done", coins: "5" },
   { icon: "📝", name: "Task done", coins: "5" },
   { icon: "🍽", name: "Meal logged", coins: "3" },

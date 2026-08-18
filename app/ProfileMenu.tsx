@@ -216,7 +216,7 @@ export default function ProfileMenu() {
     const actions = [
       ...(s.data || []).map((r) => ({ key: `s-${r.id}`, coins: 10 })),
       ...(g.data || [])
-        .map((r) => ({ key: `g-${r.id}`, coins: Math.floor(r.distance_km || 0) * 15 }))
+        .map((r) => ({ key: `g-${r.id}`, coins: Math.floor(r.distance_km || 0) * 10}))
         .filter((a) => a.coins > 0),
       ...(h.data || []).map((r) => ({ key: `h-${r.id}`, coins: 5 })),
       ...(t.data || []).map((r) => ({ key: `t-${r.id}`, coins: 5 })),
