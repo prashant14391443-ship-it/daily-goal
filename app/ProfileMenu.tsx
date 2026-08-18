@@ -498,7 +498,7 @@ export default function ProfileMenu() {
   };
 
   return (
-    <div className="fixed top-4 right-4 md:top-6 md:right-8 z-[60] relative" ref={boxRef}>
+    <div className="fixed top-4 right-4 md:top-6 md:right-8 z-[60]" ref={boxRef}>
       
       {/* Badge Earned Modal */}
       {badgePop && typeof window !== "undefined" &&
