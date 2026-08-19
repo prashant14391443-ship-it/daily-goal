@@ -1,7 +1,7 @@
 {
   "name": "Daily Goal — Study • Compete • Connect",
   "short_name": "Daily Goal",
-  "start_url": "/feed",
+  "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#020617",

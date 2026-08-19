@@ -76,6 +76,7 @@ export default function SearchPage() {
       ? clean
       : people.filter((p) => (p.display_name || "").toLowerCase().includes(term));
 
+      
   const Row = ({ p }: { p: P }) => (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center gap-3">
       <Link
