@@ -33,9 +33,7 @@ export default function AIPage() {
       const c = JSON.parse(localStorage.getItem("dg-ai-count") || "null");
       if (c && c.date === toLocalISO(new Date()))
         setLeft(Math.max(0, 15 - c.n));
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -47,11 +45,8 @@ export default function AIPage() {
     const uid = data.session?.user.id;
     if (!uid) return "User not logged in.";
     const today = toLocalISO(new Date());
-    const meta = (data.session?.user.user_metadata || {}) as {
-      display_name?: string;
-    };
-    const name =
-      meta.display_name || data.session?.user.email?.split("@")[0] || "friend";
+    const meta = (data.session?.user.user_metadata || {}) as { display_name?: string };
+    const name = meta.display_name || data.session?.user.email?.split("@")[0] || "friend";
 
     const [s, g, h, hl, t, n, gl] = await Promise.all([
       supabase.from("study_sessions").select("duration_minutes").eq("user_id", uid).eq("session_date", today),
@@ -97,7 +92,12 @@ Food eaten: ${eaten} cal (protein ${protein}g) of target ${goals?.calorie_target
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg, history: msgs.slice(-8), context }),
+        body: JSON.stringify({
+          message: msg,
+          history: msgs.slice(-8),
+          context,
+          mode: "coach", // ← CRITICAL
+        }),
       });
       const d = await res.json();
       const reply = d.reply || "😴 " + (d.error || "AI sleeping.");
@@ -123,9 +123,7 @@ Food eaten: ${eaten} cal (protein ${protein}g) of target ${goals?.calorie_target
           <span className="text-xs bg-violet-600/20 border border-violet-500/40 text-violet-300 px-2 py-1 rounded-lg font-bold">
             {left}/15 free today
           </span>
-          <Link href="/dashboard" className="text-sm text-slate-400 hover:text-white">
-            ← Back
-          </Link>
+          <Link href="/dashboard" className="text-sm text-slate-400 hover:text-white">← Back</Link>
         </div>
       </div>
 
@@ -171,23 +169,14 @@ Food eaten: ${eaten} cal (protein ${protein}g) of target ${goals?.calorie_target
         ))}
       </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          send();
-        }}
-        className="flex gap-2"
-      >
+      <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask anything about your day or life..."
           className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm"
         />
-        <button
-          disabled={loading}
-          className="px-5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 font-bold disabled:opacity-50"
-        >
+        <button disabled={loading} className="px-5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 font-bold disabled:opacity-50">
           ➤
         </button>
       </form>

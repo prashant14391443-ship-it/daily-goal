@@ -10,6 +10,12 @@ const MODES = [
   { id: "hike", icon: "🥾", label: "Hike", met: 6.0 },
 ];
 
+// 🔒 JITTER FILTER CONSTANTS
+const MIN_ACCURACY = 25;       // ignore GPS >25m accuracy
+const MIN_JUMP = 7;            // at least 7m to count as real movement
+const MAX_JUMP = 100;          // ignore teleport glitches (>100m)
+const MIN_SPEED = 1.0;         // below 1 km/h = standing still
+
 function hav(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371000;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -38,21 +44,28 @@ export default function MoveTracker() {
   const [sec, setSec] = useState(0);
   const [speed, setSpeed] = useState(0);
   const [hint, setHint] = useState("");
-  // FIX: Start with an empty string so the user has to type their weight.
-  const [weight, setWeight] = useState(""); 
+  const [weight, setWeight] = useState("");
   const [last, setLast] = useState<null | { dist: number; sec: number; cal: number; label: string; coins: number }>(null);
   const [steps, setSteps] = useState(0);
+  const [gpsMoving, setGpsMoving] = useState(false); // NEW: only count steps when GPS confirms movement
+
   const lastStepRef = useRef(0);
   const watchRef = useRef<number | null>(null);
   const prevRef = useRef<{ lat: number; lon: number } | null>(null);
   const distRef = useRef(0);
+  const secRef = useRef(0);
 
+  // Timer
   useEffect(() => {
     if (!tracking) return;
-    const id = setInterval(() => setSec((s) => s + 1), 1000);
+    const id = setInterval(() => {
+      setSec((s) => s + 1);
+      secRef.current += 1;
+    }, 1000);
     return () => clearInterval(id);
   }, [tracking]);
 
+  // 📱 STEP COUNTER — only when GPS confirms real movement
   useEffect(() => {
     if (!tracking) return;
     const handler = (e: DeviceMotionEvent) => {
@@ -60,14 +73,15 @@ export default function MoveTracker() {
       if (!a || a.x == null || a.y == null || a.z == null) return;
       const mag = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
       const now = Date.now();
-      if (mag > 13 && now - lastStepRef.current > 350) {
+      // 🔒 Only count step if BOTH: motion detected AND GPS says you're moving
+      if (mag > 13.5 && gpsMoving && now - lastStepRef.current > 350) {
         lastStepRef.current = now;
         setSteps((s) => s + 1);
       }
     };
     window.addEventListener("devicemotion", handler);
     return () => window.removeEventListener("devicemotion", handler);
-  }, [tracking]);
+  }, [tracking, gpsMoving]);
 
   const start = () => {
     if (!navigator.geolocation) {
@@ -75,55 +89,83 @@ export default function MoveTracker() {
       return;
     }
     distRef.current = 0;
+    secRef.current = 0;
     setDist(0);
     setSec(0);
     setSteps(0);
+    setSpeed(0);
+    setGpsMoving(false);
     setHint("");
     setLast(null);
     prevRef.current = null;
     setTracking(true);
+
     watchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, accuracy, speed: gpsSpeed } = pos.coords;
-        if (accuracy > 30) return;
+
+        // 🔒 FILTER 1: reject bad accuracy
+        if (accuracy == null || accuracy > MIN_ACCURACY) return;
+
+        // 🔒 FILTER 2: real movement only (>= 7m AND <= 100m)
+        let realJump = 0;
         if (prevRef.current) {
           const d = hav(prevRef.current.lat, prevRef.current.lon, latitude, longitude);
-          if (d < 100) {
+          if (d >= MIN_JUMP && d <= MAX_JUMP) {
+            realJump = d;
             distRef.current += d;
             setDist(distRef.current);
+            setGpsMoving(true); // ✅ GPS confirms we're moving → enable step counter
+          } else {
+            // Small jump = jitter → stay still
+            if (d < MIN_JUMP) setGpsMoving(false);
           }
         }
         prevRef.current = { lat: latitude, lon: longitude };
-        const kmh = gpsSpeed != null && gpsSpeed >= 0 ? Math.round(gpsSpeed * 3.6 * 10) / 10 : 0;
+
+        // 🔒 FILTER 3: speed display — only real speed, no jitter
+        let kmh = 0;
+        if (gpsSpeed != null && gpsSpeed >= 0) {
+          const s = gpsSpeed * 3.6;
+          if (s >= MIN_SPEED && realJump >= MIN_JUMP) {
+            kmh = Math.round(s * 10) / 10;
+          }
+        }
         setSpeed(kmh);
-        if (mode.id === "walk" && kmh > 14)
-          setHint("🚴 That speed looks like RIDING — switch mode above?");
-        else if (mode.id === "run" && kmh > 0 && kmh < 6)
-          setHint("🚶 Easy pace — maybe WALK mode fits better?");
-        else setHint("");
+
+        // Mode hints
+        if (kmh >= MIN_SPEED) {
+          if (mode.id === "walk" && kmh > 14)
+            setHint("🚴 That speed looks like RIDING — switch mode above?");
+          else if (mode.id === "run" && kmh < 6)
+            setHint("🚶 Easy pace — maybe WALK mode fits better?");
+          else setHint("");
+        } else {
+          setHint("");
+        }
       },
       () => setHint("📡 GPS weak — move near a window or outside!"),
-      { enableHighAccuracy: true, maximumAge: 2000 }
+      { enableHighAccuracy: true, maximumAge: 1500, timeout: 10000 }
     );
   };
 
   const stop = async () => {
     if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current);
     setTracking(false);
-    
-    const km = Math.max(distRef.current / 1000, (steps * 0.7) / 1000);
-    const mins = Math.max(1, Math.round(sec / 60));
-    // Number("") is 0, which defaults to 65. If they type something, it uses their value.
+    setGpsMoving(false);
+
+    // Final distance: use GPS distance (steps-based distance was jitter-prone)
+    const km = distRef.current / 1000;
+    const mins = Math.max(1, Math.round(secRef.current / 60));
     const userWeight = Number(weight) || 65;
-    
-    // FIX: Require at least 10 meters (0.01 km) to register any calories
+
     const cal = km > 0.01 ? Math.round(((mode.met * 3.5 * userWeight) / 200) * mins) : 0;
     const earnedCoins = Math.floor(km) * 15;
 
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
-    
-    if (uid && sec >= 10) {
+
+    if (uid && secRef.current >= 10) {
       await supabase.from("gym_logs").insert({
         user_id: uid,
         workout_type: `${mode.icon} ${mode.label} ${km.toFixed(2)} km`,
@@ -133,37 +175,32 @@ export default function MoveTracker() {
         activity_type: mode.id,
         distance_km: Math.round(km * 100) / 100,
         calories: cal,
-        avg_speed: sec > 0 ? Math.round((km / (sec / 3600)) * 10) / 10 : 0,
+        avg_speed: secRef.current > 0 ? Math.round((km / (secRef.current / 3600)) * 10) / 10 : 0,
       });
-      
-      setLast({ dist: km, sec, cal, label: mode.label, coins: earnedCoins });
-    } else if (sec < 10) {
+
+      setLast({ dist: km, sec: secRef.current, cal, label: mode.label, coins: earnedCoins });
+    } else if (secRef.current < 10) {
       setHint("⏱️ Too short — track at least 10 seconds!");
     }
   };
 
   // LIVE CALCULATIONS
-  const km = Math.max(dist / 1000, (steps * 0.7) / 1000);
+  const km = dist / 1000;
   const userWeight = Number(weight) || 65;
-  
-  // FIX: Require at least 10 meters to calculate pace, cap at 99:59 to prevent box blowout
+
   let paceStr = "—";
   if (km > 0.01 && sec > 0) {
     const currentPace = (sec / 60) / km;
-    if (currentPace > 99) {
-      paceStr = "99:59+";
-    } else {
-      paceStr = `${Math.floor(currentPace)}:${String(Math.floor((currentPace % 1) * 60)).padStart(2, "0")}`;
-    }
+    if (currentPace > 99) paceStr = "99:59+";
+    else paceStr = `${Math.floor(currentPace)}:${String(Math.floor((currentPace % 1) * 60)).padStart(2, "0")}`;
   }
 
-  // FIX: Require at least 10 meters to register live calories
   const cal = km > 0.01 ? Math.round(((mode.met * 3.5 * userWeight) / 200) * (sec / 60)) : 0;
 
   return (
     <div className="bg-slate-950 p-4 min-h-screen text-white">
       <div className="bg-slate-900 rounded-2xl p-4 shadow-lg border border-slate-800">
-        
+
         {/* Header & Timer */}
         <div className="flex justify-between items-center mb-4">
           <p className="font-bold text-white text-lg flex items-center gap-2">
@@ -191,26 +228,25 @@ export default function MoveTracker() {
           ))}
         </div>
 
-        {/* Updated Body Weight Input Section */}
+        {/* Body Weight Input */}
         <div className="flex items-center justify-between bg-slate-800/50 rounded-xl p-3 mb-4 border border-slate-700">
           <span className="text-sm font-medium text-slate-400">Body Weight (kg)</span>
           <input
             type="number"
             min="20"
             max="300"
-            value={weight} // Accurate user-definable state
+            value={weight}
             onChange={(e) => setWeight(e.target.value)}
             disabled={tracking}
             className="bg-slate-900 border border-slate-700 rounded-lg w-20 text-center text-white py-1 outline-none focus:border-green-500 disabled:opacity-50"
-            // FIX: This placeholder is visible because the initial state is now ""
-            placeholder="65" 
+            placeholder="65"
           />
         </div>
 
-        {/* Stats Grid Structure Matching Image 4 */}
+        {/* Stats Grid */}
         <div className="bg-slate-800/50 rounded-xl p-4 grid gap-4 mb-6 border border-slate-700">
-          
-          {/* Top Row: Total Steps & Distance Run */}
+
+          {/* Top Row */}
           <div className="grid grid-cols-2 gap-3 text-center">
             <div className="bg-slate-800 rounded-xl p-4 shadow-sm">
               <p className="text-sm font-medium text-slate-400 mb-1">Total Steps</p>
@@ -224,7 +260,7 @@ export default function MoveTracker() {
             </div>
           </div>
 
-          {/* Bottom Row: Speed, Pace, Burned */}
+          {/* Bottom Row */}
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="bg-slate-800 rounded-xl p-3 flex flex-col justify-center shadow-sm">
               <p className="text-xs font-medium text-slate-400 mb-1">Speed</p>
@@ -242,6 +278,13 @@ export default function MoveTracker() {
               <p className="text-[10px] text-slate-500 mt-1">kcal</p>
             </div>
           </div>
+
+          {/* 🔒 Movement indicator */}
+          {tracking && (
+            <div className={`text-center text-xs font-bold py-1 rounded-lg ${gpsMoving ? "bg-green-900/30 text-green-400" : "bg-slate-800/50 text-slate-500"}`}>
+              {gpsMoving ? "🟢 GPS tracking movement" : "⏸️ Waiting for real movement..."}
+            </div>
+          )}
         </div>
 
         {hint && (
@@ -253,15 +296,14 @@ export default function MoveTracker() {
         <button
           onClick={tracking ? stop : start}
           className={`w-full py-4 rounded-xl font-black text-lg tracking-wide transition-all ${
-            tracking 
-              ? "bg-red-600 hover:bg-red-500 shadow-lg shadow-red-900/20" 
+            tracking
+              ? "bg-red-600 hover:bg-red-500 shadow-lg shadow-red-900/20"
               : "bg-green-600 hover:bg-green-500 shadow-lg shadow-green-900/20"
           }`}
         >
           {tracking ? "⏹ STOP & SAVE" : "▶ START TRACKING"}
         </button>
 
-        {/* Post-Run summary message */}
         {last && (
           <div className="mt-4 bg-slate-950/80 rounded-xl p-4 border border-slate-800">
             <div className="flex justify-between items-center text-sm font-bold text-white mb-2">
