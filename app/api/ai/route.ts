@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
 
+type Provider = {
+  name: string;
+  key?: string;
+  url: string;
+  model?: string;
+  isGemini?: boolean;
+};
+
 export async function POST(req: Request) {
   try {
     const { message, history = [], context = "", mode = "coach", audio } = await req.json();
 
-    // 🎙️ AUDIO MODE (English voice practice)
+    // 🎙️ AUDIO MODE (English voice)
     if (audio && mode === "english") {
       const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
       if (!gKey) return NextResponse.json({ error: "Audio needs Gemini key." }, { status: 503 });
@@ -35,7 +43,6 @@ export async function POST(req: Request) {
 
     if (!message) return NextResponse.json({ error: "No message" }, { status: 400 });
 
-    // Build system prompt based on mode
     let system = "";
     if (mode === "english") {
       system = `You are an expert English language tutor. Rules:
@@ -55,18 +62,17 @@ USER DATA: ${context}`;
       { role: "user", content: message },
     ];
 
-    // ✅ PROVIDER CHAIN — Gemini FIRST (you have the key)
+    // ✅ 4-ENGINE CHAIN: 2 Gemini models + Groq (typed = no build errors)
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    const providers = [
-      ...(gKey ? [{
-        name: "gemini",
-        key: gKey,
-        url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
-        isGemini: true,
-      }] : []),
+    const providers: Provider[] = [
+      ...(gKey
+        ? [
+            { name: "gemini-2.0", key: gKey, url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`, isGemini: true },
+            { name: "gemini-2.5", key: gKey, url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`, isGemini: true },
+          ]
+        : []),
       { name: "groq", key: process.env.GROQ_API_KEY, url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile" },
       { name: "cerebras", key: process.env.CEREBRAS_API_KEY, url: "https://api.cerebras.ai/v1/chat/completions", model: "llama-3.3-70b" },
-      { name: "sambanova", key: process.env.SAMBANOVA_API_KEY, url: "https://api.sambanova.ai/v1/chat/completions", model: "Meta-Llama-3.3-70B-Instruct" },
     ];
 
     const errors: string[] = [];
@@ -82,7 +88,7 @@ USER DATA: ${context}`;
             body: JSON.stringify({
               contents: [
                 { role: "user", parts: [{ text: system }] },
-                ...history.slice(-8).map((h: any) => ({
+                ...history.slice(-8).map((h: { role: string; content: string }) => ({
                   role: h.role === "assistant" ? "model" : "user",
                   parts: [{ text: h.content }],
                 })),
@@ -103,7 +109,7 @@ USER DATA: ${context}`;
             }),
           });
         }
-        
+
         if (res.ok) {
           const d = await res.json();
           const reply = p.isGemini
@@ -113,10 +119,10 @@ USER DATA: ${context}`;
           errors.push(`${p.name}: empty reply`);
         } else {
           const txt = await res.text().catch(() => "");
-          errors.push(`${p.name}: ${res.status} ${txt.slice(0, 80)}`);
+          errors.push(`${p.name}: ${res.status} ${txt.slice(0, 100)}`);
         }
-      } catch (e: any) {
-        errors.push(`${p.name}: ${e?.message || "fetch failed"}`);
+      } catch (e: unknown) {
+        errors.push(`${p.name}: ${e instanceof Error ? e.message : "fetch failed"}`);
       }
     }
 
@@ -124,7 +130,10 @@ USER DATA: ${context}`;
       { error: "All AI engines are resting. Try later!", debug: errors },
       { status: 503 }
     );
-  } catch (e: any) {
-    return NextResponse.json({ error: "Bad request", debug: e?.message }, { status: 400 });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: "Bad request", debug: e instanceof Error ? e.message : "unknown" },
+      { status: 400 }
+    );
   }
 }
