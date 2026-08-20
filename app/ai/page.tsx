@@ -25,6 +25,7 @@ export default function AIPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [left, setLeft] = useState(15);
+  const [failedMsg, setFailedMsg] = useState("");
   const [uid, setUid] = useState("guest");
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -103,11 +104,13 @@ Food eaten: ${eaten} cal (protein ${protein}g) of target ${goals?.calorie_target
           message: msg,
           history: msgs.slice(-8),
           context,
-          mode: "coach", // ← CRITICAL
+          mode: "coach",
         }),
       });
       const d = await res.json();
       const reply = d.reply || "😴 " + (d.error || "AI sleeping.");
+      if (d.reply) setFailedMsg("");
+      else setFailedMsg(msg);
       const withReply = [...next, { role: "assistant" as const, content: reply }];
       setMsgs(withReply);
       localStorage.setItem("dg-ai-chat-" + uid, JSON.stringify(withReply.slice(-50)));
@@ -117,6 +120,7 @@ Food eaten: ${eaten} cal (protein ${protein}g) of target ${goals?.calorie_target
       localStorage.setItem("dg-ai-count-" + uid, JSON.stringify({ date: today, n: count }));
       setLeft(Math.max(0, 15 - count));
     } catch {
+      setFailedMsg(msg);
       setMsgs([...next, { role: "assistant" as const, content: "📡 Network issue. Try again!" }]);
     }
     setLoading(false);
@@ -175,6 +179,19 @@ Food eaten: ${eaten} cal (protein ${protein}g) of target ${goals?.calorie_target
           </button>
         ))}
       </div>
+
+      {failedMsg && !loading && (
+        <button
+          onClick={() => {
+            const m = failedMsg;
+            setFailedMsg("");
+            send(m);
+          }}
+          className="w-full py-2.5 mb-2 rounded-xl bg-amber-600/20 border border-amber-500/40 text-amber-300 text-sm font-bold"
+        >
+          😴 AI didn't respond — 🔄 Tap to try again
+        </button>
+      )}
 
       <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
         <input
