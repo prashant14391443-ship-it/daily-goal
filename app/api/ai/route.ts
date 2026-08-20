@@ -18,7 +18,8 @@ export async function POST(req: Request) {
       if (!gKey) return NextResponse.json({ error: "Audio needs Gemini key." }, { status: 503 });
       try {
         const gm = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
+          // ✅ FIX: Updated from the deprecated 2.0 model to 2.5-flash
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -62,12 +63,11 @@ USER DATA: ${context}`;
       { role: "user", content: message },
     ];
 
-    // ✅ 4-ENGINE CHAIN: 2 Gemini models + Groq (typed = no build errors)
+    // ✅ FIX: Removed the deprecated 2.0 model from the chain
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     const providers: Provider[] = [
       ...(gKey
         ? [
-            { name: "gemini-2.0", key: gKey, url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`, isGemini: true },
             { name: "gemini-2.5", key: gKey, url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`, isGemini: true },
           ]
         : []),
