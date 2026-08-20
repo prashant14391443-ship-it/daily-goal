@@ -36,7 +36,6 @@ export async function POST(req: Request) {
           if (whisperRes.ok) {
             const wd = await whisperRes.json();
             transcription = wd.text || "";
-            console.log("✅ Whisper transcription:", transcription.slice(0, 100));
           } else {
             const errText = await whisperRes.text();
             console.error("❌ Whisper failed:", whisperRes.status, errText.slice(0, 200));
@@ -46,108 +45,101 @@ export async function POST(req: Request) {
         }
       }
 
-      // STEP 2: If we got transcription → correct it with AI
+      // STEP 2: Correct with AI — multi-model fallback chain
       if (transcription && transcription.trim().length > 0) {
-        // ✅ FIXED: System prompt is standalone, transcription goes in USER message
         const systemPrompt = `You are an expert English language tutor helping a student practice speaking.
 Rules:
-1. Find ALL grammar mistakes in their spoken English.
+1. Find ALL grammar and pronunciation mistakes in their spoken English.
 2. List mistakes numbered: 1) ❌ [wrong] -> ✅ [right]
 3. If perfect: "✅ Perfect English!"
 4. Add ONE short friendly reply + ONE simple question.
 5. Keep whole answer under 150 words.`;
-
         const userPrompt = `I said: "${transcription}"\n\nPlease correct my English and give me feedback.`;
+        const errs: string[] = [];
 
-        // TRY GROQ FIRST (14,400/day quota - most reliable)
+        // GROQ — try 3 models in order (in case one is retired)
         if (groqKey) {
-          try {
-            console.log("🤖 Trying Groq Llama for correction...");
-            const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${groqKey}`,
-              },
-              body: JSON.stringify({
-                model: "llama-3.3-70b-versatile",
-                messages: [
-                  { role: "system", content: systemPrompt },
-                  { role: "user", content: userPrompt },
-                ],
-                max_tokens: 400,
-                temperature: 0.7,
-              }),
-            });
-
-            if (groqRes.ok) {
-              const d = await groqRes.json();
-              const reply = d.choices?.[0]?.message?.content;
-              if (reply && reply.trim().length > 0) {
-                console.log("✅ Groq Llama succeeded");
-                return NextResponse.json({
-                  reply,
-                  engine: "groq-whisper+groq-llama",
-                  heard: transcription,
-                });
+          for (const model of ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "llama-3.1-70b-versatile"]) {
+            try {
+              const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
+                body: JSON.stringify({
+                  model,
+                  messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: userPrompt },
+                  ],
+                  max_tokens: 400,
+                  temperature: 0.7,
+                }),
+              });
+              if (r.ok) {
+                const d = await r.json();
+                const reply = d.choices?.[0]?.message?.content;
+                if (reply && reply.trim()) {
+                  return NextResponse.json({ reply, engine: "whisper+" + model, heard: transcription });
+                }
+                errs.push(`${model}: empty reply`);
+              } else {
+                const t = await r.text().catch(() => "");
+                errs.push(`${model}: ${r.status} ${t.slice(0, 80)}`);
               }
-            } else {
-              const errText = await groqRes.text();
-              console.error("❌ Groq failed:", groqRes.status, errText.slice(0, 200));
+            } catch (e: unknown) {
+              errs.push(`${model}: ${e instanceof Error ? e.message : "fetch failed"}`);
             }
-          } catch (e: unknown) {
-            console.error("❌ Groq fetch error:", e instanceof Error ? e.message : "unknown");
           }
+        } else {
+          errs.push("groq: NO KEY");
         }
 
-        // FALLBACK: GEMINI (1500/day quota)
+        // GEMINI — try 2 models in order
         const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
         if (gKey) {
-          try {
-            console.log("🤖 Trying Gemini for correction...");
-            const gm = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  contents: [
-                    { role: "user", parts: [{ text: systemPrompt }] },
-                    { role: "user", parts: [{ text: userPrompt }] },
-                  ],
-                  generationConfig: { maxOutputTokens: 400, temperature: 0.7 },
-                }),
+          for (const model of ["gemini-2.0-flash", "gemini-2.5-flash"]) {
+            try {
+              const r = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gKey}`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    contents: [
+                      { role: "user", parts: [{ text: systemPrompt }] },
+                      { role: "user", parts: [{ text: userPrompt }] },
+                    ],
+                    generationConfig: { maxOutputTokens: 400, temperature: 0.7 },
+                  }),
+                }
+              );
+              if (r.ok) {
+                const d = await r.json();
+                const reply = d.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (reply && reply.trim()) {
+                  return NextResponse.json({ reply, engine: "whisper+" + model, heard: transcription });
+                }
+                errs.push(`${model}: empty reply`);
+              } else {
+                const t = await r.text().catch(() => "");
+                errs.push(`${model}: ${r.status} ${t.slice(0, 80)}`);
               }
-            );
-            if (gm.ok) {
-              const d = await gm.json();
-              const reply = d.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (reply && reply.trim().length > 0) {
-                console.log("✅ Gemini succeeded");
-                return NextResponse.json({
-                  reply,
-                  engine: "groq-whisper+gemini",
-                  heard: transcription,
-                });
-              }
-            } else {
-              const errText = await gm.text();
-              console.error("❌ Gemini failed:", gm.status, errText.slice(0, 200));
+            } catch (e: unknown) {
+              errs.push(`${model}: ${e instanceof Error ? e.message : "fetch failed"}`);
             }
-          } catch (e: unknown) {
-            console.error("❌ Gemini fetch error:", e instanceof Error ? e.message : "unknown");
           }
+        } else {
+          errs.push("gemini: NO KEY");
         }
 
-        // LAST RESORT: Show what we heard with a manual suggestion
+        // LAST RESORT — but NOW returns debug info so user sees the reason!
         return NextResponse.json({
-          reply: `🎤 I heard you say: "${transcription}"\n\n✅ Great job speaking! Practice saying it again slowly and clearly.\n\n❓ What did you mean by this sentence?`,
+          reply: `🎤 I heard you say: "${transcription}"\n\n✅ Great job speaking! Practice saying it again slowly.\n\n🔧 (AI correction unavailable — see debug)`,
           engine: "whisper-manual",
           heard: transcription,
+          debug: errs,
         });
       }
 
-      // No transcription at all
       return NextResponse.json(
         { error: "Could not hear clearly — speak louder for 2+ seconds." },
         { status: 503 }
@@ -179,12 +171,14 @@ USER DATA: ${context}`;
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     const providers: Provider[] = [
       ...(gKey
-        ? [{
-            name: "gemini-2.0",
-            key: gKey,
-            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
-            isGemini: true,
-          }]
+        ? [
+            {
+              name: "gemini-2.0",
+              key: gKey,
+              url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
+              isGemini: true,
+            },
+          ]
         : []),
       { name: "groq", key: process.env.GROQ_API_KEY, url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile" },
       { name: "cerebras", key: process.env.CEREBRAS_API_KEY, url: "https://api.cerebras.ai/v1/chat/completions", model: "llama-3.3-70b" },

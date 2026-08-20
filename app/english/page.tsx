@@ -156,9 +156,10 @@ export default function EnglishPage() {
       });
       const d = await res.json();
       const heard = d.heard ? `🎤 I heard: "${d.heard}"\n\n` : "";
-      const reply = d.reply || "😴 " + (d.error || "Could not hear you.") + (d.debug ? ` [${d.debug.join(" | ")}]` : "");
-      setMsgs((m) => [...m, { role: "assistant" as const, content: heard + reply }]);
-      if (d.reply) bumpLimit();
+      const reply = d.reply || "😴 " + (d.error || "Could not hear you.");
+      const dbg = d.debug && d.debug.length ? `\n\n🔧 DEBUG:\n${d.debug.join("\n")}` : "";
+      setMsgs((m) => [...m, { role: "assistant" as const, content: heard + reply + dbg }]);
+      if (d.reply && !d.debug?.length) bumpLimit();
     } catch {
       setMsgs((m) => [...m, { role: "assistant" as const, content: "📡 Network issue!" }]);
     }
