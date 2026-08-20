@@ -18,8 +18,8 @@ export async function POST(req: Request) {
       if (!gKey) return NextResponse.json({ error: "Audio needs Gemini key." }, { status: 503 });
       try {
         const gm = await fetch(
-          // ✅ FIX: Updated from the deprecated 2.0 model to 2.5-flash
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`,
+          // ✅ FIX: Updated to the active Gemini model
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${gKey}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -63,15 +63,15 @@ USER DATA: ${context}`;
       { role: "user", content: message },
     ];
 
-    // ✅ FIX: Removed the deprecated 2.0 model from the chain
+    // ✅ FIX: Updated model strings for both Gemini and Groq
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     const providers: Provider[] = [
       ...(gKey
         ? [
-            { name: "gemini-2.5", key: gKey, url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey}`, isGemini: true },
+            { name: "gemini-3.7", key: gKey, url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${gKey}`, isGemini: true },
           ]
         : []),
-      { name: "groq", key: process.env.GROQ_API_KEY, url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile" },
+      { name: "groq", key: process.env.GROQ_API_KEY, url: "https://api.groq.com/openai/v1/chat/completions", model: "openai/gpt-oss-20b" },
       { name: "cerebras", key: process.env.CEREBRAS_API_KEY, url: "https://api.cerebras.ai/v1/chat/completions", model: "llama-3.3-70b" },
     ];
 
