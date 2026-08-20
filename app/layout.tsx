@@ -5,7 +5,8 @@ import BottomNav from "./BottomNav";
 import ProfileMenu from "./ProfileMenu";
 import CoinPop from "./CoinPop";
 import NotificationCenter from "./NotificationCenter";
-import OfflineBanner from "@/components/OfflineBanner";
+import OfflineBanner from "@/app/components/OfflineBanner";
+import FeedbackButton from "@/app/components/FeedbackButton";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,18 +30,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-  <head>
-    <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-    <meta name="theme-color" content="#020617" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  </head>
+      <head>
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <meta name="theme-color" content="#020617" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} h-full antialiased pb-16 md:pb-0`}
       >
         <OfflineBanner />
+        <FeedbackButton />
         {children}
         <BottomNav />
         <NotificationCenter />
