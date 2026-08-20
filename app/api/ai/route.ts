@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCached, setCached } from "@/lib/cache";
+import { getCached, setCached, rateLimit } from "@/lib/cache";
 
-// ✅ LIVING MODELS (2026) — old llama-3.x & gemini-2.x are RETIRED
 const GROQ_CHAT = [
   "meta-llama/llama-4-scout-17b-16e-instruct",
   "meta-llama/llama-4-maverick-17b-128e-instruct",
@@ -13,10 +12,21 @@ const GEMINI_MODELS = ["gemini-3.7-flash", "gemini-3-flash-preview", "gemini-2.5
 export async function POST(req: Request) {
   try {
     const { message, history = [], context = "", mode = "coach", audio, mimeType } = await req.json();
+
+    // 🛡️ ABUSE PROTECTION: max 20 AI calls/minute per visitor
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+    const allowed = await rateLimit(`rl:${ip}`, 20, 60);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "⏳ Whoa, slow down! Wait a few seconds and try again." },
+        { status: 429 }
+      );
+    }
+
     const groqKey = process.env.GROQ_API_KEY;
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
-    // 🧠 CHECK CACHE FIRST (for text modes only, not audio)
+    // 🧠 CHECK CACHE FIRST (for text modes only)
     if (!audio && message) {
       const cacheKey = `ai:${mode}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
       const cached = await getCached(cacheKey);
@@ -29,7 +39,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 🎙️ AUDIO MODE (no caching - each audio is unique)
+    // 🎙️ AUDIO MODE
     if (audio && mode === "english") {
       let transcription = "";
 
@@ -138,7 +148,7 @@ Rules:
       return NextResponse.json({ error: "Could not hear clearly — speak louder for 2+ seconds." }, { status: 503 });
     }
 
-    // 📝 TEXT MODE (with caching)
+    // 📝 TEXT MODE
     if (!message) return NextResponse.json({ error: "No message" }, { status: 400 });
 
     let system = "";
@@ -173,7 +183,6 @@ USER DATA: ${context}`;
             const d = await r.json();
             const reply = d.choices?.[0]?.message?.content;
             if (reply) {
-              // 💾 CACHE THE RESPONSE
               const cacheKey = `ai:${mode}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
               await setCached(cacheKey, reply, 3600);
               return NextResponse.json({ reply, engine: model });
@@ -214,7 +223,6 @@ USER DATA: ${context}`;
             const d = await r.json();
             const reply = d.candidates?.[0]?.content?.parts?.[0]?.text;
             if (reply) {
-              // 💾 CACHE THE RESPONSE
               const cacheKey = `ai:${mode}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
               await setCached(cacheKey, reply, 3600);
               return NextResponse.json({ reply, engine: model });

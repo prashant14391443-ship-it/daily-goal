@@ -28,3 +28,14 @@ export async function setCached(key: string, value: string, ttlSeconds: number =
     await r.set(key, value, { ex: ttlSeconds });
   } catch {}
 }
+// 🛡️ Simple rate limiter using same Redis
+export async function rateLimit(key: string, limit: number, windowSec: number): Promise<boolean> {
+  try {
+    const r = getRedis();
+    const n = await r.incr(key);
+    if (n === 1) await r.expire(key, windowSec);
+    return n <= limit;
+  } catch {
+    return true; // Redis down = allow (never break the app)
+  }
+}
