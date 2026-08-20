@@ -23,16 +23,40 @@ export default function EnglishPage() {
 
   const [uid, setUid] = useState("guest");
 
+  // ✅ FIX: Improved session loading and added auth listener to prevent chat/limit leaks
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.auth.getSession();
-      const id = data.session?.user.id || "guest";
-      setUid(id);
-      const c = JSON.parse(localStorage.getItem("dg-eng-count-" + id) || "null");
-      if (c && c.date === new Date().toDateString())
-        setLeft(Math.max(0, 16 - c.n));
+      try {
+        const { data } = await supabase.auth.getSession();
+        const id = data.session?.user.id || "guest";
+        setUid(id);
+        
+        const c = JSON.parse(localStorage.getItem("dg-eng-count-" + id) || "null");
+        if (c && c.date === new Date().toDateString()) {
+          setLeft(Math.max(0, 16 - c.n));
+        } else {
+          setLeft(16);
+        }
+      } catch (e) {
+        console.error("Session load failed", e);
+      }
     };
     load();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUid("guest");
+        setMsgs([]); // Clear chat immediately on logout
+        setLeft(16);
+      } else if (session?.user) {
+        setUid(session.user.id);
+        setMsgs([]); // Clear chat for the new user
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   const speak = (text: string) => {
@@ -43,8 +67,6 @@ export default function EnglishPage() {
     utter.lang = "en-US";
     window.speechSynthesis.speak(utter);
   };
-
-
 
   const useLimit = () => {
     if (left <= 0) {
@@ -82,7 +104,11 @@ export default function EnglishPage() {
         mr.ondataavailable = (e) => chunksRef.current.push(e.data);
         mr.onstop = () => {
           stream.getTracks().forEach((t) => t.stop());
-          const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+          
+          // ✅ FIX: Capture the actual format the browser used (fixes the iPhone/Safari bug)
+          const actualMimeType = mr.mimeType || "audio/webm";
+          const blob = new Blob(chunksRef.current, { type: actualMimeType });
+          
           if (blob.size > 3500000) {
             alert("Recording too long! Max ~60 seconds.");
             return;
@@ -90,7 +116,8 @@ export default function EnglishPage() {
           const reader = new FileReader();
           reader.onloadend = async () => {
             const b64 = String(reader.result).split(",")[1];
-            await sendAudio(b64);
+            // Pass the mimeType to the send function
+            await sendAudio(b64, actualMimeType);
           };
           reader.readAsDataURL(blob);
         };
@@ -101,14 +128,15 @@ export default function EnglishPage() {
       .catch(() => alert("Mic permission denied!"));
   };
 
-  const sendAudio = async (b64: string) => {
+  // ✅ FIX: Accept mimeType as a parameter and send it to the backend
+  const sendAudio = async (b64: string, mimeType: string) => {
     setMsgs((m) => [...m, { role: "user" as const, content: "🎙️ (voice message)" }]);
     setLoading(true);
     try {
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "english", audio: b64 }),
+        body: JSON.stringify({ mode: "english", audio: b64, mimeType: mimeType }),
       });
       const d = await res.json();
       const reply = d.reply || "😴 " + (d.error || "Could not hear you.");

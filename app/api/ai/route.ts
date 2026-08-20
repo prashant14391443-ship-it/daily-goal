@@ -10,7 +10,8 @@ type Provider = {
 
 export async function POST(req: Request) {
   try {
-    const { message, history = [], context = "", mode = "coach", audio } = await req.json();
+    // ✅ FIX 1: Extract mimeType from the frontend request (defaults to webm if not found)
+    const { message, history = [], context = "", mode = "coach", audio, mimeType = "audio/webm" } = await req.json();
 
     // 🎙️ AUDIO MODE (English voice)
     if (audio && mode === "english") {
@@ -18,7 +19,6 @@ export async function POST(req: Request) {
       if (!gKey) return NextResponse.json({ error: "Audio needs Gemini key." }, { status: 503 });
       try {
         const gm = await fetch(
-          // ✅ FIX: Updated to the active Gemini model
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${gKey}`,
           {
             method: "POST",
@@ -26,19 +26,27 @@ export async function POST(req: Request) {
             body: JSON.stringify({
               contents: [{
                 parts: [
-                  { inlineData: { mimeType: "audio/webm", data: audio } },
+                  // ✅ FIX 2: Use the dynamic mimeType so Safari/iPhone audio works!
+                  { inlineData: { mimeType: mimeType, data: audio } },
                   { text: "Listen to this English learner carefully. 1) Write what they said. 2) List ALL grammar AND pronunciation mistakes numbered: 1) ❌ [wrong] -> ✅ [right]. 3) End with one encouraging sentence + one simple question." },
                 ],
               }],
             }),
           }
         );
+        
         if (gm.ok) {
           const d = await gm.json();
           const reply = d.candidates?.[0]?.content?.parts?.[0]?.text;
           if (reply) return NextResponse.json({ reply, engine: "gemini-audio" });
+        } else {
+          // ✅ FIX 3: Log the actual error from Gemini to Vercel if it fails
+          const errorText = await gm.text();
+          console.error("Gemini Audio Error:", gm.status, errorText);
         }
-      } catch {}
+      } catch (err) {
+        console.error("Audio fetch crashed:", err);
+      }
       return NextResponse.json({ error: "Could not hear the audio. Try again." }, { status: 503 });
     }
 
@@ -63,7 +71,6 @@ USER DATA: ${context}`;
       { role: "user", content: message },
     ];
 
-    // ✅ FIX: Updated model strings for both Gemini and Groq
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     const providers: Provider[] = [
       ...(gKey
