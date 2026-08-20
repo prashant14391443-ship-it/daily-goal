@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { SEASON_LEVELS, levelOf, seasonInfo } from "@/lib/seasons";
-import InstallApp from "@/app/components/InstallApp";
+
 
 
 type Profile = { user_id: string; display_name: string; avatar_url: string; is_private: boolean };
@@ -543,7 +543,7 @@ export default function FeedPage() {
           </div>
         </div>
 
-        <InstallApp />
+      
 
         {/* STORIES ROW */}
         <div className="flex gap-4 overflow-x-auto px-4 py-4 border-b border-slate-800 scrollbar-hide">

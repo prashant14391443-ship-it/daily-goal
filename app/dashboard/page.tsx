@@ -3,7 +3,6 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
-import InstallApp from "@/app/components/InstallApp";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -603,7 +602,7 @@ export default function Dashboard() {
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
             <div className="pt-12">
-        <InstallApp />
+       
       </div>
       <div className="flex flex-wrap justify-between items-center mb-8 gap-4">
         <div>

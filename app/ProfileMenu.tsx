@@ -675,5 +675,5 @@ export default function ProfileMenu() {
 
       <FeedbackModal open={fbOpen} onClose={() => setFbOpen(false)} />
     </div>
-  );
+  ); 
 }
