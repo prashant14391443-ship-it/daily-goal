@@ -35,7 +35,7 @@ export default function FeedbackButton() {
       <button
         onClick={() => setOpen(true)}
         title="Send feedback"
-        className="fixed bottom-20 right-4 z-[70] w-12 h-12 rounded-full bg-slate-800 border border-slate-700 text-xl shadow-lg hover:bg-slate-700 transition-colors"
+        className="fixed bottom-20 left-4 z-[70] w-12 h-12 rounded-full bg-slate-800 border border-slate-700 text-xl shadow-lg hover:bg-slate-700 transition-colors"
       >
         💬
       </button>

@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import CoinPill from "@/app/CoinPill";
+import DraggableAIBubble from "@/app/components/DraggableAIBubble";
 
 type Task = { id: string; title: string; completed: boolean };
 type DayStat = { date: string; value: number };
@@ -609,12 +610,7 @@ export default function Dashboard() {
           <h1 className="text-2xl md:text-3xl font-black bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent">
             {greeting}, {userName}! 
           </h1>
-          <Link
-            href="/ai"
-            className="fixed bottom-24 right-4 z-40 w-16 h-16 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 shadow-xl shadow-violet-500/40 flex items-center justify-center text-3xl border-2 border-white/20"
-          >
-            🤖
-          </Link>
+          <DraggableAIBubble />
                     <div
             className={`mt-2 inline-flex items-center gap-3 rounded-xl border px-4 py-2 ${motiveColor}`}
           >
