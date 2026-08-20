@@ -6,7 +6,7 @@ import ProfileMenu from "./ProfileMenu";
 import CoinPop from "./CoinPop";
 import NotificationCenter from "./NotificationCenter";
 import OfflineBanner from "@/app/components/OfflineBanner";
-import FeedbackButton from "@/app/components/FeedbackButton";
+
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,7 +42,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} h-full antialiased pb-16 md:pb-0`}
       >
         <OfflineBanner />
-        <FeedbackButton />
+    
         {children}
         <BottomNav />
         <NotificationCenter />

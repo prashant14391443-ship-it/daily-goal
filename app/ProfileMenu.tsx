@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { recordNotification } from "@/lib/notify";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import FeedbackModal from "@/app/components/FeedbackModal";
 
 function playBeep() {
   try {
@@ -100,6 +101,7 @@ export default function ProfileMenu() {
   const [badgePop, setBadgePop] = useState("");
   const [coinFly, setCoinFly] = useState("");
   const [light, setLight] = useState(false);
+  const [fbOpen, setFbOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const boxRef = useRef<HTMLDivElement>(null);
@@ -643,6 +645,12 @@ export default function ProfileMenu() {
           >
             📊 Weekly Report
           </Link>
+          <button
+            onClick={() => { setOpen(false); setFbOpen(true); }}
+            className="text-sm bg-slate-800 hover:bg-slate-700 transition-colors p-3 rounded-xl font-medium flex items-center gap-2 w-full text-left"
+          >
+            💬 Send Feedback
+          </button>
           {email.toLowerCase() === "prashant14391443@gmail.com" && (
             <Link
               href="/admin"
@@ -653,15 +661,19 @@ export default function ProfileMenu() {
             </Link>
           )}
           <div className="border-t border-slate-800 pt-3 mt-1">
+            
             <button
               onClick={logout}
               className="w-full text-sm bg-red-600/20 hover:bg-red-600/30 text-red-400 transition-colors p-2.5 rounded-xl font-bold"
             >
               Logout
             </button>
+            
           </div>
         </div>
       )}
+
+      <FeedbackModal open={fbOpen} onClose={() => setFbOpen(false)} />
     </div>
   );
 }
