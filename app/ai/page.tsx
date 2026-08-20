@@ -25,15 +25,22 @@ export default function AIPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [left, setLeft] = useState(15);
+  const [uid, setUid] = useState("guest");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    try {
-      setMsgs(JSON.parse(localStorage.getItem("dg-ai-chat") || "[]"));
-      const c = JSON.parse(localStorage.getItem("dg-ai-count") || "null");
-      if (c && c.date === toLocalISO(new Date()))
-        setLeft(Math.max(0, 15 - c.n));
-    } catch {}
+    const load = async () => {
+      const { data } = await supabase.auth.getSession();
+      const id = data.session?.user.id || "guest";
+      setUid(id);
+      try {
+        setMsgs(JSON.parse(localStorage.getItem("dg-ai-chat-" + id) || "[]"));
+        const c = JSON.parse(localStorage.getItem("dg-ai-count-" + id) || "null");
+        if (c && c.date === toLocalISO(new Date()))
+          setLeft(Math.max(0, 15 - c.n));
+      } catch {}
+    };
+    load();
   }, []);
 
   useEffect(() => {
@@ -103,11 +110,11 @@ Food eaten: ${eaten} cal (protein ${protein}g) of target ${goals?.calorie_target
       const reply = d.reply || "😴 " + (d.error || "AI sleeping.");
       const withReply = [...next, { role: "assistant" as const, content: reply }];
       setMsgs(withReply);
-      localStorage.setItem("dg-ai-chat", JSON.stringify(withReply.slice(-50)));
-      const c = JSON.parse(localStorage.getItem("dg-ai-count") || "null");
+      localStorage.setItem("dg-ai-chat-" + uid, JSON.stringify(withReply.slice(-50)));
+      const c = JSON.parse(localStorage.getItem("dg-ai-count-" + uid) || "null");
       const today = toLocalISO(new Date());
       const count = c && c.date === today ? c.n + 1 : 1;
-      localStorage.setItem("dg-ai-count", JSON.stringify({ date: today, n: count }));
+      localStorage.setItem("dg-ai-count-" + uid, JSON.stringify({ date: today, n: count }));
       setLeft(Math.max(0, 15 - count));
     } catch {
       setMsgs([...next, { role: "assistant" as const, content: "📡 Network issue. Try again!" }]);

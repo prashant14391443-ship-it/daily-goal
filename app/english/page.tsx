@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -20,10 +21,18 @@ export default function EnglishPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, loading]);
 
+  const [uid, setUid] = useState("guest");
+
   useEffect(() => {
-    const c = JSON.parse(localStorage.getItem("dg-eng-count") || "null");
-    if (c && c.date === new Date().toDateString())
-      setLeft(Math.max(0, 16 - c.n));
+    const load = async () => {
+      const { data } = await supabase.auth.getSession();
+      const id = data.session?.user.id || "guest";
+      setUid(id);
+      const c = JSON.parse(localStorage.getItem("dg-eng-count-" + id) || "null");
+      if (c && c.date === new Date().toDateString())
+        setLeft(Math.max(0, 16 - c.n));
+    };
+    load();
   }, []);
 
   const speak = (text: string) => {
@@ -49,7 +58,7 @@ export default function EnglishPage() {
     const count = 16 - left + 1;
     setLeft(16 - count);
     localStorage.setItem(
-      "dg-eng-count",
+      "dg-eng-count-" + uid,
       JSON.stringify({ date: new Date().toDateString(), n: count })
     );
   };
