@@ -12,17 +12,16 @@ export async function POST(req: Request) {
   try {
     const { message, history = [], context = "", mode = "coach", audio, mimeType } = await req.json();
 
-    // 🎙️ AUDIO MODE: Groq Whisper transcribes → Gemini TEXT corrects (saves audio quota!)
+    // 🎙️ AUDIO MODE: Groq Whisper transcribes → Gemini OR Groq corrects
     if (audio && mode === "english") {
       const groqKey = process.env.GROQ_API_KEY;
       let transcription = "";
 
+      // STEP 1: Transcribe with Whisper
       if (groqKey && audio.length > 500) {
         try {
-          // Use real mimeType from frontend (fixes iPhone/Safari)
           const actualMime = mimeType || "audio/webm";
           const audioBlob = await fetch(`data:${actualMime};base64,${audio}`).then((r) => r.blob());
-          
           const ext = actualMime.split("/")[1]?.split(";")[0] || "webm";
           const formData = new FormData();
           formData.append("file", audioBlob, `audio.${ext}`);
@@ -37,16 +36,11 @@ export async function POST(req: Request) {
           if (whisperRes.ok) {
             const wd = await whisperRes.json();
             transcription = wd.text || "";
-          } else {
-            const txt = await whisperRes.text().catch(() => "");
-            console.error("Whisper error:", whisperRes.status, txt.slice(0, 200));
           }
-        } catch (e: unknown) {
-          console.error("Whisper fetch failed:", e instanceof Error ? e.message : "unknown");
-        }
+        } catch {}
       }
 
-      // If we got a transcription → use Gemini TEXT quota (1500/day!) instead of audio quota (20/day)
+      // STEP 2: If we got transcription → correct it with AI
       if (transcription && transcription.trim().length > 0) {
         const system = `You are an expert English language tutor. The user spoke this: "${transcription}"
 Rules:
@@ -57,6 +51,7 @@ Rules:
 5. Add ONE short friendly reply + ONE simple question.
 6. Keep whole answer under 150 words.`;
 
+        // TRY GEMINI FIRST (1500/day quota)
         const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
         if (gKey) {
           try {
@@ -82,46 +77,52 @@ Rules:
                 });
               }
             }
-          } catch (e: unknown) {
-            console.error("Gemini text analysis failed:", e instanceof Error ? e.message : "unknown");
-          }
+          } catch {}
         }
 
-        // Fallback: at least show what we heard
+        // FALLBACK: GROQ LLAMA (14,400/day quota - almost unlimited!)
+        if (groqKey) {
+          try {
+            const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${groqKey}`,
+              },
+              body: JSON.stringify({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                  { role: "system", content: system },
+                  { role: "user", content: "Please correct my spoken English above." },
+                ],
+                max_tokens: 400,
+                temperature: 0.7,
+              }),
+            });
+
+            if (groqRes.ok) {
+              const d = await groqRes.json();
+              const reply = d.choices?.[0]?.message?.content;
+              if (reply) {
+                return NextResponse.json({
+                  reply,
+                  engine: "groq-whisper+groq-llama",
+                  heard: transcription,
+                });
+              }
+            }
+          } catch {}
+        }
+
+        // LAST RESORT: At least show what we heard
         return NextResponse.json({
-          reply: `🎤 I heard you say: "${transcription}"\n\n(AI analysis temporarily busy — try again in a moment!)`,
-          engine: "groq-only",
+          reply: `🎤 I heard you say: "${transcription}"\n\n(AI correction temporarily unavailable — try again in a moment!)`,
+          engine: "whisper-only",
           heard: transcription,
         });
       }
 
-      // No transcription — try direct Gemini audio as last resort (uses audio quota)
-      const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-      if (gKey && audio.length > 1000) {
-        try {
-          const gm = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                contents: [{
-                  parts: [
-                    { inlineData: { mimeType: mimeType || "audio/webm", data: audio } },
-                    { text: "Listen to this English learner carefully. 1) Write what they said. 2) List ALL grammar AND pronunciation mistakes numbered: 1) ❌ [wrong] -> ✅ [right]. 3) End with one encouraging sentence + one simple question." },
-                  ],
-                }],
-              }),
-            }
-          );
-          if (gm.ok) {
-            const d = await gm.json();
-            const reply = d.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (reply) return NextResponse.json({ reply, engine: "gemini-audio-fallback" });
-          }
-        } catch {}
-      }
-
+      // No transcription at all
       return NextResponse.json(
         { error: "Could not hear clearly — speak louder for 2+ seconds." },
         { status: 503 }
