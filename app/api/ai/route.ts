@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getCached, setCached } from "@/lib/cache";
 
 // ✅ LIVING MODELS (2026) — old llama-3.x & gemini-2.x are RETIRED
 const GROQ_CHAT = [
@@ -15,7 +16,20 @@ export async function POST(req: Request) {
     const groqKey = process.env.GROQ_API_KEY;
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
-    // 🎙️ AUDIO MODE
+    // 🧠 CHECK CACHE FIRST (for text modes only, not audio)
+    if (!audio && message) {
+      const cacheKey = `ai:${mode}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
+      const cached = await getCached(cacheKey);
+      if (cached) {
+        return NextResponse.json({ 
+          reply: cached, 
+          engine: "cache",
+          fromCache: true 
+        });
+      }
+    }
+
+    // 🎙️ AUDIO MODE (no caching - each audio is unique)
     if (audio && mode === "english") {
       let transcription = "";
 
@@ -124,7 +138,7 @@ Rules:
       return NextResponse.json({ error: "Could not hear clearly — speak louder for 2+ seconds." }, { status: 503 });
     }
 
-    // 📝 TEXT MODE
+    // 📝 TEXT MODE (with caching)
     if (!message) return NextResponse.json({ error: "No message" }, { status: 400 });
 
     let system = "";
@@ -158,7 +172,12 @@ USER DATA: ${context}`;
           if (r.ok) {
             const d = await r.json();
             const reply = d.choices?.[0]?.message?.content;
-            if (reply) return NextResponse.json({ reply, engine: model });
+            if (reply) {
+              // 💾 CACHE THE RESPONSE
+              const cacheKey = `ai:${mode}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
+              await setCached(cacheKey, reply, 3600);
+              return NextResponse.json({ reply, engine: model });
+            }
             errs.push(`${model}: empty`);
           } else {
             const t = await r.text().catch(() => "");
@@ -194,7 +213,12 @@ USER DATA: ${context}`;
           if (r.ok) {
             const d = await r.json();
             const reply = d.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (reply) return NextResponse.json({ reply, engine: model });
+            if (reply) {
+              // 💾 CACHE THE RESPONSE
+              const cacheKey = `ai:${mode}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
+              await setCached(cacheKey, reply, 3600);
+              return NextResponse.json({ reply, engine: model });
+            }
             errs.push(`${model}: empty`);
           } else {
             const t = await r.text().catch(() => "");
