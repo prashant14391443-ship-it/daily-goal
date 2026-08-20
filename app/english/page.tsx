@@ -9,28 +9,27 @@ export default function EnglishPage() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [listening, setListening] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [recSec, setRecSec] = useState(0);
   const [left, setLeft] = useState(16);
+  const [uid, setUid] = useState("guest");
+
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const recogRef = useRef<any>(null);
+  const recTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, loading]);
 
-  const [uid, setUid] = useState("guest");
-
-  // ✅ FIX: Improved session loading and added auth listener to prevent chat/limit leaks
+  // Per-user auth + limit loading
   useEffect(() => {
     const load = async () => {
       try {
         const { data } = await supabase.auth.getSession();
         const id = data.session?.user.id || "guest";
         setUid(id);
-        
         const c = JSON.parse(localStorage.getItem("dg-eng-count-" + id) || "null");
         if (c && c.date === new Date().toDateString()) {
           setLeft(Math.max(0, 16 - c.n));
@@ -44,13 +43,13 @@ export default function EnglishPage() {
     load();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
+      if (event === "SIGNED_OUT") {
         setUid("guest");
-        setMsgs([]); // Clear chat immediately on logout
+        setMsgs([]);
         setLeft(16);
       } else if (session?.user) {
         setUid(session.user.id);
-        setMsgs([]); // Clear chat for the new user
+        setMsgs([]);
       }
     });
 
@@ -62,7 +61,7 @@ export default function EnglishPage() {
   const speak = (text: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const clean = text.replace(/❌|✅|Correction:/g, "");
+    const clean = text.replace(/❌|✅|Correction:|🎤 Heard:/g, "").replace(/"[^"]*"/g, "");
     const utter = new SpeechSynthesisUtterance(clean);
     utter.lang = "en-US";
     window.speechSynthesis.speak(utter);
@@ -89,6 +88,15 @@ export default function EnglishPage() {
     if (recording) {
       mediaRef.current?.stop();
       setRecording(false);
+      if (recTimerRef.current) clearInterval(recTimerRef.current);
+      // If stopped before 2 sec, reject
+      if (recSec < 2) {
+        setMsgs((m) => [
+          ...m,
+          { role: "assistant" as const, content: "⏱️ Recording too short! Hold the mic for at least 2 seconds." },
+        ]);
+        chunksRef.current = [];
+      }
       return;
     }
     if (!useLimit()) return;
@@ -104,19 +112,26 @@ export default function EnglishPage() {
         mr.ondataavailable = (e) => chunksRef.current.push(e.data);
         mr.onstop = () => {
           stream.getTracks().forEach((t) => t.stop());
-          
-          // ✅ FIX: Capture the actual format the browser used (fixes the iPhone/Safari bug)
+          if (recSec < 2) return; // already handled above
           const actualMimeType = mr.mimeType || "audio/webm";
           const blob = new Blob(chunksRef.current, { type: actualMimeType });
-          
           if (blob.size > 3500000) {
-            alert("Recording too long! Max ~60 seconds.");
+            setMsgs((m) => [
+              ...m,
+              { role: "assistant" as const, content: "⏱️ Recording too long! Max ~60 seconds." },
+            ]);
+            return;
+          }
+          if (blob.size < 5000) {
+            setMsgs((m) => [
+              ...m,
+              { role: "assistant" as const, content: "🔇 No sound detected — speak louder next time!" },
+            ]);
             return;
           }
           const reader = new FileReader();
           reader.onloadend = async () => {
             const b64 = String(reader.result).split(",")[1];
-            // Pass the mimeType to the send function
             await sendAudio(b64, actualMimeType);
           };
           reader.readAsDataURL(blob);
@@ -124,11 +139,12 @@ export default function EnglishPage() {
         mr.start();
         mediaRef.current = mr;
         setRecording(true);
+        setRecSec(0);
+        recTimerRef.current = window.setInterval(() => setRecSec((s) => s + 1), 1000);
       })
       .catch(() => alert("Mic permission denied!"));
   };
 
-  // ✅ FIX: Accept mimeType as a parameter and send it to the backend
   const sendAudio = async (b64: string, mimeType: string) => {
     setMsgs((m) => [...m, { role: "user" as const, content: "🎙️ (voice message)" }]);
     setLoading(true);
@@ -136,11 +152,12 @@ export default function EnglishPage() {
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "english", audio: b64, mimeType: mimeType }),
+        body: JSON.stringify({ mode: "english", audio: b64, mimeType }),
       });
       const d = await res.json();
-      const reply = d.reply || "😴 " + (d.error || "Could not hear you.");
-      setMsgs((m) => [...m, { role: "assistant" as const, content: reply }]);
+      const heard = d.heard ? `🎤 I heard: "${d.heard}"\n\n` : "";
+      const reply = d.reply || "😴 " + (d.error || "Could not hear you.") + (d.debug ? ` [${d.debug.join(" | ")}]` : "");
+      setMsgs((m) => [...m, { role: "assistant" as const, content: heard + reply }]);
       if (d.reply) bumpLimit();
     } catch {
       setMsgs((m) => [...m, { role: "assistant" as const, content: "📡 Network issue!" }]);
@@ -193,11 +210,16 @@ export default function EnglishPage() {
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-center">
             <p className="text-4xl mb-2">🎓</p>
             <p className="font-bold mb-1">Practice English without fear!</p>
-            <p className="text-sm text-slate-400">Tap the 🎤 mic and speak, or type. I will correct your mistakes gently.</p>
+            <p className="text-sm text-slate-400">Tap the 🎤 mic and speak for 2+ seconds, or type. I will correct your mistakes gently.</p>
           </div>
         )}
         {msgs.map((m, i) => (
-          <div key={i} className={`max-w-[85%] p-3 rounded-xl text-sm whitespace-pre-wrap ${m.role === "user" ? "justify-self-end bg-blue-600" : "justify-self-start bg-slate-800"}`}>
+          <div
+            key={i}
+            className={`max-w-[85%] p-3 rounded-xl text-sm whitespace-pre-wrap ${
+              m.role === "user" ? "justify-self-end bg-blue-600" : "justify-self-start bg-slate-800"
+            }`}
+          >
             {m.content}
             {m.role === "assistant" && (
               <button onClick={() => speak(m.content)} className="block mt-2 text-[10px] bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded">
@@ -206,16 +228,29 @@ export default function EnglishPage() {
             )}
           </div>
         ))}
-        {loading && <div className="justify-self-start bg-slate-800 p-3 rounded-xl text-sm animate-pulse">🤖 correcting...</div>}
+        {loading && <div className="justify-self-start bg-slate-800 p-3 rounded-xl text-sm animate-pulse">🤖 listening & correcting...</div>}
         <div ref={bottomRef} />
       </div>
 
       <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
-        <button type="button" onClick={toggleRecord} className={`w-14 h-12 rounded-xl font-bold text-xl ${recording ? "bg-red-600 animate-pulse" : "bg-slate-800"}`}>
-          {recording ? "⏹️" : "🎤"}
+        <button
+          type="button"
+          onClick={toggleRecord}
+          className={`h-12 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1 transition-all ${
+            recording ? "bg-red-600 animate-pulse min-w-[70px]" : "bg-slate-800 w-14"
+          }`}
+        >
+          {recording ? <>⏹️ {recSec}s</> : "🎤"}
         </button>
-        <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Speak or type in English..." className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm" />
-        <button disabled={loading} className="px-5 rounded-xl bg-blue-600 font-bold disabled:opacity-50">➤</button>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Speak or type in English..."
+          className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm"
+        />
+        <button disabled={loading} className="px-5 rounded-xl bg-blue-600 font-bold disabled:opacity-50">
+          ➤
+        </button>
       </form>
     </main>
   );
