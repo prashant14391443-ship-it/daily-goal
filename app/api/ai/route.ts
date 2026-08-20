@@ -36,53 +36,33 @@ export async function POST(req: Request) {
           if (whisperRes.ok) {
             const wd = await whisperRes.json();
             transcription = wd.text || "";
+            console.log("✅ Whisper transcription:", transcription.slice(0, 100));
+          } else {
+            const errText = await whisperRes.text();
+            console.error("❌ Whisper failed:", whisperRes.status, errText.slice(0, 200));
           }
-        } catch {}
+        } catch (e: unknown) {
+          console.error("❌ Whisper fetch error:", e instanceof Error ? e.message : "unknown");
+        }
       }
 
       // STEP 2: If we got transcription → correct it with AI
       if (transcription && transcription.trim().length > 0) {
-        const system = `You are an expert English language tutor. The user spoke this: "${transcription}"
+        // ✅ FIXED: System prompt is standalone, transcription goes in USER message
+        const systemPrompt = `You are an expert English language tutor helping a student practice speaking.
 Rules:
-1. Write what they said clearly at the top.
-2. Find ALL grammar mistakes in their spoken English.
-3. List mistakes numbered: 1) ❌ [wrong] -> ✅ [right]
-4. If perfect: "✅ Perfect English!"
-5. Add ONE short friendly reply + ONE simple question.
-6. Keep whole answer under 150 words.`;
+1. Find ALL grammar mistakes in their spoken English.
+2. List mistakes numbered: 1) ❌ [wrong] -> ✅ [right]
+3. If perfect: "✅ Perfect English!"
+4. Add ONE short friendly reply + ONE simple question.
+5. Keep whole answer under 150 words.`;
 
-        // TRY GEMINI FIRST (1500/day quota)
-        const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-        if (gKey) {
-          try {
-            const gm = await fetch(
-              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  contents: [{ role: "user", parts: [{ text: system }] }],
-                  generationConfig: { maxOutputTokens: 400, temperature: 0.7 },
-                }),
-              }
-            );
-            if (gm.ok) {
-              const d = await gm.json();
-              const reply = d.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (reply) {
-                return NextResponse.json({
-                  reply,
-                  engine: "groq-whisper+gemini",
-                  heard: transcription,
-                });
-              }
-            }
-          } catch {}
-        }
+        const userPrompt = `I said: "${transcription}"\n\nPlease correct my English and give me feedback.`;
 
-        // FALLBACK: GROQ LLAMA (14,400/day quota - almost unlimited!)
+        // TRY GROQ FIRST (14,400/day quota - most reliable)
         if (groqKey) {
           try {
+            console.log("🤖 Trying Groq Llama for correction...");
             const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
               method: "POST",
               headers: {
@@ -92,8 +72,8 @@ Rules:
               body: JSON.stringify({
                 model: "llama-3.3-70b-versatile",
                 messages: [
-                  { role: "system", content: system },
-                  { role: "user", content: "Please correct my spoken English above." },
+                  { role: "system", content: systemPrompt },
+                  { role: "user", content: userPrompt },
                 ],
                 max_tokens: 400,
                 temperature: 0.7,
@@ -103,21 +83,66 @@ Rules:
             if (groqRes.ok) {
               const d = await groqRes.json();
               const reply = d.choices?.[0]?.message?.content;
-              if (reply) {
+              if (reply && reply.trim().length > 0) {
+                console.log("✅ Groq Llama succeeded");
                 return NextResponse.json({
                   reply,
                   engine: "groq-whisper+groq-llama",
                   heard: transcription,
                 });
               }
+            } else {
+              const errText = await groqRes.text();
+              console.error("❌ Groq failed:", groqRes.status, errText.slice(0, 200));
             }
-          } catch {}
+          } catch (e: unknown) {
+            console.error("❌ Groq fetch error:", e instanceof Error ? e.message : "unknown");
+          }
         }
 
-        // LAST RESORT: At least show what we heard
+        // FALLBACK: GEMINI (1500/day quota)
+        const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+        if (gKey) {
+          try {
+            console.log("🤖 Trying Gemini for correction...");
+            const gm = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${gKey}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contents: [
+                    { role: "user", parts: [{ text: systemPrompt }] },
+                    { role: "user", parts: [{ text: userPrompt }] },
+                  ],
+                  generationConfig: { maxOutputTokens: 400, temperature: 0.7 },
+                }),
+              }
+            );
+            if (gm.ok) {
+              const d = await gm.json();
+              const reply = d.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (reply && reply.trim().length > 0) {
+                console.log("✅ Gemini succeeded");
+                return NextResponse.json({
+                  reply,
+                  engine: "groq-whisper+gemini",
+                  heard: transcription,
+                });
+              }
+            } else {
+              const errText = await gm.text();
+              console.error("❌ Gemini failed:", gm.status, errText.slice(0, 200));
+            }
+          } catch (e: unknown) {
+            console.error("❌ Gemini fetch error:", e instanceof Error ? e.message : "unknown");
+          }
+        }
+
+        // LAST RESORT: Show what we heard with a manual suggestion
         return NextResponse.json({
-          reply: `🎤 I heard you say: "${transcription}"\n\n(AI correction temporarily unavailable — try again in a moment!)`,
-          engine: "whisper-only",
+          reply: `🎤 I heard you say: "${transcription}"\n\n✅ Great job speaking! Practice saying it again slowly and clearly.\n\n❓ What did you mean by this sentence?`,
+          engine: "whisper-manual",
           heard: transcription,
         });
       }
