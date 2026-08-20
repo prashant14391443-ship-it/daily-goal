@@ -13,15 +13,45 @@ export default function EnglishPage() {
   const [recSec, setRecSec] = useState(0);
   const [left, setLeft] = useState(16);
   const [uid, setUid] = useState("guest");
+  const [micReady, setMicReady] = useState(false);
+  const [micLoading, setMicLoading] = useState(false);
 
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const recTimerRef = useRef<number | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, loading]);
+
+  // ✅ PRE-INITIALIZE MIC on page load — so first click works instantly
+  useEffect(() => {
+    const initMic = async () => {
+      if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
+      try {
+        // Request permission and open the audio track early
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        micStreamRef.current = stream;
+        // Keep stream alive but muted (browser remembers permission)
+        setMicReady(true);
+        // Stop tracks after 100ms just to release — browser already granted permission
+        setTimeout(() => {
+          stream.getTracks().forEach((t) => t.stop());
+          micStreamRef.current = null;
+        }, 100);
+      } catch (e) {
+        console.log("Mic init deferred — will ask on first click");
+      }
+    };
+    initMic();
+    return () => {
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
 
   // Per-user auth + limit loading
   useEffect(() => {
@@ -84,12 +114,12 @@ export default function EnglishPage() {
     );
   };
 
-  const toggleRecord = () => {
+  const toggleRecord = async () => {
+    // Stop if currently recording
     if (recording) {
       mediaRef.current?.stop();
       setRecording(false);
       if (recTimerRef.current) clearInterval(recTimerRef.current);
-      // If stopped before 2 sec, reject
       if (recSec < 2) {
         setMsgs((m) => [
           ...m,
@@ -99,50 +129,67 @@ export default function EnglishPage() {
       }
       return;
     }
+
     if (!useLimit()) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       alert("Mic not supported on this browser!");
       return;
     }
-    navigator.mediaDevices
-      .getUserMedia({ audio: true })
-      .then((stream) => {
-        const mr = new MediaRecorder(stream);
-        chunksRef.current = [];
-        mr.ondataavailable = (e) => chunksRef.current.push(e.data);
-        mr.onstop = () => {
-          stream.getTracks().forEach((t) => t.stop());
-          if (recSec < 2) return; // already handled above
-          const actualMimeType = mr.mimeType || "audio/webm";
-          const blob = new Blob(chunksRef.current, { type: actualMimeType });
-          if (blob.size > 3500000) {
-            setMsgs((m) => [
-              ...m,
-              { role: "assistant" as const, content: "⏱️ Recording too long! Max ~60 seconds." },
-            ]);
-            return;
-          }
-          if (blob.size < 5000) {
-            setMsgs((m) => [
-              ...m,
-              { role: "assistant" as const, content: "🔇 No sound detected — speak louder next time!" },
-            ]);
-            return;
-          }
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const b64 = String(reader.result).split(",")[1];
-            await sendAudio(b64, actualMimeType);
-          };
-          reader.readAsDataURL(blob);
+
+    // ✅ Ensure mic is ready before recording (handles first-click permission)
+    if (!micReady) {
+      setMicLoading(true);
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        setMicReady(true);
+      } catch {
+        alert("🎤 Mic permission denied! Please allow microphone access.");
+        setMicLoading(false);
+        return;
+      }
+      setMicLoading(false);
+    }
+
+    // Now start recording — mic is already warmed up
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => chunksRef.current.push(e.data);
+      mr.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (recSec < 2) return; // already handled above
+        const actualMimeType = mr.mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: actualMimeType });
+        if (blob.size > 3500000) {
+          setMsgs((m) => [
+            ...m,
+            { role: "assistant" as const, content: "⏱️ Recording too long! Max ~60 seconds." },
+          ]);
+          return;
+        }
+        if (blob.size < 5000) {
+          setMsgs((m) => [
+            ...m,
+            { role: "assistant" as const, content: "🔇 No sound detected — speak louder next time!" },
+          ]);
+          return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          const b64 = String(reader.result).split(",")[1];
+          await sendAudio(b64, actualMimeType);
         };
-        mr.start();
-        mediaRef.current = mr;
-        setRecording(true);
-        setRecSec(0);
-        recTimerRef.current = window.setInterval(() => setRecSec((s) => s + 1), 1000);
-      })
-      .catch(() => alert("Mic permission denied!"));
+        reader.readAsDataURL(blob);
+      };
+      mr.start();
+      mediaRef.current = mr;
+      setRecording(true);
+      setRecSec(0);
+      recTimerRef.current = window.setInterval(() => setRecSec((s) => s + 1), 1000);
+    } catch {
+      alert("🎤 Could not start recording. Check mic permissions.");
+    }
   };
 
   const sendAudio = async (b64: string, mimeType: string) => {
@@ -212,6 +259,11 @@ export default function EnglishPage() {
             <p className="text-4xl mb-2">🎓</p>
             <p className="font-bold mb-1">Practice English without fear!</p>
             <p className="text-sm text-slate-400">Tap the 🎤 mic and speak for 2+ seconds, or type. I will correct your mistakes gently.</p>
+            {!micReady && (
+              <p className="text-xs text-amber-400 mt-3 animate-pulse">
+                🎤 Initializing microphone...
+              </p>
+            )}
           </div>
         )}
         {msgs.map((m, i) => (
@@ -237,11 +289,12 @@ export default function EnglishPage() {
         <button
           type="button"
           onClick={toggleRecord}
-          className={`h-12 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1 transition-all ${
+          disabled={micLoading}
+          className={`h-12 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
             recording ? "bg-red-600 animate-pulse min-w-[70px]" : "bg-slate-800 w-14"
           }`}
         >
-          {recording ? <>⏹️ {recSec}s</> : "🎤"}
+          {micLoading ? "..." : recording ? <>⏹️ {recSec}s</> : "🎤"}
         </button>
         <input
           value={input}
