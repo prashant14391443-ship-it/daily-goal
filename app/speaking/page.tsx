@@ -3,7 +3,16 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
-type Msg = { role: "user" | "assistant"; content: string };
+// ✅ Type definition remains the same
+type Msg = { 
+  role: "user" | "assistant"; 
+  content: string;
+  data?: {
+    scores?: { total: number; accuracy: number; expression: number; fluency: number };
+    grammar_corrections?: { wrong: string; right: string; explanation: string }[];
+    vocabulary_upgrades?: { basic_phrase: string; advanced_phrase: string }[];
+  }
+};
 
 const TOPICS = [
   { emoji: "🛒", title: "Buying Groceries" },
@@ -17,6 +26,19 @@ const TOPICS = [
   { emoji: "🏏", title: "Sports & Fitness" },
   { emoji: "🎬", title: "Movies & Music" },
 ];
+
+function Bar({ label, val, max, color }: { label: string; val: number; max: number; color: string }) {
+  const pct = Math.min(100, Math.max(0, (val / max) * 100));
+  return (
+    <div className="flex items-center gap-2 text-[10px]">
+      <span className="w-12 text-slate-400">{label}</span>
+      <div className="flex-1 bg-slate-800 h-2 rounded-full overflow-hidden">
+        <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="w-6 text-right font-bold">{val}</span>
+    </div>
+  );
+}
 
 export default function SpeakingPage() {
   const [topic, setTopic] = useState<string | null>(null);
@@ -34,7 +56,7 @@ export default function SpeakingPage() {
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recTimerRef = useRef<number | null>(null);
-  const recSecRef = useRef(0); // ✅ accurate timer (no stale closure)
+  const recSecRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,7 +70,6 @@ export default function SpeakingPage() {
     load();
   }, []);
 
-  // ✅ PRE-WARM MIC on page load → first tap records instantly
   useEffect(() => {
     const initMic = async () => {
       if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
@@ -138,7 +159,7 @@ export default function SpeakingPage() {
       const d = await res.json();
       const heard = d.heard ? `🎤 "${d.heard}"\n\n` : "";
       const reply = d.reply || "😴 " + (d.error || "Could not hear you.");
-      setMsgs((m) => [...m, { role: "assistant", content: heard + reply }]);
+      setMsgs((m) => [...m, { role: "assistant", content: heard + reply, data: d.structured || undefined }]);
       if (d.reply && !d.debug?.length) {
         bumpLimit();
         speak(d.reply);
@@ -154,7 +175,7 @@ export default function SpeakingPage() {
     if (!msg || loading) return;
     if (!useLimit()) return;
     setInput("");
-    const next = [...msgs, { role: "user" as const, content: msg }];
+    const next: Msg[] = [...msgs, { role: "user", content: msg }];
     setMsgs(next);
     setLoading(true);
     try {
@@ -165,13 +186,13 @@ export default function SpeakingPage() {
       });
       const d = await res.json();
       const reply = d.reply || "😴 " + (d.error || "AI sleeping.");
-      setMsgs([...next, { role: "assistant" as const, content: reply }]);
+      setMsgs([...next, { role: "assistant", content: reply, data: d.structured || undefined }]);
       if (d.reply) {
         bumpLimit();
         if (mode === "call") speak(d.reply);
       }
     } catch {
-      setMsgs([...next, { role: "assistant" as const, content: "📡 Network issue!" }]);
+      setMsgs([...next, { role: "assistant", content: "📡 Network issue!" }]);
     }
     setLoading(false);
   };
@@ -197,7 +218,7 @@ export default function SpeakingPage() {
       mr.ondataavailable = (e) => chunksRef.current.push(e.data);
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        if (recSecRef.current < 2) return; // ✅ accurate check
+        if (recSecRef.current < 2) return; 
         const mime = mr.mimeType || "audio/webm";
         const blob = new Blob(chunksRef.current, { type: mime });
         if (blob.size < 5000 || blob.size > 3500000) return;
@@ -283,6 +304,32 @@ export default function SpeakingPage() {
         {msgs.map((m, i) => (
           <div key={i} className={`max-w-[85%] p-3 rounded-xl text-sm whitespace-pre-wrap ${m.role === "user" ? "justify-self-end bg-emerald-600" : "justify-self-start bg-slate-800"}`}>
             {m.content}
+            {m.role === "assistant" && m.data && (
+              <div className="mt-2 grid gap-2">
+                <div className="flex items-center gap-3 bg-slate-900 rounded-xl p-2">
+                  {/* ✅ FIXED: Used fallback to 0 to prevent undefined math errors */}
+                  <div className={`w-12 h-12 rounded-full border-4 flex items-center justify-center font-black ${(m.data.scores?.total ?? 0) >= 70 ? "border-emerald-500 text-emerald-400" : (m.data.scores?.total ?? 0) >= 40 ? "border-amber-500 text-amber-400" : "border-red-500 text-red-400"}`}>
+                    {m.data.scores?.total}
+                  </div>
+                  <div className="flex-1 grid gap-1">
+                    <Bar label="Accuracy" val={m.data.scores?.accuracy ?? 0} max={40} color="bg-emerald-500" />
+                    <Bar label="Express." val={m.data.scores?.expression ?? 0} max={30} color="bg-blue-500" />
+                    <Bar label="Fluency" val={m.data.scores?.fluency ?? 0} max={30} color="bg-amber-500" />
+                  </div>
+                </div>
+                {m.data.grammar_corrections?.map((g: any, i: number) => (
+                  <div key={i} className="bg-slate-900 rounded-lg p-2 text-xs">
+                    <p><span className="text-red-400 line-through">{g.wrong}</span> → <span className="text-emerald-400">{g.right}</span></p>
+                    <p className="text-slate-400 text-[10px]">{g.explanation}</p>
+                  </div>
+                ))}
+                {m.data.vocabulary_upgrades?.map((v: any, i: number) => (
+                  <div key={i} className="bg-slate-900 rounded-lg p-2 text-xs">
+                    <span className="text-slate-300">{v.basic_phrase}</span> → <span className="text-violet-400 font-bold">{v.advanced_phrase}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {m.role === "assistant" && mode === "chat" && (
               <button onClick={() => speak(m.content)} className="block mt-2 text-[10px] bg-slate-700 px-2 py-1 rounded">🔊 Listen</button>
             )}
