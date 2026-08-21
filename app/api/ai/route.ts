@@ -28,7 +28,7 @@ export async function POST(req: Request) {
 
     // 🧠 CHECK CACHE FIRST (for text modes only)
     if (!audio && message) {
-      const cacheKey = `ai:${mode}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
+      const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
       const cached = await getCached(cacheKey);
       if (cached) {
         return NextResponse.json({ 
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     }
 
     // 🎙️ AUDIO MODE
-    if (audio && mode === "english") {
+    if (audio && (mode === "english" || mode === "call")) {
       let transcription = "";
 
       if (groqKey && audio.length > 500) {
@@ -64,7 +64,13 @@ export async function POST(req: Request) {
       }
 
       if (transcription && transcription.trim().length > 0) {
-        const systemPrompt = `You are an expert English language tutor helping a student practice speaking.
+        const systemPrompt = mode === "call"
+          ? `You are "Aria", a friendly human on a voice call. TOPIC: ${topic || "daily life"}
+Rules:
+1. If the student made a mistake, add ONE short line first: "Quick fix: ❌ ... -> ✅ ..."
+2. Then reply naturally in 1-2 sentences and ask ONE follow-up question about the topic.
+3. Plain text, MAX 3 sentences total.`
+          : `You are an expert English language tutor helping a student practice speaking.
 Rules:
 1. Find ALL grammar and pronunciation mistakes in their spoken English.
 2. List mistakes numbered: 1) ❌ [wrong] -> ✅ [right]
@@ -192,7 +198,7 @@ USER DATA: ${context}`;
             const d = await r.json();
             const reply = d.choices?.[0]?.message?.content;
             if (reply) {
-              const cacheKey = `ai:${mode}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
+              const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
               await setCached(cacheKey, reply, 3600);
               return NextResponse.json({ reply, engine: model });
             }
@@ -232,7 +238,7 @@ USER DATA: ${context}`;
             const d = await r.json();
             const reply = d.candidates?.[0]?.content?.parts?.[0]?.text;
             if (reply) {
-              const cacheKey = `ai:${mode}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
+              const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
               await setCached(cacheKey, reply, 3600);
               return NextResponse.json({ reply, engine: model });
             }

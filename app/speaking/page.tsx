@@ -97,7 +97,7 @@ export default function SpeakingPage() {
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "call", topic, message: "Start the conversation. Greet me warmly and ask the first question.", history: [] }),
+        body: JSON.stringify({ mode: "call", topic, message: `Start the conversation about "${topic}". Greet me warmly and ask the first question.`, history: [] }),
       });
       const d = await res.json();
       if (d.reply) {
