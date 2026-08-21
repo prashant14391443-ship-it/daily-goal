@@ -15,14 +15,13 @@ export default function EnglishPage() {
   const [uid, setUid] = useState("guest");
   const [micReady, setMicReady] = useState(false);
   const [micLoading, setMicLoading] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false); // Track if audio is playing
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const recTimerRef = useRef<number | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null); // Reference for human voice
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -83,37 +82,31 @@ export default function EnglishPage() {
     return () => authListener.subscription.unsubscribe();
   }, []);
 
-  // ✅ NEW: Human-like Neural TTS function
-  const speak = async (text: string) => {
-    if (!text) return;
+  // ✅ Browser TTS - FREE, no API needed!
+  const speak = (text: string) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
     
-    // Stop any currently playing audio before starting new one
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-
+    window.speechSynthesis.cancel();
     setIsPlaying(true);
-    const clean = text.replace(/❌|✅|Correction:|🎤 Heard:/g, "").replace(/"[^"]*"/g, "");
     
-    try {
-      // Calls a new backend route that generates the human voice
-      const res = await fetch("/api/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: clean }),
-      });
-      
-      const audioBlob = await res.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      audioRef.current = audio;
-      
-      audio.onended = () => setIsPlaying(false);
-      await audio.play();
-    } catch (e) {
-      console.error("Voice playback failed", e);
-      setIsPlaying(false);
-    }
+    const clean = text.replace(/❌|✅|Correction:|🎤 Heard:/g, "").replace(/"[^"]*"/g, "");
+    const utter = new SpeechSynthesisUtterance(clean);
+    utter.lang = "en-US";
+    utter.rate = 0.95;
+    utter.pitch = 1.0;
+    
+    const voices = window.speechSynthesis.getVoices();
+    const femaleVoice = voices.find(v => 
+      v.lang.startsWith("en") && 
+      (v.name.includes("Female") || v.name.includes("Samantha") || v.name.includes("Google"))
+    );
+    if (femaleVoice) utter.voice = femaleVoice;
+    
+    utter.onstart = () => setIsPlaying(true);
+    utter.onend = () => setIsPlaying(false);
+    utter.onerror = () => setIsPlaying(false);
+    
+    window.speechSynthesis.speak(utter);
   };
 
   const useLimit = () => {
@@ -142,11 +135,8 @@ export default function EnglishPage() {
       return;
     }
 
-    // Auto-stop AI voice if the user interrupts and starts speaking
-    if (audioRef.current) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    }
+    window.speechSynthesis.cancel();
+    setIsPlaying(false);
 
     if (!useLimit()) return;
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -214,7 +204,7 @@ export default function EnglishPage() {
       
       if (d.reply && !d.debug?.length) {
         bumpLimit();
-        speak(d.reply); // ✅ Auto-play the human voice response
+        speak(d.reply);
       }
     } catch {
       setMsgs((m) => [...m, { role: "assistant" as const, content: "📡 Network issue!" }]);
@@ -228,11 +218,8 @@ export default function EnglishPage() {
     if (!msg || loading) return;
     setInput("");
     
-    // Stop audio if user types to interrupt
-    if (audioRef.current) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    }
+    window.speechSynthesis.cancel();
+    setIsPlaying(false);
 
     const next = [...msgs, { role: "user" as const, content: msg }];
     setMsgs(next);
@@ -251,7 +238,7 @@ export default function EnglishPage() {
       
       if (d.reply) {
         bumpLimit();
-        speak(d.reply); // ✅ Auto-play the human voice response
+        speak(d.reply);
       }
     } catch {
       setMsgs([...next, { role: "assistant" as const, content: "📡 Network issue!" }]);
@@ -263,13 +250,32 @@ export default function EnglishPage() {
     <main className="h-screen bg-slate-950 text-white flex flex-col p-4 md:p-8 pb-24">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-black">🗣️ English Practice {isPlaying && "🔊"}</h1>
-        {/* Header content unchanged */}
+        <div className="flex items-center gap-3">
+          <span className="text-xs bg-blue-600/20 border border-blue-500/40 text-blue-300 px-2 py-1 rounded-lg font-bold">
+            {left}/16 free
+          </span>
+          <button onClick={() => setMsgs([])} className="text-xs bg-slate-800 border border-slate-700 px-2 py-1 rounded-lg">
+            🗑️ Clear
+          </button>
+          <Link href="/community" className="text-sm text-slate-400 hover:text-white">← Back</Link>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto grid gap-3 content-start">
-        {/* Messages map unchanged */}
+        {msgs.length === 0 && (
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-center">
+            <p className="text-4xl mb-2">🎓</p>
+            <p className="font-bold mb-1">Practice English without fear!</p>
+            <p className="text-sm text-slate-400">Tap the 🎤 mic and speak for 2+ seconds, or type. I will correct your mistakes gently.</p>
+          </div>
+        )}
         {msgs.map((m, i) => (
-          <div key={i} className={`max-w-[85%] p-3 rounded-xl text-sm whitespace-pre-wrap ${ m.role === "user" ? "justify-self-end bg-blue-600" : "justify-self-start bg-slate-800" }`}>
+          <div
+            key={i}
+            className={`max-w-[85%] p-3 rounded-xl text-sm whitespace-pre-wrap ${
+              m.role === "user" ? "justify-self-end bg-blue-600" : "justify-self-start bg-slate-800"
+            }`}
+          >
             {m.content}
             {m.role === "assistant" && (
               <button onClick={() => speak(m.content)} className="block mt-2 text-[10px] bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded">
@@ -282,9 +288,26 @@ export default function EnglishPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input form unchanged */}
       <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
-         {/* Buttons and input unchanged */}
+        <button
+          type="button"
+          onClick={toggleRecord}
+          disabled={micLoading}
+          className={`h-12 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+            recording ? "bg-red-600 animate-pulse min-w-[70px]" : "bg-slate-800 w-14"
+          }`}
+        >
+          {micLoading ? "..." : recording ? <>⏹️ {recSec}s</> : "🎤"}
+        </button>
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Speak or type in English..."
+          className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm"
+        />
+        <button disabled={loading} className="px-5 rounded-xl bg-blue-600 font-bold disabled:opacity-50">
+          ➤
+        </button>
       </form>
     </main>
   );
