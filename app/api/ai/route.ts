@@ -17,19 +17,22 @@ Rules:
 3. Then reply naturally in 1-2 sentences and ask ONE simple follow-up question about the topic.
 4. Plain text only, no markdown, MAX 3 sentences total.`;
 
-// ✅ LINE-FORMAT PROMPT (models NEVER break this — no JSON)
-const EVAL_PROMPT = `You are an expert, empathetic English language tutor. The user provides a transcription of what they said. Evaluate it and reply in EXACTLY this line format (one item per line, no extra text, no quotation marks, no emojis):
+// ✅ GOOGLE-LEVEL PROMPT: pronunciation + corrected version + 6 mistakes
+const EVAL_PROMPT = `You are an expert, strict-but-kind English language tutor. The user provides a transcription of what they said. Find EVERY grammar, phrasing, word-choice and pronunciation mistake (be thorough — up to 6 mistakes, like a professional teacher). Reply in EXACTLY this line format (one item per line, no extra text, no quotation marks, no emojis):
+CORRECTED: <the complete corrected version of their full text>
 TOTAL: <0-100>
-ACCURACY: <0-40>
-EXPRESSION: <0-30>
-FLUENCY: <0-30>
-MISTAKE: <their wrong phrase> -> <correction> | <brief reason>
-MISTAKE: ... (one line per mistake, max 4, omit if none)
+ACCURACY: <0-30>
+PRONUNCIATION: <0-20>
+EXPRESSION: <0-25>
+FLUENCY: <0-25>
+MISTAKE: <their exact wrong phrase> -> <correction> | <brief reason>
+MISTAKE: ... (one line per mistake, up to 6, omit if none)
 UPGRADE: <basic phrase> -> <more natural phrase>
 UPGRADE: ... (max 2, omit if none)
-REPLY: <friendly spoken feedback under 40 words, no emojis, no quotes, ends with encouragement>`;
+REPLY: <friendly spoken feedback under 40 words, no emojis, no quotes>
+Scoring guide: ACCURACY = grammar correctness; PRONUNCIATION = how clearly words were spoken (judge from misheard or odd-sounding words in the transcription); EXPRESSION = vocabulary range; FLUENCY = natural flow and rhythm.`;
 
-// ✅ LINE-FORMAT parser (100% reliable)
+// ✅ GOOGLE-LEVEL parser: pronunciation + corrected version
 function parseEvalText(txt: string): any {
   try {
     if (!txt) return null;
@@ -42,11 +45,14 @@ function parseEvalText(txt: string): any {
       const n = m ? parseInt(m[0], 10) : 0;
       return Math.min(max, Math.max(0, n));
     };
-    const accuracy = num("ACCURACY", 40);
-    const expression = num("EXPRESSION", 30);
-    const fluency = num("FLUENCY", 30);
+    const accuracy = num("ACCURACY", 30);
+    const pronunciation = num("PRONUNCIATION", 20);
+    const expression = num("EXPRESSION", 25);
+    const fluency = num("FLUENCY", 25);
     let total = num("TOTAL", 100);
-    if (!total) total = accuracy + expression + fluency;
+    if (!total) total = accuracy + pronunciation + expression + fluency;
+    const correctedLine = get("CORRECTED");
+    const corrected = correctedLine ? correctedLine.slice(correctedLine.indexOf(":") + 1).trim() : "";
     const corrections = lines
       .filter((l) => l.toUpperCase().startsWith("MISTAKE:"))
       .map((l) => {
@@ -68,7 +74,8 @@ function parseEvalText(txt: string): any {
     const reply = replyLine ? replyLine.slice(replyLine.indexOf(":") + 1).trim() : "";
     if (!total && !reply) return null;
     return {
-      scores: { accuracy, expression, fluency, total },
+      scores: { accuracy, pronunciation, expression, fluency, total },
+      corrected_version: corrected,
       grammar_corrections: corrections,
       vocabulary_upgrades: upgrades,
       ai_spoken_reply: reply || "Good try! Keep practicing daily.",
@@ -141,7 +148,7 @@ export async function POST(req: Request) {
           return NextResponse.json({ reply, heard: transcription, score });
         }
 
-        // 📊 SPEAKING TEST: full report card
+        // 📊 SPEAKING TEST: full report card with pronunciation
         if (mode === "evaluate") {
           const errs: string[] = [];
 
@@ -157,7 +164,7 @@ export async function POST(req: Request) {
                       { role: "system", content: EVAL_PROMPT },
                       { role: "user", content: `The user said: "${transcription}"` },
                     ],
-                    max_tokens: 700,
+                    max_tokens: 800,
                     temperature: 0.5,
                   }),
                 });
@@ -228,7 +235,8 @@ export async function POST(req: Request) {
                     reply: fReply,
                     heard: transcription,
                     structured: {
-                      scores: { accuracy: 24, expression: 18, fluency: 18, total: 60 },
+                      scores: { accuracy: 18, pronunciation: 12, expression: 15, fluency: 15, total: 60 },
+                      corrected_version: "",
                       grammar_corrections: [],
                       vocabulary_upgrades: [],
                       ai_spoken_reply: "Good try! Read the written feedback below and try again.",

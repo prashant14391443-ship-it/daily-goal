@@ -171,6 +171,13 @@ export default function EvaluatePage() {
               <p className="italic">"{heard}"</p>
             </div>
           )}
+                    {result.corrected_version && (
+            <div className="bg-slate-900 border border-emerald-500/40 rounded-xl p-3 text-sm">
+              <p className="text-xs text-emerald-400 font-bold mb-1">✅ Corrected Version:</p>
+              <p>{result.corrected_version}</p>
+            </div>
+          )}
+
 
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
             <div className="flex items-center gap-4">
@@ -178,9 +185,10 @@ export default function EvaluatePage() {
                 {s?.total}
               </div>
               <div className="flex-1 grid gap-2">
-                <Bar label="Accuracy" val={s?.accuracy || 0} max={40} color="bg-emerald-500" />
-                <Bar label="Expression" val={s?.expression || 0} max={30} color="bg-blue-500" />
-                <Bar label="Fluency" val={s?.fluency || 0} max={30} color="bg-amber-500" />
+                <Bar label="Accuracy" val={s?.accuracy || 0} max={30} color="bg-emerald-500" />
+                <Bar label="Pronun." val={s?.pronunciation || 0} max={20} color="bg-pink-500" />
+                <Bar label="Expression" val={s?.expression || 0} max={25} color="bg-blue-500" />
+                <Bar label="Fluency" val={s?.fluency || 0} max={25} color="bg-amber-500" />
               </div>
             </div>
             <p className="text-center text-xs text-slate-400 mt-3">
