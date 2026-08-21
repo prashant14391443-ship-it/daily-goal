@@ -11,7 +11,7 @@ const GEMINI_MODELS = ["gemini-3.7-flash", "gemini-3-flash-preview", "gemini-2.5
 
 export async function POST(req: Request) {
   try {
-    const { message, history = [], context = "", mode = "coach", audio, mimeType } = await req.json();
+    const { message, history = [], context = "", mode = "coach", audio, mimeType, topic } = await req.json();
 
     // 🛡️ ABUSE PROTECTION: max 20 AI calls/minute per visitor
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
@@ -152,7 +152,16 @@ Rules:
     if (!message) return NextResponse.json({ error: "No message" }, { status: 400 });
 
     let system = "";
-    if (mode === "english") {
+    if (mode === "call") {
+      system = `You are "Aria", a friendly human conversation partner on a voice call with a student practicing English.
+TOPIC: ${topic || "daily life"}
+Rules:
+1. Sound warm and natural — like a real friend on the phone.
+2. Keep replies MAX 2-3 sentences.
+3. If the student made a grammar mistake, add ONE short line first: "Quick fix: ❌ ... -> ✅ ..." (only the biggest mistake).
+4. Always end with ONE simple follow-up question about the topic.
+5. Plain text only, no markdown.`;
+    } else if (mode === "english") {
       system = `You are an expert English language tutor. Rules:
 1. Find ALL mistakes (grammar, spelling, word order, missing words).
 2. List EVERY mistake numbered: 1) ❌ [wrong] -> ✅ [right]

@@ -260,7 +260,13 @@ export default function EnglishPage() {
           <Link href="/community" className="text-sm text-slate-400 hover:text-white">← Back</Link>
         </div>
       </div>
-
+      <Link href="/speaking" className="mb-3 flex items-center gap-3 bg-gradient-to-r from-emerald-600/20 to-teal-600/20 border border-emerald-500/40 rounded-xl p-3">
+        <span className="text-2xl">🎙️</span>
+        <span>
+          <span className="block text-sm font-bold text-emerald-300">Speaking Club — NEW!</span>
+          <span className="block text-xs text-slate-400">Real voice CALL with AI on any topic</span>
+        </span>
+      </Link>
       <div className="flex-1 overflow-y-auto grid gap-3 content-start">
         {msgs.length === 0 && (
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-center">
