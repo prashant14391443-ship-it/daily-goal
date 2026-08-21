@@ -121,7 +121,8 @@ export default function EvaluatePage() {
         bumpLimit();
         if (d.reply) speak(d.reply);
       } else {
-        alert("😴 " + (d.error || "Could not evaluate — try again!"));
+        const dbg = d.debug ? `\n\nDEBUG:\n${d.debug.join("\n")}` : "";
+        alert("😴 " + (d.error || "Could not evaluate — try again!") + dbg);
       }
     } catch {
       alert("📡 Network issue!");

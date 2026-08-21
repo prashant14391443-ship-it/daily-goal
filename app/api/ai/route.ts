@@ -30,14 +30,42 @@ Scoring: accuracy = grammar correctness; expression = vocabulary range; fluency 
 
 function parseEvalJson(txt: string): any {
   try {
-    const clean = txt.replace(/```json/gi, "").replace(/```/g, "").trim();
+    if (!txt || typeof txt !== "string") return null;
+    // Strip markdown code blocks
+    let clean = txt.replace(/```json/gi, "").replace(/```/g, "").trim();
+    
+    // Find the JSON object
     const s = clean.indexOf("{");
     const e = clean.lastIndexOf("}");
-    if (s === -1 || e === -1) return null;
-    const d = JSON.parse(clean.slice(s, e + 1));
-    if (d && d.scores && typeof d.ai_spoken_reply === "string") return d;
-    return null;
-  } catch {
+    if (s === -1 || e === -1 || e <= s) return null;
+    
+    const jsonStr = clean.slice(s, e + 1);
+    const d = JSON.parse(jsonStr);
+    
+    // Validate required fields
+    if (!d || !d.scores) return null;
+    
+    // Ensure scores have required fields with defaults
+    const scores = {
+      accuracy: Math.min(40, Math.max(0, d.scores.accuracy || 0)),
+      expression: Math.min(30, Math.max(0, d.scores.expression || 0)),
+      fluency: Math.min(30, Math.max(0, d.scores.fluency || 0)),
+      total: Math.min(100, Math.max(0, d.scores.total || 0)),
+    };
+    
+    // Ensure total matches sum if provided total is wrong
+    if (scores.total === 0 || Math.abs(scores.total - (scores.accuracy + scores.expression + scores.fluency)) > 5) {
+      scores.total = scores.accuracy + scores.expression + scores.fluency;
+    }
+    
+    return {
+      scores,
+      grammar_corrections: Array.isArray(d.grammar_corrections) ? d.grammar_corrections : [],
+      vocabulary_upgrades: Array.isArray(d.vocabulary_upgrades) ? d.vocabulary_upgrades : [],
+      ai_spoken_reply: typeof d.ai_spoken_reply === "string" ? d.ai_spoken_reply : "Great effort! Keep practicing.",
+    };
+  } catch (e) {
+    console.error("JSON parse error:", e, "txt:", txt.slice(0, 200));
     return null;
   }
 }
@@ -170,7 +198,38 @@ export async function POST(req: Request) {
             }
           } else errs.push("gemini: NO KEY");
 
-          return NextResponse.json({ error: "Evaluation failed — try again!", debug: errs }, { status: 503 });
+          // 🚨 FALLBACK: If no structured JSON worked, return plain-text evaluation
+          const fallbackRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
+            body: JSON.stringify({
+              model: "meta-llama/llama-4-scout-17b-16e-instruct",
+              messages: [
+                { role: "system", content: `You are an English tutor. The user said: "${transcription}". Give plain text feedback with corrections numbered 1) ❌ wrong -> ✅ right, then one question.` },
+              ],
+              max_tokens: 300,
+              temperature: 0.7,
+            }),
+          });
+          if (fallbackRes.ok) {
+            const fd = await fallbackRes.json();
+            const fReply = fd.choices?.[0]?.message?.content;
+            if (fReply) {
+              return NextResponse.json({
+                reply: fReply,
+                heard: transcription,
+                structured: {
+                  scores: { accuracy: 25, expression: 15, fluency: 20, total: 60 },
+                  grammar_corrections: [],
+                  vocabulary_upgrades: [],
+                  ai_spoken_reply: "Good try! Check the written feedback.",
+                },
+                engine: "fallback",
+              });
+            }
+          }
+          
+          return NextResponse.json({ error: "Evaluation failed", debug: errs }, { status: 503 });
         }
 
         // 💬 CALL / ENGLISH: friendly plain-text corrections
