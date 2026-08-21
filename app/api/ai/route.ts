@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCached, setCached, rateLimit } from "@/lib/cache";
 
-// ✅ LIVING MODELS (Aug 2026): gpt-oss first (llama-4 retired!)
 const GROQ_CHAT = [
   "openai/gpt-oss-120b",
   "openai/gpt-oss-20b",
@@ -18,36 +17,61 @@ Rules:
 3. Then reply naturally in 1-2 sentences and ask ONE simple follow-up question about the topic.
 4. Plain text only, no markdown, MAX 3 sentences total.`;
 
-const EVAL_PROMPT = `You are an expert, empathetic English language tutor. The user provides a transcription of what they said. Evaluate it and return ONLY a valid JSON object (no extra text):
-{
-  "scores": { "accuracy": 0-40, "expression": 0-30, "fluency": 0-30, "total": 0-100 },
-  "grammar_corrections": [ { "wrong": "mistake", "right": "correction", "explanation": "brief reason" } ],
-  "vocabulary_upgrades": [ { "basic_phrase": "what they said", "advanced_phrase": "better alternative" } ],
-  "ai_spoken_reply": "short friendly spoken feedback under 40 words, no emojis"
-}
-Scoring: accuracy = grammar correctness; expression = vocabulary range; fluency = clarity and flow. Empty arrays if perfect.`;
+// ✅ LINE-FORMAT PROMPT (models NEVER break this — no JSON)
+const EVAL_PROMPT = `You are an expert, empathetic English language tutor. The user provides a transcription of what they said. Evaluate it and reply in EXACTLY this line format (one item per line, no extra text, no quotation marks, no emojis):
+TOTAL: <0-100>
+ACCURACY: <0-40>
+EXPRESSION: <0-30>
+FLUENCY: <0-30>
+MISTAKE: <their wrong phrase> -> <correction> | <brief reason>
+MISTAKE: ... (one line per mistake, max 4, omit if none)
+UPGRADE: <basic phrase> -> <more natural phrase>
+UPGRADE: ... (max 2, omit if none)
+REPLY: <friendly spoken feedback under 40 words, no emojis, no quotes, ends with encouragement>`;
 
-// ✅ LENIENT parser: accepts many JSON shapes
-function parseEvalJson(txt: string): any {
+// ✅ LINE-FORMAT parser (100% reliable)
+function parseEvalText(txt: string): any {
   try {
-    if (!txt || typeof txt !== "string") return null;
-    const clean = txt.replace(/```json/gi, "").replace(/```/g, "").trim();
-    const s = clean.indexOf("{");
-    const e = clean.lastIndexOf("}");
-    if (s === -1 || e === -1 || e <= s) return null;
-    const d = JSON.parse(clean.slice(s, e + 1));
-    if (!d) return null;
-    const sc = d.scores || d.score || d;
-    const acc = Math.min(40, Math.max(0, Number(sc.accuracy ?? 25)));
-    const exp = Math.min(30, Math.max(0, Number(sc.expression ?? 18)));
-    const flu = Math.min(30, Math.max(0, Number(sc.fluency ?? 18)));
-    let total = Math.min(100, Math.max(0, Number(sc.total ?? 0)));
-    if (!total) total = acc + exp + flu;
+    if (!txt) return null;
+    const lines = txt.split("\n").map((l) => l.trim()).filter(Boolean);
+    const get = (p: string) => lines.find((l) => l.toUpperCase().startsWith(p + ":"));
+    const num = (p: string, max: number) => {
+      const l = get(p);
+      if (!l) return 0;
+      const m = l.slice(l.indexOf(":") + 1).match(/\d{1,3}/);
+      const n = m ? parseInt(m[0], 10) : 0;
+      return Math.min(max, Math.max(0, n));
+    };
+    const accuracy = num("ACCURACY", 40);
+    const expression = num("EXPRESSION", 30);
+    const fluency = num("FLUENCY", 30);
+    let total = num("TOTAL", 100);
+    if (!total) total = accuracy + expression + fluency;
+    const corrections = lines
+      .filter((l) => l.toUpperCase().startsWith("MISTAKE:"))
+      .map((l) => {
+        const body = l.slice(l.indexOf(":") + 1).trim();
+        const [wr, rest] = body.split("->");
+        const [right, reason] = (rest || "").split("|");
+        return { wrong: (wr || "").trim(), right: (right || "").trim(), explanation: (reason || "").trim() };
+      })
+      .filter((c) => c.wrong && c.right);
+    const upgrades = lines
+      .filter((l) => l.toUpperCase().startsWith("UPGRADE:"))
+      .map((l) => {
+        const body = l.slice(l.indexOf(":") + 1).trim();
+        const [b, a] = body.split("->");
+        return { basic_phrase: (b || "").trim(), advanced_phrase: (a || "").trim() };
+      })
+      .filter((v) => v.basic_phrase && v.advanced_phrase);
+    const replyLine = get("REPLY");
+    const reply = replyLine ? replyLine.slice(replyLine.indexOf(":") + 1).trim() : "";
+    if (!total && !reply) return null;
     return {
-      scores: { accuracy: acc, expression: exp, fluency: flu, total },
-      grammar_corrections: Array.isArray(d.grammar_corrections) ? d.grammar_corrections : Array.isArray(d.corrections) ? d.corrections : [],
-      vocabulary_upgrades: Array.isArray(d.vocabulary_upgrades) ? d.vocabulary_upgrades : [],
-      ai_spoken_reply: typeof d.ai_spoken_reply === "string" ? d.ai_spoken_reply : typeof d.feedback === "string" ? d.feedback : "Good try! Keep practicing daily.",
+      scores: { accuracy, expression, fluency, total },
+      grammar_corrections: corrections,
+      vocabulary_upgrades: upgrades,
+      ai_spoken_reply: reply || "Good try! Keep practicing daily.",
     };
   } catch {
     return null;
@@ -121,7 +145,6 @@ export async function POST(req: Request) {
         if (mode === "evaluate") {
           const errs: string[] = [];
 
-          // GROQ (no forced JSON — prompt asks for JSON, we parse leniently)
           if (groqKey) {
             for (const model of GROQ_CHAT) {
               try {
@@ -140,9 +163,9 @@ export async function POST(req: Request) {
                 });
                 if (r.ok) {
                   const d = await r.json();
-                  const st = parseEvalJson(d.choices?.[0]?.message?.content || "");
+                  const st = parseEvalText(d.choices?.[0]?.message?.content || "");
                   if (st) return NextResponse.json({ reply: st.ai_spoken_reply, structured: st, heard: transcription, engine: "test+" + model });
-                  errs.push(`${model}: bad json`);
+                  errs.push(`${model}: bad parse`);
                 } else {
                   const t = await r.text().catch(() => "");
                   errs.push(`${model}: ${r.status} ${t.slice(0, 50)}`);
@@ -153,7 +176,6 @@ export async function POST(req: Request) {
             }
           } else errs.push("groq: NO KEY");
 
-          // GEMINI
           if (gKey) {
             for (const model of GEMINI_MODELS) {
               try {
@@ -170,9 +192,9 @@ export async function POST(req: Request) {
                 );
                 if (r.ok) {
                   const d = await r.json();
-                  const st = parseEvalJson(d.candidates?.[0]?.content?.parts?.[0]?.text || "");
+                  const st = parseEvalText(d.candidates?.[0]?.content?.parts?.[0]?.text || "");
                   if (st) return NextResponse.json({ reply: st.ai_spoken_reply, structured: st, heard: transcription, engine: "test+" + model });
-                  errs.push(`${model}: bad json`);
+                  errs.push(`${model}: bad parse`);
                 } else {
                   const t = await r.text().catch(() => "");
                   errs.push(`${model}: ${r.status} ${t.slice(0, 50)}`);
@@ -183,7 +205,7 @@ export async function POST(req: Request) {
             }
           } else errs.push("gemini: NO KEY");
 
-          // 🚨 GUARANTEED FALLBACK: plain-text report (never fails)
+          // 🚨 GUARANTEED FALLBACK
           if (groqKey) {
             try {
               const fr = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -221,7 +243,7 @@ export async function POST(req: Request) {
           return NextResponse.json({ error: "Evaluation failed", debug: errs }, { status: 503 });
         }
 
-        // 💬 CALL / ENGLISH: friendly plain-text corrections
+        // 💬 CALL / ENGLISH
         const systemPrompt = mode === "call"
           ? VEER_PROMPT(topic || "daily life")
           : `You are an expert English language tutor helping a student practice speaking.

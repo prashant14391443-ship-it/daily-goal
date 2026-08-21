@@ -48,7 +48,12 @@ export default function EvaluatePage() {
   const speak = (text: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
+    const clean = text
+      .replace(/[❌✅→|*_#`"“”•]/g, " ")
+      .replace(/\bcomma\b|\bquote\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const u = new SpeechSynthesisUtterance(clean);
     u.lang = "en-US";
     window.speechSynthesis.speak(u);
   };
@@ -189,7 +194,7 @@ export default function EvaluatePage() {
               {result.grammar_corrections.map((g: any, i: number) => (
                 <div key={i} className="bg-slate-950 rounded-lg p-2 text-xs">
                   <p>
-                    <span className="text-red-400 line-through">{g.wrong}</span> → <span className="text-emerald-400 font-bold">{g.right}</span>
+                    <span className="text-red-400 underline decoration-red-400 decoration-2">{g.wrong}</span> → <span className="text-emerald-400 font-bold">{g.right}</span>
                   </p>
                   <p className="text-slate-400 text-[10px] mt-0.5">{g.explanation}</p>
                 </div>
