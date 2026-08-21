@@ -9,17 +9,26 @@ const GROQ_CHAT = [
 ];
 const GEMINI_MODELS = ["gemini-3.7-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite"];
 
-const CALL_JSON_PROMPT = (topic: string) => `You are "Veer", an expert, empathetic English tutor on a voice call. Topic: ${topic}.
-The user provides a transcription of what they just said. Evaluate it and return ONLY a valid JSON object matching this exact schema:
+// 💬 CALL MODE: friendly friend who corrects naturally (plain text)
+const VEER_PROMPT = (topic: string) => `You are "Veer", a friendly human conversation partner on a voice call with a student practicing English.
+TOPIC: ${topic}
+Rules:
+1. Sound warm and natural — like a real friend on the phone.
+2. If the student made a grammar or word mistake, first correct it in ONE short line: "❌ ... -> ✅ ..."
+3. Then reply naturally in 1-2 sentences and ask ONE simple follow-up question about the topic.
+4. Plain text only, no markdown, MAX 3 sentences total.`;
+
+// 📊 EVALUATE MODE: full report card (strict JSON)
+const EVAL_PROMPT = `You are an expert, empathetic English language tutor. The user provides a transcription of what they said. Evaluate it and return ONLY a valid JSON object:
 {
   "scores": { "accuracy": number 0-40, "expression": number 0-30, "fluency": number 0-30, "total": number 0-100 },
   "grammar_corrections": [ { "wrong": "mistake", "right": "correction", "explanation": "brief reason" } ],
   "vocabulary_upgrades": [ { "basic_phrase": "what they said", "advanced_phrase": "better alternative" } ],
-  "ai_spoken_reply": "friendly conversational reply under 40 words, ending with a question, no emojis or formatting"
+  "ai_spoken_reply": "short friendly spoken feedback under 40 words, no emojis"
 }
-Scoring: accuracy = grammar correctness; expression = vocabulary range; fluency = natural flow. Use empty arrays if nothing to fix. Return ONLY JSON.`;
+Scoring: accuracy = grammar correctness; expression = vocabulary range; fluency = clarity and natural flow. Empty arrays if perfect. Return ONLY JSON.`;
 
-function parseCallJson(txt: string): any {
+function parseEvalJson(txt: string): any {
   try {
     const clean = txt.replace(/```json/gi, "").replace(/```/g, "").trim();
     const s = clean.indexOf("{");
@@ -37,6 +46,7 @@ export async function POST(req: Request) {
   try {
     const { message, history = [], context = "", mode = "coach", audio, mimeType, topic, target } = await req.json();
 
+    // 🛡️ Rate limit
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
     const allowed = await rateLimit(`rl:${ip}`, 20, 60);
     if (!allowed) {
@@ -46,21 +56,17 @@ export async function POST(req: Request) {
     const groqKey = process.env.GROQ_API_KEY;
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
-    // 🧠 CACHE CHECK
+    // 🧠 CACHE CHECK (text modes only)
     if (!audio && message) {
       const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
       const cached = await getCached(cacheKey);
       if (cached) {
-        if (mode === "call") {
-          const st = parseCallJson(cached);
-          if (st) return NextResponse.json({ reply: st.ai_spoken_reply, structured: st, engine: "cache", fromCache: true });
-        }
         return NextResponse.json({ reply: cached, engine: "cache", fromCache: true });
       }
     }
 
     // 🎙️ AUDIO MODE
-    if (audio && (mode === "english" || mode === "call" || mode === "drill")) {
+    if (audio && (mode === "english" || mode === "call" || mode === "drill" || mode === "evaluate")) {
       let transcription = "";
 
       if (groqKey && audio.length > 500) {
@@ -84,7 +90,7 @@ export async function POST(req: Request) {
       }
 
       if (transcription && transcription.trim().length > 0) {
-        // 🎯 DRILL: free scoring, no LLM
+        // 🎯 DRILL: free pronunciation scoring (no LLM)
         if (mode === "drill" && target) {
           const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9'\s]/g, "").split(/\s+/).filter(Boolean);
           const tWords = norm(target);
@@ -100,8 +106,76 @@ export async function POST(req: Request) {
           return NextResponse.json({ reply, heard: transcription, score });
         }
 
+        // 📊 SPEAKING TEST: full report card
+        if (mode === "evaluate") {
+          const errs: string[] = [];
+          if (groqKey) {
+            for (const model of GROQ_CHAT) {
+              try {
+                const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
+                  body: JSON.stringify({
+                    model,
+                    messages: [
+                      { role: "system", content: EVAL_PROMPT },
+                      { role: "user", content: `The user said: "${transcription}"` },
+                    ],
+                    max_tokens: 600,
+                    temperature: 0.5,
+                    response_format: { type: "json_object" },
+                  }),
+                });
+                if (r.ok) {
+                  const d = await r.json();
+                  const st = parseEvalJson(d.choices?.[0]?.message?.content || "");
+                  if (st) return NextResponse.json({ reply: st.ai_spoken_reply, structured: st, heard: transcription, engine: "test+" + model });
+                  errs.push(`${model}: bad json`);
+                } else {
+                  const t = await r.text().catch(() => "");
+                  errs.push(`${model}: ${r.status} ${t.slice(0, 60)}`);
+                }
+              } catch (e: unknown) {
+                errs.push(`${model}: ${e instanceof Error ? e.message : "fail"}`);
+              }
+            }
+          } else errs.push("groq: NO KEY");
+
+          if (gKey) {
+            for (const model of GEMINI_MODELS) {
+              try {
+                const r = await fetch(
+                  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gKey}`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      contents: [{ role: "user", parts: [{ text: EVAL_PROMPT + `\nThe user said: "${transcription}"` }] }],
+                      generationConfig: { maxOutputTokens: 600, temperature: 0.5, responseMimeType: "application/json" },
+                    }),
+                  }
+                );
+                if (r.ok) {
+                  const d = await r.json();
+                  const st = parseEvalJson(d.candidates?.[0]?.content?.parts?.[0]?.text || "");
+                  if (st) return NextResponse.json({ reply: st.ai_spoken_reply, structured: st, heard: transcription, engine: "test+" + model });
+                  errs.push(`${model}: bad json`);
+                } else {
+                  const t = await r.text().catch(() => "");
+                  errs.push(`${model}: ${r.status} ${t.slice(0, 60)}`);
+                }
+              } catch (e: unknown) {
+                errs.push(`${model}: ${e instanceof Error ? e.message : "fail"}`);
+              }
+            }
+          } else errs.push("gemini: NO KEY");
+
+          return NextResponse.json({ error: "Evaluation failed — try again!", debug: errs }, { status: 503 });
+        }
+
+        // 💬 CALL / ENGLISH: friendly plain-text corrections
         const systemPrompt = mode === "call"
-          ? CALL_JSON_PROMPT(topic || "daily life")
+          ? VEER_PROMPT(topic || "daily life")
           : `You are an expert English language tutor helping a student practice speaking.
 Rules:
 1. Find ALL grammar and pronunciation mistakes in their spoken English.
@@ -109,7 +183,7 @@ Rules:
 3. If perfect: "✅ Perfect English!"
 4. Add ONE short friendly reply + ONE simple question.
 5. Keep whole answer under 150 words.`;
-        const userPrompt = `I said: "${transcription}"\n\nPlease evaluate my English.`;
+        const userPrompt = `I said: "${transcription}"\n\nPlease correct my English and continue the conversation.`;
         const errs: string[] = [];
 
         if (groqKey) {
@@ -124,21 +198,14 @@ Rules:
                     { role: "system", content: systemPrompt },
                     { role: "user", content: userPrompt },
                   ],
-                  max_tokens: 500,
+                  max_tokens: 400,
                   temperature: 0.7,
-                  ...(mode === "call" ? { response_format: { type: "json_object" } } : {}),
                 }),
               });
               if (r.ok) {
                 const d = await r.json();
                 const reply = d.choices?.[0]?.message?.content;
-                if (reply && reply.trim()) {
-                  if (mode === "call") {
-                    const st = parseCallJson(reply);
-                    if (st) return NextResponse.json({ reply: st.ai_spoken_reply, structured: st, engine: "whisper+" + model, heard: transcription });
-                  }
-                  return NextResponse.json({ reply, engine: "whisper+" + model, heard: transcription });
-                }
+                if (reply && reply.trim()) return NextResponse.json({ reply, engine: "whisper+" + model, heard: transcription });
                 errs.push(`${model}: empty`);
               } else {
                 const t = await r.text().catch(() => "");
@@ -163,20 +230,14 @@ Rules:
                       { role: "user", parts: [{ text: systemPrompt }] },
                       { role: "user", parts: [{ text: userPrompt }] },
                     ],
-                    generationConfig: { maxOutputTokens: 500, temperature: 0.7, ...(mode === "call" ? { responseMimeType: "application/json" } : {}) },
+                    generationConfig: { maxOutputTokens: 400, temperature: 0.7 },
                   }),
                 }
               );
               if (r.ok) {
                 const d = await r.json();
                 const reply = d.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (reply && reply.trim()) {
-                  if (mode === "call") {
-                    const st = parseCallJson(reply);
-                    if (st) return NextResponse.json({ reply: st.ai_spoken_reply, structured: st, engine: "whisper+" + model, heard: transcription });
-                  }
-                  return NextResponse.json({ reply, engine: "whisper+" + model, heard: transcription });
-                }
+                if (reply && reply.trim()) return NextResponse.json({ reply, engine: "whisper+" + model, heard: transcription });
                 errs.push(`${model}: empty`);
               } else {
                 const t = await r.text().catch(() => "");
@@ -204,7 +265,7 @@ Rules:
 
     let system = "";
     if (mode === "call") {
-      system = CALL_JSON_PROMPT(topic || "daily life");
+      system = VEER_PROMPT(topic || "daily life");
     } else if (mode === "english") {
       system = `You are an expert English language tutor. Rules:
 1. Find ALL mistakes (grammar, spelling, word order, missing words).
@@ -230,13 +291,7 @@ USER DATA: ${context}`;
           const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
-            body: JSON.stringify({
-              model,
-              messages: chatMessages,
-              max_tokens: 500,
-              temperature: 0.7,
-              ...(mode === "call" ? { response_format: { type: "json_object" } } : {}),
-            }),
+            body: JSON.stringify({ model, messages: chatMessages, max_tokens: 400, temperature: 0.7 }),
           });
           if (r.ok) {
             const d = await r.json();
@@ -244,10 +299,6 @@ USER DATA: ${context}`;
             if (reply) {
               const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
               await setCached(cacheKey, reply, 3600);
-              if (mode === "call") {
-                const st = parseCallJson(reply);
-                if (st) return NextResponse.json({ reply: st.ai_spoken_reply, structured: st, engine: model });
-              }
               return NextResponse.json({ reply, engine: model });
             }
             errs.push(`${model}: empty`);
@@ -278,7 +329,7 @@ USER DATA: ${context}`;
                   })),
                   { role: "user", parts: [{ text: message }] },
                 ],
-                generationConfig: { maxOutputTokens: 500, temperature: 0.7, ...(mode === "call" ? { responseMimeType: "application/json" } : {}) },
+                generationConfig: { maxOutputTokens: 400, temperature: 0.7 },
               }),
             }
           );
@@ -288,10 +339,6 @@ USER DATA: ${context}`;
             if (reply) {
               const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
               await setCached(cacheKey, reply, 3600);
-              if (mode === "call") {
-                const st = parseCallJson(reply);
-                if (st) return NextResponse.json({ reply: st.ai_spoken_reply, structured: st, engine: model });
-              }
               return NextResponse.json({ reply, engine: model });
             }
             errs.push(`${model}: empty`);

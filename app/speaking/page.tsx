@@ -1,265 +1,373 @@
-import { NextResponse } from "next/server";
-import { getCached, setCached, rateLimit } from "@/lib/cache";
+"use client";
+import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
-const GROQ_CHAT = [
-  "meta-llama/llama-4-scout-17b-16e-instruct",
-  "meta-llama/llama-4-maverick-17b-128e-instruct",
-  "openai/gpt-oss-120b",
-  "openai/gpt-oss-20b",
+type Msg = { role: "user" | "assistant"; content: string };
+
+const TOPICS = [
+  { emoji: "🛒", title: "Buying Groceries" },
+  { emoji: "👔", title: "Job Interview" },
+  { emoji: "🏠", title: "Your Hometown" },
+  { emoji: "🎉", title: "Festivals & Culture" },
+  { emoji: "🧑‍🤝‍🧑", title: "Describing a Friend" },
+  { emoji: "🗺️", title: "Famous Places" },
+  { emoji: "🍕", title: "Food & Restaurants" },
+  { emoji: "📚", title: "Studies & Exams" },
+  { emoji: "🏏", title: "Sports & Fitness" },
+  { emoji: "🎬", title: "Movies & Music" },
 ];
-const GEMINI_MODELS = ["gemini-3.7-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite"];
 
-const VEER_PROMPT = (topic: string) => `You are "Veer", a friendly human conversation partner on a voice call with a student practicing English.
-TOPIC: ${topic}
-Rules:
-1. Sound warm and natural — like a real friend on the phone.
-2. If the student made a grammar or word mistake, first correct it in ONE short line: "❌ ... -> ✅ ..."
-3. Then reply naturally in 1-2 sentences and ask ONE simple follow-up question about the topic.
-4. Plain text only, no markdown, MAX 3 sentences total.`;
+const DRILLS = [
+  "I would like a cup of tea, please.",
+  "The weather is really pleasant today.",
+  "Can you schedule a meeting for Thursday?",
+  "I practice my pronunciation every day.",
+  "She sells seashells by the seashore.",
+  "I thought I saw a thoughtful frog.",
+];
 
-export async function POST(req: Request) {
-  try {
-    const { message, history = [], context = "", mode = "coach", audio, mimeType, topic, target } = await req.json();
+export default function SpeakingPage() {
+  const [topic, setTopic] = useState<string | null>(null);
+  const [picker, setPicker] = useState(false);
+  const [mode, setMode] = useState<"" | "call" | "chat" | "drill">("");
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recSec, setRecSec] = useState(0);
+  const [left, setLeft] = useState(16);
+  const [uid, setUid] = useState("guest");
+  const [drillIdx, setDrillIdx] = useState(0);
 
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
-    const allowed = await rateLimit(`rl:${ip}`, 20, 60);
-    if (!allowed) {
-      return NextResponse.json({ error: "⏳ Whoa, slow down! Wait a few seconds." }, { status: 429 });
+  const mediaRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const recTimerRef = useRef<number | null>(null);
+  const recSecRef = useRef(0);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.auth.getSession();
+      const id = data.session?.user.id || "guest";
+      setUid(id);
+      const c = JSON.parse(localStorage.getItem("dg-eng-count-" + id) || "null");
+      if (c && c.date === new Date().toDateString()) setLeft(Math.max(0, 16 - c.n));
+    };
+    load();
+  }, []);
+
+  // Pre-warm mic
+  useEffect(() => {
+    const initMic = async () => {
+      if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+        s.getTracks().forEach((t) => t.stop());
+      } catch {}
+    };
+    initMic();
+  }, []);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs, loading, speaking]);
+
+  const speak = (text: string) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const clean = text.replace(/❌|✅|Quick fix:/g, "");
+    const u = new SpeechSynthesisUtterance(clean);
+    u.lang = "en-US";
+    u.rate = 1;
+    u.onstart = () => setSpeaking(true);
+    u.onend = () => setSpeaking(false);
+    u.onerror = () => setSpeaking(false);
+    window.speechSynthesis.speak(u);
+  };
+
+  const stopAll = () => {
+    window.speechSynthesis?.cancel();
+    setSpeaking(false);
+    mediaRef.current?.stop();
+    setRecording(false);
+    if (recTimerRef.current) clearInterval(recTimerRef.current);
+  };
+
+  const bumpLimit = () => {
+    const count = 16 - left + 1;
+    setLeft(16 - count);
+    localStorage.setItem("dg-eng-count-" + uid, JSON.stringify({ date: new Date().toDateString(), n: count }));
+  };
+
+  const useLimit = () => {
+    if (left <= 0) {
+      alert("🗣️ 16 free practice sessions per day! Come back tomorrow.");
+      return false;
     }
+    return true;
+  };
 
-    const groqKey = process.env.GROQ_API_KEY;
-    const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-
-    // 🧠 CACHE CHECK
-    if (!audio && message) {
-      const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
-      const cached = await getCached(cacheKey);
-      if (cached) {
-        return NextResponse.json({ reply: cached, engine: "cache", fromCache: true });
+  const startCall = async () => {
+    if (!topic) return;
+    setPicker(false);
+    setMode("call");
+    setMsgs([]);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "call", topic, message: `Start the conversation about "${topic}". Greet me warmly and ask the first question.`, history: [] }),
+      });
+      const d = await res.json();
+      if (d.reply) {
+        setMsgs([{ role: "assistant", content: d.reply }]);
+        speak(d.reply);
       }
+    } catch {}
+    setLoading(false);
+  };
+
+  const startChat = () => {
+    setPicker(false);
+    setMode("chat");
+    setMsgs([{ role: "assistant", content: `Hi! I'm Veer 😊 Let's talk about ${topic}. Write your first sentence!` }]);
+  };
+
+  const startDrill = () => {
+    setPicker(false);
+    setMode("drill");
+    setMsgs([]);
+    setDrillIdx(0);
+  };
+
+  const sendAudio = async (b64: string, mime: string) => {
+    setMsgs((m) => [...m, { role: "user", content: "🎙️ (voice)" }]);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: mode === "drill" ? "drill" : "call",
+          topic,
+          target: DRILLS[drillIdx],
+          audio: b64,
+          mimeType: mime,
+          history: msgs.slice(-6),
+        }),
+      });
+      const d = await res.json();
+      const heard = d.heard ? `🎤 "${d.heard}"\n\n` : "";
+      const reply = d.reply || "😴 " + (d.error || "Could not hear you.");
+      setMsgs((m) => [...m, { role: "assistant", content: heard + reply }]);
+      if (d.reply && !d.debug?.length) {
+        bumpLimit();
+        speak(d.reply);
+      }
+    } catch {
+      setMsgs((m) => [...m, { role: "assistant", content: "📡 Network issue!" }]);
     }
+    setLoading(false);
+  };
 
-    // 🎙️ AUDIO MODE
-    if (audio && (mode === "english" || mode === "call" || mode === "drill")) {
-      let transcription = "";
-
-      if (groqKey && audio.length > 500) {
-        try {
-          const actualMime = mimeType || "audio/webm";
-          const audioBlob = await fetch(`data:${actualMime};base64,${audio}`).then((r) => r.blob());
-          const ext = actualMime.split("/")[1]?.split(";")[0] || "webm";
-          const formData = new FormData();
-          formData.append("file", audioBlob, `audio.${ext}`);
-          formData.append("model", "whisper-large-v3-turbo");
-          const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${groqKey}` },
-            body: formData,
-          });
-          if (whisperRes.ok) {
-            const wd = await whisperRes.json();
-            transcription = wd.text || "";
-          }
-        } catch {}
+  const send = async (text?: string) => {
+    const msg = (text || input).trim();
+    if (!msg || loading) return;
+    if (!useLimit()) return;
+    setInput("");
+    const next = [...msgs, { role: "user" as const, content: msg }];
+    setMsgs(next);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: mode === "call" ? "call" : "english", topic: topic || "", message: msg, history: msgs.slice(-6) }),
+      });
+      const d = await res.json();
+      const reply = d.reply || "😴 " + (d.error || "AI sleeping.");
+      setMsgs([...next, { role: "assistant" as const, content: reply }]);
+      if (d.reply) {
+        bumpLimit();
+        if (mode === "call") speak(d.reply);
       }
-
-      if (transcription && transcription.trim().length > 0) {
-        // 🎯 DRILL: free pronunciation scoring (no LLM)
-        if (mode === "drill" && target) {
-          const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9'\s]/g, "").split(/\s+/).filter(Boolean);
-          const tWords = norm(target);
-          const hWords = norm(transcription);
-          const missed = tWords.filter((w) => !hWords.includes(w));
-          const score = Math.max(0, Math.round(((tWords.length - missed.length) / tWords.length) * 100));
-          const reply =
-            score >= 80
-              ? `🌟 ${score}% — Amazing pronunciation! You said: "${transcription}"`
-              : missed.length > 0
-              ? `💪 ${score}% — Good try! I heard: "${transcription}". Practice slowly: ${missed.join(", ")}. Tap 🔊 and try again!`
-              : `🌟 ${score}% — Great job! You said: "${transcription}"`;
-          return NextResponse.json({ reply, heard: transcription, score });
-        }
-
-        const systemPrompt = mode === "call"
-          ? VEER_PROMPT(topic || "daily life")
-          : `You are an expert English language tutor helping a student practice speaking.
-Rules:
-1. Find ALL grammar and pronunciation mistakes in their spoken English.
-2. List mistakes numbered: 1) ❌ [wrong] -> ✅ [right]
-3. If perfect: "✅ Perfect English!"
-4. Add ONE short friendly reply + ONE simple question.
-5. Keep whole answer under 150 words.`;
-        const userPrompt = `I said: "${transcription}"\n\nPlease correct my English and continue the conversation.`;
-        const errs: string[] = [];
-
-        if (groqKey) {
-          for (const model of GROQ_CHAT) {
-            try {
-              const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
-                body: JSON.stringify({
-                  model,
-                  messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: userPrompt },
-                  ],
-                  max_tokens: 400,
-                  temperature: 0.7,
-                }),
-              });
-              if (r.ok) {
-                const d = await r.json();
-                const reply = d.choices?.[0]?.message?.content;
-                if (reply && reply.trim()) return NextResponse.json({ reply, engine: "whisper+" + model, heard: transcription });
-                errs.push(`${model}: empty`);
-              } else {
-                const t = await r.text().catch(() => "");
-                errs.push(`${model}: ${r.status} ${t.slice(0, 60)}`);
-              }
-            } catch (e: unknown) {
-              errs.push(`${model}: ${e instanceof Error ? e.message : "fail"}`);
-            }
-          }
-        } else errs.push("groq: NO KEY");
-
-        if (gKey) {
-          for (const model of GEMINI_MODELS) {
-            try {
-              const r = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gKey}`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    contents: [
-                      { role: "user", parts: [{ text: systemPrompt }] },
-                      { role: "user", parts: [{ text: userPrompt }] },
-                    ],
-                    generationConfig: { maxOutputTokens: 400, temperature: 0.7 },
-                  }),
-                }
-              );
-              if (r.ok) {
-                const d = await r.json();
-                const reply = d.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (reply && reply.trim()) return NextResponse.json({ reply, engine: "whisper+" + model, heard: transcription });
-                errs.push(`${model}: empty`);
-              } else {
-                const t = await r.text().catch(() => "");
-                errs.push(`${model}: ${r.status} ${t.slice(0, 60)}`);
-              }
-            } catch (e: unknown) {
-              errs.push(`${model}: ${e instanceof Error ? e.message : "fail"}`);
-            }
-          }
-        } else errs.push("gemini: NO KEY");
-
-        return NextResponse.json({
-          reply: `🎤 I heard you say: "${transcription}"\n\n✅ Great job speaking! Practice saying it again slowly.`,
-          engine: "whisper-manual",
-          heard: transcription,
-          debug: errs,
-        });
-      }
-
-      return NextResponse.json({ error: "Could not hear clearly — speak louder for 2+ seconds." }, { status: 503 });
+    } catch {
+      setMsgs([...next, { role: "assistant" as const, content: "📡 Network issue!" }]);
     }
+    setLoading(false);
+  };
 
-    // 📝 TEXT MODE
-    if (!message) return NextResponse.json({ error: "No message" }, { status: 400 });
-
-    let system = "";
-    if (mode === "call") {
-      system = VEER_PROMPT(topic || "daily life");
-    } else if (mode === "english") {
-      system = `You are an expert English language tutor. Rules:
-1. Find ALL mistakes (grammar, spelling, word order, missing words).
-2. List EVERY mistake numbered: 1) ❌ [wrong] -> ✅ [right]
-3. If no mistakes: "✅ Perfect sentence!"
-4. Add ONE short friendly reply + ONE simple question.
-5. Keep whole answer under 150 words.`;
-    } else {
-      system = `You are "Personal AI", a friendly assistant inside a productivity app. Be SHORT (max 120 words), motivating.
-USER DATA: ${context}`;
+  const toggleRecord = async () => {
+    if (recording) {
+      mediaRef.current?.stop();
+      setRecording(false);
+      if (recTimerRef.current) clearInterval(recTimerRef.current);
+      if (recSecRef.current < 2) {
+        setMsgs((m) => [...m, { role: "assistant", content: "⏱️ Speak for 2+ seconds!" }]);
+        chunksRef.current = [];
+      }
+      return;
     }
+    if (!useLimit()) return;
+    window.speechSynthesis?.cancel();
+    setSpeaking(false);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => chunksRef.current.push(e.data);
+      mr.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (recSecRef.current < 2) return;
+        const mime = mr.mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: mime });
+        if (blob.size < 5000 || blob.size > 3500000) return;
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          await sendAudio(String(reader.result).split(",")[1], mime);
+        };
+        reader.readAsDataURL(blob);
+      };
+      mr.start();
+      mediaRef.current = mr;
+      setRecording(true);
+      recSecRef.current = 0;
+      setRecSec(0);
+      recTimerRef.current = window.setInterval(() => {
+        recSecRef.current += 1;
+        setRecSec(recSecRef.current);
+      }, 1000);
+    } catch {
+      alert("🎤 Mic permission denied!");
+    }
+  };
 
-    const chatMessages = [
-      { role: "system", content: system },
-      ...history.slice(-8),
-      { role: "user", content: message },
-    ];
-    const errs: string[] = [];
+  // 🏠 TOPIC SELECTION SCREEN
+  if (!mode) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-white p-4 pb-24">
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-2xl font-black">🎙️ Speaking Club</h1>
+          <Link href="/english" className="text-sm text-slate-400">← Back</Link>
+        </div>
+        <p className="text-sm text-slate-400 mb-4">Pick a topic → have a REAL voice call with Veer, your AI friend!</p>
 
-    if (groqKey) {
-      for (const model of GROQ_CHAT) {
-        try {
-          const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
-            body: JSON.stringify({ model, messages: chatMessages, max_tokens: 400, temperature: 0.7 }),
-          });
-          if (r.ok) {
-            const d = await r.json();
-            const reply = d.choices?.[0]?.message?.content;
-            if (reply) {
-              const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
-              await setCached(cacheKey, reply, 3600);
-              return NextResponse.json({ reply, engine: model });
-            }
-            errs.push(`${model}: empty`);
-          } else {
-            const t = await r.text().catch(() => "");
-            errs.push(`${model}: ${r.status} ${t.slice(0, 60)}`);
-          }
-        } catch (e: unknown) {
-          errs.push(`${model}: ${e instanceof Error ? e.message : "fail"}`);
-        }
-      }
-    } else errs.push("groq: NO KEY");
+        {/* 📊 Speaking Test - Big banner at top */}
+        <Link href="/evaluate" className="mb-4 flex items-center gap-3 bg-gradient-to-r from-violet-600/30 to-fuchsia-600/30 border border-violet-500/50 rounded-xl p-4">
+          <span className="text-3xl">📊</span>
+          <span className="flex-1">
+            <span className="block font-bold text-violet-300">Speaking Test — full score report</span>
+            <span className="block text-xs text-slate-400">Record ONCE → get Accuracy, Expression, Fluency scores + corrections</span>
+          </span>
+          <span className="text-slate-400">→</span>
+        </Link>
 
-    if (gKey) {
-      for (const model of GEMINI_MODELS) {
-        try {
-          const r = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gKey}`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                contents: [
-                  { role: "user", parts: [{ text: system }] },
-                  ...history.slice(-8).map((h: { role: string; content: string }) => ({
-                    role: h.role === "assistant" ? "model" : "user",
-                    parts: [{ text: h.content }],
-                  })),
-                  { role: "user", parts: [{ text: message }] },
-                ],
-                generationConfig: { maxOutputTokens: 400, temperature: 0.7 },
-              }),
-            }
-          );
-          if (r.ok) {
-            const d = await r.json();
-            const reply = d.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (reply) {
-              const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
-              await setCached(cacheKey, reply, 3600);
-              return NextResponse.json({ reply, engine: model });
-            }
-            errs.push(`${model}: empty`);
-          } else {
-            const t = await r.text().catch(() => "");
-            errs.push(`${model}: ${r.status} ${t.slice(0, 60)}`);
-          }
-        } catch (e: unknown) {
-          errs.push(`${model}: ${e instanceof Error ? e.message : "fail"}`);
-        }
-      }
-    } else errs.push("gemini: NO KEY");
+        <div className="grid grid-cols-2 gap-3">
+          {TOPICS.map((t) => (
+            <button
+              key={t.title}
+              onClick={() => { setTopic(t.title); setPicker(true); }}
+              className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-xl p-4 text-center transition-colors"
+            >
+              <p className="text-3xl mb-2">{t.emoji}</p>
+              <p className="text-sm font-bold">{t.title}</p>
+            </button>
+          ))}
+        </div>
 
-    return NextResponse.json({ error: "All AI engines are resting. Try later!", debug: errs }, { status: 503 });
-  } catch (e: unknown) {
-    return NextResponse.json({ error: "Bad request", debug: e instanceof Error ? e.message : "unknown" }, { status: 400 });
+        {picker && (
+          <div className="fixed inset-0 z-[90] bg-black/70 flex items-end justify-center">
+            <div className="bg-slate-900 border border-slate-700 rounded-t-3xl p-6 w-full max-w-md grid gap-3">
+              <div className="flex justify-between items-center">
+                <p className="font-bold">Select a method to practice</p>
+                <button onClick={() => setPicker(false)} className="text-slate-400 text-xl">✖</button>
+              </div>
+              <p className="text-xs text-slate-400">Topic: {topic}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={startCall} className="py-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-lg">📞 Call</button>
+                <button onClick={startChat} className="py-5 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-lg">💬 Chat</button>
+                <button onClick={startDrill} className="col-span-2 py-4 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold text-lg">🎯 Pronunciation Drill</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    );
   }
+
+  // 🎙️ CONVERSATION / DRILL SCREEN
+  return (
+    <main className="h-screen bg-slate-950 text-white flex flex-col p-4 pb-24">
+      <div className="flex justify-between items-center mb-3">
+        <div className="flex items-center gap-2">
+          <span className={`w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-xl ${speaking ? "animate-pulse ring-4 ring-emerald-400/40" : ""}`}>🤖</span>
+          <div>
+            <p className="font-bold text-sm">Veer • {mode === "drill" ? "Pronunciation Drill" : topic}</p>
+            <p className="text-[10px] text-emerald-400">{speaking ? "🔊 Veer is speaking..." : mode === "chat" ? "💬 chat mode" : "🎤 Your turn — tap mic & speak"}</p>
+          </div>
+        </div>
+        <button
+          onClick={() => { stopAll(); setMode(""); setMsgs([]); }}
+          className="px-3 py-2 rounded-xl bg-red-600/20 text-red-400 text-xs font-bold"
+        >
+          📴 End
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto grid gap-3 content-start">
+        {mode === "drill" && (
+          <div className="bg-slate-900 border border-amber-500/40 rounded-xl p-4 text-center">
+            <p className="text-xs text-slate-400 mb-1">Repeat after Veer ({drillIdx + 1}/{DRILLS.length}):</p>
+            <p className="font-bold text-amber-300">{DRILLS[drillIdx]}</p>
+            <button onClick={() => speak(DRILLS[drillIdx])} className="mt-2 text-xs bg-slate-800 px-3 py-1.5 rounded-lg">🔊 Hear it</button>
+          </div>
+        )}
+
+        {msgs.map((m, i) => (
+          <div key={i} className={`max-w-[85%] p-3 rounded-xl text-sm whitespace-pre-wrap ${m.role === "user" ? "justify-self-end bg-emerald-600" : "justify-self-start bg-slate-800"}`}>
+            {m.content}
+            {m.role === "assistant" && mode === "chat" && (
+              <button onClick={() => speak(m.content)} className="block mt-2 text-[10px] bg-slate-700 px-2 py-1 rounded">🔊 Listen</button>
+            )}
+          </div>
+        ))}
+        {loading && <div className="justify-self-start bg-slate-800 p-3 rounded-xl text-sm animate-pulse">🤖 Veer is thinking...</div>}
+        <div ref={bottomRef} />
+      </div>
+
+      {mode === "drill" ? (
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <button
+            onClick={toggleRecord}
+            disabled={loading || speaking}
+            className={`w-16 h-16 rounded-full text-xl flex items-center justify-center disabled:opacity-40 ${recording ? "bg-red-600 animate-pulse" : "bg-amber-600"}`}
+          >
+            {recording ? <>⏹️{recSec}s</> : "🎤"}
+          </button>
+          <button onClick={() => setDrillIdx((drillIdx + 1) % DRILLS.length)} className="px-4 py-3 rounded-xl bg-slate-800 text-sm font-bold">
+            Next ➡️
+          </button>
+        </div>
+      ) : mode === "call" ? (
+        <div className="flex flex-col items-center gap-2 pt-2">
+          <button
+            onClick={toggleRecord}
+            disabled={loading || speaking}
+            className={`w-20 h-20 rounded-full font-bold text-sm flex items-center justify-center transition-all disabled:opacity-40 ${recording ? "bg-red-600 animate-pulse" : "bg-emerald-600 hover:bg-emerald-500"}`}
+          >
+            {recording ? <>⏹️ {recSec}s</> : "🎤"}
+          </button>
+          <p className="text-[10px] text-slate-400">{speaking ? "Listen to Veer first..." : "Tap & speak your answer"}</p>
+        </div>
+      ) : (
+        <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2 pt-2">
+          <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type in English..." className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm" />
+          <button disabled={loading} className="px-5 rounded-xl bg-blue-600 font-bold disabled:opacity-50">➤</button>
+        </form>
+      )}
+    </main>
+  );
 }
