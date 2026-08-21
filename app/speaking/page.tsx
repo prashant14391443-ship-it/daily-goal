@@ -40,6 +40,7 @@ export default function SpeakingPage() {
   const [left, setLeft] = useState(16);
   const [uid, setUid] = useState("guest");
   const [drillIdx, setDrillIdx] = useState(0);
+  const [view, setView] = useState<"home" | "topics">("home");
 
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -109,8 +110,9 @@ export default function SpeakingPage() {
     return true;
   };
 
-  const startCall = async () => {
-    if (!topic) return;
+  const startCall = async (t?: string) => {
+    const useTopic = t || topic;
+    if (!useTopic) return;
     setPicker(false);
     setMode("call");
     setMsgs([]);
@@ -119,7 +121,7 @@ export default function SpeakingPage() {
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "call", topic, message: `Start the conversation about "${topic}". Greet me warmly and ask the first question.`, history: [] }),
+        body: JSON.stringify({ mode: "call", topic: useTopic, message: `Start the conversation about "${useTopic}". Greet me warmly and ask the first question.`, history: [] }),
       });
       const d = await res.json();
       if (d.reply) {
@@ -245,38 +247,89 @@ export default function SpeakingPage() {
     }
   };
 
-  // 🏠 TOPIC SELECTION SCREEN
+  // 🏠 HOME: clean 2-column grid (exactly like your sketch!)
   if (!mode) {
     return (
       <main className="min-h-screen bg-slate-950 text-white p-4 pb-24">
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-black">🎙️ Speaking Club</h1>
+          <h1 className="text-2xl font-black">🗣️ Practice Speaking</h1>
           <Link href="/english" className="text-sm text-slate-400">← Back</Link>
         </div>
-        <p className="text-sm text-slate-400 mb-4">Pick a topic → have a REAL voice call with Veer, your AI friend!</p>
 
-        {/* 📊 Speaking Test - Big banner at top */}
-        <Link href="/evaluate" className="mb-4 flex items-center gap-3 bg-gradient-to-r from-violet-600/30 to-fuchsia-600/30 border border-violet-500/50 rounded-xl p-4">
-          <span className="text-3xl">📊</span>
-          <span className="flex-1">
-            <span className="block font-bold text-violet-300">Speaking Test — full score report</span>
-            <span className="block text-xs text-slate-400">Record ONCE → get Accuracy, Expression, Fluency scores + corrections</span>
-          </span>
-          <span className="text-slate-400">→</span>
-        </Link>
-
-        <div className="grid grid-cols-2 gap-3">
-          {TOPICS.map((t) => (
+        {view === "home" ? (
+          <div className="grid grid-cols-2 gap-3">
             <button
-              key={t.title}
-              onClick={() => { setTopic(t.title); setPicker(true); }}
-              className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-xl p-4 text-center transition-colors"
+              onClick={() => setView("topics")}
+              className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-xl p-4 text-left transition-colors"
             >
-              <p className="text-3xl mb-2">{t.emoji}</p>
-              <p className="text-sm font-bold">{t.title}</p>
+              <p className="text-2xl mb-1">🗣️</p>
+              <p className="font-bold text-sm">Talk AI — Topic</p>
+              <p className="text-[10px] text-slate-400">Pick a topic & call</p>
             </button>
-          ))}
-        </div>
+
+            <button
+              onClick={() => startCall("anything — free friendly conversation")}
+              className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-xl p-4 text-left transition-colors"
+            >
+              <p className="text-2xl mb-1">💬</p>
+              <p className="font-bold text-sm">Talk AI — Anything</p>
+              <p className="text-[10px] text-slate-400">Free conversation call</p>
+            </button>
+
+            <Link
+              href="/evaluate"
+              className="bg-slate-900 border border-slate-800 hover:border-violet-500/60 rounded-xl p-4 text-left transition-colors"
+            >
+              <p className="text-2xl mb-1">📊</p>
+              <p className="font-bold text-sm">Record & Analyse</p>
+              <p className="text-[10px] text-slate-400">Score + full report</p>
+            </Link>
+
+            <button
+              onClick={startDrill}
+              className="bg-slate-900 border border-slate-800 hover:border-amber-500/60 rounded-xl p-4 text-left transition-colors"
+            >
+              <p className="text-2xl mb-1">🎯</p>
+              <p className="font-bold text-sm">Sentence Practice</p>
+              <p className="text-[10px] text-slate-400">Repeat & get % score</p>
+            </button>
+
+            <button disabled className="opacity-50 bg-slate-900 border border-slate-800 rounded-xl p-4 text-left">
+              <p className="text-2xl mb-1">📚</p>
+              <p className="font-bold text-sm">Vocabulary <span className="text-[9px] bg-slate-700 px-1.5 py-0.5 rounded">SOON</span></p>
+              <p className="text-[10px] text-slate-400">Learn new words daily</p>
+            </button>
+
+            <button disabled className="opacity-50 bg-slate-900 border border-slate-800 rounded-xl p-4 text-left">
+              <p className="text-2xl mb-1">💡</p>
+              <p className="font-bold text-sm">Daily Tips <span className="text-[9px] bg-slate-700 px-1.5 py-0.5 rounded">SOON</span></p>
+              <p className="text-[10px] text-slate-400">1 tip to sound better</p>
+            </button>
+
+            <button disabled className="col-span-2 opacity-50 bg-slate-900 border border-slate-800 rounded-xl p-4 text-left">
+              <p className="text-2xl mb-1">🎮</p>
+              <p className="font-bold text-sm">Game <span className="text-[9px] bg-slate-700 px-1.5 py-0.5 rounded">SOON</span></p>
+              <p className="text-[10px] text-slate-400">Learn English by playing</p>
+            </button>
+          </div>
+        ) : (
+          <div>
+            <button onClick={() => setView("home")} className="text-sm text-slate-400 mb-3">← All modes</button>
+            <p className="text-sm text-slate-400 mb-3">Pick a topic → call or chat with Veer:</p>
+            <div className="grid grid-cols-2 gap-3">
+              {TOPICS.map((t) => (
+                <button
+                  key={t.title}
+                  onClick={() => { setTopic(t.title); setPicker(true); }}
+                  className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-xl p-4 text-center transition-colors"
+                >
+                  <p className="text-3xl mb-2">{t.emoji}</p>
+                  <p className="text-sm font-bold">{t.title}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {picker && (
           <div className="fixed inset-0 z-[90] bg-black/70 flex items-end justify-center">
@@ -287,9 +340,8 @@ export default function SpeakingPage() {
               </div>
               <p className="text-xs text-slate-400">Topic: {topic}</p>
               <div className="grid grid-cols-2 gap-3">
-                <button onClick={startCall} className="py-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-lg">📞 Call</button>
+                <button onClick={() => startCall()} className="py-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-lg">📞 Call</button>
                 <button onClick={startChat} className="py-5 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-lg">💬 Chat</button>
-                <button onClick={startDrill} className="col-span-2 py-4 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold text-lg">🎯 Pronunciation Drill</button>
               </div>
             </div>
           </div>
@@ -305,7 +357,7 @@ export default function SpeakingPage() {
         <div className="flex items-center gap-2">
           <span className={`w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-xl ${speaking ? "animate-pulse ring-4 ring-emerald-400/40" : ""}`}>🤖</span>
           <div>
-            <p className="font-bold text-sm">Veer • {mode === "drill" ? "Pronunciation Drill" : topic}</p>
+            <p className="font-bold text-sm">Veer • {mode === "drill" ? "Sentence Practice" : topic}</p>
             <p className="text-[10px] text-emerald-400">{speaking ? "🔊 Veer is speaking..." : mode === "chat" ? "💬 chat mode" : "🎤 Your turn — tap mic & speak"}</p>
           </div>
         </div>
