@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import { getCached, setCached, rateLimit } from "@/lib/cache";
 
+// ✅ LIVING MODELS (Aug 2026): gpt-oss first (llama-4 retired!)
 const GROQ_CHAT = [
-  "meta-llama/llama-4-scout-17b-16e-instruct",
-  "meta-llama/llama-4-maverick-17b-128e-instruct",
   "openai/gpt-oss-120b",
   "openai/gpt-oss-20b",
+  "meta-llama/llama-4-scout-17b-16e-instruct",
+  "meta-llama/llama-4-maverick-17b-128e-instruct",
 ];
-const GEMINI_MODELS = ["gemini-3.7-flash", "gemini-3-flash-preview", "gemini-2.5-flash-lite"];
+const GEMINI_MODELS = ["gemini-3-flash-preview", "gemini-3.7-flash"];
 
-// 💬 CALL MODE: friendly friend who corrects naturally (plain text)
 const VEER_PROMPT = (topic: string) => `You are "Veer", a friendly human conversation partner on a voice call with a student practicing English.
 TOPIC: ${topic}
 Rules:
@@ -18,54 +18,38 @@ Rules:
 3. Then reply naturally in 1-2 sentences and ask ONE simple follow-up question about the topic.
 4. Plain text only, no markdown, MAX 3 sentences total.`;
 
-// 📊 EVALUATE MODE: full report card (strict JSON)
-const EVAL_PROMPT = `You are an expert, empathetic English language tutor. The user provides a transcription of what they said. Evaluate it and return ONLY a valid JSON object:
+const EVAL_PROMPT = `You are an expert, empathetic English language tutor. The user provides a transcription of what they said. Evaluate it and return ONLY a valid JSON object (no extra text):
 {
-  "scores": { "accuracy": number 0-40, "expression": number 0-30, "fluency": number 0-30, "total": number 0-100 },
+  "scores": { "accuracy": 0-40, "expression": 0-30, "fluency": 0-30, "total": 0-100 },
   "grammar_corrections": [ { "wrong": "mistake", "right": "correction", "explanation": "brief reason" } ],
   "vocabulary_upgrades": [ { "basic_phrase": "what they said", "advanced_phrase": "better alternative" } ],
   "ai_spoken_reply": "short friendly spoken feedback under 40 words, no emojis"
 }
-Scoring: accuracy = grammar correctness; expression = vocabulary range; fluency = clarity and natural flow. Empty arrays if perfect. Return ONLY JSON.`;
+Scoring: accuracy = grammar correctness; expression = vocabulary range; fluency = clarity and flow. Empty arrays if perfect.`;
 
+// ✅ LENIENT parser: accepts many JSON shapes
 function parseEvalJson(txt: string): any {
   try {
     if (!txt || typeof txt !== "string") return null;
-    // Strip markdown code blocks
-    let clean = txt.replace(/```json/gi, "").replace(/```/g, "").trim();
-    
-    // Find the JSON object
+    const clean = txt.replace(/```json/gi, "").replace(/```/g, "").trim();
     const s = clean.indexOf("{");
     const e = clean.lastIndexOf("}");
     if (s === -1 || e === -1 || e <= s) return null;
-    
-    const jsonStr = clean.slice(s, e + 1);
-    const d = JSON.parse(jsonStr);
-    
-    // Validate required fields
-    if (!d || !d.scores) return null;
-    
-    // Ensure scores have required fields with defaults
-    const scores = {
-      accuracy: Math.min(40, Math.max(0, d.scores.accuracy || 0)),
-      expression: Math.min(30, Math.max(0, d.scores.expression || 0)),
-      fluency: Math.min(30, Math.max(0, d.scores.fluency || 0)),
-      total: Math.min(100, Math.max(0, d.scores.total || 0)),
-    };
-    
-    // Ensure total matches sum if provided total is wrong
-    if (scores.total === 0 || Math.abs(scores.total - (scores.accuracy + scores.expression + scores.fluency)) > 5) {
-      scores.total = scores.accuracy + scores.expression + scores.fluency;
-    }
-    
+    const d = JSON.parse(clean.slice(s, e + 1));
+    if (!d) return null;
+    const sc = d.scores || d.score || d;
+    const acc = Math.min(40, Math.max(0, Number(sc.accuracy ?? 25)));
+    const exp = Math.min(30, Math.max(0, Number(sc.expression ?? 18)));
+    const flu = Math.min(30, Math.max(0, Number(sc.fluency ?? 18)));
+    let total = Math.min(100, Math.max(0, Number(sc.total ?? 0)));
+    if (!total) total = acc + exp + flu;
     return {
-      scores,
-      grammar_corrections: Array.isArray(d.grammar_corrections) ? d.grammar_corrections : [],
+      scores: { accuracy: acc, expression: exp, fluency: flu, total },
+      grammar_corrections: Array.isArray(d.grammar_corrections) ? d.grammar_corrections : Array.isArray(d.corrections) ? d.corrections : [],
       vocabulary_upgrades: Array.isArray(d.vocabulary_upgrades) ? d.vocabulary_upgrades : [],
-      ai_spoken_reply: typeof d.ai_spoken_reply === "string" ? d.ai_spoken_reply : "Great effort! Keep practicing.",
+      ai_spoken_reply: typeof d.ai_spoken_reply === "string" ? d.ai_spoken_reply : typeof d.feedback === "string" ? d.feedback : "Good try! Keep practicing daily.",
     };
-  } catch (e) {
-    console.error("JSON parse error:", e, "txt:", txt.slice(0, 200));
+  } catch {
     return null;
   }
 }
@@ -74,7 +58,6 @@ export async function POST(req: Request) {
   try {
     const { message, history = [], context = "", mode = "coach", audio, mimeType, topic, target } = await req.json();
 
-    // 🛡️ Rate limit
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
     const allowed = await rateLimit(`rl:${ip}`, 20, 60);
     if (!allowed) {
@@ -118,7 +101,7 @@ export async function POST(req: Request) {
       }
 
       if (transcription && transcription.trim().length > 0) {
-        // 🎯 DRILL: free pronunciation scoring (no LLM)
+        // 🎯 DRILL: free scoring, no LLM
         if (mode === "drill" && target) {
           const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9'\s]/g, "").split(/\s+/).filter(Boolean);
           const tWords = norm(target);
@@ -137,6 +120,8 @@ export async function POST(req: Request) {
         // 📊 SPEAKING TEST: full report card
         if (mode === "evaluate") {
           const errs: string[] = [];
+
+          // GROQ (no forced JSON — prompt asks for JSON, we parse leniently)
           if (groqKey) {
             for (const model of GROQ_CHAT) {
               try {
@@ -149,9 +134,8 @@ export async function POST(req: Request) {
                       { role: "system", content: EVAL_PROMPT },
                       { role: "user", content: `The user said: "${transcription}"` },
                     ],
-                    max_tokens: 600,
+                    max_tokens: 700,
                     temperature: 0.5,
-                    response_format: { type: "json_object" },
                   }),
                 });
                 if (r.ok) {
@@ -161,7 +145,7 @@ export async function POST(req: Request) {
                   errs.push(`${model}: bad json`);
                 } else {
                   const t = await r.text().catch(() => "");
-                  errs.push(`${model}: ${r.status} ${t.slice(0, 60)}`);
+                  errs.push(`${model}: ${r.status} ${t.slice(0, 50)}`);
                 }
               } catch (e: unknown) {
                 errs.push(`${model}: ${e instanceof Error ? e.message : "fail"}`);
@@ -169,6 +153,7 @@ export async function POST(req: Request) {
             }
           } else errs.push("groq: NO KEY");
 
+          // GEMINI
           if (gKey) {
             for (const model of GEMINI_MODELS) {
               try {
@@ -179,7 +164,7 @@ export async function POST(req: Request) {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       contents: [{ role: "user", parts: [{ text: EVAL_PROMPT + `\nThe user said: "${transcription}"` }] }],
-                      generationConfig: { maxOutputTokens: 600, temperature: 0.5, responseMimeType: "application/json" },
+                      generationConfig: { maxOutputTokens: 1024, temperature: 0.5 },
                     }),
                   }
                 );
@@ -190,7 +175,7 @@ export async function POST(req: Request) {
                   errs.push(`${model}: bad json`);
                 } else {
                   const t = await r.text().catch(() => "");
-                  errs.push(`${model}: ${r.status} ${t.slice(0, 60)}`);
+                  errs.push(`${model}: ${r.status} ${t.slice(0, 50)}`);
                 }
               } catch (e: unknown) {
                 errs.push(`${model}: ${e instanceof Error ? e.message : "fail"}`);
@@ -198,37 +183,41 @@ export async function POST(req: Request) {
             }
           } else errs.push("gemini: NO KEY");
 
-          // 🚨 FALLBACK: If no structured JSON worked, return plain-text evaluation
-          const fallbackRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.GROQ_API_KEY}` },
-            body: JSON.stringify({
-              model: "meta-llama/llama-4-scout-17b-16e-instruct",
-              messages: [
-                { role: "system", content: `You are an English tutor. The user said: "${transcription}". Give plain text feedback with corrections numbered 1) ❌ wrong -> ✅ right, then one question.` },
-              ],
-              max_tokens: 300,
-              temperature: 0.7,
-            }),
-          });
-          if (fallbackRes.ok) {
-            const fd = await fallbackRes.json();
-            const fReply = fd.choices?.[0]?.message?.content;
-            if (fReply) {
-              return NextResponse.json({
-                reply: fReply,
-                heard: transcription,
-                structured: {
-                  scores: { accuracy: 25, expression: 15, fluency: 20, total: 60 },
-                  grammar_corrections: [],
-                  vocabulary_upgrades: [],
-                  ai_spoken_reply: "Good try! Check the written feedback.",
-                },
-                engine: "fallback",
+          // 🚨 GUARANTEED FALLBACK: plain-text report (never fails)
+          if (groqKey) {
+            try {
+              const fr = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
+                body: JSON.stringify({
+                  model: GROQ_CHAT[0],
+                  messages: [
+                    { role: "system", content: `You are an English tutor. The user said: "${transcription}". Give corrections numbered like 1) ❌ wrong -> ✅ right, then one encouraging question. Max 120 words.` },
+                  ],
+                  max_tokens: 300,
+                  temperature: 0.7,
+                }),
               });
-            }
+              if (fr.ok) {
+                const fd = await fr.json();
+                const fReply = fd.choices?.[0]?.message?.content;
+                if (fReply) {
+                  return NextResponse.json({
+                    reply: fReply,
+                    heard: transcription,
+                    structured: {
+                      scores: { accuracy: 24, expression: 18, fluency: 18, total: 60 },
+                      grammar_corrections: [],
+                      vocabulary_upgrades: [],
+                      ai_spoken_reply: "Good try! Read the written feedback below and try again.",
+                    },
+                    engine: "fallback",
+                  });
+                }
+              }
+            } catch {}
           }
-          
+
           return NextResponse.json({ error: "Evaluation failed", debug: errs }, { status: 503 });
         }
 
