@@ -65,7 +65,7 @@ export async function POST(req: Request) {
 
       if (transcription && transcription.trim().length > 0) {
         const systemPrompt = mode === "call"
-          ? `You are "Aria", a friendly human on a voice call. TOPIC: ${topic || "daily life"}
+          ? `You are "Veer", a friendly human on a voice call. TOPIC: ${topic || "daily life"}
 Rules:
 1. If the student made a mistake, add ONE short line first: "Quick fix: ❌ ... -> ✅ ..."
 2. Then reply naturally in 1-2 sentences and ask ONE follow-up question about the topic.
@@ -159,7 +159,7 @@ Rules:
 
     let system = "";
     if (mode === "call") {
-      system = `You are "Aria", a friendly human conversation partner on a voice call with a student practicing English.
+      system = `You are "Veer", a friendly human conversation partner on a voice call with a student practicing English.
 TOPIC: ${topic || "daily life"}
 Rules:
 1. Sound warm and natural — like a real friend on the phone.

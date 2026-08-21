@@ -10,7 +10,7 @@ const TOPICS = [
   { emoji: "👔", title: "Job Interview" },
   { emoji: "🏠", title: "Your Hometown" },
   { emoji: "🎉", title: "Festivals & Culture" },
-  { emoji: "🧑‍🤝‍🧑", title: "Describing a Friend" },
+  { emoji: "🧑‍🤝‍", title: "Describing a Friend" },
   { emoji: "🗺️", title: "Famous Places" },
   { emoji: "🍕", title: "Food & Restaurants" },
   { emoji: "📚", title: "Studies & Exams" },
@@ -34,6 +34,7 @@ export default function SpeakingPage() {
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const recTimerRef = useRef<number | null>(null);
+  const recSecRef = useRef(0); // ✅ accurate timer (no stale closure)
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -45,6 +46,18 @@ export default function SpeakingPage() {
       if (c && c.date === new Date().toDateString()) setLeft(Math.max(0, 16 - c.n));
     };
     load();
+  }, []);
+
+  // ✅ PRE-WARM MIC on page load → first tap records instantly
+  useEffect(() => {
+    const initMic = async () => {
+      if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+        s.getTracks().forEach((t) => t.stop());
+      } catch {}
+    };
+    initMic();
   }, []);
 
   useEffect(() => {
@@ -86,7 +99,6 @@ export default function SpeakingPage() {
     return true;
   };
 
-  // 📞 START CALL: AI greets + asks first question
   const startCall = async () => {
     if (!topic) return;
     setPicker(false);
@@ -111,7 +123,7 @@ export default function SpeakingPage() {
   const startChat = () => {
     setPicker(false);
     setMode("chat");
-    setMsgs([{ role: "assistant", content: `Hi! I'm Aria 😊 Let's talk about ${topic}. Write your first sentence!` }]);
+    setMsgs([{ role: "assistant", content: `Hi! I'm Veer 😊 Let's talk about ${topic}. Write your first sentence!` }]);
   };
 
   const sendAudio = async (b64: string, mime: string) => {
@@ -169,7 +181,7 @@ export default function SpeakingPage() {
       mediaRef.current?.stop();
       setRecording(false);
       if (recTimerRef.current) clearInterval(recTimerRef.current);
-      if (recSec < 2) {
+      if (recSecRef.current < 2) {
         setMsgs((m) => [...m, { role: "assistant", content: "⏱️ Speak for 2+ seconds!" }]);
         chunksRef.current = [];
       }
@@ -185,7 +197,7 @@ export default function SpeakingPage() {
       mr.ondataavailable = (e) => chunksRef.current.push(e.data);
       mr.onstop = () => {
         stream.getTracks().forEach((t) => t.stop());
-        if (recSec < 2) return;
+        if (recSecRef.current < 2) return; // ✅ accurate check
         const mime = mr.mimeType || "audio/webm";
         const blob = new Blob(chunksRef.current, { type: mime });
         if (blob.size < 5000 || blob.size > 3500000) return;
@@ -198,14 +210,17 @@ export default function SpeakingPage() {
       mr.start();
       mediaRef.current = mr;
       setRecording(true);
+      recSecRef.current = 0;
       setRecSec(0);
-      recTimerRef.current = window.setInterval(() => setRecSec((s) => s + 1), 1000);
+      recTimerRef.current = window.setInterval(() => {
+        recSecRef.current += 1;
+        setRecSec(recSecRef.current);
+      }, 1000);
     } catch {
       alert("🎤 Mic permission denied!");
     }
   };
 
-  // 🏠 TOPIC SELECTION SCREEN
   if (!mode) {
     return (
       <main className="min-h-screen bg-slate-950 text-white p-4 pb-24">
@@ -213,7 +228,7 @@ export default function SpeakingPage() {
           <h1 className="text-2xl font-black">🎙️ Speaking Club</h1>
           <Link href="/english" className="text-sm text-slate-400">← Back</Link>
         </div>
-        <p className="text-sm text-slate-400 mb-4">Pick a topic → have a REAL voice call with Aria, your AI friend!</p>
+        <p className="text-sm text-slate-400 mb-4">Pick a topic → have a REAL voice call with Veer, your AI friend!</p>
         <div className="grid grid-cols-2 gap-3">
           {TOPICS.map((t) => (
             <button
@@ -246,15 +261,14 @@ export default function SpeakingPage() {
     );
   }
 
-  // 📞 CONVERSATION SCREEN
   return (
     <main className="h-screen bg-slate-950 text-white flex flex-col p-4 pb-24">
       <div className="flex justify-between items-center mb-3">
         <div className="flex items-center gap-2">
           <span className={`w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-xl ${speaking ? "animate-pulse ring-4 ring-emerald-400/40" : ""}`}>🤖</span>
           <div>
-            <p className="font-bold text-sm">Aria • {topic}</p>
-            <p className="text-[10px] text-emerald-400">{speaking ? "🔊 Aria is speaking..." : mode === "call" ? "🎤 Your turn — tap mic & speak" : "💬 chat mode"}</p>
+            <p className="font-bold text-sm">Veer • {topic}</p>
+            <p className="text-[10px] text-emerald-400">{speaking ? "🔊 Veer is speaking..." : mode === "call" ? "🎤 Your turn — tap mic & speak" : "💬 chat mode"}</p>
           </div>
         </div>
         <button
@@ -274,7 +288,7 @@ export default function SpeakingPage() {
             )}
           </div>
         ))}
-        {loading && <div className="justify-self-start bg-slate-800 p-3 rounded-xl text-sm animate-pulse">🤖 Aria is thinking...</div>}
+        {loading && <div className="justify-self-start bg-slate-800 p-3 rounded-xl text-sm animate-pulse">🤖 Veer is thinking...</div>}
         <div ref={bottomRef} />
       </div>
 
@@ -287,7 +301,7 @@ export default function SpeakingPage() {
           >
             {recording ? <>⏹️ {recSec}s</> : "🎤"}
           </button>
-          <p className="text-[10px] text-slate-400">{speaking ? "Listen to Aria first..." : "Tap & speak your answer"}</p>
+          <p className="text-[10px] text-slate-400">{speaking ? "Listen to Veer first..." : "Tap & speak your answer"}</p>
         </div>
       ) : (
         <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2 pt-2">
