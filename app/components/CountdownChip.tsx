@@ -1,11 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 
 export default function CountdownChip() {
   const [item, setItem] = useState<{ name: string; days: number; emoji: string } | null>(null);
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const load = async () => {
@@ -31,25 +35,27 @@ export default function CountdownChip() {
     return () => clearInterval(id);
   }, []);
 
-  // Hide on same pages where bell/profile are hidden
-  if (["/login", "/signup", "/activity", "/inbox", "/profile", "/feed", "/search", "/leaderboard", "/english", "/ai", "/move", "/speaking", "/evaluate"].includes(pathname)) return null;
-  if (!item) return null;
+  const hidden = ["/login", "/signup", "/activity", "/inbox", "/profile", "/feed", "/search", "/leaderboard", "/english", "/ai", "/move", "/speaking", "/evaluate"].includes(pathname);
+
+  if (!mounted || hidden || !item) return null;
 
   const color =
     item.days <= 3
-      ? "bg-red-600/20 border-red-500/50 text-red-300"
+      ? "bg-red-600/25 border-red-500/60 text-red-300"
       : item.days <= 7
-      ? "bg-amber-600/20 border-amber-500/50 text-amber-300"
-      : "bg-emerald-600/20 border-emerald-500/50 text-emerald-300";
+      ? "bg-amber-600/25 border-amber-500/60 text-amber-300"
+      : "bg-emerald-600/25 border-emerald-500/60 text-emerald-300";
 
-  return (
+  // 🔒 Portal to <body> = impossible to move while scrolling!
+  return createPortal(
     <div
-      style={{ position: "fixed", top: 22, right: 122, zIndex: 55 }}
-      className={`${color} border rounded-full px-3 py-1.5 text-xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md`}
+      style={{ position: "fixed", top: 20, right: 126, zIndex: 55 }}
+      className={`${color} border-2 rounded-full px-4 py-2 text-sm font-black flex items-center gap-2 shadow-xl`}
     >
-      <span>{item.emoji}</span>
-      <span className="max-w-[90px] truncate">{item.name}</span>
+      <span className="text-base">{item.emoji}</span>
+      <span className="max-w-[110px] truncate">{item.name}</span>
       <span>• {item.days}d</span>
-    </div>
+    </div>,
+    document.body
   );
 }
