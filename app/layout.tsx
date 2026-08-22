@@ -6,6 +6,7 @@ import ProfileMenu from "./ProfileMenu";
 import CoinPop from "./CoinPop";
 import NotificationCenter from "./NotificationCenter";
 import OfflineBanner from "@/app/components/OfflineBanner";
+import CountdownChip from "@/app/components/CountdownChip";
 
 
 const geistSans = Geist({
@@ -42,6 +43,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} h-full antialiased pb-16 md:pb-0`}
       >
         <OfflineBanner />
+        <CountdownChip />
     
         {children}
         <BottomNav />
