@@ -22,8 +22,10 @@ export default function CountdownChip() {
       today.setHours(0, 0, 0, 0);
       const future = rows
         .map((r: any) => {
-          const d = new Date(r.target_date || r.date || r.event_date);
-          const days = Math.ceil((d.getTime() - today.getTime()) / 86400000);
+          const str = r.target_date || r.date || r.event_date || "";
+          const p = str.split("-").map(Number);
+          const d = new Date(p[0], (p[1] || 1) - 1, p[2] || 1); // ✅ LOCAL date (no UTC shift!)
+          const days = Math.round((d.getTime() - today.getTime()) / 86400000);
           return { name: r.name || r.title || "Event", emoji: r.emoji || "⏳", days };
         })
         .filter((x) => !isNaN(x.days) && x.days >= 0)
