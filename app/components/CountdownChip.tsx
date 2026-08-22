@@ -35,9 +35,9 @@ export default function CountdownChip() {
     return () => clearInterval(id);
   }, []);
 
-  const hidden = ["/login", "/signup", "/activity", "/inbox", "/profile", "/feed", "/search", "/leaderboard", "/english", "/ai", "/move", "/speaking", "/evaluate"].includes(pathname);
-
-  if (!mounted || hidden || !item) return null;
+  // ✅ ONLY on dashboard — nowhere else!
+  const show = pathname === "/" || pathname === "/dashboard";
+  if (!mounted || !show || !item) return null;
 
   const color =
     item.days <= 3
@@ -46,15 +46,15 @@ export default function CountdownChip() {
       ? "bg-amber-600/25 border-amber-500/60 text-amber-300"
       : "bg-emerald-600/25 border-emerald-500/60 text-emerald-300";
 
-  // 🔒 Portal to <body> = impossible to move while scrolling!
+  // 🔒 Portal to <body> = cannot scroll, cannot move!
   return createPortal(
     <div
-      style={{ position: "fixed", top: 20, right: 126, zIndex: 55 }}
-      className={`${color} border-2 rounded-full px-4 py-2 text-sm font-black flex items-center gap-2 shadow-xl`}
+      style={{ position: "fixed", top: 16, right: 126, zIndex: 55 }}
+      className={`${color} border-2 rounded-full pl-3 pr-5 py-2.5 text-base font-black flex items-center gap-2 shadow-2xl`}
     >
-      <span className="text-base">{item.emoji}</span>
-      <span className="max-w-[110px] truncate">{item.name}</span>
-      <span>• {item.days}d</span>
+      <span className="text-xl">{item.emoji}</span>
+      <span className="max-w-[150px] truncate">{item.name}</span>
+      <span>• {item.days}d left</span>
     </div>,
     document.body
   );
