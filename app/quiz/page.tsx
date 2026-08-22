@@ -58,7 +58,7 @@ export default function QuizPage() {
     <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
       <div className="mb-6">
         <h1 className="text-3xl font-bold flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl bg-green-600/20 border border-green-500/40 flex items-center justify-center text-xl">🤖</span>
+          <span className="w-10 h-10 rounded-xl bg-violet-600/20 border border-violet-500/40 flex items-center justify-center text-xl">🤖</span>
           AI Quiz
         </h1>
         <p className="text-slate-400">Type any topic → AI writes your test</p>
@@ -78,10 +78,10 @@ export default function QuizPage() {
           <button
             type="button"
             onClick={() => setCount(5)}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-bold border transition-colors ${
+            className={`flex-1 py-2.5 rounded-lg text-sm font-bold border transition-all ${
               count === 5
-                ? "bg-green-600 border-green-500 text-white"
-                : "bg-slate-800 border-slate-700 text-slate-300"
+                ? "bg-violet-600 border-violet-400 text-white shadow-lg shadow-violet-900/40"
+                : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
             }`}
           >
             ⚡ 5 Quick
@@ -89,10 +89,10 @@ export default function QuizPage() {
           <button
             type="button"
             onClick={() => setCount(10)}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-bold border transition-colors ${
+            className={`flex-1 py-2.5 rounded-lg text-sm font-bold border transition-all ${
               count === 10
-                ? "bg-green-600 border-green-500 text-white"
-                : "bg-slate-800 border-slate-700 text-slate-300"
+                ? "bg-violet-600 border-violet-400 text-white shadow-lg shadow-violet-900/40"
+                : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
             }`}
           >
             📚 10 Standard
@@ -101,7 +101,7 @@ export default function QuizPage() {
 
         <button
           disabled={loading}
-          className="py-3 rounded bg-green-600 hover:bg-green-500 font-semibold disabled:opacity-50"
+          className="py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 font-bold shadow-lg shadow-emerald-900/30 disabled:opacity-50"
         >
           {loading ? `🤖 AI is writing your ${count} questions...` : ` Generate ${count}-Question Quiz`}
         </button>
@@ -146,7 +146,7 @@ export default function QuizPage() {
             <button
               onClick={submit}
               disabled={answers.some((a) => a === -1)}
-              className="py-3 rounded bg-green-600 hover:bg-green-500 font-semibold disabled:opacity-50"
+              className="py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 font-bold shadow-lg shadow-emerald-900/30 disabled:opacity-50"
             >
               ✅ Submit Answers
             </button>
