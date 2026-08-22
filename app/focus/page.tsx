@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
 import Link from "next/link";
@@ -51,6 +51,55 @@ export default function FocusPage() {
   const [subject, setSubject] = useState("");
   const [custom, setCustom] = useState("");
   const [doneToday, setDoneToday] = useState(0);
+  const [awake, setAwake] = useState(false);
+  const [wakeSupported, setWakeSupported] = useState(false);
+  const wakeRef = useRef<any>(null);
+
+  // 🔆 Detect browser support
+  useEffect(() => {
+    setWakeSupported(typeof navigator !== "undefined" && "wakeLock" in navigator);
+  }, []);
+
+  // 🔆 Request / release screen lock
+  const setWakeLock = async (on: boolean) => {
+    try {
+      if (on && typeof navigator !== "undefined" && "wakeLock" in navigator) {
+        if (!wakeRef.current) {
+          wakeRef.current = await (navigator as any).wakeLock.request("screen");
+          wakeRef.current.addEventListener("release", () => {
+            wakeRef.current = null;
+          });
+        }
+      } else if (wakeRef.current) {
+        await wakeRef.current.release();
+        wakeRef.current = null;
+      }
+    } catch {
+      wakeRef.current = null;
+    }
+  };
+
+  // 🔆 Lock while running + awake enabled
+  useEffect(() => {
+    if (running && awake) setWakeLock(true);
+    else setWakeLock(false);
+  }, [running, awake]);
+
+  // 🔆 Re-lock when user returns to the tab
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState === "visible" && running && awake) setWakeLock(true);
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [running, awake]);
+
+  // 🔆 Safety: release on page unmount
+  useEffect(() => {
+    return () => {
+      wakeRef.current?.release?.().catch(() => {});
+    };
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -157,7 +206,7 @@ export default function FocusPage() {
       </div>
 
       <div className="bg-slate-900 rounded-xl p-8 text-center max-w-md mx-auto">
-        <div className="flex gap-2 justify-center flex-wrap mb-6">
+        <div className="flex gap-2 justify-center flex-wrap mb-4">
           {PRESETS.map((m) => (
             <button
               key={m}
@@ -180,6 +229,25 @@ export default function FocusPage() {
             className="w-20 px-2 py-1.5 rounded bg-slate-800 border border-slate-700 text-sm"
           />
         </div>
+
+        {/* 🔆 SCREEN ON TOGGLE */}
+        {wakeSupported && (
+          <div className="flex flex-col items-center gap-1 mb-4">
+            <button
+              onClick={() => setAwake(!awake)}
+              className={`px-4 py-2 rounded-full text-xs font-black border-2 transition-all ${
+                awake
+                  ? "bg-amber-500/20 border-amber-400/60 text-amber-300 shadow-lg shadow-amber-900/30"
+                  : "bg-slate-800 border-slate-700 text-slate-400"
+              }`}
+            >
+              {awake ? "🔆 Screen stays ON" : "😴 Screen auto-sleep"}
+            </button>
+            {awake && running && (
+              <p className="text-[10px] text-amber-300 animate-pulse">Screen will NOT sleep while timer runs</p>
+            )}
+          </div>
+        )}
 
         <p className="text-7xl mb-4">{plant}</p>
         <p className="text-6xl font-extrabold mb-2">
