@@ -294,11 +294,11 @@ export default function SpeakingPage() {
               <p className="text-[10px] text-slate-400">Repeat & get % score</p>
             </button>
 
-            <button disabled className="opacity-50 bg-slate-900 border border-slate-800 rounded-xl p-4 text-left">
+            <Link href="/vocab" className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-xl p-4 text-left transition-colors">
               <p className="text-2xl mb-1">📚</p>
-              <p className="font-bold text-sm">Vocabulary <span className="text-[9px] bg-slate-700 px-1.5 py-0.5 rounded">SOON</span></p>
-              <p className="text-[10px] text-slate-400">Learn new words daily</p>
-            </button>
+              <p className="font-bold text-sm">Vocabulary</p>
+              <p className="text-[10px] text-slate-400">5 words/day + Hindi meanings</p>
+            </Link>
 
             <button disabled className="opacity-50 bg-slate-900 border border-slate-800 rounded-xl p-4 text-left">
               <p className="text-2xl mb-1">💡</p>
