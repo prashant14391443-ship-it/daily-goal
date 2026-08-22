@@ -189,7 +189,7 @@ export default function CommunityPage() {
         </Link>
 
         <Link
-          href="/english"
+          href="/speaking"
           className="group relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-950/40 to-fuchsia-950/40 border border-indigo-500/20 p-5 text-center transition-all duration-300 hover:border-indigo-500/40 hover:shadow-[0_0_20px_-5px_rgba(99,102,241,0.2)] hover:-translate-y-0.5"
         >
           <p className="font-semibold text-indigo-100 flex items-center justify-center gap-3 text-sm md:text-base">

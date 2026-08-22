@@ -253,7 +253,7 @@ export default function SpeakingPage() {
       <main className="min-h-screen bg-slate-950 text-white p-4 pb-24">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-black">🗣️ Practice Speaking</h1>
-          <Link href="/english" className="text-sm text-slate-400">← Back</Link>
+          <Link href="/community" className="text-sm text-slate-400">← Back</Link>
         </div>
 
         {view === "home" ? (
