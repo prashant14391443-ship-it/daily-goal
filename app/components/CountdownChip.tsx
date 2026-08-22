@@ -35,26 +35,22 @@ export default function CountdownChip() {
     return () => clearInterval(id);
   }, []);
 
-  // ✅ ONLY on dashboard — nowhere else!
+  // ✅ ONLY on dashboard
   const show = pathname === "/" || pathname === "/dashboard";
   if (!mounted || !show || !item) return null;
 
-  const color =
-    item.days <= 3
-      ? "bg-red-600/25 border-red-500/60 text-red-300"
-      : item.days <= 7
-      ? "bg-amber-600/25 border-amber-500/60 text-amber-300"
-      : "bg-emerald-600/25 border-emerald-500/60 text-emerald-300";
+  const dayColor =
+    item.days <= 3 ? "text-red-400" : item.days <= 7 ? "text-amber-400" : "text-emerald-400";
 
-  // 🔒 Portal to <body> = cannot scroll, cannot move!
+  // 📌 absolute (like bell & profile) = lives in the header, scrolls WITH the page
   return createPortal(
     <div
-      style={{ position: "fixed", top: 16, right: 126, zIndex: 55 }}
-      className={`${color} border-2 rounded-full pl-3 pr-5 py-2.5 text-base font-black flex items-center gap-2 shadow-2xl`}
+      style={{ position: "absolute", top: 18, left: 16, right: 126, zIndex: 55 }}
+      className="h-11 rounded-full bg-slate-800/90 border border-slate-700 backdrop-blur-md flex items-center justify-center gap-2 px-3 shadow-lg"
     >
-      <span className="text-xl">{item.emoji}</span>
-      <span className="max-w-[150px] truncate">{item.name}</span>
-      <span>• {item.days}d left</span>
+      <span className="text-lg">{item.emoji}</span>
+      <span className="text-sm font-bold text-white truncate">{item.name}</span>
+      <span className={`text-xs font-black whitespace-nowrap ${dayColor}`}>• {item.days}d left</span>
     </div>,
     document.body
   );
