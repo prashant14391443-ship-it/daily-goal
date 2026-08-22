@@ -25,7 +25,7 @@ async function getCandidates(key: string): Promise<string[]> {
 
 export async function POST(req: Request) {
   try {
-    const { topic } = await req.json();
+    const { topic, count = 5 } = await req.json();
     const key = process.env.GEMINI_API_KEY;
 
     if (!key) {
@@ -35,7 +35,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Enter a topic first." }, { status: 400 });
     }
 
-    const prompt = `You are a teacher. Create 5 multiple-choice questions about "${topic}".
+    // Cap at 10 questions max (prevent abuse)
+    const numQuestions = Math.min(10, Math.max(1, Number(count) || 5));
+
+    const prompt = `You are a teacher. Create ${numQuestions} multiple-choice questions about "${topic}".
     Reply ONLY with a valid JSON array (no markdown):
     [{"q":"question text","options":["A","B","C","D"],"answer":0,"explain":"one line why correct"}]
     "answer" is the index (0-3) of the correct option.`;

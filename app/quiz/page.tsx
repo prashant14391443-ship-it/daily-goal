@@ -12,6 +12,7 @@ type Question = {
 
 export default function QuizPage() {
   const [topic, setTopic] = useState("");
+  const [count, setCount] = useState(5);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -28,7 +29,7 @@ export default function QuizPage() {
       const res = await fetch("/api/quiz", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic }),
+        body: JSON.stringify({ topic, count }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "failed");
@@ -71,11 +72,38 @@ export default function QuizPage() {
           required
           className="p-3 rounded bg-slate-800 border border-slate-700"
         />
+
+        {/* ⚡ NEW: quiz length toggle */}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setCount(5)}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-bold border transition-colors ${
+              count === 5
+                ? "bg-green-600 border-green-500 text-white"
+                : "bg-slate-800 border-slate-700 text-slate-300"
+            }`}
+          >
+            ⚡ 5 Quick
+          </button>
+          <button
+            type="button"
+            onClick={() => setCount(10)}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-bold border transition-colors ${
+              count === 10
+                ? "bg-green-600 border-green-500 text-white"
+                : "bg-slate-800 border-slate-700 text-slate-300"
+            }`}
+          >
+            📚 10 Standard
+          </button>
+        </div>
+
         <button
           disabled={loading}
           className="py-3 rounded bg-green-600 hover:bg-green-500 font-semibold disabled:opacity-50"
         >
-          {loading ? "🤖 AI is writing your test..." : " Generate Quiz"}
+          {loading ? `🤖 AI is writing your ${count} questions...` : ` Generate ${count}-Question Quiz`}
         </button>
       </form>
 
@@ -130,7 +158,7 @@ export default function QuizPage() {
               <p className="text-slate-400 mt-1">
                 {score === questions.length
                   ? "🏆 Perfect! You're ready!"
-                  : score >= 3
+                  : score >= count / 2
                   ? "💪 Good job — review the red ones!"
                   : "📚 Keep studying — you'll get there!"}
               </p>
