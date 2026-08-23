@@ -49,6 +49,8 @@ export default function SentencesPage() {
   const [revIdx, setRevIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [bankQ, setBankQ] = useState("");
+  const [aiTopic, setAiTopic] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
   const [sayScore, setSayScore] = useState<number | null>(null);
   const [recording, setRecording] = useState(false);
 
@@ -190,6 +192,29 @@ export default function SentencesPage() {
       setPicked(-1);
     }
   };
+  
+  // ✨ ANY TOPIC — AI pack on demand
+  const genAI = async () => {
+    const t = aiTopic.trim();
+    if (!t || aiLoading) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "sentencepack", topic: t }),
+      });
+      const d = await res.json();
+      const items: SItem[] = (d.items || [])
+        .map((a: string[]) => ({ wrong: a[0], right: a[1], why: a[2] || "", hindi: a[3] || "" }))
+        .filter((it: SItem) => it.wrong && it.right);
+      if (items.length >= 3) startPack({ id: "ai-" + t, emoji: "✨", title: t, desc: "AI pack", items });
+      else alert("😴 Could not generate — try another topic!");
+    } catch {
+      alert("📡 Network issue!");
+    }
+    setAiLoading(false);
+  };
 
   const startReview = () => {
     setRevQueue(shuffle(due));
@@ -248,6 +273,20 @@ export default function SentencesPage() {
             <p className="font-bold text-sm">My Sentences</p>
             <p className="text-[10px] text-slate-400">{rows.length} saved</p>
           </button>
+        </div>
+        <div className="bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 border border-violet-500/40 rounded-xl p-4 mb-4 grid gap-2">
+          <p className="font-bold text-sm text-violet-300">✨ Any Topic — AI Pack</p>
+          <div className="flex gap-2">
+            <input
+              value={aiTopic}
+              onChange={(e) => setAiTopic(e.target.value)}
+              placeholder="e.g. Email writing, Airport talk..."
+              className="flex-1 p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+            />
+            <button onClick={genAI} disabled={aiLoading} className="px-4 rounded-xl bg-violet-600 hover:bg-violet-500 text-sm font-bold disabled:opacity-50">
+              {aiLoading ? "..." : "Go"}
+            </button>
+          </div>
         </div>
 
         <p className="text-xs font-black text-slate-400 mb-2">🎯 20 TOPICS • 30 SENTENCES EACH • 5 AT A TIME</p>
