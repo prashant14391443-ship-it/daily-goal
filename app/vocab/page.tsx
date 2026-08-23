@@ -49,7 +49,7 @@ const PACKS: Pack[] = [
   },
 ];
 
-const MASTERY = ["🌱", "", "", "🌲", "👑"];
+const MASTERY = ["🌱", "", "🌳", "🌲"];
 const masteryOf = (lvl: number) => (lvl >= 4 ? "👑" : MASTERY[Math.max(0, lvl)]);
 const INTERVALS: Record<number, number> = { 1: 1, 2: 3, 3: 7 };
 
@@ -83,6 +83,8 @@ export default function VocabPage() {
   const [revIdx, setRevIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [bankQ, setBankQ] = useState("");
+    const [aiTopic, setAiTopic] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
 
   const load = async () => {
     const { data } = await supabase.auth.getSession();
@@ -108,6 +110,27 @@ export default function VocabPage() {
 
   const learned = rows.map((r) => r.word);
   const due = rows.filter((r) => r.level < 4 && r.next_review && r.next_review <= todayISO());
+  const genAI = async () => {
+    const t = aiTopic.trim();
+    if (!t || aiLoading) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "vocabpack", topic: t }),
+      });
+      const d = await res.json();
+      const words: VWord[] = (d.items || [])
+        .map((a: string[]) => ({ word: a[0], type: a[1] || "word", meaning: a[2] || "", hindi: a[3] || "", example: a[4] || "", synonym: a[5] || "" }))
+        .filter((w: VWord) => w.word && w.meaning);
+      if (words.length >= 3) startPack({ id: "ai-" + t, emoji: "✨", title: t, desc: "AI pack", words });
+      else alert("😴 Could not generate — try another topic!");
+    } catch {
+      alert("📡 Network issue!");
+    }
+    setAiLoading(false);
+  };
 
   const startPack = (p: Pack) => {
     setPack(p);
@@ -208,9 +231,9 @@ export default function VocabPage() {
 
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-4">
           <p className="text-xs text-slate-400 mb-1">Your word bank</p>
-          <p className="text-2xl font-black text-emerald-400">{learned.length} <span className="text-sm text-slate-400 font-bold">/ {total} words learned</span></p>
+          <p className="text-2xl font-black text-emerald-400">{learned.length} <span className="text-sm text-slate-400 font-bold">/ {Math.max(total, learned.length)} words learned</span></p>
           <div className="h-2 bg-slate-800 rounded-full mt-2 overflow-hidden">
-            <div className="h-full bg-emerald-500" style={{ width: `${(learned.length / total) * 100}%` }} />
+            <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, (learned.length / total) * 100)}%` }} />
           </div>
         </div>
 
@@ -233,6 +256,20 @@ export default function VocabPage() {
             <p className="font-bold text-sm">My Words</p>
             <p className="text-[10px] text-slate-400">{rows.length} saved</p>
           </button>
+        </div>
+        <div className="bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 border border-violet-500/40 rounded-xl p-4 mb-4 grid gap-2">
+          <p className="font-bold text-sm text-violet-300">✨ Any Topic — AI Pack (8 words)</p>
+          <div className="flex gap-2">
+            <input
+              value={aiTopic}
+              onChange={(e) => setAiTopic(e.target.value)}
+              placeholder="e.g. Travel, Cricket, Festivals..."
+              className="flex-1 p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+            />
+            <button onClick={genAI} disabled={aiLoading} className="px-4 rounded-xl bg-violet-600 hover:bg-violet-500 text-sm font-bold disabled:opacity-50">
+              {aiLoading ? "..." : "Go"}
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-3">
@@ -419,10 +456,10 @@ export default function VocabPage() {
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 flex items-center justify-center">
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center max-w-sm w-full">
-        <p className="text-6xl mb-3">{score === 5 ? "🏆" : score >= 3 ? "💪" : "🌱"}</p>
+        <p className="text-6xl mb-3">{score === quizQs.length ? "🏆" : score >= 3 ? "💪" : "🌱"}</p>
         <p className="text-4xl font-black text-emerald-400">{score} / {quizQs.length}</p>
         <p className="text-sm text-slate-400 mt-2 mb-6">
-          {score === 5 ? "Vocab Hero! All words mastered!" : score >= 3 ? "Strong! Review the red ones." : "Good start — try the pack again!"}
+          {score === quizQs.length ? "Vocab Hero! All words mastered!" : score >= 3 ? "Strong! Review the red ones." : "Good start — try the pack again!"}
         </p>
         <div className="grid gap-2">
           <button onClick={() => pack && startPack(pack)} className="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 font-bold">🔁 Retry Pack</button>

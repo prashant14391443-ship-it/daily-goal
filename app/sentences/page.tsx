@@ -85,6 +85,8 @@ export default function SentencesPage() {
   const [bankQ, setBankQ] = useState("");
   const [sayScore, setSayScore] = useState<number | null>(null);
   const [recording, setRecording] = useState(false);
+  const [aiTopic, setAiTopic] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
 
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -115,6 +117,28 @@ export default function SentencesPage() {
 
   const learned = rows.map((r) => r.sentence);
   const due = rows.filter((r) => r.level < 4 && r.next_review && r.next_review <= todayISO());
+
+  const genAI = async () => {
+    const t = aiTopic.trim();
+    if (!t || aiLoading) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "sentencepack", topic: t }),
+      });
+      const d = await res.json();
+      const items: SItem[] = (d.items || [])
+        .map((a: string[]) => ({ wrong: a[0], right: a[1], why: a[2] || "", hindi: a[3] || "" }))
+        .filter((it: SItem) => it.wrong && it.right);
+      if (items.length >= 3) startPack({ id: "ai-" + t, emoji: "✨", title: t, desc: "AI pack", items });
+      else alert("😴 Could not generate — try another topic!");
+    } catch {
+      alert("📡 Network issue!");
+    }
+    setAiLoading(false);
+  };
 
   const startPack = (p: Pack) => {
     setPack(p);
@@ -148,7 +172,6 @@ export default function SentencesPage() {
     }
   };
 
-  // 🎤 SAY IT — record & score pronunciation
   const toggleSay = async () => {
     const target = queue[idx]?.right;
     if (!target) return;
@@ -249,7 +272,6 @@ export default function SentencesPage() {
     }
   };
 
-  // 🏠 HOME
   if (view === "home") {
     const total = PACKS.reduce((a, p) => a + p.items.length, 0);
     return (
@@ -263,7 +285,7 @@ export default function SentencesPage() {
           <p className="text-xs text-slate-400 mb-1">Your sentence bank</p>
           <p className="text-2xl font-black text-amber-400">{learned.length} <span className="text-sm text-slate-400 font-bold">/ {total} sentences mastered</span></p>
           <div className="h-2 bg-slate-800 rounded-full mt-2 overflow-hidden">
-            <div className="h-full bg-amber-500" style={{ width: `${(learned.length / total) * 100}%` }} />
+            <div className="h-full bg-amber-500" style={{ width: `${Math.min(100, (learned.length / Math.max(total, 1)) * 100)}%` }} />
           </div>
         </div>
 
@@ -284,6 +306,21 @@ export default function SentencesPage() {
             <p className="font-bold text-sm">My Sentences</p>
             <p className="text-[10px] text-slate-400">{rows.length} saved</p>
           </button>
+        </div>
+
+        <div className="bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 border border-violet-500/40 rounded-xl p-4 mb-4 grid gap-2">
+          <p className="font-bold text-sm text-violet-300">✨ Any Topic — AI Pack (8 sentences)</p>
+          <div className="flex gap-2">
+            <input
+              value={aiTopic}
+              onChange={(e) => setAiTopic(e.target.value)}
+              placeholder="e.g. Email writing, Talking to friends..."
+              className="flex-1 p-2.5 rounded-xl bg-slate-950 border border-slate-700 text-sm"
+            />
+            <button onClick={genAI} disabled={aiLoading} className="px-4 rounded-xl bg-violet-600 hover:bg-violet-500 text-sm font-bold disabled:opacity-50">
+              {aiLoading ? "..." : "Go"}
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-3">
@@ -311,7 +348,6 @@ export default function SentencesPage() {
     );
   }
 
-  // 🎴 LEARN CARD
   if (view === "learn" && pack) {
     const it = queue[idx];
     return (
@@ -363,7 +399,6 @@ export default function SentencesPage() {
     );
   }
 
-  // 🔄 REVIEW
   if (view === "review" && revQueue.length > 0) {
     const w = revQueue[revIdx];
     return (
@@ -395,7 +430,6 @@ export default function SentencesPage() {
     );
   }
 
-  // 🏦 BANK
   if (view === "bank") {
     const list = rows.filter((r) => r.sentence.toLowerCase().includes(bankQ.toLowerCase()));
     return (
@@ -423,7 +457,6 @@ export default function SentencesPage() {
     );
   }
 
-  // ❓ QUIZ — tap the CORRECT sentence
   if (view === "quiz" && quizQs.length > 0) {
     const q = quizQs[qi];
     return (
@@ -452,7 +485,6 @@ export default function SentencesPage() {
     );
   }
 
-  // 🏁 RESULT
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 flex items-center justify-center">
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center max-w-sm w-full">

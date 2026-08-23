@@ -17,7 +17,6 @@ Rules:
 3. Then reply naturally in 1-2 sentences and ask ONE simple follow-up question about the topic.
 4. Plain text only, no markdown, MAX 3 sentences total.`;
 
-// ✅ GOOGLE-LEVEL PROMPT: pronunciation + corrected version + 6 mistakes
 const EVAL_PROMPT = `You are an expert, strict-but-kind English language tutor. The user provides a transcription of what they said. Find EVERY grammar, phrasing, word-choice and pronunciation mistake (be thorough — up to 6 mistakes, like a professional teacher). Reply in EXACTLY this line format (one item per line, no extra text, no quotation marks, no emojis):
 CORRECTED: <the complete corrected version of their full text>
 TOTAL: <0-100>
@@ -32,7 +31,6 @@ UPGRADE: ... (max 2, omit if none)
 REPLY: <friendly spoken feedback under 40 words, no emojis, no quotes>
 Scoring guide: ACCURACY = grammar correctness; PRONUNCIATION = how clearly words were spoken (judge from misheard or odd-sounding words in the transcription); EXPRESSION = vocabulary range; FLUENCY = natural flow and rhythm.`;
 
-// ✅ GOOGLE-LEVEL parser: pronunciation + corrected version
 function parseEvalText(txt: string): any {
   try {
     if (!txt) return null;
@@ -85,6 +83,54 @@ function parseEvalText(txt: string): any {
   }
 }
 
+// 📦 AI PACK helpers (line format = never breaks)
+function parsePackLines(txt: string, prefix: string): string[][] {
+  return txt
+    .split("\n")
+    .map((l) => l.trim().replace(/^\d+[.)\s]+/, ""))
+    .filter((l) => l.toUpperCase().startsWith(prefix))
+    .map((l) => l.slice(l.indexOf(":") + 1).split("|").map((s) => s.trim()));
+}
+
+async function genPackLines(prompt: string, prefix: string, groqKey?: string, gKey?: string): Promise<string[][]> {
+  if (groqKey) {
+    for (const model of GROQ_CHAT) {
+      try {
+        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
+          body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], max_tokens: 900, temperature: 0.7 }),
+        });
+        if (r.ok) {
+          const d = await r.json();
+          const items = parsePackLines(d.choices?.[0]?.message?.content || "", prefix);
+          if (items.length >= 3) return items;
+        }
+      } catch {}
+    }
+  }
+  if (gKey) {
+    for (const model of GEMINI_MODELS) {
+      try {
+        const r = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 1024, temperature: 0.7 } }),
+          }
+        );
+        if (r.ok) {
+          const d = await r.json();
+          const items = parsePackLines(d.candidates?.[0]?.content?.parts?.[0]?.text || "", prefix);
+          if (items.length >= 3) return items;
+        }
+      } catch {}
+    }
+  }
+  return [];
+}
+
 export async function POST(req: Request) {
   try {
     const { message, history = [], context = "", mode = "coach", audio, mimeType, topic, target } = await req.json();
@@ -105,6 +151,32 @@ export async function POST(req: Request) {
       if (cached) {
         return NextResponse.json({ reply: cached, engine: "cache", fromCache: true });
       }
+    }
+
+    // 📚 AI VOCAB PACK (any topic, 8 words)
+    if (mode === "vocabpack" && topic) {
+      const items = await genPackLines(
+        `You are an English teacher for Indian students. Create 8 useful vocabulary words about "${topic}". Reply with EXACTLY 8 lines, no extra text, format:
+WORD: <word> | <type> | <simple english meaning> | <hindi meaning> | <short example sentence> | <synonym>`,
+        "WORD:",
+        groqKey,
+        gKey
+      );
+      if (items.length) return NextResponse.json({ items });
+      return NextResponse.json({ error: "Could not generate pack — try again!" }, { status: 503 });
+    }
+
+    // 🎯 AI SENTENCE PACK (any topic, 8 pairs)
+    if (mode === "sentencepack" && topic) {
+      const items = await genPackLines(
+        `You are an English teacher for Indian students. Create 8 common-mistake sentence pairs about "${topic}" situations. Reply with EXACTLY 8 lines, no extra text, format:
+SENT: <wrong sentence> | <correct sentence> | <brief reason> | <hindi meaning of correct sentence>`,
+        "SENT:",
+        groqKey,
+        gKey
+      );
+      if (items.length) return NextResponse.json({ items });
+      return NextResponse.json({ error: "Could not generate pack — try again!" }, { status: 503 });
     }
 
     // 🎙️ AUDIO MODE
@@ -148,7 +220,7 @@ export async function POST(req: Request) {
           return NextResponse.json({ reply, heard: transcription, score });
         }
 
-        // 📊 SPEAKING TEST: full report card with pronunciation
+        // 📊 SPEAKING TEST
         if (mode === "evaluate") {
           const errs: string[] = [];
 
@@ -212,7 +284,6 @@ export async function POST(req: Request) {
             }
           } else errs.push("gemini: NO KEY");
 
-          // 🚨 GUARANTEED FALLBACK
           if (groqKey) {
             try {
               const fr = await fetch("https://api.groq.com/openai/v1/chat/completions", {
