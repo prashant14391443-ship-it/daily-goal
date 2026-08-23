@@ -285,14 +285,11 @@ export default function SpeakingPage() {
               <p className="text-[10px] text-slate-400">Score + full report</p>
             </Link>
 
-            <button
-              onClick={startDrill}
-              className="bg-slate-900 border border-slate-800 hover:border-amber-500/60 rounded-xl p-4 text-left transition-colors"
-            >
+            <Link href="/sentences" className="bg-slate-900 border border-slate-800 hover:border-amber-500/60 rounded-xl p-4 text-left transition-colors">
               <p className="text-2xl mb-1">🎯</p>
               <p className="font-bold text-sm">Sentence Practice</p>
-              <p className="text-[10px] text-slate-400">Repeat & get % score</p>
-            </button>
+              <p className="text-[10px] text-slate-400">Fix mistakes + say & score</p>
+            </Link>
 
             <Link href="/vocab" className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-xl p-4 text-left transition-colors">
               <p className="text-2xl mb-1">📚</p>
