@@ -42,9 +42,10 @@ export default function Scramble({ onExit }: { onExit: () => void }) {
     window.speechSynthesis.speak(u);
   };
 
+  // 🔊 Speak the HINT (meaning) — NEVER the answer word!
   useEffect(() => {
-    if (!over) speak(w);
-  }, [w, over]);
+    if (!over) speak(round[idx].meaning);
+  }, [idx, over]);
 
   const goNext = (ns: number) => {
     if (idx + 1 >= round.length) {
@@ -144,7 +145,7 @@ export default function Scramble({ onExit }: { onExit: () => void }) {
     <div className="max-w-md mx-auto">
       <div className="flex justify-between items-center mb-4">
         <span className="text-lg font-black text-white">🧩 {idx + 1}/5</span>
-        <button onClick={() => speak(w)} className="text-sm text-slate-400">🔊 hear</button>
+        <button onClick={() => speak(round[idx].meaning)} className="text-sm text-slate-400">🔊 hear hint</button>
         <span className="text-lg font-black text-emerald-400">⭐ {score}</span>
       </div>
 
