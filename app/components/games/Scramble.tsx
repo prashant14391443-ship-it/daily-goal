@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { allWords, shuffle, getBest, saveBest } from "./gameData";
 import type { VWord } from "./gameData";
+import { playCorrect, playWrong, playWin } from "@/lib/sounds";
 
 type Letter = { id: number; ch: string; used: boolean };
 
@@ -32,6 +33,33 @@ export default function Scramble({ onExit }: { onExit: () => void }) {
 
   const w = round[idx].word.toLowerCase();
 
+  const speak = (text: string) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US";
+    u.rate = 0.9;
+    window.speechSynthesis.speak(u);
+  };
+
+  useEffect(() => {
+    if (!over) speak(w);
+  }, [w, over]);
+
+  const goNext = (ns: number) => {
+    if (idx + 1 >= round.length) {
+      setOver(true);
+      saveBest("dg-game-scramble", ns, true);
+      setBest(getBest("dg-game-scramble"));
+      playWin();
+    } else {
+      const ni = idx + 1;
+      setIdx(ni);
+      setLetters(makeLetters(round[ni].word.toLowerCase()));
+      setBuilt([]);
+    }
+  };
+
   const tapLetter = (id: number) => {
     if (over || wrong) return;
     const l = letters.find((x) => x.id === id);
@@ -42,19 +70,11 @@ export default function Scramble({ onExit }: { onExit: () => void }) {
     if (newBuilt.length === w.length) {
       const guess = newBuilt.map((bid) => letters.find((x) => x.id === bid)!.ch).join("");
       if (guess === w) {
-        const ns = score + 1;
-        setScore(ns);
-        if (idx + 1 >= round.length) {
-          setOver(true);
-          saveBest("dg-game-scramble", ns, true);
-          setBest(getBest("dg-game-scramble"));
-        } else {
-          const ni = idx + 1;
-          setIdx(ni);
-          setLetters(makeLetters(round[ni].word.toLowerCase()));
-          setBuilt([]);
-        }
+        playCorrect();
+        goNext(score + 1);
+        setScore(score + 1);
       } else {
+        playWrong();
         setWrong(true);
         setTimeout(() => {
           setWrong(false);
@@ -63,6 +83,22 @@ export default function Scramble({ onExit }: { onExit: () => void }) {
         }, 400);
       }
     }
+  };
+
+  // 💡 HINT — places the next correct letter (never get stuck!)
+  const hint = () => {
+    if (over || wrong) return;
+    const need = w[built.length];
+    if (!need) return;
+    const l = letters.find((x) => !x.used && x.ch === need);
+    if (l) tapLetter(l.id);
+  };
+
+  // ⏭ SKIP — move on without a point
+  const skip = () => {
+    if (over) return;
+    playWrong();
+    goNext(score);
   };
 
   const removeAt = (i: number) => {
@@ -108,6 +144,7 @@ export default function Scramble({ onExit }: { onExit: () => void }) {
     <div className="max-w-md mx-auto">
       <div className="flex justify-between items-center mb-4">
         <span className="text-lg font-black text-white">🧩 {idx + 1}/5</span>
+        <button onClick={() => speak(w)} className="text-sm text-slate-400">🔊 hear</button>
         <span className="text-lg font-black text-emerald-400">⭐ {score}</span>
       </div>
 
@@ -150,10 +187,12 @@ export default function Scramble({ onExit }: { onExit: () => void }) {
         ))}
       </div>
 
-      <button onClick={clear} className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-bold">
-        ↩️ Clear
-      </button>
-      <p className="text-[10px] text-slate-500 text-center mt-3">Tap letters to build the word • tap a slot to remove</p>
+      <div className="flex gap-2">
+        <button onClick={clear} className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-bold">↩️ Clear</button>
+        <button onClick={hint} className="flex-1 py-2.5 rounded-xl bg-amber-600/20 border border-amber-500/40 text-amber-300 text-sm font-bold">💡 Hint</button>
+        <button onClick={skip} className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-bold">⏭ Skip</button>
+      </div>
+      <p className="text-[10px] text-slate-500 text-center mt-3">Stuck? 💡 places the next letter • ⏭ moves on</p>
     </div>
   );
 }

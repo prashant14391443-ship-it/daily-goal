@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { pickWords, shuffle, getBest, saveBest } from "./gameData";
+import { playCorrect, playWrong, playWin } from "@/lib/sounds";
 
 type Tile = { id: number; key: string; text: string; kind: "w" | "m" };
 
@@ -35,9 +36,19 @@ export default function MatchPairs({ onExit }: { onExit: () => void }) {
 
   const finalTime = Math.round((elapsed + penalty) * 10) / 10;
 
+  const speak = (text: string) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US";
+    u.rate = 0.9;
+    window.speechSynthesis.speak(u);
+  };
+
   useEffect(() => {
     if (matched.length === 6 && !over) {
       setOver(true);
+      playWin();
       saveBest("dg-game-match", finalTime, false);
       setBest(getBest("dg-game-match"));
     }
@@ -59,9 +70,12 @@ export default function MatchPairs({ onExit }: { onExit: () => void }) {
       return;
     }
     if (sel.key === t.key) {
+      playCorrect();
+      speak(t.key); // 🔊 AI says the matched word — learning boost!
       setMatched((m) => [...m, t.key]);
       setSelected(null);
     } else {
+      playWrong();
       setMistakes((m) => m + 1);
       setPenalty((p) => p + 1);
       setSelected(null);

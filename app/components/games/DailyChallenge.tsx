@@ -1,7 +1,8 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { allWords, allSentences } from "./gameData";
 import type { VWord } from "./gameData";
+import { playCorrect, playWrong, playWin } from "@/lib/sounds";
 
 function localISO(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -90,12 +91,25 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     window.speechSynthesis.speak(u);
   };
 
+  // 🔊 Duolingo style: AI says word/sentence when stage changes
+  useEffect(() => {
+    if (stage === "quiz") speak(data.quiz[qi].w.word);
+    if (stage === "sayit") speak(data.sent.right);
+    if (stage === "match") {
+      // match doesn't need auto-speak, users pick pairs
+    }
+  }, [stage, qi]);
+
   // ⚡ QUIZ
   const pickQ = (oi: number) => {
     if (oi === data.quiz[qi].answer) {
       setQScore((s) => s + 1);
       setFlash("ok");
-    } else setFlash("bad");
+      playCorrect();
+    } else {
+      setFlash("bad");
+      playWrong();
+    }
     setTimeout(() => {
       setFlash("");
       if (qi + 1 >= 5) setStage("match");
@@ -111,11 +125,14 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     const s = tiles.find((x) => x.id === sel);
     if (!s || s.kind === t.kind) return setSel(t.id);
     if (s.key === t.key) {
+      playCorrect();
+      speak(t.key); // AI says matched word
       const m = [...matched, t.key];
       setMatched(m);
       setSel(null);
       if (m.length === 4) setTimeout(() => setStage("scramble"), 300);
     } else {
+      playWrong();
       setMMis((x) => x + 1);
       setSel(null);
     }
@@ -131,8 +148,11 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     setBuilt(nb);
     if (nb.length === sw.length) {
       const guess = nb.map((bid) => letters.find((x) => x.id === bid)!.ch).join("");
-      if (guess === sw) setTimeout(() => setStage("sayit"), 250);
-      else {
+      if (guess === sw) {
+        playCorrect();
+        setTimeout(() => setStage("sayit"), 250);
+      } else {
+        playWrong();
         setSWrong(true);
         setTimeout(() => {
           setSWrong(false);
@@ -141,6 +161,14 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
         }, 400);
       }
     }
+  };
+
+  // 💡 HINT — places the next correct letter (never get stuck!)
+  const hint = () => {
+    const need = sw[built.length];
+    if (!need || sWrong) return;
+    const l = letters.find((x) => !x.used && x.ch === need);
+    if (l) tapL(l.id);
   };
 
   // 🎤 SAY-IT
@@ -172,7 +200,11 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
               body: JSON.stringify({ mode: "drill", target: data.sent.right, audio: String(reader.result).split(",")[1], mimeType: mime }),
             });
             const d = await res.json();
-            if (typeof d.score === "number") setSayScore(d.score);
+            if (typeof d.score === "number") {
+              if (d.score >= 70) playCorrect();
+              else playWrong();
+              setSayScore(d.score);
+            }
           } catch {}
         };
         reader.readAsDataURL(blob);
@@ -190,6 +222,7 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
   };
 
   const complete = () => {
+    playWin();
     const today = localISO(new Date());
     const yest = localISO(new Date(Date.now() - 86400000));
     const st = JSON.parse(localStorage.getItem("dg-chal-streak") || "null");
@@ -247,8 +280,9 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
 
       {stage === "quiz" && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center">
-          <p className="text-[10px] text-slate-500 font-bold mb-2">⚡ {qi + 1}/5 — WHAT DOES THIS MEAN?</p>
-          <p className="text-3xl font-black uppercase mb-5">{data.quiz[qi].w.word}</p>
+          <p className="text-[10px] text-slate-500 font-bold mb-2">⚡ {qi + 1}/5 — 🎧 WHAT DOES THIS MEAN?</p>
+          <p className="text-3xl font-black uppercase mb-3">{data.quiz[qi].w.word}</p>
+          <button onClick={() => speak(data.quiz[qi].w.word)} className="mb-4 text-[10px] bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-full">🔊 hear again</button>
           <div className="grid grid-cols-2 gap-2">
             {data.quiz[qi].options.map((opt, oi) => (
               <button key={oi} onClick={() => pickQ(oi)} className={`p-3 rounded-xl text-sm font-bold text-left ${flash === "ok" && oi === data.quiz[qi].answer ? "bg-emerald-700" : flash === "bad" && oi !== data.quiz[qi].answer ? "bg-slate-800" : "bg-slate-800 hover:bg-slate-700"}`}>
@@ -294,15 +328,18 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
               </button>
             ))}
           </div>
+          <button onClick={hint} className="mt-3 w-full py-2.5 rounded-xl bg-amber-600/20 border border-amber-500/40 text-amber-300 text-sm font-bold">
+            💡 Hint — place next letter
+          </button>
         </div>
       )}
 
       {stage === "sayit" && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center grid gap-4">
-          <p className="text-[10px] text-slate-500 font-bold">🎤 FINAL ROUND — SAY THIS (70%+ to shine!)</p>
+          <p className="text-[10px] text-slate-500 font-bold">🎤 FINAL ROUND — 🔊 LISTEN THEN SAY (70%+ to shine!)</p>
           <p className="text-xl font-black">"{data.sent.right}"</p>
           <div className="flex gap-2">
-            <button onClick={() => speak(data.sent.right)} className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-bold">🔊 Hear</button>
+            <button onClick={() => speak(data.sent.right)} className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-bold">🔊 Hear again</button>
             <button onClick={toggleRec} className={`flex-1 py-3 rounded-xl text-sm font-bold ${rec ? "bg-red-600 animate-pulse" : "bg-violet-600 hover:bg-violet-500"}`}>
               {rec ? "⏹️ Stop" : "🎤 Say it"}
             </button>

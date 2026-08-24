@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { pickWords, shuffle, getBest, saveBest } from "./gameData";
 import type { VWord } from "./gameData";
+import { playCorrect, playWrong, playWin } from "@/lib/sounds";
 
 type Q = { w: VWord; options: string[]; answer: number };
 
@@ -24,6 +25,20 @@ export default function SpeedQuiz({ onExit }: { onExit: () => void }) {
     setBest(getBest("dg-game-quiz"));
   }, []);
 
+  const speak = (text: string) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US";
+    u.rate = 0.9;
+    window.speechSynthesis.speak(u);
+  };
+
+  // 🔊 Duolingo style: AI says the word FIRST, then you answer
+  useEffect(() => {
+    if (!over) speak(q.w.word);
+  }, [q, over]);
+
   useEffect(() => {
     if (over) return;
     const id = setInterval(() => setTime((t) => t - 1), 1000);
@@ -33,6 +48,7 @@ export default function SpeedQuiz({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     if (time <= 0 && !over) {
       setOver(true);
+      playWin();
       saveBest("dg-game-quiz", score, true);
       setBest(getBest("dg-game-quiz"));
     }
@@ -45,10 +61,12 @@ export default function SpeedQuiz({ onExit }: { onExit: () => void }) {
       setScore((s) => s + bonus);
       setCombo((c) => c + 1);
       setFlash("ok");
+      playCorrect();
     } else {
       setCombo(0);
       setTime((t) => Math.max(0, t - 3));
       setFlash("bad");
+      playWrong();
     }
     setTimeout(() => setFlash(""), 180);
     setQ(makeQ());
@@ -85,8 +103,9 @@ export default function SpeedQuiz({ onExit }: { onExit: () => void }) {
         <span className="text-lg font-black text-emerald-400">⭐ {score}</span>
       </div>
       <div className={`bg-slate-900 border rounded-2xl p-6 mb-4 text-center ${flash === "ok" ? "border-emerald-500" : flash === "bad" ? "border-red-500" : "border-slate-800"}`}>
-        <p className="text-[10px] text-slate-500 font-bold mb-2">WHAT DOES THIS MEAN?</p>
+        <p className="text-[10px] text-slate-500 font-bold mb-2">🔊 WHAT DOES THIS MEAN?</p>
         <p className="text-3xl font-black uppercase">{q.w.word}</p>
+        <button onClick={() => speak(q.w.word)} className="mt-2 text-[10px] bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-full">🔊 hear again</button>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {q.options.map((opt, oi) => (

@@ -1,7 +1,8 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { pickSentences, getBest, saveBest } from "./gameData";
 import type { SItem } from "./gameData";
+import { playCorrect, playWrong, playWin } from "@/lib/sounds";
 
 export default function SayItRace({ onExit }: { onExit: () => void }) {
   const [round, setRound] = useState<SItem[]>(() => pickSentences(5));
@@ -27,6 +28,11 @@ export default function SayItRace({ onExit }: { onExit: () => void }) {
     u.rate = 0.9;
     window.speechSynthesis.speak(u);
   };
+
+  // 🔊 Duolingo style: AI says the sentence FIRST, then you repeat
+  useEffect(() => {
+    if (!over) speak(it.right);
+  }, [idx, over]);
 
   const toggleRec = async () => {
     if (rec) {
@@ -58,6 +64,8 @@ export default function SayItRace({ onExit }: { onExit: () => void }) {
             });
             const d = await res.json();
             if (typeof d.score === "number") {
+              if (d.score >= 70) playCorrect();
+              else playWrong();
               setLastScore(d.score);
               setResults((r) => {
                 const c = [...r];
@@ -88,6 +96,7 @@ export default function SayItRace({ onExit }: { onExit: () => void }) {
   const next = () => {
     if (idx + 1 >= round.length) {
       setOver(true);
+      playWin();
       saveBest("dg-game-sayit", avg, true);
       setBest(getBest("dg-game-sayit"));
     } else {
@@ -128,13 +137,13 @@ export default function SayItRace({ onExit }: { onExit: () => void }) {
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 grid gap-4 text-center">
-        <p className="text-[10px] text-slate-500 font-bold">SAY THIS SENTENCE (70%+ to pass)</p>
+        <p className="text-[10px] text-slate-500 font-bold">🔊 LISTEN FIRST — THEN SAY IT (70%+ to pass)</p>
         <p className="text-xl font-black leading-snug">"{it.right}"</p>
         <p className="text-xs text-amber-200">🇮 {it.hindi}</p>
 
         <div className="flex gap-2">
           <button onClick={() => speak(it.right)} className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-bold">
-            🔊 Hear it
+            🔊 Hear again
           </button>
           <button
             onClick={toggleRec}
