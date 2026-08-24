@@ -49,7 +49,7 @@ export default function NotificationCenter() {
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  if (["/login", "/signup", "/activity", "/inbox", "/profile", "/feed", "/search", "/leaderboard", "/english", "/ai", "/move", "/speaking", "/evaluate", "/vocab", "/sentences", "/tips"].includes(pathname)) return null;
+  if (["/login", "/signup", "/activity", "/inbox", "/profile", "/feed", "/search", "/leaderboard", "/english", "/ai", "/move", "/speaking", "/evaluate", "/vocab", "/sentences", "/tips", "/games"].includes(pathname)) return null;
 
   const unread = items.filter((n) => !n.read).length;
 
