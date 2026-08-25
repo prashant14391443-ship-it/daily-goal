@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { allWords, allSentences } from "./gameData";
-import type { VWord } from "./gameData";
+import { allWords, allSentences, samePackWords, shuffle, chalConfig, levelInfo } from "./gameData";
 import { playCorrect, playWrong, playWin } from "@/lib/sounds";
 
 function localISO(d: Date) {
@@ -26,21 +25,46 @@ function seededShuffle<T>(a: T[], seed: number): T[] {
 type Tile = { id: number; key: string; text: string; kind: "w" | "m" };
 type Letter = { id: number; ch: string; used: boolean };
 
+function makeLetters(w: string): Letter[] {
+  const arr = w.split("").map((ch, i) => ({ id: i, ch, used: false }));
+  let s = shuffle(arr);
+  let t = 0;
+  while (s.map((x) => x.ch).join("") === w && t < 5) {
+    s = shuffle(arr);
+    t++;
+  }
+  return s;
+}
+
 export default function DailyChallenge({ onExit }: { onExit: () => void }) {
   const [stage, setStage] = useState<"quiz" | "match" | "scramble" | "sayit" | "done">("quiz");
+
+  const [info] = useState(() => {
+    const stars = Number(localStorage.getItem("dg-chal-stars") || 0);
+    const li = levelInfo(stars);
+    return { stars, ...li, cfg: chalConfig(li.level) };
+  });
+  const cfg = info.cfg;
 
   const [data] = useState(() => {
     const seed = daySeed();
     const ws = seededShuffle(allWords(), seed);
-    const quiz = ws.slice(0, 5).map((w) => {
-      const others = seededShuffle(allWords().filter((x) => x.word !== w.word), seed + 7).slice(0, 3).map((x) => x.meaning);
+    const quiz = ws.slice(0, cfg.quiz).map((w) => {
+      const pool = (cfg.hard ? samePackWords(w) : allWords()).filter((x) => x.word !== w.word);
+      const others = seededShuffle(pool, seed + 7).slice(0, 3).map((x) => x.meaning);
       const options = seededShuffle([w.meaning, ...others], seed + 3);
       return { w, options, answer: options.indexOf(w.meaning) };
     });
-    const matchWords = ws.slice(5, 9);
-    const scramWord = ws.slice(9).find((w) => !w.word.includes(" ") && w.word.length >= 4 && w.word.length <= 9) || ws[9];
-    const sent = seededShuffle(allSentences(), seed)[0];
-    return { quiz, matchWords, scramWord, sent };
+    const matchWords = ws.slice(cfg.quiz, cfg.quiz + cfg.match);
+    let scramWords = seededShuffle(
+      allWords().filter((w) => !w.word.includes(" ") && w.word.length >= cfg.lenMin && w.word.length <= cfg.lenMax),
+      seed + 21
+    ).slice(0, cfg.scram);
+    if (scramWords.length < cfg.scram) {
+      scramWords = seededShuffle(allWords().filter((w) => !w.word.includes(" ") && w.word.length >= 4 && w.word.length <= 10), seed + 21).slice(0, cfg.scram);
+    }
+    const sents = seededShuffle(allSentences(), seed).slice(0, cfg.say);
+    return { quiz, matchWords, scramWords, sents };
   });
 
   const [tiles] = useState<Tile[]>(() =>
@@ -53,14 +77,6 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     )
   );
 
-  const [letters, setLetters] = useState<Letter[]>(() => {
-    const w = data.scramWord.word.toLowerCase();
-    const arr = w.split("").map((ch, i) => ({ id: i, ch, used: false }));
-    let s = seededShuffle(arr, daySeed() + 5);
-    if (s.map((x) => x.ch).join("") === w) s = seededShuffle(arr, daySeed() + 9);
-    return s;
-  });
-
   // quiz
   const [qi, setQi] = useState(0);
   const [qScore, setQScore] = useState(0);
@@ -70,11 +86,19 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
   const [matched, setMatched] = useState<string[]>([]);
   const [mMis, setMMis] = useState(0);
   // scramble
+  const [sIdx, setSIdx] = useState(0);
+  const [letters, setLetters] = useState<Letter[]>(() => makeLetters(data.scramWords[0].word.toLowerCase()));
   const [built, setBuilt] = useState<number[]>([]);
   const [sWrong, setSWrong] = useState(false);
   // sayit
+  const [sayIdx, setSayIdx] = useState(0);
   const [rec, setRec] = useState(false);
-  const [sayScore, setSayScore] = useState<number | null>(null);
+  const [lastScore, setLastScore] = useState<number | null>(null);
+  const [sayResults, setSayResults] = useState<(number | null)[]>(() => Array(cfg.say).fill(null));
+  // done
+  const [starsEarned, setStarsEarned] = useState(0);
+  const [leveledUp, setLeveledUp] = useState(false);
+  const [newLevel, setNewLevel] = useState(info.level);
   const [streak, setStreak] = useState(0);
 
   const mediaRef = useRef<MediaRecorder | null>(null);
@@ -91,14 +115,10 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     window.speechSynthesis.speak(u);
   };
 
-  // 🔊 Duolingo style: AI says word/sentence when stage changes
   useEffect(() => {
     if (stage === "quiz") speak(data.quiz[qi].w.word);
-    if (stage === "sayit") speak(data.sent.right);
-    if (stage === "match") {
-      // match doesn't need auto-speak, users pick pairs
-    }
-  }, [stage, qi]);
+    if (stage === "sayit") speak(data.sents[sayIdx].right);
+  }, [stage, qi, sayIdx]);
 
   // ⚡ QUIZ
   const pickQ = (oi: number) => {
@@ -112,7 +132,7 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     }
     setTimeout(() => {
       setFlash("");
-      if (qi + 1 >= 5) setStage("match");
+      if (qi + 1 >= data.quiz.length) setStage("match");
       else setQi(qi + 1);
     }, 250);
   };
@@ -126,11 +146,11 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     if (!s || s.kind === t.kind) return setSel(t.id);
     if (s.key === t.key) {
       playCorrect();
-      speak(t.key); // AI says matched word
+      speak(t.key);
       const m = [...matched, t.key];
       setMatched(m);
       setSel(null);
-      if (m.length === 4) setTimeout(() => setStage("scramble"), 300);
+      if (m.length === data.matchWords.length) setTimeout(() => setStage("scramble"), 300);
     } else {
       playWrong();
       setMMis((x) => x + 1);
@@ -139,7 +159,7 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
   };
 
   // 🧩 SCRAMBLE
-  const sw = data.scramWord.word.toLowerCase();
+  const sw = data.scramWords[sIdx].word.toLowerCase();
   const tapL = (id: number) => {
     const l = letters.find((x) => x.id === id);
     if (!l || l.used || sWrong) return;
@@ -150,7 +170,14 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
       const guess = nb.map((bid) => letters.find((x) => x.id === bid)!.ch).join("");
       if (guess === sw) {
         playCorrect();
-        setTimeout(() => setStage("sayit"), 250);
+        setTimeout(() => {
+          if (sIdx + 1 >= data.scramWords.length) setStage("sayit");
+          else {
+            setSIdx(sIdx + 1);
+            setLetters(makeLetters(data.scramWords[sIdx + 1].word.toLowerCase()));
+            setBuilt([]);
+          }
+        }, 250);
       } else {
         playWrong();
         setSWrong(true);
@@ -163,7 +190,6 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     }
   };
 
-  // 💡 HINT — places the next correct letter (never get stuck!)
   const hint = () => {
     const need = sw[built.length];
     if (!need || sWrong) return;
@@ -197,13 +223,18 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
             const res = await fetch("/api/ai", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ mode: "drill", target: data.sent.right, audio: String(reader.result).split(",")[1], mimeType: mime }),
+              body: JSON.stringify({ mode: "drill", target: data.sents[sayIdx].right, audio: String(reader.result).split(",")[1], mimeType: mime }),
             });
             const d = await res.json();
             if (typeof d.score === "number") {
-              if (d.score >= 70) playCorrect();
+              if (d.score >= cfg.pass) playCorrect();
               else playWrong();
-              setSayScore(d.score);
+              setLastScore(d.score);
+              setSayResults((r) => {
+                const c = [...r];
+                c[sayIdx] = d.score;
+                return c;
+              });
             }
           } catch {}
         };
@@ -221,8 +252,25 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     }
   };
 
+  const nextSay = () => {
+    if (sayIdx + 1 >= data.sents.length) complete();
+    else {
+      setSayIdx(sayIdx + 1);
+      setLastScore(null);
+    }
+  };
+
   const complete = () => {
     playWin();
+    const quizGood = qScore >= data.quiz.length - 1;
+    const sayPassed = sayResults.every((s) => s !== null && s >= cfg.pass);
+    const earned = 1 + (quizGood ? 1 : 0) + (sayPassed ? 1 : 0);
+    const newStars = info.stars + earned;
+    localStorage.setItem("dg-chal-stars", String(newStars));
+    const after = levelInfo(newStars).level;
+    setStarsEarned(earned);
+    setLeveledUp(after > info.level);
+    setNewLevel(after);
     const today = localISO(new Date());
     const yest = localISO(new Date(Date.now() - 86400000));
     const st = JSON.parse(localStorage.getItem("dg-chal-streak") || "null");
@@ -240,13 +288,16 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     setSel(null);
     setMatched([]);
     setMMis(0);
+    setSIdx(0);
+    setLetters(makeLetters(data.scramWords[0].word.toLowerCase()));
     setBuilt([]);
-    setLetters((ls) => ls.map((x) => ({ ...x, used: false })));
-    setSayScore(null);
+    setSayIdx(0);
+    setSayResults(Array(cfg.say).fill(null));
+    setLastScore(null);
   };
 
   const steps = (
-    <div className="flex justify-center gap-3 mb-6 text-lg">
+    <div className="flex justify-center gap-3 mb-4 text-lg">
       <span className={stage === "quiz" ? "scale-125" : "opacity-40"}>⚡</span>
       <span className={stage === "match" ? "scale-125" : "opacity-40"}>🃏</span>
       <span className={stage === "scramble" ? "scale-125" : "opacity-40"}>🧩</span>
@@ -257,14 +308,17 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
   if (stage === "done") {
     return (
       <div className="bg-slate-900 border border-amber-500/40 rounded-2xl p-8 text-center max-w-sm mx-auto mt-10">
+        {leveledUp && <p className="text-sm font-black text-fuchsia-400 mb-2 animate-bounce">🎉 LEVEL UP! You're Level {newLevel}!</p>}
         <p className="text-6xl mb-3">🏆</p>
         <p className="text-2xl font-black text-amber-400">Challenge Complete!</p>
+        <p className="text-lg font-black text-yellow-400 mt-2">+{starsEarned} ⭐ earned</p>
         <div className="grid gap-1 my-4 text-sm text-slate-300">
-          <p>⚡ Quiz: {qScore}/5</p>
+          <p>⚡ Quiz: {qScore}/{data.quiz.length}</p>
           <p>🃏 Match mistakes: {mMis}</p>
-          <p>🧩 Scramble: ✅</p>
-          <p>🎤 Say-it: {sayScore !== null ? `${sayScore}%` : "—"}</p>
+          <p>🧩 Scramble: {data.scramWords.length} done</p>
+          <p>🎤 Say-it: {sayResults.filter((s) => s !== null && s >= cfg.pass).length}/{data.sents.length} passed</p>
         </div>
+        <p className="text-sm font-black text-slate-400 mb-1">⭐ Level {newLevel} • {info.stars + starsEarned} total stars</p>
         <p className="text-lg font-black text-orange-400 mb-6">🔥 {streak}-day streak!</p>
         <div className="grid gap-2">
           <button onClick={replay} className="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 font-bold">🔁 Replay (practice)</button>
@@ -276,11 +330,12 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
 
   return (
     <div className="max-w-md mx-auto">
+      <p className="text-center text-[10px] font-black text-amber-400 mb-2">⭐ LEVEL {info.level} CHALLENGE {info.level >= 3 ? "• HARD MODE" : ""}</p>
       {steps}
 
       {stage === "quiz" && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center">
-          <p className="text-[10px] text-slate-500 font-bold mb-2">⚡ {qi + 1}/5 — 🎧 WHAT DOES THIS MEAN?</p>
+          <p className="text-[10px] text-slate-500 font-bold mb-2">⚡ {qi + 1}/{data.quiz.length} — 🎧 WHAT DOES THIS MEAN?</p>
           <p className="text-3xl font-black uppercase mb-3">{data.quiz[qi].w.word}</p>
           <button onClick={() => speak(data.quiz[qi].w.word)} className="mb-4 text-[10px] bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-full">🔊 hear again</button>
           <div className="grid grid-cols-2 gap-2">
@@ -295,7 +350,7 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
 
       {stage === "match" && (
         <div>
-          <p className="text-[10px] text-slate-500 font-bold mb-3 text-center">🃏 MATCH 4 PAIRS • ❌ {mMis}</p>
+          <p className="text-[10px] text-slate-500 font-bold mb-3 text-center">🃏 MATCH {data.matchWords.length} PAIRS • ❌ {mMis}</p>
           <div className="grid grid-cols-2 gap-2">
             {tiles.map((t) => {
               const done = matched.includes(t.key);
@@ -311,9 +366,9 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
 
       {stage === "scramble" && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center">
-          <p className="text-[10px] text-slate-500 font-bold mb-1">🧩 BUILD THE WORD</p>
-          <p className="text-sm text-slate-300 mb-1">{data.scramWord.meaning}</p>
-          <p className="text-xs text-amber-200 mb-4">🇮 {data.scramWord.hindi}</p>
+          <p className="text-[10px] text-slate-500 font-bold mb-1">🧩 {sIdx + 1}/{data.scramWords.length} — BUILD THE WORD</p>
+          <p className="text-sm text-slate-300 mb-1">{data.scramWords[sIdx].meaning}</p>
+          <p className="text-xs text-amber-200 mb-4">🇮 {data.scramWords[sIdx].hindi}</p>
           <div className={`flex gap-1.5 justify-center flex-wrap mb-5 ${sWrong ? "animate-pulse" : ""}`}>
             {sw.split("").map((_, i) => {
               const bid = built[i];
@@ -328,27 +383,25 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
               </button>
             ))}
           </div>
-          <button onClick={hint} className="mt-3 w-full py-2.5 rounded-xl bg-amber-600/20 border border-amber-500/40 text-amber-300 text-sm font-bold">
-            💡 Hint — place next letter
-          </button>
+          <button onClick={hint} className="mt-3 w-full py-2.5 rounded-xl bg-amber-600/20 border border-amber-500/40 text-amber-300 text-sm font-bold">💡 Hint — place next letter</button>
         </div>
       )}
 
       {stage === "sayit" && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center grid gap-4">
-          <p className="text-[10px] text-slate-500 font-bold">🎤 FINAL ROUND — 🔊 LISTEN THEN SAY (70%+ to shine!)</p>
-          <p className="text-xl font-black">"{data.sent.right}"</p>
+          <p className="text-[10px] text-slate-500 font-bold">🎤 {sayIdx + 1}/{data.sents.length} — 🔊 LISTEN THEN SAY ({cfg.pass}%+ to pass)</p>
+          <p className="text-xl font-black">"{data.sents[sayIdx].right}"</p>
           <div className="flex gap-2">
-            <button onClick={() => speak(data.sent.right)} className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-bold">🔊 Hear again</button>
+            <button onClick={() => speak(data.sents[sayIdx].right)} className="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-bold">🔊 Hear again</button>
             <button onClick={toggleRec} className={`flex-1 py-3 rounded-xl text-sm font-bold ${rec ? "bg-red-600 animate-pulse" : "bg-violet-600 hover:bg-violet-500"}`}>
               {rec ? "⏹️ Stop" : "🎤 Say it"}
             </button>
           </div>
-          {sayScore !== null && (
-            <p className={`text-3xl font-black ${sayScore >= 70 ? "text-emerald-400" : "text-amber-400"}`}>{sayScore}%</p>
+          {lastScore !== null && (
+            <p className={`text-3xl font-black ${lastScore >= cfg.pass ? "text-emerald-400" : "text-amber-400"}`}>{lastScore}%</p>
           )}
-          <button onClick={complete} disabled={sayScore === null} className="py-3 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold disabled:opacity-40">
-            🏁 Finish Challenge
+          <button onClick={nextSay} disabled={lastScore === null} className="py-3 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold disabled:opacity-40">
+            {sayIdx + 1 >= data.sents.length ? "🏁 Finish Challenge" : "Next ➡️"}
           </button>
         </div>
       )}
