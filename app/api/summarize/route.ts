@@ -35,12 +35,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Give a topic or a photo." }, { status: 400 });
     }
 
-    const prompt = `You are a study assistant. Summarize ${
+    const prompt = `You are an expert study assistant. Summarize ${
       image ? "this photo of notes/text" : `this topic/text: "${text}"`
     } for fast memorization.
-    Reply ONLY with valid JSON (no markdown):
-    {"title":"short title","points":["5-7 short key points"],"map":{"center":"main topic","branches":[{"name":"branch name","kids":["2-3 tiny details"]}]}}
-    Keep every label under 6 words. 4-5 branches.`;
+
+IMPORTANT — POINT COUNT RULE:
+- Analyze the complexity of the content
+- Simple topics (basic concepts, single ideas): generate 5-6 points
+- Medium topics (multiple related concepts): generate 7 points  
+- Complex topics (detailed processes, many subtopics): generate 8-10 points
+- Choose the number that best matches the content depth
+
+Reply ONLY with valid JSON (no markdown, no explanation):
+{
+  "title": "short title (max 6 words)",
+  "points": ["point 1", "point 2", ...],
+  "map": {
+    "center": "main topic",
+    "branches": [
+      { "name": "branch name", "kids": ["2-3 tiny details"] },
+      ...
+    ]
+  }
+}
+
+Rules:
+- Every label under 6 words
+- 4-6 branches in the map
+- Points should be concise but informative
+- Rank points by importance (most important first)`;
 
     const parts: any[] = [{ text: prompt }];
     if (image) {
@@ -60,7 +83,11 @@ export async function POST(req: Request) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ parts }],
-            generationConfig: { temperature: 0.5, maxOutputTokens: 2048 },
+            generationConfig: { 
+              temperature: 0.5, 
+              maxOutputTokens: 2048,
+              responseMimeType: "application/json"
+            },
           }),
         }
       );
