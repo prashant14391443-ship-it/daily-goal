@@ -324,6 +324,7 @@ export default function MoveTracker() {
           ))}
         </div>
 
+        {/* ⚖️ BODY WEIGHT — empty, user types manually */}
         <div className="flex items-center justify-between bg-slate-800/50 rounded-xl p-3 mb-4 border border-slate-700">
           <span className="text-sm font-medium text-slate-400">Body Weight (kg)</span>
           <input
@@ -334,10 +335,11 @@ export default function MoveTracker() {
             onChange={(e) => setWeight(e.target.value)}
             disabled={tracking}
             className="bg-slate-900 border border-slate-700 rounded-lg w-20 text-center text-white py-1 outline-none focus:border-green-500 disabled:opacity-50"
-            placeholder="65"
+            placeholder="kg"
           />
         </div>
 
+        {/* 📊 LIVE STATS */}
         <div className="bg-slate-800/50 rounded-xl p-4 grid gap-4 mb-6 border border-slate-700">
           <div className="grid grid-cols-2 gap-3 text-center">
             <div className="bg-slate-800 rounded-xl p-4 shadow-sm">
@@ -377,7 +379,25 @@ export default function MoveTracker() {
           )}
         </div>
 
-        {/* 📈 WEEKLY SPEED CHART */}
+        {hint && (
+          <div className="bg-amber-900/20 border border-amber-900/50 rounded-lg p-2 mb-4 text-center">
+            <p className="text-xs text-amber-400">{hint}</p>
+          </div>
+        )}
+
+        {/* 🟢 START TRACKING — ABOVE the journey chart */}
+        <button
+          onClick={tracking ? stop : start}
+          className={`w-full py-4 rounded-xl font-black text-lg tracking-wide transition-all mb-6 ${
+            tracking
+              ? "bg-red-600 hover:bg-red-500 shadow-lg shadow-red-900/20"
+              : "bg-green-600 hover:bg-green-500 shadow-lg shadow-green-900/20"
+          }`}
+        >
+          {tracking ? "⏹ STOP & SAVE" : "▶ START TRACKING"}
+        </button>
+
+        {/* 📈 WEEKLY SPEED CHART — BELOW the start button */}
         <div className="bg-slate-800/50 rounded-xl p-4 mb-6 border border-slate-700">
           <p className="text-sm font-bold text-slate-300 mb-3">📈 Your speed journey (avg km/h per week)</p>
           <div className="flex items-end justify-between gap-2 h-24">
@@ -394,23 +414,6 @@ export default function MoveTracker() {
           </div>
           <p className="text-[10px] text-slate-500 mt-2 text-center">Higher bars = faster you! 🚀</p>
         </div>
-
-        {hint && (
-          <div className="bg-amber-900/20 border border-amber-900/50 rounded-lg p-2 mb-4 text-center">
-            <p className="text-xs text-amber-400">{hint}</p>
-          </div>
-        )}
-
-        <button
-          onClick={tracking ? stop : start}
-          className={`w-full py-4 rounded-xl font-black text-lg tracking-wide transition-all ${
-            tracking
-              ? "bg-red-600 hover:bg-red-500 shadow-lg shadow-red-900/20"
-              : "bg-green-600 hover:bg-green-500 shadow-lg shadow-green-900/20"
-          }`}
-        >
-          {tracking ? "⏹ STOP & SAVE" : "▶ START TRACKING"}
-        </button>
 
         {last && (
           <div className="mt-4 bg-slate-950/80 rounded-xl p-4 border border-slate-800">
