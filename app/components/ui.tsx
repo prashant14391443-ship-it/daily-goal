@@ -3,14 +3,14 @@ import React from "react";
 
 // 🎨 Progress Ring (SVG)
 export function ProgressRing({
-  pct, size = 56, stroke = 5, color,
-}: { pct: number; size?: number; stroke?: number; color: string }) {
+  pct, size = 56, stroke = 5, color, track = "rgba(255,255,255,0.08)",
+}: { pct: number; size?: number; stroke?: number; color: string; track?: string }) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const offset = c - (Math.min(100, Math.max(0, pct)) / 100) * c;
   return (
-    <svg width={size} height={size} className="-rotate-90">
-      <circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.08)" strokeWidth={stroke} fill="none" />
+    <svg width={size} height={size} className="-rotate-90 shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={r} stroke={track} strokeWidth={stroke} fill="none" />
       <circle cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={stroke} fill="none"
         strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
         style={{ transition: "stroke-dashoffset 0.6s ease" }} />
