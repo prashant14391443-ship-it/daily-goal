@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
 import { useRouter } from "next/navigation";
+import { ProgressRing, IconTile, GradButton, EmptyState } from "@/app/components/ui";
 
 type Habit = {
   id: string;
@@ -17,20 +18,15 @@ function toLocalISO(d: Date) {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
-
 function addDays(dateStr: string, days: number) {
   const d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate() + days);
   return toLocalISO(d);
 }
-
 function calcStreak(dates: Set<string>, today: string) {
   let streak = 0;
   let cursor = dates.has(today) ? today : addDays(today, -1);
-  while (dates.has(cursor)) {
-    streak += 1;
-    cursor = addDays(cursor, -1);
-  }
+  while (dates.has(cursor)) { streak += 1; cursor = addDays(cursor, -1); }
   return streak;
 }
 
@@ -39,9 +35,7 @@ export default function RoutineHabits() {
   const [date, setDate] = useState(today);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [doneOnDate, setDoneOnDate] = useState<string[]>([]);
-  const [allLogs, setAllLogs] = useState<
-    { habit_id: string; log_date: string }[]
-  >([]);
+  const [allLogs, setAllLogs] = useState<{ habit_id: string; log_date: string }[]>([]);
   const [newHabit, setNewHabit] = useState("");
   const [newTime, setNewTime] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -54,58 +48,29 @@ export default function RoutineHabits() {
   const load = async () => {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
-    if (!userId) {
-      router.push("/login");
-      return;
-    }
-
+    if (!userId) { router.push("/login"); return; }
     const [h, logs, done] = await Promise.all([
-      supabase
-        .from("habits")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at"),
-      supabase
-        .from("habit_logs")
-        .select("habit_id, log_date")
-        .eq("user_id", userId)
-        .eq("completed", true),
-      supabase
-        .from("habit_logs")
-        .select("habit_id")
-        .eq("user_id", userId)
-        .eq("log_date", date),
+      supabase.from("habits").select("*").eq("user_id", userId).order("created_at"),
+      supabase.from("habit_logs").select("habit_id, log_date").eq("user_id", userId).eq("completed", true),
+      supabase.from("habit_logs").select("habit_id").eq("user_id", userId).eq("log_date", date),
     ]);
-
     setHabits(h.data || []);
     setAllLogs(logs.data || []);
     setDoneOnDate((done.data || []).map((d) => d.habit_id));
   };
 
-  useEffect(() => {
-    load();
-  }, [date]);
-
-  useEffect(() => {
-    setRemindersOn(localStorage.getItem("dg-reminders") === "1");
-  }, []);
+  useEffect(() => { load(); }, [date]);
+  useEffect(() => { setRemindersOn(localStorage.getItem("dg-reminders") === "1"); }, []);
 
   const toggleReminders = () => {
-    if (remindersOn) {
-      localStorage.removeItem("dg-reminders");
-      setRemindersOn(false);
-      return;
-    }
+    if (remindersOn) { localStorage.removeItem("dg-reminders"); setRemindersOn(false); return; }
     localStorage.setItem("dg-reminders", "1");
     setRemindersOn(true);
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
+    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
   };
 
   useEffect(() => {
     if (!remindersOn) return;
-
     const check = () => {
       if (/Android/i.test(navigator.userAgent)) return;
       const now = new Date();
@@ -113,31 +78,21 @@ export default function RoutineHabits() {
       const mm = String(now.getMinutes()).padStart(2, "0");
       const nowHM = `${hh}:${mm}`;
       const todayStr = toLocalISO(now);
-
-      const doneToday = new Set(
-        allLogs.filter((l) => l.log_date === todayStr).map((l) => l.habit_id)
-      );
-
+      const doneToday = new Set(allLogs.filter((l) => l.log_date === todayStr).map((l) => l.habit_id));
       habits.forEach((h) => {
         if (!h.reminder_time) return;
         const t = h.reminder_time.slice(0, 5);
         const key = `${h.id}-${todayStr}-${t}`;
         if (t === nowHM && !doneToday.has(h.id) && !notified.current.has(key)) {
           notified.current.add(key);
-          if (
-            "Notification" in window &&
-            Notification.permission === "granted"
-          ) {
-            new Notification("DAILY GOAL ⏰", {
-              body: `Time to: ${h.habit_name}`,
-            });
+          if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("DAILY GOAL ⏰", { body: `Time to: ${h.habit_name}` });
           } else {
             alert(`DAILY GOAL ⏰ Time to: ${h.habit_name}`);
           }
         }
       });
     };
-
     check();
     const id = setInterval(check, 30000);
     return () => clearInterval(id);
@@ -148,14 +103,10 @@ export default function RoutineHabits() {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
     if (!userId) return;
-
     await supabase.from("habits").insert({
-      user_id: userId,
-      habit_name: newHabit,
-      reminder_time: newTime || null,
+      user_id: userId, habit_name: newHabit, reminder_time: newTime || null,
     });
-    setNewHabit("");
-    setNewTime("");
+    setNewHabit(""); setNewTime("");
     await load();
   };
 
@@ -164,13 +115,9 @@ export default function RoutineHabits() {
     setEditName(h.habit_name);
     setEditTime(h.reminder_time ? h.reminder_time.slice(0, 5) : "");
   };
-
   const saveEdit = async () => {
     if (!editingId) return;
-    await supabase
-      .from("habits")
-      .update({ habit_name: editName, reminder_time: editTime || null })
-      .eq("id", editingId);
+    await supabase.from("habits").update({ habit_name: editName, reminder_time: editTime || null }).eq("id", editingId);
     setEditingId(null);
     await load();
   };
@@ -179,20 +126,12 @@ export default function RoutineHabits() {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
     if (!userId) return;
-
     const isDone = doneOnDate.includes(habitId);
     if (isDone) {
-      await supabase
-        .from("habit_logs")
-        .delete()
-        .eq("habit_id", habitId)
-        .eq("log_date", date);
+      await supabase.from("habit_logs").delete().eq("habit_id", habitId).eq("log_date", date);
     } else {
       await supabase.from("habit_logs").insert({
-        user_id: userId,
-        habit_id: habitId,
-        log_date: date,
-        completed: true,
+        user_id: userId, habit_id: habitId, log_date: date, completed: true,
       });
     }
     await load();
@@ -204,194 +143,127 @@ export default function RoutineHabits() {
   };
 
   const streakFor = (habitId: string) => {
-    const dates = new Set(
-      allLogs.filter((l) => l.habit_id === habitId).map((l) => l.log_date)
-    );
+    const dates = new Set(allLogs.filter((l) => l.habit_id === habitId).map((l) => l.log_date));
     return calcStreak(dates, today);
   };
 
+  const doneCount = doneOnDate.length;
+  const pct = habits.length ? Math.round((doneCount / habits.length) * 100) : 0;
+
+  const inputCls = "w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500";
+
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl bg-purple-600/20 border border-purple-500/40 flex items-center justify-center text-xl">✅</span>
-            Routine & Habits
-          </h1>
-          <p className="text-slate-400">{date === today ? "Today" : date}</p>
+    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
+      {/* 🌆 HERO */}
+      <div className="relative mb-4 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 p-4 shadow-2xl shadow-purple-900/30">
+        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
+        <div className="relative flex items-center gap-3">
+          <span className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg">✅</span>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-black text-white leading-tight">Routine & Habits</h1>
+            <p className="text-[10px] text-white/80 font-semibold">
+              {date === today ? "Today" : date} • {doneCount}/{habits.length} done
+            </p>
+          </div>
+          <ProgressRing pct={pct} size={56} stroke={6} color="#ffffff" track="rgba(0,0,0,0.25)" />
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            onClick={toggleReminders}
-            className={`px-3 py-2 rounded text-sm font-semibold ${
-              remindersOn
-                ? "bg-green-700"
-                : "bg-slate-800 hover:bg-slate-700"
-            }`}
-          >
-            <span className="hidden md:inline"><span className="hidden md:inline">{remindersOn ? "🔔 Reminders ON" : "🔕 Reminders OFF"}</span>
-            <span className="md:hidden">{remindersOn ? "🔔 Reminder" : "🔕 Reminder"}</span></span>
-            <span className="md:hidden">{remindersOn ? "🔔 Reminder" : "🔕 Reminder"}</span>
-          </button>
-          <button
-            onClick={() => setDate(addDays(date, -1))}
-            className="px-2 py-2 rounded bg-slate-800 hover:bg-slate-700"
-          >
-            ←
-          </button>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="p-2 rounded bg-slate-800 border border-slate-700"
-          />
-          <button
-            onClick={() => setDate(addDays(date, 1))}
-            className="px-2 py-2 rounded bg-slate-800 hover:bg-slate-700"
-          >
-            →
-          </button>
+      </div>
+
+      {/* CONTROLS */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <button
+          onClick={toggleReminders}
+          className={`press px-3 py-2 rounded-xl text-xs font-black whitespace-nowrap border ${
+            remindersOn ? "bg-green-600/20 border-green-500/40 text-green-300" : "bg-slate-900 border-slate-800 text-slate-400"
+          }`}
+        >
+          {remindersOn ? "🔔 Reminders ON" : "🔕 Reminders OFF"}
+        </button>
+        <div className="flex-1 flex items-center gap-1.5 justify-end">
+          <button onClick={() => setDate(addDays(date, -1))} className="press px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm">←</button>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+            className="px-2 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs outline-none focus:border-violet-500" />
+          <button onClick={() => setDate(addDays(date, 1))} className="press px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm">→</button>
           {date !== today && (
-            <button
-              onClick={() => setDate(today)}
-              className="px-3 py-2 rounded bg-purple-600 hover:bg-purple-500 text-sm"
-            >
-              Today
-            </button>
+            <button onClick={() => setDate(today)} className="press px-3 py-2 rounded-xl bg-violet-600 text-xs font-black">Today</button>
           )}
         </div>
       </div>
 
-      <form
-        onSubmit={addHabit}
-        className="bg-slate-900 p-6 rounded-lg mb-8 flex flex-wrap gap-4"
-      >
-        <input
-          value={newHabit}
-          onChange={(e) => setNewHabit(e.target.value)}
-          placeholder="New habit (e.g. Drink 2L water)"
-          required
-          className="flex-1 min-w-[200px] p-3 rounded bg-slate-800 border border-slate-700"
-        />
-        <div className="relative">
-          {newTime === "" && (
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none">
-                                time
-            </span>
-          )}
-          <input
-            type="time"
-            value={newTime}
-            onChange={(e) => setNewTime(e.target.value)}
-            className={`p-3 rounded bg-slate-800 border border-slate-700 w-full ${
-              newTime === "" ? "text-transparent" : ""
-            }`}
-            title="Reminder time (optional)"
-          />
+      {/* ADD FORM */}
+      <form onSubmit={addHabit} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4 grid gap-3 shadow-lg shadow-black/30">
+        <input value={newHabit} onChange={(e) => setNewHabit(e.target.value)}
+          placeholder="New habit (e.g. Drink 2L water)" required className={inputCls} />
+        <div className="grid grid-cols-3 gap-3">
+          <div className="col-span-2 relative">
+            {newTime === "" && (
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">⏰ Time</span>
+            )}
+            <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)}
+              className={`${inputCls} ${newTime === "" ? "text-transparent" : ""}`} title="Reminder time (optional)" />
+          </div>
+          <GradButton type="submit" gradient="from-violet-600 to-fuchsia-600" className="py-3 text-sm">
+            ➕ Add
+          </GradButton>
         </div>
-        <button
-          type="submit"
-          className="px-6 rounded bg-purple-600 font-semibold hover:bg-purple-500"
-        >
-          Add Habit
-        </button>
       </form>
 
-      <div className="grid gap-4">
+      {/* HABITS */}
+      <div className="grid gap-3">
         {habits.map((h) => {
           const isDone = doneOnDate.includes(h.id);
           const streak = streakFor(h.id);
           return (
-            <div
-              key={h.id}
-              className="bg-slate-900 p-4 rounded-lg flex items-center justify-between gap-4 flex-wrap"
-            >
+            <div key={h.id} className={`bg-slate-900 border rounded-2xl p-4 shadow-lg shadow-black/30 ${isDone ? "border-green-500/30" : "border-slate-800"}`}>
               {editingId === h.id ? (
-                <div className="flex flex-wrap gap-2 flex-1">
-                  <input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="p-2 rounded bg-slate-800 border border-slate-700"
-                  />
-                  <input
-                    type="time"
-                    value={editTime}
-                    onChange={(e) => setEditTime(e.target.value)}
-                    className="p-2 rounded bg-slate-800 border border-slate-700"
-                  />
-                  <button
-                    onClick={saveEdit}
-                    className="px-4 py-2 rounded bg-yellow-600 hover:bg-yellow-500 text-sm font-semibold"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => setEditingId(null)}
-                    className="px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 text-sm"
-                  >
-                    Cancel
-                  </button>
+                <div className="flex flex-wrap gap-2">
+                  <input value={editName} onChange={(e) => setEditName(e.target.value)}
+                    className="flex-1 min-w-[150px] p-2 rounded-xl bg-slate-800 border border-slate-700 text-sm" />
+                  <input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)}
+                    className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-sm" />
+                  <button onClick={saveEdit} className="press px-4 py-2 rounded-xl bg-amber-600 text-sm font-black">Save</button>
+                  <button onClick={() => setEditingId(null)} className="press px-4 py-2 rounded-xl bg-slate-800 text-sm">Cancel</button>
                 </div>
               ) : (
-                <>
-                  <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <button
                       onClick={() => toggleHabit(h.id)}
-                      className={`w-7 h-7 rounded border-2 flex items-center justify-center ${
-                        isDone
-                          ? "bg-green-500 border-green-500"
-                          : "bg-slate-800 border-slate-600"
+                      className={`press w-8 h-8 rounded-lg border-2 flex items-center justify-center shrink-0 ${
+                        isDone ? "bg-green-500 border-green-500" : "border-slate-600"
                       }`}
                     >
-                      {isDone && (
-                        <span className="text-white text-sm font-bold">✓</span>
-                      )}
+                      {isDone && <span className="text-white text-sm font-black">✓</span>}
                     </button>
-                    <div>
-                      <span
-                        className={`text-lg ${
-                          isDone ? "line-through text-slate-500" : ""
-                        }`}
-                      >
+                    <div className="min-w-0 flex-1">
+                      <p className={`font-bold text-base truncate ${isDone ? "line-through text-slate-500" : "text-white"}`}>
                         {h.habit_name}
-                      </span>
-                      <p className="text-xs text-slate-400">
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
                         {streak > 0 && (
-                          <span className="text-orange-400">
-                            🔥 {streak} day streak
+                          <span className="inline-flex items-center gap-0.5 bg-orange-500/20 border border-orange-500/40 text-orange-300 text-[10px] font-black px-1.5 py-0.5 rounded-full">
+                            🔥 {streak}d
                           </span>
                         )}
                         {h.reminder_time && (
-                          <span className="ml-2">
-                            ⏰ {h.reminder_time.slice(0, 5)}
-                          </span>
+                          <span className="text-[10px] text-slate-500 font-semibold">⏰ {h.reminder_time.slice(0, 5)}</span>
                         )}
-                      </p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => startEdit(h)}
-                      className="text-yellow-400 hover:text-yellow-300 text-sm"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => deleteHabit(h.id)}
-                      className="text-red-400 hover:text-red-300 text-sm"
-                    >
-                      Delete
-                    </button>
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={() => startEdit(h)} className="press text-amber-400 text-xs font-bold">Edit</button>
+                    <button onClick={() => deleteHabit(h.id)} className="press text-red-400 text-xs font-bold">✕</button>
                   </div>
-                </>
+                </div>
               )}
             </div>
           );
         })}
         {habits.length === 0 && (
-          <p className="text-slate-400">
-            No habits yet. Add your first one above!
-          </p>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl">
+            <EmptyState emoji="🌱" text="No habits yet — add your first small daily win above!" />
+          </div>
         )}
       </div>
     </main>
