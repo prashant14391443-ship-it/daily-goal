@@ -55,14 +55,14 @@ function badgeColor(d: number) {
   return "bg-green-700 text-white";
 }
 
-// 🎨 NEW: Progress Ring (SVG)
-function ProgressRing({ pct, size = 56, stroke = 5, color }: { pct: number; size?: number; stroke?: number; color: string }) {
+// 🎨 Progress Ring (SVG) with track color option
+function ProgressRing({ pct, size = 56, stroke = 5, color, track = "rgba(255,255,255,0.08)" }: { pct: number; size?: number; stroke?: number; color: string; track?: string }) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const offset = c - (Math.min(100, Math.max(0, pct)) / 100) * c;
   return (
-    <svg width={size} height={size} className="-rotate-90">
-      <circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.08)" strokeWidth={stroke} fill="none" />
+    <svg width={size} height={size} className="-rotate-90 shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={r} stroke={track} strokeWidth={stroke} fill="none" />
       <circle
         cx={size / 2} cy={size / 2} r={r}
         stroke={color} strokeWidth={stroke} fill="none"
@@ -78,7 +78,6 @@ function ProgressRing({ pct, size = 56, stroke = 5, color }: { pct: number; size
   );
 }
 
-// 🎨 NEW: Gradient Icon Tile
 function IconTile({ emoji, gradient }: { emoji: string; gradient: string }) {
   return (
     <div className={`w-10 h-10 rounded-xl ${gradient} flex items-center justify-center text-xl shadow-lg`}>
@@ -87,7 +86,7 @@ function IconTile({ emoji, gradient }: { emoji: string; gradient: string }) {
   );
 }
 
-// 🎨 NEW: Stat Card with ring + gradient border + streak chip
+// 🎨 Stat Card — icon + streak chip on top, text + ring below (no overlap)
 function StatCard({
   href, emoji, label, gradient, border, ringColor, value, sub, streak, pct,
 }: {
@@ -96,19 +95,22 @@ function StatCard({
 }) {
   return (
     <Link href={href} className={`press group relative bg-slate-900 p-4 rounded-2xl border ${border} shadow-lg shadow-black/30 hover:shadow-xl transition-all overflow-hidden`}>
-      {/* streak chip */}
-      {streak > 0 && (
-        <div className="absolute top-2 right-2 bg-orange-500/20 border border-orange-500/40 text-orange-300 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-0.5">
-          <span>🔥</span>{streak}
-        </div>
-      )}
       <div className="flex items-start justify-between mb-3">
         <IconTile emoji={emoji} gradient={gradient} />
+        {streak > 0 && (
+          <div className="bg-orange-500/20 border border-orange-500/40 text-orange-300 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-0.5">
+            <span>🔥</span>{streak}
+          </div>
+        )}
+      </div>
+      <div className="flex items-end justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-slate-400 mb-1">{label}</p>
+          <p className="text-xl font-black tracking-tight text-white leading-none mb-1 truncate">{value}</p>
+          <p className="text-[10px] text-slate-500">{sub}</p>
+        </div>
         <ProgressRing pct={pct} size={44} stroke={4} color={ringColor} />
       </div>
-      <p className="text-xs font-bold text-slate-400 mb-1">{label}</p>
-      <p className="text-xl font-black tracking-tight text-white leading-none mb-1">{value}</p>
-      <p className="text-[10px] text-slate-500">{sub}</p>
     </Link>
   );
 }
@@ -363,32 +365,34 @@ export default function Dashboard() {
   const dailyTarget = chartMode === "study" ? goals.study_target : chartMode === "gym" ? goals.workout_target : goals.habits_target;
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 HERO: Greeting + Overall Progress */}
+    <main className="min-h-screen bg-slate-950 text-white px-4 pt-20 pb-24 max-w-4xl mx-auto">
+      {/* 🌆 HERO — clean rows, no overlap */}
       <div className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-pink-500 p-5 shadow-2xl shadow-fuchsia-900/30">
         <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-yellow-400/20 rounded-full blur-3xl" />
-        <div className="relative flex items-center justify-between">
-          <div className="flex-1">
-            <p className="text-xs font-bold text-white/70 mb-1">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</p>
-            <h1 className="text-2xl md:text-3xl font-black text-white leading-tight">
-              {greeting}, <br />{userName}! 👋
-            </h1>
-            <div className="mt-3 flex items-center gap-2">
-              <div className="inline-flex items-center gap-1.5 bg-white/15 backdrop-blur px-3 py-1 rounded-full text-xs font-black text-white border border-white/20">
-                <span>{motivation}</span>
-              </div>
-              <CoinPill />
+        <div className="relative">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black text-white/70 mb-1">
+                {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
+              </p>
+              <h1 className="text-2xl font-black text-white leading-tight">
+                {greeting}, {userName}! 👋
+              </h1>
             </div>
+            <ProgressRing pct={overallPct} size={64} stroke={6} color="#ffffff" track="rgba(0,0,0,0.25)" />
           </div>
-          <div className="relative">
-            <ProgressRing pct={overallPct} size={92} stroke={8} color="white" />
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-[11px] font-black text-white border border-white/20">
+              {motivation}
+            </span>
+            <CoinPill />
           </div>
         </div>
         <DraggableAIBubble />
       </div>
 
-      {/* 📊 STAT CARDS GRID — color-coded */}
+      {/* 📊 STAT CARDS */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
         <StatCard
           href="/study-tracker" emoji="📚" label="Study"
@@ -513,7 +517,9 @@ export default function Dashboard() {
               <div className="flex gap-2 h-32 items-end">
                 {weekData.map((w) => {
                   const pct = chartMode === "todo"
-                    ? todoWeekTotals[w.date] ? Math.min(100, Math.round((w.value / todoWeekTotals[w.date]) * 100)) : 0
+                    ? todoWeekTotals[w.date]
+                      ? Math.min(100, Math.round((w.value / todoWeekTotals[w.date]) * 100))
+                      : 0
                     : Math.min(100, Math.round((w.value / Math.max(dailyTarget, 1)) * 100));
                   return (
                     <div key={w.date} className="flex-1 h-full flex flex-col justify-end items-center gap-1">
@@ -546,7 +552,7 @@ export default function Dashboard() {
               <div className="grid gap-2 max-h-72 overflow-y-auto">
                 {tasks.map((t) => (
                   <div key={t.id} className="flex items-center justify-between bg-slate-800/60 p-3 rounded-xl">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <button onClick={() => toggleTask(t.id, t.completed)}
                         className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center press ${t.completed ? "bg-green-500 border-green-500" : "border-slate-600"}`}>
                         {t.completed && <span className="text-xs text-white font-black">✓</span>}
@@ -578,7 +584,7 @@ export default function Dashboard() {
                 <select value={cdEmoji} onChange={(e) => setCdEmoji(e.target.value)}
                   className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500">
                   <option value="📚">📚</option><option value="🏋️">🏋️</option><option value="✅">✅</option>
-                  <option value="🎯">🎯</option><option value="💼">💼</option>
+                  <option value="🎯"></option><option value="💼">💼</option>
                 </select>
                 <button className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-orange-500 text-sm font-black press">Add</button>
               </form>
