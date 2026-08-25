@@ -1,14 +1,10 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { allWords, allSentences, samePackWords, shuffle, chalConfig, levelInfo } from "./gameData";
 import { playCorrect, playWrong, playWin } from "@/lib/sounds";
 
 function localISO(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function daySeed() {
-  const d = new Date();
-  return Math.floor(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 86400000);
 }
 function seededShuffle<T>(a: T[], seed: number): T[] {
   const arr = [...a];
@@ -39,6 +35,9 @@ function makeLetters(w: string): Letter[] {
 export default function DailyChallenge({ onExit }: { onExit: () => void }) {
   const [stage, setStage] = useState<"quiz" | "match" | "scramble" | "sayit" | "done">("quiz");
 
+  // 🎲 NEW random seed each session → fresh words every play!
+  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 2147483646) + 1);
+
   const [info] = useState(() => {
     const stars = Number(localStorage.getItem("dg-chal-stars") || 0);
     const li = levelInfo(stars);
@@ -46,8 +45,7 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
   });
   const cfg = info.cfg;
 
-  const [data] = useState(() => {
-    const seed = daySeed();
+  const data = useMemo(() => {
     const ws = seededShuffle(allWords(), seed);
     const quiz = ws.slice(0, cfg.quiz).map((w) => {
       const pool = (cfg.hard ? samePackWords(w) : allWords()).filter((x) => x.word !== w.word);
@@ -65,17 +63,16 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     }
     const sents = seededShuffle(allSentences(), seed).slice(0, cfg.say);
     return { quiz, matchWords, scramWords, sents };
-  });
+  }, [seed, cfg]);
 
-  const [tiles] = useState<Tile[]>(() =>
+  const tiles = useMemo<Tile[]>(() =>
     seededShuffle(
       [
         ...data.matchWords.map((w, i) => ({ id: i * 2, key: w.word, text: w.word, kind: "w" as const })),
         ...data.matchWords.map((w, i) => ({ id: i * 2 + 1, key: w.word, text: w.meaning, kind: "m" as const })),
       ],
-      daySeed() + 11
-    )
-  );
+      seed + 11
+    ), [data, seed]);
 
   // quiz
   const [qi, setQi] = useState(0);
@@ -106,6 +103,16 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
   const recSecRef = useRef(0);
   const recTimerRef = useRef<number | null>(null);
 
+  // 🔄 when seed changes (new round) → rebuild letters + reset stage
+  useEffect(() => {
+    setLetters(makeLetters(data.scramWords[0].word.toLowerCase()));
+    setStage("quiz");
+    setQi(0); setQScore(0);
+    setSel(null); setMatched([]); setMMis(0);
+    setSIdx(0); setBuilt([]); setSWrong(false);
+    setSayIdx(0); setSayResults(Array(cfg.say).fill(null)); setLastScore(null);
+  }, [seed]);
+
   const speak = (text: string) => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
@@ -120,16 +127,9 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     if (stage === "sayit") speak(data.sents[sayIdx].right);
   }, [stage, qi, sayIdx]);
 
-  // ⚡ QUIZ
   const pickQ = (oi: number) => {
-    if (oi === data.quiz[qi].answer) {
-      setQScore((s) => s + 1);
-      setFlash("ok");
-      playCorrect();
-    } else {
-      setFlash("bad");
-      playWrong();
-    }
+    if (oi === data.quiz[qi].answer) { setQScore((s) => s + 1); setFlash("ok"); playCorrect(); }
+    else { setFlash("bad"); playWrong(); }
     setTimeout(() => {
       setFlash("");
       if (qi + 1 >= data.quiz.length) setStage("match");
@@ -137,7 +137,6 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     }, 250);
   };
 
-  // 🃏 MATCH
   const tapT = (t: Tile) => {
     if (matched.includes(t.key)) return;
     if (sel === null) return setSel(t.id);
@@ -145,20 +144,13 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     const s = tiles.find((x) => x.id === sel);
     if (!s || s.kind === t.kind) return setSel(t.id);
     if (s.key === t.key) {
-      playCorrect();
-      speak(t.key);
+      playCorrect(); speak(t.key);
       const m = [...matched, t.key];
-      setMatched(m);
-      setSel(null);
+      setMatched(m); setSel(null);
       if (m.length === data.matchWords.length) setTimeout(() => setStage("scramble"), 300);
-    } else {
-      playWrong();
-      setMMis((x) => x + 1);
-      setSel(null);
-    }
+    } else { playWrong(); setMMis((x) => x + 1); setSel(null); }
   };
 
-  // 🧩 SCRAMBLE
   const sw = data.scramWords[sIdx].word.toLowerCase();
   const tapL = (id: number) => {
     const l = letters.find((x) => x.id === id);
@@ -172,20 +164,11 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
         playCorrect();
         setTimeout(() => {
           if (sIdx + 1 >= data.scramWords.length) setStage("sayit");
-          else {
-            setSIdx(sIdx + 1);
-            setLetters(makeLetters(data.scramWords[sIdx + 1].word.toLowerCase()));
-            setBuilt([]);
-          }
+          else { setSIdx(sIdx + 1); setLetters(makeLetters(data.scramWords[sIdx + 1].word.toLowerCase())); setBuilt([]); }
         }, 250);
       } else {
-        playWrong();
-        setSWrong(true);
-        setTimeout(() => {
-          setSWrong(false);
-          setBuilt([]);
-          setLetters((ls) => ls.map((x) => ({ ...x, used: false })));
-        }, 400);
+        playWrong(); setSWrong(true);
+        setTimeout(() => { setSWrong(false); setBuilt([]); setLetters((ls) => ls.map((x) => ({ ...x, used: false }))); }, 400);
       }
     }
   };
@@ -197,14 +180,8 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     if (l) tapL(l.id);
   };
 
-  // 🎤 SAY-IT
   const toggleRec = async () => {
-    if (rec) {
-      mediaRef.current?.stop();
-      setRec(false);
-      if (recTimerRef.current) clearInterval(recTimerRef.current);
-      return;
-    }
+    if (rec) { mediaRef.current?.stop(); setRec(false); if (recTimerRef.current) clearInterval(recTimerRef.current); return; }
     window.speechSynthesis?.cancel();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -220,44 +197,21 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
         const reader = new FileReader();
         reader.onloadend = async () => {
           try {
-            const res = await fetch("/api/ai", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ mode: "drill", target: data.sents[sayIdx].right, audio: String(reader.result).split(",")[1], mimeType: mime }),
-            });
+            const res = await fetch("/api/ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: "drill", target: data.sents[sayIdx].right, audio: String(reader.result).split(",")[1], mimeType: mime }) });
             const d = await res.json();
-            if (typeof d.score === "number") {
-              if (d.score >= cfg.pass) playCorrect();
-              else playWrong();
-              setLastScore(d.score);
-              setSayResults((r) => {
-                const c = [...r];
-                c[sayIdx] = d.score;
-                return c;
-              });
-            }
+            if (typeof d.score === "number") { if (d.score >= cfg.pass) playCorrect(); else playWrong(); setLastScore(d.score); setSayResults((r) => { const c = [...r]; c[sayIdx] = d.score; return c; }); }
           } catch {}
         };
         reader.readAsDataURL(blob);
       };
-      mr.start();
-      mediaRef.current = mr;
-      setRec(true);
-      recSecRef.current = 0;
-      recTimerRef.current = window.setInterval(() => {
-        recSecRef.current += 1;
-      }, 1000);
-    } catch {
-      alert("🎤 Mic permission denied!");
-    }
+      mr.start(); mediaRef.current = mr; setRec(true); recSecRef.current = 0;
+      recTimerRef.current = window.setInterval(() => { recSecRef.current += 1; }, 1000);
+    } catch { alert("🎤 Mic permission denied!"); }
   };
 
   const nextSay = () => {
     if (sayIdx + 1 >= data.sents.length) complete();
-    else {
-      setSayIdx(sayIdx + 1);
-      setLastScore(null);
-    }
+    else { setSayIdx(sayIdx + 1); setLastScore(null); }
   };
 
   const complete = () => {
@@ -268,9 +222,7 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     const newStars = info.stars + earned;
     localStorage.setItem("dg-chal-stars", String(newStars));
     const after = levelInfo(newStars).level;
-    setStarsEarned(earned);
-    setLeveledUp(after > info.level);
-    setNewLevel(after);
+    setStarsEarned(earned); setLeveledUp(after > info.level); setNewLevel(after);
     const today = localISO(new Date());
     const yest = localISO(new Date(Date.now() - 86400000));
     const st = JSON.parse(localStorage.getItem("dg-chal-streak") || "null");
@@ -281,20 +233,8 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
     setStage("done");
   };
 
-  const replay = () => {
-    setStage("quiz");
-    setQi(0);
-    setQScore(0);
-    setSel(null);
-    setMatched([]);
-    setMMis(0);
-    setSIdx(0);
-    setLetters(makeLetters(data.scramWords[0].word.toLowerCase()));
-    setBuilt([]);
-    setSayIdx(0);
-    setSayResults(Array(cfg.say).fill(null));
-    setLastScore(null);
-  };
+  // 🔁 NEW round = new seed = new words!
+  const newRound = () => setSeed(Math.floor(Math.random() * 2147483646) + 1);
 
   const steps = (
     <div className="flex justify-center gap-3 mb-4 text-lg">
@@ -321,7 +261,7 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
         <p className="text-sm font-black text-slate-400 mb-1">⭐ Level {newLevel} • {info.stars + starsEarned} total stars</p>
         <p className="text-lg font-black text-orange-400 mb-6">🔥 {streak}-day streak!</p>
         <div className="grid gap-2">
-          <button onClick={replay} className="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 font-bold">🔁 Replay (practice)</button>
+          <button onClick={newRound} className="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 font-bold">🔁 New Round (new words!)</button>
           <button onClick={onExit} className="py-3 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold">🏠 Games Hub</button>
         </div>
       </div>
