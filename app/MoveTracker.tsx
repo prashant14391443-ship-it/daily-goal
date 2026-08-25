@@ -194,15 +194,13 @@ export default function MoveTracker() {
       {/* 🌆 HERO */}
       <div className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 p-5 shadow-2xl shadow-emerald-900/30">
         <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
-        <div className="relative flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <IconTile emoji="🏃" gradient="bg-white/20" size="lg" />
-            <div>
-              <h1 className="text-2xl font-black">Auto Tracker</h1>
-              <p className="text-xs text-white/70 font-semibold">GPS + steps + calories</p>
-            </div>
+        <div className="relative">
+          <div className="flex items-center justify-between mb-4">
+            <span className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg">🏃</span>
+            <span className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-sm font-black border border-white/20">⏱️ {fmtTime(sec)}</span>
           </div>
-          <div className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-sm font-black border border-white/20">⏱️ {fmtTime(sec)}</div>
+          <h1 className="text-2xl font-black text-white">Auto Tracker</h1>
+          <p className="text-xs text-white/70 font-semibold mt-1">GPS + steps + calories</p>
         </div>
       </div>
 
