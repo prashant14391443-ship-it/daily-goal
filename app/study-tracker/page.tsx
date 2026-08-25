@@ -15,64 +15,51 @@ export default function StudyHub() {
         </div>
       </div>
 
-      <div className="grid gap-3">
-        {/* Study Log — highlighted */}
+      {/* ALL CARDS SAME SHAPE */}
+      <div className="grid grid-cols-2 gap-3">
         <Link
           href="/studylog"
-          className="press flex items-center gap-3 rounded-2xl border border-blue-500/40 bg-gradient-to-r from-blue-600/20 to-transparent p-4 shadow-lg shadow-black/30"
+          className="press bg-slate-900 border border-blue-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30"
         >
           <IconTile emoji="📖" gradient="bg-gradient-to-br from-blue-500 to-indigo-600" />
-          <div className="flex-1 min-w-0">
-            <p className="font-black text-sm text-white">Study Log</p>
-            <p className="text-[10px] text-slate-400">Sessions, streaks & reminders</p>
-          </div>
-          <span className="text-slate-500 text-lg">→</span>
+          <p className="font-black text-sm mt-3 text-white">Study Log</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Sessions, streaks & reminders</p>
         </Link>
 
-        {/* Focus Timer */}
         <Link
           href="/focus"
-          className="press flex items-center gap-3 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg shadow-black/30 hover:border-red-500/40 transition-colors"
+          className="press bg-slate-900 border border-red-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30"
         >
           <IconTile emoji="🍅" gradient="bg-gradient-to-br from-red-500 to-orange-600" />
-          <div className="flex-1 min-w-0">
-            <p className="font-black text-sm text-white">Focus Timer</p>
-            <p className="text-[10px] text-slate-400">Pomodoro + growing plant, auto-logs 25 min</p>
-          </div>
-          <span className="text-slate-500 text-lg">→</span>
+          <p className="font-black text-sm mt-3 text-white">Focus Timer</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Pomodoro + growing plant</p>
         </Link>
 
-        {/* Flashcards + Summarize */}
-        <div className="grid grid-cols-2 gap-3">
-          <Link
-            href="/flashcards"
-            className="press bg-slate-900 border border-violet-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30"
-          >
-            <IconTile emoji="🃏" gradient="bg-gradient-to-br from-violet-500 to-purple-600" />
-            <p className="font-black text-sm mt-3 text-white">Flashcards</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">Memorize anything</p>
-          </Link>
-          <Link
-            href="/summarize"
-            className="press bg-slate-900 border border-pink-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30"
-          >
-            <IconTile emoji="🧠" gradient="bg-gradient-to-br from-pink-500 to-rose-600" />
-            <p className="font-black text-sm mt-3 text-white">Summarize</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">Points + mind-map</p>
-          </Link>
-        </div>
+        <Link
+          href="/flashcards"
+          className="press bg-slate-900 border border-violet-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30"
+        >
+          <IconTile emoji="🃏" gradient="bg-gradient-to-br from-violet-500 to-purple-600" />
+          <p className="font-black text-sm mt-3 text-white">Flashcards</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Memorize anything</p>
+        </Link>
 
-        {/* AI Quiz */}
+        <Link
+          href="/summarize"
+          className="press bg-slate-900 border border-pink-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30"
+        >
+          <IconTile emoji="🧠" gradient="bg-gradient-to-br from-pink-500 to-rose-600" />
+          <p className="font-black text-sm mt-3 text-white">Summarize</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Points + mind-map</p>
+        </Link>
+
         <Link
           href="/quiz"
-          className="press flex items-center gap-3 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg shadow-black/30 hover:border-cyan-500/40 transition-colors"
+          className="press col-span-2 bg-slate-900 border border-cyan-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30"
         >
           <IconTile emoji="🤖" gradient="bg-gradient-to-br from-cyan-500 to-teal-600" />
-          <div className="flex-1 min-w-0">
-            <p className="font-black text-sm text-white">AI Quiz</p>
-            <p className="text-[10px] text-slate-400">Any topic → instant test with score</p>
-          </div>
-          <span className="text-slate-500 text-lg">→</span>
+          <p className="font-black text-sm mt-3 text-white">AI Quiz</p>
+          <p className="text-[10px] text-slate-400 mt-0.5">Any topic → instant test with score</p>
         </Link>
       </div>
     </main>
