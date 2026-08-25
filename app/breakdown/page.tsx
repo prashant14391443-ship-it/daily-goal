@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { IconTile, GradButton, EmptyState, Chip } from "@/app/components/ui";
 
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -41,6 +42,10 @@ export default function BreakdownPage() {
     setLoading(false);
   };
 
+  const toggle = (i: number) => {
+    setPicked(picked.map((p, j) => (j === i ? !p : p)));
+  };
+
   const addSelected = async () => {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
@@ -59,77 +64,184 @@ export default function BreakdownPage() {
     setSaved(true);
   };
 
+  const pickedCount = picked.filter(Boolean).length;
+  const hasSteps = steps.length > 0;
+  const allPicked = picked.every(Boolean);
+  const nonePicked = pickedCount === 0;
+
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl bg-amber-600/20 border border-amber-500/40 flex items-center justify-center text-xl">🤖</span>
-          AI Breakdown
-        </h1>
-        <p className="text-slate-400">Big scary task → tiny easy steps</p>
+    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
+      {/* 🌆 HERO */}
+      <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 via-orange-600 to-rose-600 p-5 shadow-2xl shadow-orange-900/30">
+        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
+        <div className="relative flex items-center gap-3">
+          <span className={`w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg ${loading ? "animate-pulse" : ""}`}>
+            🤖
+          </span>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-black text-white leading-tight">AI Breakdown</h1>
+            <p className="text-[10px] text-white/80 font-semibold">
+              {loading ? "Thinking..." : "Big scary task → tiny easy steps"}
+            </p>
+          </div>
+        </div>
       </div>
 
-      <form onSubmit={generate} className="bg-slate-900 p-6 rounded-lg mb-8 grid gap-4">
+      {/* 📝 INPUT FORM */}
+      <form onSubmit={generate} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5 grid gap-3 shadow-lg shadow-black/30">
+        <div className="flex items-center gap-2 mb-1">
+          <IconTile emoji="🎯" gradient="bg-gradient-to-br from-amber-500 to-orange-600" size="sm" />
+          <p className="font-black text-sm text-white">What big task are you avoiding?</p>
+        </div>
         <input
           value={task}
           onChange={(e) => setTask(e.target.value)}
-          placeholder="Big task (e.g. Prepare for physics exam)"
+          placeholder="e.g. Prepare for physics exam, Clean the whole house..."
           required
-          className="p-3 rounded bg-slate-800 border border-slate-700"
-        />
-        <button
           disabled={loading}
-          className="py-3 rounded bg-amber-600 hover:bg-amber-500 font-semibold disabled:opacity-50"
+          className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-amber-500 disabled:opacity-50"
+        />
+        <GradButton
+          type="submit"
+          gradient="from-amber-500 to-orange-600"
+          disabled={loading}
+          className="w-full py-3.5 text-sm"
         >
           {loading ? "🤖 AI is thinking..." : "⚡ Break It Down"}
-        </button>
+        </GradButton>
       </form>
 
-      {error && <p className="text-red-400 mb-4">❌ {error}</p>}
+      {/* 🤖 LOADING STATE */}
+      {loading && (
+        <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-8 text-center shadow-lg shadow-black/30 mb-5">
+          <p className="text-6xl mb-3 animate-bounce">🤖</p>
+          <p className="text-lg font-black text-white mb-1">Breaking down your task...</p>
+          <p className="text-xs text-amber-300 font-semibold">"{task}"</p>
+          <div className="mt-4 h-1.5 bg-slate-800 rounded-full overflow-hidden max-w-xs mx-auto">
+            <div className="h-full bg-gradient-to-r from-amber-500 to-orange-600 rounded-full animate-pulse" style={{ width: "70%" }} />
+          </div>
+        </div>
+      )}
 
-      {steps.length > 0 && !saved && (
-        <div className="grid gap-2 mb-6">
-          {steps.map((s, i) => (
-            <label
-              key={i}
-              className="bg-slate-900 rounded p-3 flex items-center gap-3 cursor-pointer"
-            >
-              <input
-                type="checkbox"
-                checked={picked[i]}
-                onChange={() =>
-                  setPicked(picked.map((p, j) => (j === i ? !p : p)))
-                }
-                className="w-4 h-4"
-              />
-              <span className="text-sm">
-                {i + 1}. {s}
-              </span>
-            </label>
-          ))}
-          <button
+      {/* ❌ ERROR */}
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/40 rounded-2xl p-3 mb-4 text-center">
+          <p className="text-sm font-bold text-red-300">❌ {error}</p>
+        </div>
+      )}
+
+      {/* ✅ STEPS PICKER */}
+      {hasSteps && !saved && (
+        <>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5 shadow-lg shadow-black/30">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <IconTile emoji="📋" gradient="bg-gradient-to-br from-emerald-500 to-green-600" size="sm" />
+                <p className="font-black text-sm text-white">Your Steps</p>
+              </div>
+              <div className="flex gap-2">
+                <Chip color={allPicked ? "green" : "orange"}>
+                  {pickedCount}/{steps.length} picked
+                </Chip>
+                <button
+                  onClick={() => setPicked(picked.map((_, i) => !picked.every(Boolean)))}
+                  className="press text-[10px] font-black text-slate-400 hover:text-white"
+                >
+                  {allPicked ? "Deselect all" : "Select all"}
+                </button>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              {steps.map((s, i) => {
+                const isPicked = picked[i];
+                return (
+                  <button
+                    key={i}
+                    onClick={() => toggle(i)}
+                    className={`press text-left flex items-start gap-3 rounded-xl p-3 border-2 transition-all ${
+                      isPicked
+                        ? "bg-emerald-900/15 border-emerald-500/50"
+                        : "bg-slate-800/40 border-slate-700/50 opacity-50"
+                    }`}
+                  >
+                    <div
+                      className={`shrink-0 w-7 h-7 rounded-lg border-2 flex items-center justify-center transition-all ${
+                        isPicked
+                          ? "bg-emerald-500 border-emerald-500"
+                          : "bg-slate-800 border-slate-600"
+                      }`}
+                    >
+                      {isPicked && <span className="text-white text-sm font-black">✓</span>}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-sm font-semibold leading-snug ${isPicked ? "text-white" : "text-slate-400 line-through"}`}>
+                        {s}
+                      </p>
+                    </div>
+                    <span className={`shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-black ${
+                      isPicked ? "bg-emerald-500/30 text-emerald-200" : "bg-slate-700/50 text-slate-500"
+                    }`}>
+                      {i + 1}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <GradButton
             onClick={addSelected}
-            className="py-3 rounded bg-green-600 hover:bg-green-500 font-semibold"
+            gradient="from-emerald-500 to-green-600"
+            disabled={nonePicked}
+            className="w-full py-4 text-base"
           >
-            ➕ Add selected to today's tasks
-          </button>
-        </div>
+            ➕ Add {pickedCount} {pickedCount === 1 ? "step" : "steps"} to today&apos;s tasks
+          </GradButton>
+        </>
       )}
 
+      {/* 🎉 SUCCESS STATE */}
       {saved && (
-        <div className="bg-green-600/20 border border-green-500/40 rounded-xl p-6 text-center">
-          <p className="text-4xl mb-2">✅</p>
-          <p className="font-bold">Steps added to today's Task Log!</p>
-          <Link href="/tasklog" className="text-sm text-green-400 underline">
-            Open Task Log →
-          </Link>
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600/20 to-green-600/20 border-2 border-emerald-400/50 p-8 text-center shadow-2xl">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.08),_transparent_70%)]" />
+          <div className="relative">
+            <p className="text-6xl mb-3 animate-bounce">🎉</p>
+            <p className="text-2xl font-black text-white mb-2">Tasks added!</p>
+            <p className="text-xs text-emerald-200 font-semibold mb-5">
+              {pickedCount} {pickedCount === 1 ? "step" : "steps"} are now in your Task Log
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <Link
+                href="/tasklog"
+                className="press py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-sm font-black text-white"
+              >
+                📋 Open Task Log
+              </Link>
+              <button
+                onClick={() => {
+                  setSteps([]);
+                  setPicked([]);
+                  setSaved(false);
+                  setTask("");
+                }}
+                className="press py-3 rounded-xl bg-slate-800 border border-slate-700 text-sm font-black text-slate-300"
+              >
+                🔄 Break another
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      <Link
-        href="/todo"
-        className="inline-block mt-6 text-sm text-slate-400 hover:text-white"
-      >
+      {/* EMPTY STATE */}
+      {!hasSteps && !loading && !saved && !error && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl mt-2">
+          <EmptyState emoji="🎯✨" text="Type a big scary task above — AI will break it into tiny easy steps!" />
+        </div>
+      )}
+
+      <Link href="/todo" className="inline-block mt-6 text-sm text-slate-400 hover:text-white press font-semibold">
         ← Back to ToDo
       </Link>
     </main>
