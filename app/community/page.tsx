@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { IconTile, GradButton, Chip, EmptyState } from "@/app/components/ui";
 
 type Community = {
   id: string;
@@ -53,35 +54,22 @@ export default function CommunityPage() {
   const load = async () => {
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
-    if (!uid) {
-      router.push("/login");
-      return;
-    }
+    if (!uid) { router.push("/login"); return; }
     setUserId(uid);
-    const meta = (data.session?.user.user_metadata || {}) as {
-      display_name?: string;
-    };
+    const meta = (data.session?.user.user_metadata || {}) as { display_name?: string };
     setMyName(meta.display_name || data.session?.user.email?.split("@")[0] || "member");
-    
     const [c, m, jm] = await Promise.all([
       supabase.from("communities").select("*").order("created_at", { ascending: false }),
       supabase.from("community_members").select("community_id").eq("status", "approved"),
       supabase.from("community_members").select("community_id, status").eq("user_id", uid),
     ]);
-
     const counts = new Map<string, number>();
-    (m.data || []).forEach((r) =>
-      counts.set(r.community_id, (counts.get(r.community_id) || 0) + 1)
-    );
-
+    (m.data || []).forEach((r) => counts.set(r.community_id, (counts.get(r.community_id) || 0) + 1));
     const mine = new Map<string, string>();
     (jm.data || []).forEach((r) => mine.set(r.community_id, r.status));
-
     setList(
       (c.data || []).map((x) => ({
-        id: x.id,
-        name: x.name,
-        description: x.description,
+        id: x.id, name: x.name, description: x.description,
         members: counts.get(x.id) || 0,
         joined: mine.get(x.id) === "approved",
         requested: mine.get(x.id) === "pending",
@@ -90,51 +78,30 @@ export default function CommunityPage() {
     setLoading(false);
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (hasBadWord(name) || hasBadWord(desc)) {
       alert("🚫 Community name or description contains banned words. Please choose a clean name!");
       return;
     }
-
-    const room =
-      "DG-" +
-      Math.random().toString(36).slice(2, 10) +
-      Math.random().toString(36).slice(2, 10);
-      
-    const { data } = await supabase
-      .from("communities")
+    const room = "DG-" + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+    const { data } = await supabase.from("communities")
       .insert({ owner_id: userId, name, description: desc, room_code: room })
-      .select()
-      .single();
-      
+      .select().single();
     if (!data) return;
-    
     await supabase.from("community_members").insert({
-      community_id: data.id,
-      user_id: userId,
-      status: "approved",
-      user_name: myName,
+      community_id: data.id, user_id: userId, status: "approved", user_name: myName,
     });
-    
-    setName("");
-    setDesc("");
-    setShowCreate(false);
+    setName(""); setDesc(""); setShowCreate(false);
     localStorage.setItem("dg-community", data.id);
     router.push("/community-room");
   };
 
   const requestJoin = async (id: string) => {
     await supabase.from("community_members").insert({
-      community_id: id,
-      user_id: userId,
-      status: "pending",
-      user_name: myName,
+      community_id: id, user_id: userId, status: "pending", user_name: myName,
     });
     await load();
   };
@@ -143,9 +110,7 @@ export default function CommunityPage() {
     const reason = prompt("Why are you reporting this community? (e.g., abusive name, spam)");
     if (!reason || !reason.trim()) return;
     await supabase.from("community_reports").insert({
-      community_id: id,
-      user_id: userId,
-      reason: reason.trim(),
+      community_id: id, user_id: userId, reason: reason.trim(),
     });
     alert("✅ Thank you! Our moderators will review this community.");
   };
@@ -155,180 +120,176 @@ export default function CommunityPage() {
     router.push("/community-room");
   };
 
+  const filtered = list.filter(
+    (c) => c.name.toLowerCase().includes(q.toLowerCase()) ||
+      (c.description || "").toLowerCase().includes(q.toLowerCase())
+  );
+
   return (
-    <main className="min-h-screen bg-[#0a0f1c] text-white p-4 md:p-8 pb-24">
-      {/* HEADER */}
-      <div className="mb-8 pt-6 pr-16">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-3xl md:text-4xl font-extrabold flex items-center gap-3 tracking-tight">
-            <span className="text-4xl drop-shadow-md">🏠</span>
-            Community
-          </h1>
-          <p className="text-slate-400 text-sm md:text-base font-medium mt-1">
-            Request to join → admin approves → chat & talk
-          </p>
-          <div className="mt-3 inline-flex items-center gap-2 bg-green-500/10 border border-green-500/20 px-3 py-1.5 rounded-full self-start">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-xs md:text-sm text-green-400 font-bold tracking-wide">
-              {online} online
-            </span>
+    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
+      {/* 🌆 HERO */}
+      <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-pink-600 via-fuchsia-600 to-violet-600 p-5 shadow-2xl shadow-fuchsia-900/30">
+        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
+        <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-pink-300/20 rounded-full blur-3xl" />
+        <div className="relative flex items-center gap-3">
+          <span className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg">🏠</span>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-black text-white leading-tight">Community</h1>
+            <p className="text-[10px] text-white/80 font-semibold">
+              Request → approved → chat & talk
+            </p>
           </div>
+          {online > 0 && (
+            <div className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-xs font-black text-white border border-white/20 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+              {online} online
+            </div>
+          )}
         </div>
       </div>
 
-      {/* FULL-WIDTH ACTION ROWS */}
-      <div className="flex flex-col gap-4 mb-8">
+      {/* 🎯 3 ACTION CARDS */}
+      <div className="grid gap-3 mb-5">
         <Link
           href="/random-talk"
-          className="group relative overflow-hidden rounded-2xl bg-gradient-to-r from-pink-950/40 to-purple-950/40 border border-pink-500/20 p-5 text-center transition-all duration-300 hover:border-pink-500/40 hover:shadow-[0_0_20px_-5px_rgba(236,72,153,0.2)] hover:-translate-y-0.5"
+          className="press group relative overflow-hidden rounded-2xl bg-gradient-to-r from-pink-600/20 to-rose-600/20 border-2 border-pink-500/40 p-4 flex items-center gap-3 shadow-lg shadow-black/30"
         >
-          <p className="font-semibold text-pink-100 flex items-center justify-center gap-3 text-sm md:text-base">
-            <span className="text-2xl group-hover:scale-110 transition-transform">🌍</span>
-            Talk to a Stranger — 1-on-1 voice, practice English communication
-          </p>
+          <IconTile emoji="🌍" gradient="bg-gradient-to-br from-pink-500 to-rose-600" size="lg" />
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm text-white leading-tight">Talk to a Stranger</p>
+            <p className="text-[10px] text-pink-200 font-semibold mt-0.5">1-on-1 voice • practice English</p>
+          </div>
+          <span className="text-slate-400 text-lg">→</span>
         </Link>
 
         <Link
           href="/speaking"
-          className="group relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-950/40 to-fuchsia-950/40 border border-indigo-500/20 p-5 text-center transition-all duration-300 hover:border-indigo-500/40 hover:shadow-[0_0_20px_-5px_rgba(99,102,241,0.2)] hover:-translate-y-0.5"
+          className="press group relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600/20 to-violet-600/20 border-2 border-indigo-500/40 p-4 flex items-center gap-3 shadow-lg shadow-black/30"
         >
-          <p className="font-semibold text-indigo-100 flex items-center justify-center gap-3 text-sm md:text-base">
-            <span className="text-2xl group-hover:scale-110 transition-transform">🤖</span>
-            Talk to AI — Practice English, correct mistakes
-          </p>
+          <IconTile emoji="🤖" gradient="bg-gradient-to-br from-indigo-500 to-violet-600" size="lg" />
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm text-white leading-tight">Talk to AI</p>
+            <p className="text-[10px] text-indigo-200 font-semibold mt-0.5">Practice English, correct mistakes</p>
+          </div>
+          <span className="text-slate-400 text-lg">→</span>
         </Link>
 
         <button
           onClick={() => setShowCreate(!showCreate)}
-          className="group relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-950/40 to-orange-950/40 border border-amber-500/20 p-5 text-center transition-all duration-300 hover:border-amber-500/40 hover:shadow-[0_0_20px_-5px_rgba(245,158,11,0.2)] hover:-translate-y-0.5 w-full"
+          className="press group relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-600/20 to-orange-600/20 border-2 border-amber-500/40 p-4 flex items-center gap-3 shadow-lg shadow-black/30 w-full text-left"
         >
-          <p className="font-semibold text-amber-100 flex items-center justify-center gap-3 text-sm md:text-base">
-            <span className="text-2xl group-hover:scale-110 transition-transform">✨</span>
-            {showCreate ? "Cancel Creation" : "Create My Community"}
-          </p>
+          <IconTile emoji="✨" gradient="bg-gradient-to-br from-amber-500 to-orange-600" size="lg" />
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm text-white leading-tight">
+              {showCreate ? "Cancel Creation" : "Create My Community"}
+            </p>
+            <p className="text-[10px] text-amber-200 font-semibold mt-0.5">Start your own space</p>
+          </div>
+          <span className="text-slate-400 text-lg">{showCreate ? "✕" : "→"}</span>
         </button>
       </div>
 
-      {/* CREATE COMMUNITY FORM */}
+      {/* 📝 CREATE FORM */}
       {showCreate && (
-        <form onSubmit={create} className="bg-slate-900/60 backdrop-blur-md border border-slate-800 p-6 rounded-2xl mb-8 grid gap-4 shadow-xl">
+        <form onSubmit={create} className="bg-slate-900 border border-amber-500/30 rounded-2xl p-4 mb-5 grid gap-3 shadow-lg shadow-black/30">
+          <div className="flex items-center gap-2 mb-1">
+            <IconTile emoji="🏘️" gradient="bg-gradient-to-br from-amber-500 to-orange-600" size="sm" />
+            <p className="font-black text-sm text-white">New Community</p>
+          </div>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Community name (e.g. English Practice India)"
             required
-            className="p-3.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all"
+            className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-amber-500"
           />
           <input
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
             placeholder="What is it about?"
-            className="p-3.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none transition-all"
+            className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-amber-500"
           />
-          <button className="py-3.5 rounded-xl bg-gradient-to-r from-green-600 to-emerald-500 hover:from-green-500 hover:to-emerald-400 font-bold text-white shadow-lg shadow-green-900/20 transition-all">
+          <GradButton type="submit" gradient="from-amber-500 to-orange-600" className="w-full py-3 text-sm">
             🏘️ Create & Enter
-          </button>
+          </GradButton>
         </form>
       )}
 
-      {/* SEARCH */}
-      <div className="relative mb-6">
-        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+      {/* 🔍 SEARCH */}
+      <div className="relative mb-5">
+        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">🔍</span>
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search communities..."
-          className="w-full pl-11 p-3.5 rounded-2xl bg-slate-900/50 backdrop-blur-sm border border-slate-800 focus:border-slate-600 outline-none transition-colors text-sm"
+          className="w-full pl-11 pr-4 p-3.5 rounded-2xl bg-slate-900 border border-slate-800 focus:border-pink-500 outline-none text-sm"
         />
       </div>
 
       {/* COMMUNITY LIST */}
       {loading ? (
-        <div className="flex justify-center p-8">
-          <p className="text-slate-400 animate-pulse font-medium">Loading communities...</p>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
+          <p className="text-4xl mb-2 animate-bounce">🏠</p>
+          <p className="text-slate-400 text-sm">Loading communities...</p>
         </div>
       ) : (
-        <div className="grid gap-4">
-          {list
-            .filter(
-              (c) =>
-                c.name.toLowerCase().includes(q.toLowerCase()) ||
-                (c.description || "").toLowerCase().includes(q.toLowerCase())
-            )
-            .map((c) => (
-              <div
-                key={c.id}
-                className="bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 rounded-2xl p-5 hover:border-slate-700/80 transition-colors shadow-lg"
-              >
-                {/* Info Top Row */}
-                <div className="flex items-start gap-4 mb-4">
-                  <span className="w-14 h-14 rounded-2xl bg-gradient-to-br from-pink-600/20 to-purple-600/20 border border-pink-500/20 flex items-center justify-center text-3xl shrink-0 shadow-inner">
-                    👥
-                  </span>
-                  <div className="flex-1 mt-0.5">
-                    <h2 className="font-bold text-lg text-slate-100 leading-tight">
-                      {c.description
-                        ? `${c.name.trim()}'s ${c.description.trim()} Community`
-                        : `${c.name.trim()} Community`}
-                    </h2>
-                    <span className="inline-flex items-center gap-1.5 text-[11px] bg-pink-500/10 border border-pink-500/20 text-pink-300 px-2.5 py-1 rounded-full font-bold mt-2 tracking-wide uppercase">
-                      👥 {c.members} {c.members === 1 ? "member" : "members"}
-                    </span>
-                  </div>
+        <div className="grid gap-3">
+          {filtered.map((c) => (
+            <div
+              key={c.id}
+              className={`press bg-slate-900 border-2 rounded-2xl p-4 shadow-lg shadow-black/30 ${
+                c.joined ? "border-green-500/40" : c.requested ? "border-amber-500/30" : "border-slate-800"
+              }`}
+            >
+              <div className="flex items-start gap-3 mb-3">
+                <div className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-lg ${
+                  c.joined ? "bg-gradient-to-br from-green-500 to-emerald-600" : "bg-gradient-to-br from-pink-500 to-fuchsia-600"
+                }`}>
+                  👥
                 </div>
-
-                {/* Buttons Bottom Row */}
-                <div className="flex gap-3 items-center w-full">
-                  {c.joined ? (
-                    <button
-                      onClick={() => open(c.id)}
-                      className="px-6 py-2.5 rounded-xl bg-green-600/90 hover:bg-green-500 text-white text-sm font-bold shadow-lg shadow-green-900/20 transition-colors"
-                    >
-                      Open →
-                    </button>
-                  ) : c.requested ? (
-                    <span className="px-5 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm font-bold flex items-center gap-2">
-                      ⏳ Requested
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => requestJoin(c.id)}
-                      className="px-5 py-2.5 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 text-sm font-bold hover:bg-blue-600/40 transition-colors flex items-center gap-2"
-                    >
-                      🙏 Request
-                    </button>
-                  )}
-
-                  {/* Sleek SVG Report Button (Now available on ALL groups) */}
-                  <button
-                    onClick={() => report(c.id)}
-                    title="Report Community"
-                    className="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/50 text-slate-400 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all flex items-center justify-center ml-auto group"
-                  >
-                    <svg 
-                      xmlns="http://www.w3.org/2000/svg" 
-                      width="18" 
-                      height="18" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      className="group-hover:fill-red-500/20 transition-colors"
-                    >
-                      <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path>
-                      <line x1="4" y1="22" x2="4" y2="15"></line>
-                    </svg>
-                  </button>
+                <div className="flex-1 min-w-0">
+                  <p className="font-black text-sm text-white leading-tight truncate">
+                    {c.description ? `${c.name.trim()}'s ${c.description.trim()}` : `${c.name.trim()}`}
+                  </p>
+                  <Chip color={c.joined ? "green" : "violet"}>
+                    👥 {c.members} {c.members === 1 ? "member" : "members"}
+                  </Chip>
                 </div>
+                <button
+                  onClick={() => report(c.id)}
+                  title="Report"
+                  className="press shrink-0 w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-slate-500 hover:text-red-400 hover:border-red-500/40 flex items-center justify-center text-xs"
+                >
+                  🚩
+                </button>
               </div>
-            ))}
-            
+
+              <div className="flex items-center gap-2">
+                {c.joined ? (
+                  <GradButton onClick={() => open(c.id)} gradient="from-green-500 to-emerald-600" className="flex-1 py-2.5 text-sm">
+                    Open →
+                  </GradButton>
+                ) : c.requested ? (
+                  <div className="flex-1 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-300 text-sm font-black text-center">
+                    ⏳ Requested
+                  </div>
+                ) : (
+                  <GradButton onClick={() => requestJoin(c.id)} gradient="from-pink-500 to-fuchsia-600" className="flex-1 py-2.5 text-sm">
+                    🙏 Request
+                  </GradButton>
+                )}
+              </div>
+            </div>
+          ))}
+
           {list.length === 0 && (
-            <div className="text-center py-12 border-2 border-dashed border-slate-800 rounded-2xl">
-              <p className="text-4xl mb-3">🌟</p>
-              <p className="text-slate-400 font-medium">No communities yet — be the first to create one!</p>
+            <div className="bg-slate-900 border border-dashed border-pink-500/30 rounded-2xl">
+              <EmptyState emoji="🌟" text="No communities yet — be the first to create one!" />
+            </div>
+          )}
+          {filtered.length === 0 && list.length > 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl">
+              <EmptyState emoji="🔍" text={`No results for "${q}" — try different keywords!`} />
             </div>
           )}
         </div>
