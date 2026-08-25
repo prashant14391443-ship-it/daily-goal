@@ -371,22 +371,19 @@ export default function Dashboard() {
         <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-yellow-400/20 rounded-full blur-3xl" />
         <div className="relative">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-black text-white/70 mb-1">
-                {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
-              </p>
-              <h1 className="text-2xl font-black text-white leading-tight">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg font-black text-white leading-snug">
                 {greeting}, {userName}! 👋
               </h1>
+              <p className="text-sm font-black text-white mt-1.5 leading-snug drop-shadow-sm">{motivation}</p>
             </div>
-            <ProgressRing pct={overallPct} size={64} stroke={6} color="#ffffff" track="rgba(0,0,0,0.25)" />
+            <ProgressRing pct={overallPct} size={72} stroke={7} color="#ffffff" track="rgba(0,0,0,0.25)" />
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-[11px] font-black text-white border border-white/20">
-              {motivation}
+          <div className="mt-3">
+            <span className="inline-block scale-110 origin-left">
+              <CoinPill />
             </span>
-            <CoinPill />
           </div>
         </div>
         <DraggableAIBubble />
