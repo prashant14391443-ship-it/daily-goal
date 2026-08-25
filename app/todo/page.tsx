@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { IconTile } from "@/app/components/ui";
 
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -69,60 +70,73 @@ export default function TodoHub() {
     materialize();
   }, []);
 
+  const tools = [
+    {
+      href: "/tasklog",
+      emoji: "📝",
+      title: "Task Log",
+      desc: "All tasks, reminders & dates",
+      grad: "bg-gradient-to-br from-amber-500 to-orange-600",
+      border: "border-amber-500/30",
+    },
+    {
+      href: "/myday",
+      emoji: "🌟",
+      title: "My Day — Top 3",
+      desc: "Pick 3 stars → beat overwhelm",
+      grad: "bg-gradient-to-br from-violet-500 to-purple-600",
+      border: "border-violet-500/30",
+    },
+    {
+      href: "/repeat",
+      emoji: "🔁",
+      title: "Repeat Tasks",
+      desc: "Daily / weekly auto-copies",
+      grad: "bg-gradient-to-br from-blue-500 to-indigo-600",
+      border: "border-blue-500/30",
+    },
+    {
+      href: "/breakdown",
+      emoji: "🤖",
+      title: "AI Breakdown",
+      desc: "Big task → small steps in 3 sec",
+      grad: "bg-gradient-to-br from-pink-500 to-rose-600",
+      border: "border-pink-500/30",
+    },
+  ];
+
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl bg-amber-600/20 border border-amber-500/40 flex items-center justify-center text-xl">📝</span>
-          ToDo
-        </h1>
-        <p className="text-slate-400">Choose your tool</p>
+    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
+      {/* header */}
+      <div className="flex items-center gap-3 mb-6">
+        <IconTile emoji="📝" gradient="bg-gradient-to-br from-amber-500 to-orange-600" size="lg" />
+        <div>
+          <h1 className="text-2xl font-black bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">ToDo</h1>
+          <p className="text-[10px] text-slate-400 font-semibold">Clear mind • clear list • clear wins</p>
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Link
-          href="/tasklog"
-          className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-center hover:bg-slate-800"
-        >
-          <span className="text-4xl">📝</span>
-          <h3 className="font-bold mt-3">Task Log</h3>
-          <p className="text-xs text-slate-400 mt-1">
-            All tasks, reminders & dates
-          </p>
-        </Link>
+      {/* tool grid */}
+      <div className="grid grid-cols-2 gap-3">
+        {tools.map((t) => (
+          <Link
+            key={t.href}
+            href={t.href}
+            className={`press bg-slate-900 border ${t.border} rounded-2xl p-4 shadow-lg shadow-black/30 hover:shadow-xl transition-all`}
+          >
+            <IconTile emoji={t.emoji} gradient={t.grad} />
+            <p className="font-black text-sm mt-3 text-white leading-tight">{t.title}</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">{t.desc}</p>
+          </Link>
+        ))}
+      </div>
 
-        <Link
-          href="/myday"
-          className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-center hover:bg-slate-800"
-        >
-          <span className="text-4xl">🌟</span>
-          <h3 className="font-bold mt-3">My Day — Top 3</h3>
-          <p className="text-xs text-slate-400 mt-1">
-            Pick 3 stars → beat overwhelm
-          </p>
-        </Link>
-
-        <Link
-          href="/repeat"
-          className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-center hover:bg-slate-800"
-        >
-          <span className="text-4xl">🔁</span>
-          <h3 className="font-bold mt-3">Repeat Tasks</h3>
-          <p className="text-xs text-slate-400 mt-1">
-            Daily / weekly auto-copies
-          </p>
-        </Link>
-
-        <Link
-          href="/breakdown"
-          className="bg-slate-900 border border-slate-800 rounded-xl p-6 text-center hover:bg-slate-800"
-        >
-          <span className="text-4xl">🤖</span>
-          <h3 className="font-bold mt-3">AI Breakdown</h3>
-          <p className="text-xs text-slate-400 mt-1">
-            Big task → small steps in 3 sec
-          </p>
-        </Link>
+      {/* tip card */}
+      <div className="mt-6 bg-gradient-to-r from-amber-600/10 to-orange-600/10 border border-amber-500/20 rounded-2xl p-4">
+        <p className="text-xs font-black text-amber-300 mb-1">💡 Pro tip</p>
+        <p className="text-[11px] text-slate-300 leading-snug">
+          Start with <b className="text-white">My Day — Top 3</b>. Picking 3 priorities beats a list of 20. Try it now!
+        </p>
       </div>
     </main>
   );
