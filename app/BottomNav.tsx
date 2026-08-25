@@ -22,23 +22,36 @@ export default function BottomNav() {
     pathname.startsWith("/chat") ||
     pathname.startsWith("/newpost") ||
     pathname.startsWith("/friends") ||
-    pathname.startsWith("/inbox")
+    pathname.startsWith("/inbox") ||
+    pathname.startsWith("/games") ||
+    pathname.startsWith("/tips")
   )
     return null;
+
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 bg-slate-900 border-t border-slate-800 grid grid-cols-5 md:hidden">
-      {tabs.map((t) => (
-        <Link
-          key={t.href}
-          href={t.href}
-          className={`flex flex-col items-center py-2 text-[10px] ${
-            pathname.startsWith(t.href) ? "text-white" : "text-slate-500"
-          }`}
-        >
-          <span className="text-lg">{t.icon}</span>
-          {t.label}
-        </Link>
-      ))}
+    <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden pb-safe">
+      <div className="mx-2 mb-2 bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl grid grid-cols-5 shadow-2xl">
+        {tabs.map((t) => {
+          const active = pathname === t.href || (t.href === "/dashboard" && pathname === "/");
+          return (
+            <Link
+              key={t.href}
+              href={t.href}
+              className="flex flex-col items-center py-3 gap-1 relative"
+            >
+              {active && (
+                <span className="absolute inset-x-3 inset-y-1 rounded-xl nav-active opacity-20" />
+              )}
+              <span className={`text-xl transition-transform ${active ? "scale-110" : ""}`}>
+                {t.icon}
+              </span>
+              <span className={`text-[10px] font-bold ${active ? "text-white" : "text-slate-500"}`}>
+                {t.label}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }

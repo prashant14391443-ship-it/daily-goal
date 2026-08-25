@@ -13,9 +13,9 @@ export default function Home() {
     const check = async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
-        router.replace("/dashboard"); // logged in → straight to dashboard
+        router.replace("/dashboard");
       } else {
-        setChecked(true); // guest → show landing
+        setChecked(true);
       }
     };
     check();
@@ -29,30 +29,41 @@ export default function Home() {
     );
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-6 p-8">
-      <h1 className="text-5xl font-extrabold">
-        DAILY <span className="text-fuchsia-400">GOAL</span>
-      </h1>
-      <p className="text-slate-400 text-center">
-        Your productivity dashboard for study, gym and habits.
-      </p>
-      <div className="flex gap-4">
+    <main className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-8 p-8">
+      <div className="text-center">
+        <p className="text-6xl mb-4">🎯</p>
+        <h1 className="text-5xl font-black">
+          DAILY <span className="t-grad">GOAL</span>
+        </h1>
+        <p className="text-slate-400 text-center mt-4 max-w-sm">
+          Your productivity dashboard for study, gym and habits.
+        </p>
+      </div>
+
+      <div className="flex gap-3 w-full max-w-xs">
         <Link
           href="/login"
-          className="rounded-lg bg-blue-600 px-5 py-2 font-semibold hover:bg-blue-500"
+          className="flex-1 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-5 py-3 font-bold text-center hover:opacity-90 transition-opacity press shadow-lg shadow-violet-500/20"
         >
           Login
         </Link>
         <Link
           href="/signup"
-          className="rounded-lg bg-slate-800 px-5 py-2 font-semibold hover:bg-slate-700"
+          className="flex-1 rounded-xl bg-slate-800 border border-slate-700 px-5 py-3 font-bold text-center hover:bg-slate-700 transition-colors press"
         >
           Sign Up
         </Link>
       </div>
-      <nav className="flex flex-wrap gap-4 justify-center text-sm text-slate-300">
-        <Link href="/pricing" className="hover:text-white">Pricing</Link>
+
+      <nav className="flex flex-wrap gap-4 justify-center text-sm text-slate-400">
+        <Link href="/pricing" className="hover:text-white transition-colors">
+          Pricing
+        </Link>
       </nav>
+
+      <div className="fixed bottom-8 text-xs text-slate-600">
+        Built with 💜 for students
+      </div>
     </main>
   );
 }
