@@ -1,3 +1,6 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
+
 @import "tailwindcss";
 
 :root {
@@ -81,3 +84,38 @@ h1 {
   font-size: clamp(1.1rem, 5.5vw, 1.875rem);
   overflow-wrap: break-word;
 }
+/* 🎨 DAILY GOAL DESIGN SYSTEM — Phase 1 */
+html, body {
+  overflow-x: hidden;              /* kill horizontal scroll */
+  -webkit-tap-highlight-color: transparent;  /* no ugly tap flash */
+}
+
+body {
+  font-family: 'Outfit', system-ui, -apple-system, sans-serif;  /* premium font */
+  background: #020617;
+}
+
+button {
+  touch-action: manipulation;      /* faster taps, no double-tap zoom */
+}
+
+/* press squish = alive feeling */
+.press { transition: transform 0.12s ease; }
+.press:active { transform: scale(0.96); }
+
+/* gradient headline text */
+.t-grad {
+  background: linear-gradient(90deg, #a78bfa, #f472b6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* glowing active pill (bottom nav) */
+.nav-active {
+  background: linear-gradient(90deg, #8b5cf6, #d946ef);
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.45);
+}
+
+/* safe-area for notched phones */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
