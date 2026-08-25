@@ -366,29 +366,33 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-20 pb-24 max-w-4xl mx-auto">
-          {/* 🌆 HERO — compact */}
-      <div className="relative mb-4 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-pink-500 p-4 shadow-2xl shadow-fuchsia-900/30">
+           {/* 🌆 HERO — compact premium */}
+      <div className="relative mb-4 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-700 via-fuchsia-700 to-purple-800 p-4 shadow-2xl shadow-fuchsia-900/40">
         <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
-        <div className="relative flex items-center gap-3">
-          <div className="min-w-0 flex-1">
+        <div className="relative">
+          <div className="flex items-center justify-between mb-1.5">
             <p className="text-[10px] font-black text-white/70">
               {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
             </p>
-            <h1 className="text-lg font-black text-white leading-tight">
+            <span className="text-base drop-shadow">🦇</span>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <h1 className="flex-1 min-w-0 text-lg font-black text-white leading-tight truncate">
               {greeting}, {userName}! 👋
             </h1>
-            <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
-              <p className="text-sm font-black text-white leading-snug">{motivation}</p>
-              <span className="shrink-0 scale-110 origin-right [&_*]:text-sm [&_*]:font-black">
-                <CoinPill />
-              </span>
-            </div>
+            <ProgressRing pct={overallPct} size={60} stroke={6} color="#fbbf24" track="rgba(0,0,0,0.3)" />
           </div>
-          <ProgressRing pct={overallPct} size={60} stroke={6} color="#ffffff" track="rgba(0,0,0,0.25)" />
+          <div className="mt-3 flex items-center gap-2">
+            <div className="flex-1 min-w-0 rounded-xl border-2 border-amber-300/80 bg-black/20 px-3 py-2">
+              <p className="text-[13px] font-black text-white truncate">{motivation}</p>
+            </div>
+            <span className="shrink-0 scale-110 origin-right [&_*]:text-[13px] [&_*]:font-black">
+              <CoinPill />
+            </span>
+          </div>
         </div>
         <DraggableAIBubble />
       </div>
-
       {/* 📊 STAT CARDS */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
         <StatCard
