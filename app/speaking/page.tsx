@@ -2,20 +2,31 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { IconTile, Chip, GradButton } from "@/app/components/ui";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
 const TOPICS = [
-  { emoji: "🛒", title: "Buying Groceries" },
-  { emoji: "👔", title: "Job Interview" },
-  { emoji: "🏠", title: "Your Hometown" },
-  { emoji: "🎉", title: "Festivals & Culture" },
-  { emoji: "🧑‍🤝‍🧑", title: "Describing a Friend" },
-  { emoji: "🗺️", title: "Famous Places" },
-  { emoji: "🍕", title: "Food & Restaurants" },
-  { emoji: "📚", title: "Studies & Exams" },
-  { emoji: "🏏", title: "Sports & Fitness" },
-  { emoji: "🎬", title: "Movies & Music" },
+  { emoji: "🛒", title: "Buying Groceries", grad: "from-green-500 to-emerald-600", border: "border-green-500/30" },
+  { emoji: "👔", title: "Job Interview", grad: "from-blue-500 to-indigo-600", border: "border-blue-500/30" },
+  { emoji: "🏠", title: "Your Hometown", grad: "from-amber-500 to-orange-600", border: "border-amber-500/30" },
+  { emoji: "🎉", title: "Festivals & Culture", grad: "from-pink-500 to-rose-600", border: "border-pink-500/30" },
+  { emoji: "🧑‍🤝‍🧑", title: "Describing a Friend", grad: "from-violet-500 to-purple-600", border: "border-violet-500/30" },
+  { emoji: "🗺️", title: "Famous Places", grad: "from-cyan-500 to-teal-600", border: "border-cyan-500/30" },
+  { emoji: "🍕", title: "Food & Restaurants", grad: "from-red-500 to-orange-600", border: "border-red-500/30" },
+  { emoji: "📚", title: "Studies & Exams", grad: "from-indigo-500 to-blue-600", border: "border-indigo-500/30" },
+  { emoji: "🏏", title: "Sports & Fitness", grad: "from-emerald-500 to-green-600", border: "border-emerald-500/30" },
+  { emoji: "🎬", title: "Movies & Music", grad: "from-fuchsia-500 to-pink-600", border: "border-fuchsia-500/30" },
+];
+
+const MODES = [
+  { id: "topic", emoji: "🗣️", title: "Talk AI — Topic", desc: "Pick a topic & call", grad: "from-emerald-500 to-green-600", border: "border-emerald-500/30", href: null },
+  { id: "anything", emoji: "💬", title: "Talk AI — Anything", desc: "Free conversation call", grad: "from-blue-500 to-indigo-600", border: "border-blue-500/30", href: null },
+  { id: "evaluate", emoji: "📊", title: "Record & Analyse", desc: "Score + full report", grad: "from-violet-500 to-purple-600", border: "border-violet-500/30", href: "/evaluate" },
+  { id: "sentences", emoji: "🎯", title: "Sentence Practice", desc: "Fix mistakes + say & score", grad: "from-amber-500 to-orange-600", border: "border-amber-500/30", href: "/sentences" },
+  { id: "vocab", emoji: "📚", title: "Vocabulary", desc: "5 words/day + Hindi meanings", grad: "from-emerald-500 to-teal-600", border: "border-emerald-500/30", href: "/vocab" },
+  { id: "tips", emoji: "💡", title: "Daily Tips", desc: "1 tip a day to sound better", grad: "from-amber-500 to-yellow-600", border: "border-amber-500/30", href: "/tips" },
+  { id: "games", emoji: "🎮", title: "Game Zone", desc: "4 games • beat your best", grad: "from-pink-500 to-rose-600", border: "border-pink-500/30", href: "/games" },
 ];
 
 const DRILLS = [
@@ -59,7 +70,6 @@ export default function SpeakingPage() {
     load();
   }, []);
 
-  // Pre-warm mic
   useEffect(() => {
     const initMic = async () => {
       if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
@@ -247,98 +257,93 @@ export default function SpeakingPage() {
     }
   };
 
-  // 🏠 HOME: clean 2-column grid (exactly like your sketch!)
+  // 🏠 HOME VIEW
   if (!mode) {
     return (
-      <main className="min-h-screen bg-slate-950 text-white p-4 pb-24">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-black">🗣️ Practice Speaking</h1>
-          <Link href="/community" className="text-sm text-slate-400">← Back</Link>
+      <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
+        {/* 🌆 HERO */}
+        <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 p-5 shadow-2xl shadow-teal-900/30">
+          <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
+          <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-cyan-300/20 rounded-full blur-3xl" />
+          <div className="relative flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <span className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg shrink-0">🗣️</span>
+              <div className="min-w-0">
+                <h1 className="text-lg font-black text-white leading-tight">Practice Speaking</h1>
+                <p className="text-[10px] text-white/80 font-semibold">Speak English with AI coach</p>
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <Chip color="violet">{left}/16 free</Chip>
+              <Link href="/community" className="text-[10px] text-white/70 font-bold hover:text-white">← Back</Link>
+            </div>
+          </div>
         </div>
 
         {view === "home" ? (
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setView("topics")}
-              className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-xl p-4 text-left transition-colors"
-            >
-              <p className="text-2xl mb-1">🗣️</p>
-              <p className="font-bold text-sm">Talk AI — Topic</p>
-              <p className="text-[10px] text-slate-400">Pick a topic & call</p>
-            </button>
+          <>
+            {/* MODE GRID */}
+            <div className="grid grid-cols-2 gap-3">
+              {MODES.map((m) => {
+                const handleClick = () => {
+                  if (m.id === "topic") setView("topics");
+                  else if (m.id === "anything") startCall("anything — free friendly conversation");
+                };
 
-            <button
-              onClick={() => startCall("anything — free friendly conversation")}
-              className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-xl p-4 text-left transition-colors"
-            >
-              <p className="text-2xl mb-1">💬</p>
-              <p className="font-bold text-sm">Talk AI — Anything</p>
-              <p className="text-[10px] text-slate-400">Free conversation call</p>
-            </button>
+                const content = (
+                  <div key={m.id} className={`press bg-slate-900 border-2 ${m.border} rounded-2xl p-4 text-left shadow-lg shadow-black/30 hover:shadow-xl transition-all`}>
+                    <IconTile emoji={m.emoji} gradient={`bg-gradient-to-br ${m.grad}`} />
+                    <p className="font-black text-sm text-white mt-3 leading-tight">{m.title}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{m.desc}</p>
+                  </div>
+                );
 
-            <Link
-              href="/evaluate"
-              className="bg-slate-900 border border-slate-800 hover:border-violet-500/60 rounded-xl p-4 text-left transition-colors"
-            >
-              <p className="text-2xl mb-1">📊</p>
-              <p className="font-bold text-sm">Record & Analyse</p>
-              <p className="text-[10px] text-slate-400">Score + full report</p>
-            </Link>
-
-            <Link href="/sentences" className="bg-slate-900 border border-slate-800 hover:border-amber-500/60 rounded-xl p-4 text-left transition-colors">
-              <p className="text-2xl mb-1">🎯</p>
-              <p className="font-bold text-sm">Sentence Practice</p>
-              <p className="text-[10px] text-slate-400">Fix mistakes + say & score</p>
-            </Link>
-
-            <Link href="/vocab" className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-xl p-4 text-left transition-colors">
-              <p className="text-2xl mb-1">📚</p>
-              <p className="font-bold text-sm">Vocabulary</p>
-              <p className="text-[10px] text-slate-400">5 words/day + Hindi meanings</p>
-            </Link>
-
-            <Link href="/tips" className="bg-slate-900 border border-slate-800 hover:border-amber-500/60 rounded-xl p-4 text-left transition-colors">
-              <p className="text-2xl mb-1">💡</p>
-              <p className="font-bold text-sm">Daily Tips</p>
-              <p className="text-[10px] text-slate-400">1 tip a day to sound better</p>
-            </Link>
-
-                       <Link href="/games" className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-xl p-4 text-left transition-colors">
-              <p className="text-2xl mb-1">🎮</p>
-              <p className="font-bold text-sm">Game Zone</p>
-              <p className="text-[10px] text-slate-400">4 games • beat your best</p>
-            </Link>
-          </div>
+                return m.href ? (
+                  <Link key={m.id} href={m.href}>{content}</Link>
+                ) : (
+                  <button key={m.id} onClick={handleClick}>{content}</button>
+                );
+              })}
+            </div>
+          </>
         ) : (
-          <div>
-            <button onClick={() => setView("home")} className="text-sm text-slate-400 mb-3">← All modes</button>
-            <p className="text-sm text-slate-400 mb-3">Pick a topic → call or chat with Veer:</p>
+          <>
+            {/* TOPIC PICKER */}
+            <button onClick={() => setView("home")} className="press text-sm text-slate-400 mb-3 font-semibold">← All modes</button>
+            <p className="text-xs font-black text-slate-400 mb-3">🎯 PICK A TOPIC → call or chat with Veer:</p>
             <div className="grid grid-cols-2 gap-3">
               {TOPICS.map((t) => (
                 <button
                   key={t.title}
                   onClick={() => { setTopic(t.title); setPicker(true); }}
-                  className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-xl p-4 text-center transition-colors"
+                  className={`press bg-slate-900 border-2 ${t.border} rounded-2xl p-4 text-center shadow-lg shadow-black/30 hover:shadow-xl transition-all`}
                 >
-                  <p className="text-3xl mb-2">{t.emoji}</p>
-                  <p className="text-sm font-bold">{t.title}</p>
+                  <IconTile emoji={t.emoji} gradient={`bg-gradient-to-br ${t.grad}`} />
+                  <p className="text-xs font-black text-white mt-2 leading-tight">{t.title}</p>
                 </button>
               ))}
             </div>
-          </div>
+          </>
         )}
 
+        {/* METHOD PICKER MODAL */}
         {picker && (
-          <div className="fixed inset-0 z-[90] bg-black/70 flex items-end justify-center">
-            <div className="bg-slate-900 border border-slate-700 rounded-t-3xl p-6 w-full max-w-md grid gap-3">
-              <div className="flex justify-between items-center">
-                <p className="font-bold">Select a method to practice</p>
-                <button onClick={() => setPicker(false)} className="text-slate-400 text-xl">✖</button>
+          <div className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-end justify-center">
+            <div className="bg-slate-900 border-t-2 border-slate-700 rounded-t-3xl p-6 w-full max-w-md shadow-2xl">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <p className="font-black text-base text-white">Select method</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Topic: {topic}</p>
+                </div>
+                <button onClick={() => setPicker(false)} className="press w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white text-lg">✕</button>
               </div>
-              <p className="text-xs text-slate-400">Topic: {topic}</p>
               <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => startCall()} className="py-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-lg">📞 Call</button>
-                <button onClick={startChat} className="py-5 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-lg">💬 Chat</button>
+                <GradButton onClick={() => startCall()} gradient="from-emerald-500 to-green-600" className="py-5 text-base">
+                  📞 Call
+                </GradButton>
+                <GradButton onClick={startChat} gradient="from-blue-500 to-indigo-600" className="py-5 text-base">
+                  💬 Chat
+                </GradButton>
               </div>
             </div>
           </div>
@@ -349,74 +354,142 @@ export default function SpeakingPage() {
 
   // 🎙️ CONVERSATION / DRILL SCREEN
   return (
-    <main className="h-screen bg-slate-950 text-white flex flex-col p-4 pb-24">
-      <div className="flex justify-between items-center mb-3">
-        <div className="flex items-center gap-2">
-          <span className={`w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-xl ${speaking ? "animate-pulse ring-4 ring-emerald-400/40" : ""}`}>🤖</span>
-          <div>
-            <p className="font-bold text-sm">Veer • {mode === "drill" ? "Sentence Practice" : topic}</p>
-            <p className="text-[10px] text-emerald-400">{speaking ? "🔊 Veer is speaking..." : mode === "chat" ? "💬 chat mode" : "🎤 Your turn — tap mic & speak"}</p>
+    <main className="h-screen bg-slate-950 text-white flex flex-col px-4 pt-6 pb-4 max-w-4xl mx-auto">
+      {/* HEADER */}
+      <div className="relative mb-4 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 p-4 shadow-2xl shadow-teal-900/30 shrink-0">
+        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
+        <div className="relative flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className={`shrink-0 w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg ${speaking ? "animate-pulse ring-4 ring-white/30" : ""}`}>
+              🤖
+            </div>
+            <div className="min-w-0">
+              <p className="font-black text-sm text-white leading-tight">Veer • {mode === "drill" ? "Sentence Practice" : topic}</p>
+              <p className="text-[10px] text-white/80 font-semibold">
+                {speaking ? "🔊 Veer is speaking..." : mode === "chat" ? "💬 chat mode" : "🎤 Your turn — tap mic & speak"}
+              </p>
+            </div>
           </div>
+          <button
+            onClick={() => { stopAll(); setMode(""); setMsgs([]); }}
+            className="press shrink-0 px-3 py-2 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-black"
+          >
+            📴 End
+          </button>
         </div>
-        <button
-          onClick={() => { stopAll(); setMode(""); setMsgs([]); }}
-          className="px-3 py-2 rounded-xl bg-red-600/20 text-red-400 text-xs font-bold"
-        >
-          📴 End
-        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto grid gap-3 content-start">
-        {mode === "drill" && (
-          <div className="bg-slate-900 border border-amber-500/40 rounded-xl p-4 text-center">
-            <p className="text-xs text-slate-400 mb-1">Repeat after Veer ({drillIdx + 1}/{DRILLS.length}):</p>
-            <p className="font-bold text-amber-300">{DRILLS[drillIdx]}</p>
-            <button onClick={() => speak(DRILLS[drillIdx])} className="mt-2 text-xs bg-slate-800 px-3 py-1.5 rounded-lg">🔊 Hear it</button>
+      {/* DRILL TARGET */}
+      {mode === "drill" && (
+        <div className="bg-gradient-to-r from-amber-600/20 to-orange-600/20 border-2 border-amber-500/40 rounded-2xl p-4 mb-4 shadow-lg shrink-0">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] font-black text-amber-300">REPEAT AFTER VEER ({drillIdx + 1}/{DRILLS.length})</p>
+            <button onClick={() => speak(DRILLS[drillIdx])} className="press text-[10px] font-black bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-lg text-slate-300 hover:text-white">
+              🔊 Hear it
+            </button>
           </div>
-        )}
+          <p className="font-black text-base text-amber-200 leading-snug">{DRILLS[drillIdx]}</p>
+        </div>
+      )}
 
+      {/* MESSAGE STREAM */}
+      <div className="flex-1 overflow-y-auto min-h-0 grid gap-3 content-start pb-2">
         {msgs.map((m, i) => (
-          <div key={i} className={`max-w-[85%] p-3 rounded-xl text-sm whitespace-pre-wrap ${m.role === "user" ? "justify-self-end bg-emerald-600" : "justify-self-start bg-slate-800"}`}>
-            {m.content}
-            {m.role === "assistant" && mode === "chat" && (
-              <button onClick={() => speak(m.content)} className="block mt-2 text-[10px] bg-slate-700 px-2 py-1 rounded">🔊 Listen</button>
+          <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+            {m.role === "assistant" && (
+              <span className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xs shadow-lg self-end">
+                🤖
+              </span>
+            )}
+            <div
+              className={`max-w-[80%] p-3 rounded-2xl text-sm whitespace-pre-wrap shadow-md ${
+                m.role === "user"
+                  ? "bg-gradient-to-br from-emerald-600 to-teal-600 text-white rounded-br-sm"
+                  : "bg-slate-800 text-slate-100 rounded-bl-sm border border-slate-700"
+              }`}
+            >
+              {m.content}
+              {m.role === "assistant" && mode === "chat" && (
+                <button onClick={() => speak(m.content)} className="press block mt-2 text-[10px] font-black bg-slate-700 border border-slate-600 px-2 py-1 rounded-lg">
+                  🔊 Listen
+                </button>
+              )}
+            </div>
+            {m.role === "user" && (
+              <span className="shrink-0 w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-xs border border-slate-700 self-end">
+                👤
+              </span>
             )}
           </div>
         ))}
-        {loading && <div className="justify-self-start bg-slate-800 p-3 rounded-xl text-sm animate-pulse">🤖 Veer is thinking...</div>}
+        {loading && (
+          <div className="flex gap-2 justify-start">
+            <span className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xs shadow-lg">
+              🤖
+            </span>
+            <div className="bg-slate-800 border border-slate-700 p-3 rounded-2xl rounded-bl-sm shadow-md">
+              <div className="flex gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+              </div>
+            </div>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
 
-      {mode === "drill" ? (
-        <div className="flex items-center justify-center gap-3 pt-2">
-          <button
-            onClick={toggleRecord}
-            disabled={loading || speaking}
-            className={`w-16 h-16 rounded-full text-xl flex items-center justify-center disabled:opacity-40 ${recording ? "bg-red-600 animate-pulse" : "bg-amber-600"}`}
-          >
-            {recording ? <>⏹️{recSec}s</> : "🎤"}
-          </button>
-          <button onClick={() => setDrillIdx((drillIdx + 1) % DRILLS.length)} className="px-4 py-3 rounded-xl bg-slate-800 text-sm font-bold">
-            Next ➡️
-          </button>
-        </div>
-      ) : mode === "call" ? (
-        <div className="flex flex-col items-center gap-2 pt-2">
-          <button
-            onClick={toggleRecord}
-            disabled={loading || speaking}
-            className={`w-20 h-20 rounded-full font-bold text-sm flex items-center justify-center transition-all disabled:opacity-40 ${recording ? "bg-red-600 animate-pulse" : "bg-emerald-600 hover:bg-emerald-500"}`}
-          >
-            {recording ? <>⏹️ {recSec}s</> : "🎤"}
-          </button>
-          <p className="text-[10px] text-slate-400">{speaking ? "Listen to Veer first..." : "Tap & speak your answer"}</p>
-        </div>
-      ) : (
-        <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2 pt-2">
-          <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Type in English..." className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm" />
-          <button disabled={loading} className="px-5 rounded-xl bg-blue-600 font-bold disabled:opacity-50">➤</button>
-        </form>
-      )}
+      {/* CONTROLS */}
+      <div className="shrink-0 pt-2">
+        {mode === "drill" ? (
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={toggleRecord}
+              disabled={loading || speaking}
+              className={`press w-16 h-16 rounded-full text-xl flex items-center justify-center disabled:opacity-40 shadow-xl transition-all ${
+                recording ? "bg-red-600 animate-pulse shadow-red-900/40" : "bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-900/40"
+              }`}
+            >
+              {recording ? <span className="text-sm font-black">⏹️ {recSec}s</span> : "🎤"}
+            </button>
+            <button
+              onClick={() => setDrillIdx((drillIdx + 1) % DRILLS.length)}
+              className="press px-5 py-3 rounded-xl bg-slate-800 border border-slate-700 text-sm font-black hover:bg-slate-700"
+            >
+              Next ➡️
+            </button>
+          </div>
+        ) : mode === "call" ? (
+          <div className="flex flex-col items-center gap-2">
+            <button
+              onClick={toggleRecord}
+              disabled={loading || speaking}
+              className={`press w-20 h-20 rounded-full font-black text-sm flex items-center justify-center transition-all disabled:opacity-40 shadow-2xl ${
+                recording
+                  ? "bg-red-600 animate-pulse shadow-red-900/40"
+                  : "bg-gradient-to-br from-emerald-500 to-teal-600 hover:shadow-emerald-900/40"
+              }`}
+            >
+              {recording ? <span className="text-base font-black">⏹️ {recSec}s</span> : <span className="text-2xl">🎤</span>}
+            </button>
+            <p className="text-[10px] text-slate-400 font-bold">
+              {speaking ? "Listen to Veer first..." : "Tap & speak your answer"}
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type in English..."
+              className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-800 text-sm outline-none focus:border-blue-500"
+            />
+            <GradButton type="submit" disabled={loading} gradient="from-blue-500 to-indigo-600" className="px-5 text-lg">
+              ➤
+            </GradButton>
+          </form>
+        )}
+      </div>
     </main>
   );
 }
