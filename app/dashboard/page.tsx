@@ -342,6 +342,9 @@ export default function Dashboard() {
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const greetText = `${greeting}, ${userName}! 👋`;
+  // 🎯 AUTO-FIT: short name = big text, long name = smaller text, NEVER cut
+  const greetSize = Math.max(13, Math.min(26, Math.round(430 / greetText.length)));
 
   const studyPct = Math.min(100, Math.round((studyMinutes / Math.max(goals.study_target, 1)) * 100));
   const gymPct = Math.min(100, Math.round((workouts / Math.max(goals.workout_target, 1)) * 100));
@@ -379,9 +382,9 @@ export default function Dashboard() {
           
           <div className="flex items-center justify-between gap-3">
             {/* 1. TEXT FIX: Added clamp() for dynamic resizing and tracking-tight to fit more letters */}
-            <h1 className="flex-1 min-w-0 text-[clamp(14px,4.5vw,20px)] tracking-tight font-black text-white leading-none whitespace-nowrap overflow-hidden">
-              {greeting}, {userName}! 👋
-            </h1>
+                         <h1 className="font-black text-white leading-tight" style={{ fontSize: greetSize, whiteSpace: "nowrap" }}>
+                {greetText}
+              </h1>
             {/* 2. HEIGHT FIX: Reduced ProgressRing size from 60 to 50 */}
             <ProgressRing pct={overallPct} size={50} stroke={5} color="#fbbf24" track="rgba(0,0,0,0.3)" />
           </div>
