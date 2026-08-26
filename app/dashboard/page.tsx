@@ -433,7 +433,7 @@ export default function Dashboard() {
           streak={todoStreak} pct={todoPct}
         />
                <StatCard
-          href="/speaking" emoji="🗣️" label="English Practice"
+          href="/community" emoji="🗣️" label="English Practice"
           gradient="bg-gradient-to-br from-teal-500 to-cyan-600"
           border="border-teal-500/30" ringColor="#14b8a6"
           value="Talk Live" sub="AI coach + voice calls 🤖"
