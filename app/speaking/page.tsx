@@ -27,8 +27,6 @@ const MODES = [
   { id: "vocab", emoji: "📚", title: "Vocabulary", desc: "5 words/day + Hindi meanings", grad: "from-emerald-500 to-teal-600", border: "border-emerald-500/30", href: "/vocab" },
   { id: "tips", emoji: "💡", title: "Daily Tips", desc: "1 tip a day to sound better", grad: "from-amber-500 to-yellow-600", border: "border-amber-500/30", href: "/tips" },
   { id: "games", emoji: "🎮", title: "Game Zone", desc: "4 games • beat your best", grad: "from-pink-500 to-rose-600", border: "border-pink-500/30", href: "/games" },
-  // ✅ NEW: Talk to a Stranger — regular 2-col card
-  { id: "stranger", emoji: "🌍", title: "Talk to a Stranger", desc: "1-on-1 voice • practice English", grad: "from-pink-500 to-rose-600", border: "border-rose-500/40", href: "/random-talk" },
 ];
 
 const DRILLS = [
@@ -309,18 +307,6 @@ export default function SpeakingPage() {
               })}
             </div>
 
-            {/* ✅ NEW: Create My Community — full-width gold banner */}
-            <Link
-              href="/community"
-              className="press mt-3 w-full bg-slate-900 border-2 border-amber-500/40 rounded-2xl p-4 flex items-center gap-3 shadow-lg shadow-black/30"
-            >
-              <IconTile emoji="✨" gradient="bg-gradient-to-br from-amber-500 to-orange-600" size="lg" />
-              <div className="flex-1 min-w-0">
-                <p className="font-black text-sm text-amber-300">CREATE MY COMMUNITY</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Start your own space • chat & talk live</p>
-              </div>
-              <span className="text-slate-500 text-lg">→</span>
-            </Link>
           </>
         ) : (
           <>
