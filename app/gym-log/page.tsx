@@ -5,12 +5,12 @@ import { IconTile } from "@/app/components/ui";
 export default function GymHub() {
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-16 pb-24 max-w-4xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <IconTile emoji="🏋️" gradient="bg-gradient-to-br from-green-500 to-emerald-600" size="lg" />
-        <div className="min-w-0">
-          <h1 className="text-2xl font-black text-white leading-tight">Gym</h1>
-          <p className="text-[10px] text-slate-400 font-semibold">Choose your tool</p>
+      <div className="mb-6">
+        <div className="flex items-center gap-3">
+          <span className="w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-2xl shadow-lg">🏋️</span>
+          <h1 className="text-2xl font-black text-white" style={{ whiteSpace: "nowrap" }}>Gym</h1>
         </div>
+        <p className="text-[10px] text-slate-400 font-semibold mt-2">Choose your tool</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Link href="/workout" className="press bg-slate-900 border border-green-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30">

@@ -5,12 +5,12 @@ import { IconTile } from "@/app/components/ui";
 export default function HabitsHub() {
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-16 pb-24 max-w-4xl mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <IconTile emoji="✅" gradient="bg-gradient-to-br from-violet-500 to-purple-600" size="lg" />
-        <div className="min-w-0">
-          <h1 className="text-2xl font-black text-white leading-tight">Habits</h1>
-          <p className="text-[10px] text-slate-400 font-semibold">Small daily wins = big life</p>
+      <div className="mb-6">
+        <div className="flex items-center gap-3">
+          <span className="w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-2xl shadow-lg">✅</span>
+          <h1 className="text-2xl font-black text-white" style={{ whiteSpace: "nowrap" }}>Habits</h1>
         </div>
+        <p className="text-[10px] text-slate-400 font-semibold mt-2">Small daily wins = big life</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Link href="/habitslog" className="press bg-slate-900 border border-violet-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30">

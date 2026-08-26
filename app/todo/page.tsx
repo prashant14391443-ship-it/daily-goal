@@ -108,12 +108,12 @@ export default function TodoHub() {
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
       {/* header */}
-      <div className="flex items-center gap-3 mb-6">
-        <IconTile emoji="📝" gradient="bg-gradient-to-br from-amber-500 to-orange-600" size="lg" />
-        <div className="min-w-0">
-          <h1 className="text-2xl font-black text-white leading-tight">ToDo</h1>
-          <p className="text-[10px] text-slate-400 font-semibold">Clear mind • clear list • clear wins</p>
+      <div className="mb-6">
+        <div className="flex items-center gap-3">
+          <span className="w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-2xl shadow-lg">📝</span>
+          <h1 className="text-2xl font-black text-white" style={{ whiteSpace: "nowrap" }}>ToDo</h1>
         </div>
+        <p className="text-[10px] text-slate-400 font-semibold mt-2">Clear mind • clear list • clear wins</p>
       </div>
 
       {/* tool grid */}
