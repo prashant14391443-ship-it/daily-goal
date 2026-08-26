@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import BottomNav from "./BottomNav";
-import ProfileMenu from "./ProfileMenu";
 import CoinPop from "./CoinPop";
-import NotificationCenter from "./NotificationCenter";
 import OfflineBanner from "@/app/components/OfflineBanner";
 import CountdownChip from "@/app/components/CountdownChip";
+import TopBar from "./TopBar";
 
 export const metadata: Metadata = {
   title: "DAILY GOAL",
@@ -30,10 +29,9 @@ export default function RootLayout({
       <body className="h-full antialiased pb-20 md:pb-0 bg-slate-950">
         <OfflineBanner />
         <CountdownChip />
+        <TopBar />
         {children}
         <BottomNav />
-        <NotificationCenter />
-        <ProfileMenu />
         <CoinPop />
       </body>
     </html>

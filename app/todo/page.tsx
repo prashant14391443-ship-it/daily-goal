@@ -110,8 +110,8 @@ export default function TodoHub() {
       {/* header */}
       <div className="flex items-center gap-3 mb-6">
         <IconTile emoji="📝" gradient="bg-gradient-to-br from-amber-500 to-orange-600" size="lg" />
-        <div>
-          <h1 className="text-2xl font-black bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">ToDo</h1>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-black text-white leading-tight">ToDo</h1>
           <p className="text-[10px] text-slate-400 font-semibold">Clear mind • clear list • clear wins</p>
         </div>
       </div>
