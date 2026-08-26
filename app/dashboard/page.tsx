@@ -445,7 +445,11 @@ export default function Dashboard() {
             <span className="text-2xl font-black text-orange-400">{Math.max(studyStreak, gymStreak, moveStreak, todoStreak)}</span>
           </div>
           <p className="text-xs font-bold text-slate-400 mb-1">Streaks</p>
-          <p className="text-[10px] text-slate-500">tap to see all</p>
+          {Math.max(studyBroken, gymBroken, todoBroken, ...habitBroken.map((b) => b.broken), 0) >= 2 ? (
+            <p className="text-[10px] text-red-400 font-black">💔 streak broke — rescue today!</p>
+          ) : (
+            <p className="text-[10px] text-slate-500">tap to see all</p>
+          )}
         </Link>
       </div>
 
