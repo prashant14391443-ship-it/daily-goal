@@ -366,27 +366,32 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-20 pb-24 max-w-4xl mx-auto">
-           {/* 🌆 HERO — compact premium */}
-      <div className="relative mb-4 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-700 via-fuchsia-700 to-purple-800 p-4 shadow-2xl shadow-fuchsia-900/40">
+          {/* 🌆 HERO — compact premium */}
+      <div className="relative mb-4 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-700 via-fuchsia-700 to-purple-800 py-3 px-4 shadow-2xl shadow-fuchsia-900/40">
         <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
-          <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center justify-between mb-1">
             <p className="text-[10px] font-black text-white/70">
               {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
             </p>
             <span className="text-base drop-shadow">🦇</span>
           </div>
+          
           <div className="flex items-center justify-between gap-3">
-            <h1 className="flex-1 min-w-0 text-lg font-black text-white leading-tight truncate">
+            {/* 1. TEXT FIX: Added clamp() for dynamic resizing and tracking-tight to fit more letters */}
+            <h1 className="flex-1 min-w-0 text-[clamp(14px,4.5vw,20px)] tracking-tight font-black text-white leading-none whitespace-nowrap overflow-hidden">
               {greeting}, {userName}! 👋
             </h1>
-            <ProgressRing pct={overallPct} size={60} stroke={6} color="#fbbf24" track="rgba(0,0,0,0.3)" />
+            {/* 2. HEIGHT FIX: Reduced ProgressRing size from 60 to 50 */}
+            <ProgressRing pct={overallPct} size={50} stroke={5} color="#fbbf24" track="rgba(0,0,0,0.3)" />
           </div>
-          <div className="mt-3 flex items-center gap-2">
-            <div className="flex-1 min-w-0 rounded-xl border-2 border-amber-300/80 bg-black/20 px-3 py-2">
-              <p className="text-[13px] font-black text-white truncate">{motivation}</p>
+
+          {/* 3. HEIGHT FIX: Reduced top margin to mt-2, and inner padding to py-1.5 */}
+          <div className="mt-2 flex items-center gap-2">
+            <div className="flex-1 min-w-0 rounded-xl border-2 border-amber-300/80 bg-black/20 px-2 py-1.5">
+              <p className="text-[12px] font-black text-white truncate">{motivation}</p>
             </div>
-            <span className="shrink-0 scale-110 origin-right [&_*]:text-[13px] [&_*]:font-black">
+            <span className="shrink-0 scale-105 origin-right [&_*]:text-[12px] [&_*]:font-black">
               <CoinPill />
             </span>
           </div>
