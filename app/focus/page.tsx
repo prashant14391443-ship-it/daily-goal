@@ -197,20 +197,21 @@ export default function FocusPage() {
   const modeLabel = isBreak ? "☕ BREAK TIME" : "🎯 FOCUS TIME";
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-md mx-auto">
+    <main className="min-h-screen bg-slate-950 text-white px-4 pt-16 pb-24 max-w-md mx-auto">
       {/* 🌆 HERO */}
       <div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${heroGrad} p-5 shadow-2xl transition-all duration-700`}>
         <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
-        <div className="relative flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <IconTile emoji="🍅" gradient="bg-white/20" size="lg" />
-            <div>
-              <h1 className="text-lg font-black text-white leading-tight">Focus Timer</h1>
-              <p className="text-[10px] text-white/80 font-semibold">
-                {focusMin}m focus → {breakMin}m break • 🍅 {doneToday} today
-              </p>
-            </div>
+        <div className="relative">
+          <div className="flex items-center justify-between mb-3">
+            <span className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg">🍅</span>
+            <span className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-xs font-black border border-white/20">
+              {isBreak ? "☕ BREAK" : "🎯 FOCUS"}
+            </span>
           </div>
+          <h1 className="text-xl font-black text-white leading-tight">Focus Timer</h1>
+          <p className="text-[10px] text-white/80 font-semibold mt-1">
+            {focusMin}m focus → {breakMin}m break • 🍅 {doneToday} today
+          </p>
         </div>
       </div>
 
