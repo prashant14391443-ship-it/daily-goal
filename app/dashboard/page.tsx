@@ -432,11 +432,11 @@ export default function Dashboard() {
           sub={todoDone === 0 ? "One small task! ✨" : "done today"}
           streak={todoStreak} pct={todoPct}
         />
-        <StatCard
-          href="/community" emoji="💬" label="Social"
-          gradient="bg-gradient-to-br from-pink-500 to-rose-600"
-          border="border-pink-500/30" ringColor="#ec4899"
-          value="Chat" sub="chat & talk live"
+               <StatCard
+          href="/speaking" emoji="🗣️" label="English Practice"
+          gradient="bg-gradient-to-br from-teal-500 to-cyan-600"
+          border="border-teal-500/30" ringColor="#14b8a6"
+          value="Talk Live" sub="AI coach + voice calls 🤖"
           streak={0} pct={0}
         />
         <Link href="/streaks" className="press relative bg-gradient-to-br from-orange-500/20 to-red-500/20 p-4 rounded-2xl border border-orange-500/40 shadow-lg overflow-hidden">
