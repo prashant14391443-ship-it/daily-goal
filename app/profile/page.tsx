@@ -66,7 +66,9 @@ function Inner() {
   const [view, setView] = useState<any>(null);
   const [rankOpen, setRankOpen] = useState(false);
   const [coinOpen, setCoinOpen] = useState(false);
-  const [tab, setTab] = useState<"posts" | "wins" | "earn" | "about">("posts");
+  const [tab, setTab] = useState<"posts" | "wins" | "liked">("posts");
+  const [wins, setWins] = useState<{ icon: string; text: string; sub: string }[]>([]);
+  const [likedPosts, setLikedPosts] = useState<any[]>([]);
   const [editImg, setEditImg] = useState<HTMLImageElement | null>(null);
   const [zoom, setZoom] = useState(1);
   const [off, setOff] = useState({ x: 0, y: 0 });
@@ -112,10 +114,38 @@ function Inner() {
     });
     setCoins(seasonCoins); setLife(lifeCoins); setDaysLeft(s.daysLeft);
     setTrophies(Array.from(past.entries()).sort((a, b) => a[0] - b[0]).map(([i, c]) => `S${i} ${levelOf(SEASON_LEVELS, c).icon}`));
-    setFriendCount((theirFriends.data || []).length);
+    const fc = (theirFriends.data || []).length;
+    setFriendCount(fc);
     const likeCount = new Map<string, number>();
     (likes.data || []).forEach((l) => likeCount.set(l.post_id, (likeCount.get(l.post_id) || 0) + 1));
     setPosts(((p.data as any[]) || []).map((x) => ({ ...x, likes: likeCount.get(x.id) || 0 })));
+
+    // 🏆 WINS + ❤️ LIKED (never breaks the page)
+    try {
+      const [ss, gl, hl2, myLikes] = await Promise.all([
+        supabase.from("study_sessions").select("duration_minutes").eq("user_id", userId).eq("completed", true),
+        supabase.from("gym_logs").select("id").eq("user_id", userId).eq("completed", true),
+        supabase.from("habit_logs").select("id").eq("user_id", userId).eq("completed", true),
+        supabase.from("post_likes").select("post_id").eq("user_id", userId),
+      ]);
+      const studyMin = (ss.data || []).reduce((a: number, r: any) => a + r.duration_minutes, 0);
+      const gymN = (gl.data || []).length;
+      const habN = (hl2.data || []).length;
+      const tro = Array.from(past.entries()).sort((a, b) => a[0] - b[0]).map(([i, c]) => `S${i} ${levelOf(SEASON_LEVELS, c).icon}`);
+      const w: { icon: string; text: string; sub: string }[] = [];
+      if (lifeCoins > 0) w.push({ icon: "🪙", text: `${lifeCoins.toLocaleString()} coins earned`, sub: "lifetime hustle" });
+      if (studyMin >= 60) w.push({ icon: "📚", text: `${Math.floor(studyMin / 60)}h ${studyMin % 60}m studied`, sub: "total focus time" });
+      if (gymN > 0) w.push({ icon: "💪", text: `${gymN} workouts done`, sub: "no excuses" });
+      if (habN > 0) w.push({ icon: "✅", text: `${habN} habits completed`, sub: "small wins stack up" });
+      if (tro.length > 0) w.push({ icon: "🏆", text: tro.join(" • "), sub: "past season ranks" });
+      if (fc > 0) w.push({ icon: "👥", text: `${fc} friends`, sub: "growing circle" });
+      setWins(w);
+      const likedIds = (myLikes.data || []).map((l: any) => l.post_id);
+      if (likedIds.length) {
+        const { data: lp } = await supabase.from("posts").select("*").in("id", likedIds).order("created_at", { ascending: false });
+        setLikedPosts((lp as any[]) || []);
+      } else setLikedPosts([]);
+    } catch {}
   };
 
   useEffect(() => { load(); }, [userId]);
@@ -192,9 +222,8 @@ function Inner() {
 
   const TABS = [
     { id: "posts" as const, icon: "▦", label: "Posts" },
-    { id: "wins" as const, icon: "🏆", label: "Achievements" },
-    { id: "earn" as const, icon: "💪", label: "Earn" },
-    { id: "about" as const, icon: "👤", label: "About" },
+    { id: "wins" as const, icon: "🏆", label: "Wins" },
+    { id: "liked" as const, icon: "❤️", label: "Liked" },
   ];
 
   return (
@@ -208,88 +237,86 @@ function Inner() {
         <button onClick={() => setCoinOpen(true)} className="press px-3 py-2 rounded-xl bg-amber-400/10 border border-amber-400/40 text-amber-300 text-xs font-black">🪙 {coins}</button>
       </div>
 
-      {/* 🌆 HERO CARD */}
-      <div className="mx-4 rounded-3xl overflow-hidden border border-slate-800 bg-slate-900 shadow-lg shadow-black/30">
-        <div className="h-20 bg-gradient-to-r from-violet-600 via-fuchsia-600 to-pink-600 relative">
-          <div className="absolute -right-6 -top-6 w-28 h-28 bg-white/10 rounded-full blur-2xl" />
-        </div>
-        <div className="px-4 pb-4">
-          <div className="flex items-end justify-between -mt-9 mb-3">
-            <span className="rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-600 p-[3px] shrink-0 shadow-xl">
-              {prof?.avatar_url ? (
-                <img src={prof.avatar_url} className="w-20 h-20 rounded-full object-cover border-4 border-slate-900" alt="" />
-              ) : (
-                <span className="w-20 h-20 rounded-full bg-violet-600 border-4 border-slate-900 flex items-center justify-center text-3xl font-black">
-                  {(prof?.display_name || "?").charAt(0).toUpperCase()}
-                </span>
-              )}
-            </span>
-            {userId === me ? (
-              <button onClick={togglePrivate} className="press px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-[10px] font-black text-slate-200">
-                {prof?.is_private ? "🔒 Private" : "🌍 Public"}
-              </button>
-            ) : isFriend ? (
-              <span className="px-3 py-1.5 rounded-full bg-green-500/15 border border-green-500/40 text-[10px] font-black text-green-300">✓ Friends</span>
-            ) : null}
-          </div>
-
-          <p className="font-black text-lg text-white leading-tight mb-1">{displayName}</p>
-          {prof?.bio && <p className="text-xs text-slate-300 whitespace-pre-wrap mb-3">{prof.bio}</p>}
-
-          {/* STATS */}
-          <div className="grid grid-cols-3 gap-2 mt-3">
-            <div className="bg-slate-800/60 rounded-xl p-2.5 text-center">
+      {/* 🌆 HERO — clean Instagram style: NO banner, NO boxes */}
+      <div className="px-4">
+        <div className="flex items-center gap-5">
+          <span className="rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-600 p-[3px] shrink-0 shadow-xl">
+            {prof?.avatar_url ? (
+              <img src={prof.avatar_url} className="w-20 h-20 rounded-full object-cover border-4 border-slate-950" alt="" />
+            ) : (
+              <span className="w-20 h-20 rounded-full bg-violet-600 border-4 border-slate-950 flex items-center justify-center text-3xl font-black">
+                {(prof?.display_name || "?").charAt(0).toUpperCase()}
+              </span>
+            )}
+          </span>
+          {/* plain stats — exactly like Instagram */}
+          <div className="flex-1 grid grid-cols-3 text-center">
+            <div>
               <p className="font-black text-lg text-white leading-none">{posts.length}</p>
-              <p className="text-[9px] font-black text-slate-500 mt-1">POSTS</p>
+              <p className="text-[10px] text-slate-400 font-bold mt-1">posts</p>
             </div>
-            <Link href={`/friends?user=${userId}`} className="press bg-slate-800/60 rounded-xl p-2.5 text-center">
+            <Link href={`/friends?user=${userId}`} className="press">
               <p className="font-black text-lg text-white leading-none">{friendCount}</p>
-              <p className="text-[9px] font-black text-slate-500 mt-1">FRIENDS</p>
+              <p className="text-[10px] text-slate-400 font-bold mt-1">friends</p>
             </Link>
-            <button onClick={() => setRankOpen(true)} className="press bg-slate-800/60 rounded-xl p-2.5 text-center">
+            <button onClick={() => setRankOpen(true)} className="press">
               <p className="font-black text-lg leading-none">{lvl.icon}</p>
-              <p className="text-[9px] font-black text-slate-500 mt-1">{lvl.name.toUpperCase()}</p>
+              <p className="text-[10px] text-slate-400 font-bold mt-1">{lvl.name.toLowerCase()}</p>
             </button>
           </div>
-
-          {/* SEASON PROGRESS */}
-          <button onClick={() => setRankOpen(true)} className="press w-full text-left mt-3 bg-slate-800/60 rounded-xl p-3">
-            <div className="flex justify-between text-[10px] font-bold text-slate-400 mb-1.5">
-              <span>🏁 {lvl.icon} {lvl.name}</span>
-              <span>{lvl.next ? `${lvl.next.need - coins} 🪙 to ${lvl.next.icon} ${lvl.next.name}` : "🎓 CHAMPION"} • ⏳ {daysLeft}d</span>
-            </div>
-            <div className="h-2 bg-slate-700/60 rounded-full overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-amber-400 to-fuchsia-500 rounded-full" style={{ width: `${lvl.next ? Math.min(100, ((coins - lvl.need) / (lvl.next.need - lvl.need)) * 100) : 100}%` }} />
-            </div>
-          </button>
         </div>
+
+        <div className="mt-3 flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-black text-base text-white leading-tight">{displayName}</p>
+            {prof?.bio && <p className="text-xs text-slate-300 whitespace-pre-wrap mt-0.5">{prof.bio}</p>}
+          </div>
+          {userId === me ? (
+            <button onClick={togglePrivate} className="press shrink-0 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-[10px] font-black text-slate-200">
+              {prof?.is_private ? "🔒 Private" : "🌍 Public"}
+            </button>
+          ) : isFriend ? (
+            <span className="shrink-0 px-3 py-1.5 rounded-full bg-green-500/15 border border-green-500/40 text-[10px] font-black text-green-300">✓ Friends</span>
+          ) : null}
+        </div>
+
+        {/* season progress — plain, no box */}
+        <button onClick={() => setRankOpen(true)} className="press w-full text-left mt-3">
+          <div className="flex justify-between text-[10px] font-bold text-slate-400 mb-1.5">
+            <span>🏁 {lvl.icon} {lvl.name}</span>
+            <span>{lvl.next ? `${lvl.next.need - coins} 🪙 to ${lvl.next.icon} ${lvl.next.name}` : "🎓 CHAMPION"} • ⏳ {daysLeft}d</span>
+          </div>
+          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-amber-400 to-fuchsia-500 rounded-full" style={{ width: `${lvl.next ? Math.min(100, ((coins - lvl.need) / (lvl.next.need - lvl.need)) * 100) : 100}%` }} />
+          </div>
+        </button>
       </div>
 
-      {/* ACTION BUTTONS */}
+      {/* ACTION BUTTONS — clean, NO emojis */}
       <div className="flex gap-2 px-4 mt-4">
         {userId === me ? (
           <>
             <button onClick={() => { setEditName(prof?.display_name || ""); setEditBio(prof?.bio || ""); setEditing(!editing); }}
-              className="press flex-1 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-xs font-black shadow-lg shadow-violet-900/30">
-              {editing ? "✖ Close" : "✏️ Edit profile"}
+              className="press flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-black text-white transition-colors">
+              {editing ? "Close" : "Edit profile"}
             </button>
-            <button onClick={share} className="press flex-1 py-3 rounded-xl bg-slate-900 border border-slate-800 text-xs font-black hover:bg-slate-800">
-              📤 Share profile
+            <button onClick={share} className="press flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-black text-white transition-colors">
+              Share profile
             </button>
           </>
         ) : (
           <>
             {isFriend ? (
-              <span className="flex-1 py-3 rounded-xl bg-green-500/15 border border-green-500/40 text-xs font-black text-center text-green-300">✓ Friends</span>
+              <span className="flex-1 py-2.5 rounded-xl bg-slate-800 text-xs font-black text-center text-green-400">✓ Friends</span>
             ) : recvReq ? (
-              <button onClick={accept} className="press flex-1 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-xs font-black">✅ Accept Request</button>
+              <button onClick={accept} className="press flex-1 py-2.5 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-xs font-black text-white">Accept Request</button>
             ) : sentReq ? (
-              <span className="flex-1 py-3 rounded-xl bg-slate-900 border border-slate-800 text-xs font-black text-center text-slate-400">⏳ Requested</span>
+              <span className="flex-1 py-2.5 rounded-xl bg-slate-800 text-xs font-black text-center text-slate-400">Requested</span>
             ) : (
-              <button onClick={addFriend} className="press flex-1 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-xs font-black">➕ Add Friend</button>
+              <button onClick={addFriend} className="press flex-1 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-xs font-black text-white">Add Friend</button>
             )}
             {(!prof?.is_private || isFriend) && (
-              <Link href={`/chat?user=${userId}`} className="press flex-1 py-3 rounded-xl bg-slate-900 border border-slate-800 text-xs font-black text-center hover:bg-slate-800">💬 Message</Link>
+              <Link href={`/chat?user=${userId}`} className="press flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-black text-center text-white transition-colors">Message</Link>
             )}
           </>
         )}
@@ -303,7 +330,7 @@ function Inner() {
           <textarea value={editBio} onChange={(e) => setEditBio(e.target.value)} placeholder="Write your bio... (like: I AM THE NIGHT 🦇)" rows={2}
             className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm resize-none outline-none focus:border-violet-500" />
           <label className="press py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-black text-center cursor-pointer hover:bg-slate-700">
-            📷 Change photo
+            Change photo
             <input type="file" accept="image/*" onChange={onAvatar} className="hidden" />
           </label>
           {editImg && (
@@ -315,23 +342,23 @@ function Inner() {
                 <img src={editImg.src} className="w-full h-full object-cover" style={{ transform: `translate(${off.x}px, ${off.y}px) scale(${zoom})` }} alt="" />
               </div>
               <input type="range" min="1" max="3" step="0.1" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
-              <p className="text-[10px] text-slate-500 text-center">✋ Drag to move • slider to zoom</p>
+              <p className="text-[10px] text-slate-500 text-center">Drag to move • slider to zoom</p>
             </div>
           )}
-          <button onClick={saveProfile} disabled={saving} className="press py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-xs font-black disabled:opacity-50">
-            {saving ? "Saving..." : "💾 Save"}
+          <button onClick={saveProfile} disabled={saving} className="press py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-xs font-black text-white disabled:opacity-50">
+            {saving ? "Saving..." : "Save"}
           </button>
         </div>
       )}
 
-      {/* ✅ WORKING TABS */}
-      <div className="flex gap-1 px-4 mt-5 mb-3">
+      {/* TABS — Instagram underline style */}
+      <div className="flex border-b border-slate-800 mt-5">
         {TABS.map((t) => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`press flex-1 py-2.5 rounded-xl text-[10px] font-black flex flex-col items-center gap-0.5 transition-all ${
-              tab === t.id ? "bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white shadow-lg" : "bg-slate-900 border border-slate-800 text-slate-500"
+            className={`press flex-1 py-2.5 flex flex-col items-center gap-0.5 text-[9px] font-black border-b-2 transition-all ${
+              tab === t.id ? "border-white text-white" : "border-transparent text-slate-600"
             }`}>
-            <span className="text-sm">{t.icon}</span>
+            <span className="text-base leading-none">{t.icon}</span>
             {t.label}
           </button>
         ))}
@@ -354,9 +381,9 @@ function Inner() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-1 px-1">
+        <div className="grid grid-cols-3 gap-0.5 p-0.5">
           {posts.map((p) => (
-            <div key={p.id} onClick={() => setView(p)} className="aspect-square bg-slate-900 relative overflow-hidden cursor-pointer rounded-lg">
+            <div key={p.id} onClick={() => setView(p)} className="aspect-square bg-slate-900 relative overflow-hidden cursor-pointer">
               {p.image_url ? (
                 <img src={p.image_url} className="w-full h-full object-cover" alt="" />
               ) : (
@@ -372,65 +399,53 @@ function Inner() {
         </div>
       ))}
 
-      {/* TAB: ACHIEVEMENTS */}
+      {/* TAB: 🏆 WINS */}
       {tab === "wins" && (
-        <div className="px-4 grid gap-3">
-          <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-4">
-            <p className="text-[10px] font-black text-amber-300 mb-2">🏁 SEASON {seasonIdx}</p>
-            <div className="flex items-center gap-3">
-              <span className="text-4xl">{lvl.icon}</span>
-              <div>
-                <p className="font-black">{lvl.name}</p>
-                <p className="text-xs text-slate-400">{coins} 🪙 this season</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-slate-900 border border-fuchsia-500/30 rounded-2xl p-4">
-            <p className="text-[10px] font-black text-fuchsia-300 mb-2">🌟 LIFETIME</p>
-            <div className="flex items-center gap-3">
-              <span className="text-4xl">{life >= LIFETIME_LEVELS[0].need ? lifeLvl.icon : "🌱"}</span>
-              <div>
-                <p className="font-black">{life >= LIFETIME_LEVELS[0].need ? lifeLvl.name : "Rookie"}</p>
-                <p className="text-xs text-slate-400">{life.toLocaleString()} 🪙 all-time</p>
-              </div>
-            </div>
-          </div>
-          {trophies.length > 0 && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center">
-              <p className="text-[10px] font-black text-slate-400 mb-2">🏆 PAST SEASONS</p>
-              <p className="text-sm text-amber-400 font-bold">{trophies.join(" • ")}</p>
+        <div className="px-4 pt-3 grid gap-2">
+          {wins.length === 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl text-center py-12">
+              <p className="text-4xl mb-2">🏆</p>
+              <p className="text-sm font-black text-slate-400">No wins yet — start grinding!</p>
             </div>
           )}
-        </div>
-      )}
-
-      {/* TAB: EARN */}
-      {tab === "earn" && (
-        <div className="px-4 bg-slate-900 border border-slate-800 mx-4 rounded-2xl p-4 grid gap-2.5">
-          <p className="text-[10px] font-black text-slate-400">💪 EARN COINS EVERY DAY</p>
-          {EARN.map((e) => (
-            <div key={e.name} className="flex items-center justify-between bg-slate-800/60 rounded-xl px-3 py-2.5">
-              <span className="text-sm font-bold">{e.icon} {e.name}</span>
-              <span className="text-xs font-black text-amber-400">+{e.coins}</span>
+          {wins.map((w, i) => (
+            <div key={i} className="press bg-slate-900 border border-amber-500/20 rounded-2xl p-3 flex items-center gap-3 shadow-md">
+              <span className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-xl shadow-lg">{w.icon}</span>
+              <div className="min-w-0">
+                <p className="text-sm font-black text-white leading-tight">{w.text}</p>
+                <p className="text-[10px] font-bold text-slate-500">{w.sub}</p>
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* TAB: ABOUT */}
-      {tab === "about" && (
-        <div className="px-4 grid gap-3">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <p className="text-[10px] font-black text-slate-400 mb-2">👤 BIO</p>
-            <p className="text-sm text-slate-200 whitespace-pre-wrap">{prof?.bio || "No bio yet."}</p>
-          </div>
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid gap-2">
-            <div className="flex justify-between text-sm"><span className="text-slate-400">🔒 Privacy</span><span className="font-black">{prof?.is_private ? "Private" : "Public"}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-slate-400">👥 Friends</span><span className="font-black">{friendCount}</span></div>
-            <div className="flex justify-between text-sm"><span className="text-slate-400">📸 Posts</span><span className="font-black">{posts.length}</span></div>
-          </div>
+      {/* TAB: ❤️ LIKED */}
+      {tab === "liked" && (locked ? (
+        <div className="text-center py-16 px-6">
+          <p className="text-5xl mb-3">🔒</p>
+          <p className="text-sm text-slate-400 font-bold">Private account</p>
         </div>
-      )}
+      ) : likedPosts.length === 0 ? (
+        <div className="mx-4 mt-3 bg-slate-900 border border-slate-800 rounded-2xl text-center py-12">
+          <p className="text-4xl mb-2">❤️</p>
+          <p className="text-sm font-black text-slate-400">No liked posts yet</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-0.5 p-0.5">
+          {likedPosts.map((p) => (
+            <div key={p.id} onClick={() => setView(p)} className="aspect-square bg-slate-900 relative overflow-hidden cursor-pointer">
+              {p.image_url ? (
+                <img src={p.image_url} className="w-full h-full object-cover" alt="" />
+              ) : (
+                <div className={`relative w-full h-full ${p.bgc ? "" : `bg-gradient-to-br ${BGS[(p.bg || 0) % BGS.length]}`}`} style={p.bgc ? { background: p.bgc } : undefined}>
+                  <p className="absolute text-[10px] text-center line-clamp-6 px-1" style={{ left: `${p.tx ?? 50}%`, top: `${p.ty ?? 50}%`, transform: "translate(-50%, -50%)", color: p.tc || "#ffffff" }}>{p.content}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
 
       {/* POST VIEWER */}
       {view && (
@@ -447,7 +462,7 @@ function Inner() {
             )}
             <p className="text-xs text-slate-500 mt-3">❤️ {view.likes} likes</p>
             {view.user_id === me && (
-              <button onClick={() => { deletePost(view); setView(null); }} className="press mt-3 w-full py-2.5 rounded-xl bg-red-600/20 border border-red-500/40 text-red-400 text-xs font-black">🗑 Delete post</button>
+              <button onClick={() => { deletePost(view); setView(null); }} className="press mt-3 w-full py-2.5 rounded-xl bg-red-600/20 border border-red-500/40 text-red-400 text-xs font-black">Delete post</button>
             )}
             <button onClick={() => setView(null)} className="press mt-2 w-full py-2.5 rounded-xl bg-slate-800 text-xs font-black">Close</button>
           </div>
