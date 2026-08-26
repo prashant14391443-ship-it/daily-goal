@@ -27,6 +27,8 @@ const MODES = [
   { id: "vocab", emoji: "📚", title: "Vocabulary", desc: "5 words/day + Hindi meanings", grad: "from-emerald-500 to-teal-600", border: "border-emerald-500/30", href: "/vocab" },
   { id: "tips", emoji: "💡", title: "Daily Tips", desc: "1 tip a day to sound better", grad: "from-amber-500 to-yellow-600", border: "border-amber-500/30", href: "/tips" },
   { id: "games", emoji: "🎮", title: "Game Zone", desc: "4 games • beat your best", grad: "from-pink-500 to-rose-600", border: "border-pink-500/30", href: "/games" },
+  // ✅ NEW: Talk to a Stranger — regular 2-col card
+  { id: "stranger", emoji: "🌍", title: "Talk to a Stranger", desc: "1-on-1 voice • practice English", grad: "from-pink-500 to-rose-600", border: "border-rose-500/40", href: "/random-talk" },
 ];
 
 const DRILLS = [
@@ -260,7 +262,7 @@ export default function SpeakingPage() {
   // 🏠 HOME VIEW
   if (!mode) {
     return (
-      <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
+      <main className="min-h-screen bg-slate-950 text-white px-4 pt-16 pb-24 max-w-4xl mx-auto">
         {/* 🌆 HERO */}
         <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 p-5 shadow-2xl shadow-teal-900/30">
           <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
@@ -275,7 +277,8 @@ export default function SpeakingPage() {
             </div>
             <div className="flex flex-col items-end gap-1 shrink-0">
               <Chip color="violet">{left}/16 free</Chip>
-              <Link href="/community" className="text-[10px] text-white/70 font-bold hover:text-white">← Back</Link>
+              {/* ✅ FIXED: Back now goes to dashboard (not community) */}
+              <Link href="/dashboard" className="text-[10px] text-white/70 font-bold hover:text-white">← Back</Link>
             </div>
           </div>
         </div>
@@ -305,6 +308,19 @@ export default function SpeakingPage() {
                 );
               })}
             </div>
+
+            {/* ✅ NEW: Create My Community — full-width gold banner */}
+            <Link
+              href="/community"
+              className="press mt-3 w-full bg-slate-900 border-2 border-amber-500/40 rounded-2xl p-4 flex items-center gap-3 shadow-lg shadow-black/30"
+            >
+              <IconTile emoji="✨" gradient="bg-gradient-to-br from-amber-500 to-orange-600" size="lg" />
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-sm text-amber-300">CREATE MY COMMUNITY</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Start your own space • chat & talk live</p>
+              </div>
+              <span className="text-slate-500 text-lg">→</span>
+            </Link>
           </>
         ) : (
           <>
