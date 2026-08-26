@@ -13,6 +13,7 @@ const tabs = [
 
 export default function BottomNav() {
   const pathname = usePathname();
+  
   if (
     pathname.startsWith("/random-talk") ||
     pathname.startsWith("/feed") ||
@@ -25,12 +26,13 @@ export default function BottomNav() {
     pathname.startsWith("/inbox") ||
     pathname.startsWith("/games") ||
     pathname.startsWith("/tips")
-  )
+  ) {
     return null;
+  }
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden pb-safe">
-      <div className="mx-2 mb-2 bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl grid grid-cols-5 shadow-2xl">
+      <div className="w-full bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 grid grid-cols-5 shadow-[0_-5px_15px_rgba(0,0,0,0.4)]">
         {tabs.map((t) => {
           const active = pathname === t.href || (t.href === "/dashboard" && pathname === "/");
           return (
