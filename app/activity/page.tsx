@@ -12,17 +12,40 @@ function ago(iso: string) {
   return `${Math.floor(s / 86400)}d`;
 }
 
+function isToday(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  return d.toDateString() === now.toDateString();
+}
+function isYesterday(iso: string) {
+  const d = new Date(iso);
+  const y = new Date();
+  y.setDate(y.getDate() - 1);
+  return d.toDateString() === y.toDateString();
+}
+
+// 🎯 Icon + color per notification type
+const TYPE_STYLES: Record<string, { emoji: string; grad: string; border: string }> = {
+  friend_request: { emoji: "🤝", grad: "from-green-500 to-emerald-600", border: "border-green-500/40" },
+  friend_accepted: { emoji: "✅", grad: "from-emerald-500 to-teal-600", border: "border-emerald-500/40" },
+  message: { emoji: "💬", grad: "from-blue-500 to-indigo-600", border: "border-blue-500/40" },
+  like: { emoji: "❤️", grad: "from-pink-500 to-rose-600", border: "border-pink-500/40" },
+  streak: { emoji: "🔥", grad: "from-orange-500 to-red-600", border: "border-orange-500/40" },
+  system: { emoji: "🔔", grad: "from-violet-500 to-fuchsia-600", border: "border-violet-500/40" },
+  coin: { emoji: "🪙", grad: "from-amber-500 to-orange-600", border: "border-amber-500/40" },
+  default: { emoji: "📬", grad: "from-slate-500 to-slate-700", border: "border-slate-500/40" },
+};
+
 export default function ActivityPage() {
   const [items, setItems] = useState<any[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const load = async () => {
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
-
-    if (!uid) return;
+    if (!uid) { setLoading(false); return; }
     setUserId(uid);
-
     const { data: rows } = await supabase
       .from("notifications")
       .select("*")
@@ -30,128 +53,141 @@ export default function ActivityPage() {
       .not("type", "in", "(like,post)")
       .order("created_at", { ascending: false })
       .limit(50);
-
     setItems((rows as any[]) || []);
+    setLoading(false);
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   const markAll = async () => {
     if (!userId) return;
-
-    // Optimistic UI update
     setItems((prev) => prev.map((item) => ({ ...item, read: true })));
-
-    await supabase
-      .from("notifications")
-      .update({ read: true })
-      .eq("user_id", userId)
-      .eq("read", false);
+    await supabase.from("notifications").update({ read: true }).eq("user_id", userId).eq("read", false);
   };
 
   const deleteNotif = async (id: string) => {
-    // Optimistic UI update
     setItems((prev) => prev.filter((item) => item.id !== id));
     await supabase.from("notifications").delete().eq("id", id);
   };
 
   const clearAll = async () => {
-    if (!userId) return;
-    if (!confirm("Delete all notifications?")) return;
-
-    // Optimistic UI update
+    if (!userId || !confirm("Delete all notifications?")) return;
     setItems([]);
     await supabase.from("notifications").delete().eq("user_id", userId);
   };
 
-  return (
-    <main className="min-h-screen bg-slate-950 text-white">
-      {/* 
-        Responsive Wrapper: 
-        max-w-2xl & mx-auto centers it on laptops. 
-        md:pb-12 & md:pt-8 adjusts spacing specifically for desktop.
-      */}
-      <div className="max-w-2xl mx-auto p-4 pb-24 md:pb-12 md:pt-8 w-full">
-        
-        <div className="flex items-center justify-between mb-6">
-          <Link href="/feed" className="text-xl hover:text-slate-400 transition-colors">
-            ←
-          </Link>
-          <p className="font-bold text-lg">❤️ Activity</p>
-          <div className="flex gap-3 items-center">
-            <Link 
-              href="/inbox" 
-              className="text-xs bg-violet-600 hover:bg-violet-500 transition-colors px-3 py-1.5 rounded-full font-bold"
-            >
-              💬 Inbox
-            </Link>
-            <button 
-              onClick={markAll} 
-              className="text-xs text-violet-400 hover:text-violet-300 transition-colors font-bold"
-            >
-              Read all
-            </button>
-            <button 
-              onClick={clearAll} 
-              className="text-xs text-red-400 hover:text-red-300 transition-colors font-bold"
-            >
-              Clear all
-            </button>
-          </div>
-        </div>
+  // 📅 Group by Today / Yesterday / Earlier
+  const today: any[] = [], yesterday: any[] = [], earlier: any[] = [];
+  items.forEach((n) => {
+    if (isToday(n.created_at)) today.push(n);
+    else if (isYesterday(n.created_at)) yesterday.push(n);
+    else earlier.push(n);
+  });
 
-        <div className="grid gap-3">
-          {items.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-              <span className="text-4xl mb-3">🤝</span>
-              <p className="text-sm">No activity yet — make some friends!</p>
-            </div>
-          )}
-          
-          {items.map((n) => {
+  const unreadCount = items.filter((n) => !n.read).length;
+
+  const Section = ({ label, list }: { label: string; list: any[] }) => {
+    if (list.length === 0) return null;
+    return (
+      <div className="mb-5">
+        <p className="text-[10px] font-black text-slate-500 mb-2 px-1">{label}</p>
+        <div className="grid gap-2">
+          {list.map((n) => {
+            const style = TYPE_STYLES[n.type] || TYPE_STYLES.default;
             const inner = (
               <>
-                <p className="text-sm flex-1 leading-relaxed">{n.text}</p>
-                <p className="text-[11px] text-slate-500 mt-1.5 font-medium">{ago(n.created_at)}</p>
+                <div className={`shrink-0 w-10 h-10 rounded-full bg-gradient-to-br ${style.grad} flex items-center justify-center text-lg shadow-lg`}>
+                  {style.emoji}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm leading-snug ${n.read ? "text-slate-300" : "text-white font-semibold"}`}>{n.text}</p>
+                  <p className="text-[10px] text-slate-500 mt-1 font-bold">{ago(n.created_at)}</p>
+                </div>
               </>
             );
 
-            // Added hover effects (hover:bg-...) and transition for desktop users
-            const cls = `p-4 rounded-xl border flex items-start gap-3 transition-colors duration-200 group ${
-              n.read 
-                ? "bg-slate-900 border-slate-800/80 hover:bg-slate-800/60" 
-                : "bg-violet-600/10 border-violet-500/40 hover:bg-violet-600/20"
-            }`;
-
-            const wrapper = n.type === "message" && n.actor_id ? (
-              <Link href={`/chat?user=${n.actor_id}`} className="flex-1 block outline-none">
-                {inner}
-              </Link>
-            ) : (
-              <div className="flex-1">{inner}</div>
-            );
+            const wrapper =
+              n.type === "message" && n.actor_id ? (
+                <Link href={`/chat?user=${n.actor_id}`} className="flex items-start gap-3 flex-1 min-w-0">{inner}</Link>
+              ) : (
+                <div className="flex items-start gap-3 flex-1 min-w-0">{inner}</div>
+              );
 
             return (
-              <div key={n.id} className={cls}>
+              <div
+                key={n.id}
+                className={`press relative bg-slate-900 border rounded-2xl p-3 flex items-start gap-3 shadow-md transition-all ${
+                  n.read ? "border-slate-800" : `border-l-4 ${style.border} border-slate-800`
+                }`}
+              >
                 {wrapper}
                 <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    deleteNotif(n.id);
-                  }}
-                  className="text-slate-600 hover:text-red-400 p-1 -mr-1 -mt-1 transition-colors shrink-0"
-                  aria-label="Delete notification"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteNotif(n.id); }}
+                  className="press shrink-0 w-7 h-7 rounded-lg bg-slate-800 text-slate-500 hover:text-red-400 hover:bg-red-500/20 text-xs font-black flex items-center justify-center -mr-1 -mt-1"
+                  aria-label="Delete"
                 >
-                  ✖
+                  ✕
                 </button>
               </div>
             );
           })}
         </div>
       </div>
+    );
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-2xl mx-auto">
+      {/* 🌆 HERO */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <Link href="/feed" className="press w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-lg">←</Link>
+          <div>
+            <h1 className="text-base font-black text-white leading-tight">Activity</h1>
+            <p className="text-[10px] text-slate-400 font-semibold">{unreadCount} unread</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link href="/inbox" className="press px-3 py-1.5 rounded-full bg-violet-600/20 border border-violet-500/40 text-violet-300 text-[10px] font-black">
+            💬 Inbox
+          </Link>
+        </div>
+      </div>
+
+      {/* 🎯 QUICK ACTIONS (only show if items exist) */}
+      {items.length > 0 && (
+        <div className="flex gap-2 mb-4">
+          <button onClick={markAll} className="press flex-1 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-black text-slate-300 hover:bg-slate-800">
+            ✓ Read all
+          </button>
+          <button onClick={clearAll} className="press flex-1 py-2 rounded-xl bg-slate-900 border border-red-500/30 text-xs font-black text-red-300 hover:bg-red-500/10">
+            🗑 Clear all
+          </button>
+        </div>
+      )}
+
+      {/* 📋 CONTENT */}
+      {loading ? (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
+          <p className="text-4xl mb-2 animate-bounce">❤️</p>
+          <p className="text-slate-400 text-sm">Loading activity...</p>
+        </div>
+      ) : items.length === 0 ? (
+        <div className="bg-slate-900 border border-dashed border-slate-700 rounded-2xl py-16 text-center">
+          <p className="text-5xl mb-3">🤝</p>
+          <p className="text-lg font-black text-white mb-1">All quiet here</p>
+          <p className="text-xs text-slate-400 mb-4">Make some friends to see activity!</p>
+          <Link href="/search" className="press inline-block px-6 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-xs font-black shadow-lg shadow-violet-900/30">
+            🔍 Find friends
+          </Link>
+        </div>
+      ) : (
+        <>
+          <Section label="📅 TODAY" list={today} />
+          <Section label="⏰ YESTERDAY" list={yesterday} />
+          <Section label="📚 EARLIER" list={earlier} />
+        </>
+      )}
     </main>
   );
 }
