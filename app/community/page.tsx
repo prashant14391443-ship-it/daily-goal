@@ -131,20 +131,18 @@ export default function CommunityPage() {
       <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-pink-600 via-fuchsia-600 to-violet-600 p-5 shadow-2xl shadow-fuchsia-900/30">
         <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
         <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-pink-300/20 rounded-full blur-3xl" />
-        <div className="relative flex items-center gap-3">
-          <span className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg">🏠</span>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-black text-white leading-tight">Community</h1>
-            <p className="text-[10px] text-white/80 font-semibold">
-              Request → approved → chat & talk
-            </p>
+        <div className="relative">
+          <div className="flex items-center justify-between gap-3">
+            <span className="w-12 h-12 shrink-0 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg">🏠</span>
+            {online > 0 && (
+              <div className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-xs font-black text-white border border-white/20 flex items-center gap-1.5 shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                {online} online
+              </div>
+            )}
           </div>
-          {online > 0 && (
-            <div className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-xs font-black text-white border border-white/20 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-              {online} online
-            </div>
-          )}
+          <h1 className="text-xl font-black text-white mt-3">Community</h1>
+          <p className="text-[10px] text-white/80 font-semibold mt-1">Request → approved → chat & talk</p>
         </div>
       </div>
 

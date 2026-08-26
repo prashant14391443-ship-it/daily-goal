@@ -119,3 +119,8 @@ button {
 
 /* safe-area for notched phones */
 .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+/* 🛡️ ANTI-VERTICAL-TITLE SAFETY — titles always stay on one line */
+h1 {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
