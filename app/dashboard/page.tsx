@@ -1,6 +1,6 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -121,7 +121,14 @@ export default function Dashboard() {
   const [cdTitle, setCdTitle] = useState("");
   const [cdDate, setCdDate] = useState("");
   const [cdEmoji, setCdEmoji] = useState("📚");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    try {
+      const s = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null");
+      // Returned within 5 min = BACK navigation → render full page instantly (no skeleton at top)
+      if (s && s.y > 50 && Date.now() - s.t < 5 * 60 * 1000) return false;
+    } catch {}
+    return true;
+  });
   const router = useRouter();
   const [moveStreak, setMoveStreak] = useState(0);
   
@@ -319,39 +326,31 @@ export default function Dashboard() {
   };
   useEffect(() => { load(); }, []);
 
-  // 🔒 Only allow saving AFTER restore is done (prevents overwrite with 0)
-  const canSaveScroll = useRef(false);
-
-  // 💾 SAVE scroll position (locked during loading/restore phase)
+  // 💾 SAVE position + timestamp (throttled, saves final position on leave)
   useEffect(() => {
     if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
-    const save = () => {
-      if (!canSaveScroll.current) return; // ← THE FIX: ignore scrolls while page is short
-      sessionStorage.setItem("dg-dash-scroll", String(window.scrollY));
+    const save = () =>
+      sessionStorage.setItem("dg-dash-scroll", JSON.stringify({ y: window.scrollY, t: Date.now() }));
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => { raf = 0; save(); });
     };
-    window.addEventListener("scroll", save, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
-      save(); // save final position when leaving the page
-      window.removeEventListener("scroll", save);
+      if (raf) cancelAnimationFrame(raf);
+      save();
+      window.removeEventListener("scroll", onScroll);
     };
   }, []);
 
-  // 📍 RESTORE position after data loads, with retry until layout is tall enough
-  useEffect(() => {
-    if (loading) return;
-    const y = Number(sessionStorage.getItem("dg-dash-scroll") || 0);
-    let tries = 0;
-    const t = setInterval(() => {
-      tries++;
-      const tallEnough = document.documentElement.scrollHeight > y + 200;
-      if (tallEnough || tries >= 10) {
-        if (y > 50) window.scrollTo(0, y);
-        canSaveScroll.current = true; // unlock saving now
-        clearInterval(t);
-      }
-    }, 80);
-    return () => clearInterval(t);
-  }, [loading]);
+  // 📍 RESTORE BEFORE PAINT = completely invisible (no top flash, no jump)
+  useLayoutEffect(() => {
+    try {
+      const s = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null");
+      if (s && s.y > 50 && Date.now() - s.t < 5 * 60 * 1000) window.scrollTo(0, s.y);
+    } catch {}
+  }, [loading, tasks, countdowns, studyMinutes, workouts, habitsDone, todoDone]);
 
   const saveGoals = async (e: React.FormEvent) => {
     e.preventDefault();
