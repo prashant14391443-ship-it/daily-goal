@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { ArrowLeft, MessageCircle } from "lucide-react";
 
 type Thread = {
   userId: string;
@@ -78,21 +79,31 @@ export default function InboxPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 pb-24">
-      <div className="flex items-center gap-2 mb-4">
-        <Link href="/feed" className="text-xl">←</Link>
-        <p className="font-bold">💬 Inbox</p>
+      <div className="flex items-center gap-3 mb-6">
+        <Link 
+          href="/feed" 
+          className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center hover:bg-slate-800 transition-colors"
+        >
+          <ArrowLeft size={18} className="text-slate-300" />
+        </Link>
+        <div className="flex items-center gap-2">
+          <MessageCircle size={20} className="text-violet-400" />
+          <p className="font-semibold text-lg">Inbox</p>
+        </div>
         {totalUnread > 0 && (
-          <span className="bg-red-600 text-white text-[10px] font-bold rounded-full px-2 py-0.5">
+          <span className="bg-red-500/20 border border-red-500/30 text-red-300 text-[10px] font-semibold rounded-full px-2.5 py-1">
             {totalUnread} new
           </span>
         )}
       </div>
 
       {threads.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-5xl mb-3">💬</p>
-          <p className="text-sm text-slate-400">No conversations yet.</p>
-          <p className="text-xs text-slate-500 mt-1">Message a friend from their profile!</p>
+        <div className="text-center py-20">
+          <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center">
+            <MessageCircle size={28} className="text-slate-500" />
+          </div>
+          <p className="text-sm text-slate-400 font-medium mb-1">No conversations yet</p>
+          <p className="text-xs text-slate-500">Message a friend from their profile!</p>
         </div>
       ) : (
         <div className="grid gap-2">
@@ -100,27 +111,35 @@ export default function InboxPage() {
             <Link
               key={t.userId}
               href={`/chat?user=${t.userId}`}
-              className={`rounded-xl p-3 flex items-center gap-3 border ${
-                t.unread > 0 ? "bg-violet-600/10 border-violet-500/40" : "bg-slate-900 border-slate-800"
+              className={`rounded-xl p-4 flex items-center gap-3 border transition-colors ${
+                t.unread > 0 
+                  ? "bg-violet-500/5 border-violet-500/30 hover:border-violet-500/50" 
+                  : "bg-slate-900 border-slate-700 hover:border-slate-600"
               }`}
             >
               {t.avatar ? (
-                <img src={t.avatar} className="w-12 h-12 rounded-full object-cover" alt="" />
+                <img 
+                  src={t.avatar} 
+                  className="w-12 h-12 rounded-full object-cover border-2 border-slate-800 flex-shrink-0" 
+                  alt="" 
+                />
               ) : (
-                <span className="w-12 h-12 rounded-full bg-violet-600 flex items-center justify-center font-bold">
+                <span className="w-12 h-12 rounded-full bg-violet-600 border-2 border-slate-800 flex items-center justify-center font-bold flex-shrink-0">
                   {t.name.charAt(0).toUpperCase()}
                 </span>
               )}
               <span className="flex-1 min-w-0">
-                <span className="font-bold text-sm block truncate">{t.name}</span>
-                <span className={`text-xs block truncate ${t.unread > 0 ? "text-white font-bold" : "text-slate-500"}`}>
+                <span className="font-semibold text-sm block truncate">{t.name}</span>
+                <span className={`text-xs block truncate mt-0.5 ${
+                  t.unread > 0 ? "text-white font-medium" : "text-slate-500"
+                }`}>
                   {t.lastMsg}
                 </span>
               </span>
               <span className="text-right shrink-0">
-                <span className="text-[10px] text-slate-500 block">{ago(t.lastTime)}</span>
+                <span className="text-[10px] text-slate-500 block mb-1">{ago(t.lastTime)}</span>
                 {t.unread > 0 && (
-                  <span className="inline-block mt-1 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
+                  <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full">
                     {t.unread}
                   </span>
                 )}
