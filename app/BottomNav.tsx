@@ -2,18 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Home, BookOpen, Dumbbell, ListChecks, ListTodo } from "lucide-react";
 
 const tabs = [
-  { href: "/dashboard", icon: "🏠", label: "Home" },
-  { href: "/study-tracker", icon: "📚", label: "Study" },
-  { href: "/gym-log", icon: "🏋️", label: "Gym" },
-  { href: "/routine-habits", icon: "✅", label: "Habits" },
-  { href: "/todo", icon: "📝", label: "ToDo" },
+  { href: "/dashboard", icon: Home, label: "Home" },
+  { href: "/study-tracker", icon: BookOpen, label: "Study" },
+  { href: "/gym-log", icon: Dumbbell, label: "Gym" },
+  { href: "/routine-habits", icon: ListChecks, label: "Habits" },
+  { href: "/todo", icon: ListTodo, label: "ToDo" },
 ];
 
 export default function BottomNav() {
   const pathname = usePathname();
-  
+
   if (
     pathname.startsWith("/random-talk") ||
     pathname.startsWith("/feed") ||
@@ -32,22 +33,19 @@ export default function BottomNav() {
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden pb-safe">
-      <div className="w-full bg-slate-900/95 backdrop-blur-xl border-t border-slate-800 grid grid-cols-5 shadow-[0_-5px_15px_rgba(0,0,0,0.4)]">
+      <div className="w-full bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/80 grid grid-cols-5">
         {tabs.map((t) => {
           const active = pathname === t.href || (t.href === "/dashboard" && pathname === "/");
+          const Icon = t.icon;
           return (
-            <Link
-              key={t.href}
-              href={t.href}
-              className="flex flex-col items-center py-3 gap-1 relative"
-            >
-              {active && (
-                <span className="absolute inset-x-3 inset-y-1 rounded-xl nav-active opacity-20" />
-              )}
-              <span className={`text-xl transition-transform ${active ? "scale-110" : ""}`}>
-                {t.icon}
-              </span>
-              <span className={`text-[10px] font-bold ${active ? "text-white" : "text-slate-500"}`}>
+            <Link key={t.href} href={t.href} className="flex flex-col items-center py-2.5 gap-1 relative">
+              {active && <span className="absolute inset-x-4 top-1.5 bottom-1.5 rounded-xl bg-violet-500/10" />}
+              <Icon
+                size={20}
+                strokeWidth={active ? 2.4 : 2}
+                className={`relative transition-colors ${active ? "text-violet-400" : "text-slate-500"}`}
+              />
+              <span className={`relative text-[9px] font-bold ${active ? "text-violet-300" : "text-slate-600"}`}>
                 {t.label}
               </span>
             </Link>
