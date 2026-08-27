@@ -121,14 +121,16 @@ export default function Dashboard() {
   const [cdTitle, setCdTitle] = useState("");
   const [cdDate, setCdDate] = useState("");
   const [cdEmoji, setCdEmoji] = useState("📚");
-  const [loading, setLoading] = useState(() => {
+  const [backNav] = useState(() => {
     try {
       const s = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null");
-      // Returned within 5 min = BACK navigation → render full page instantly (no skeleton at top)
-      if (s && s.y > 50 && Date.now() - s.t < 5 * 60 * 1000) return false;
-    } catch {}
-    return true;
+      return !!(s && s.y > 50 && Date.now() - s.t < 5 * 60 * 1000);
+    } catch {
+      return false;
+    }
   });
+  const [loading, setLoading] = useState(!backNav);
+  const [settled, setSettled] = useState(!backNav); // invisible until scroll position is stable
   const router = useRouter();
   const [moveStreak, setMoveStreak] = useState(0);
   
@@ -344,13 +346,34 @@ export default function Dashboard() {
     };
   }, []);
 
-  // 📍 RESTORE BEFORE PAINT = completely invisible (no top flash, no jump)
+  // 📍 RESTORE BEFORE PAINT
   useLayoutEffect(() => {
     try {
       const s = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null");
       if (s && s.y > 50 && Date.now() - s.t < 5 * 60 * 1000) window.scrollTo(0, s.y);
     } catch {}
   }, [loading, tasks, countdowns, studyMinutes, workouts, habitsDone, todoDone]);
+
+  // 🙈 STAY INVISIBLE while Next.js tries to force top → flash can never be seen
+  useLayoutEffect(() => {
+    if (!backNav) return;
+    const s = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null");
+    const y = s?.y || 0;
+    window.scrollTo(0, y);
+    // if Next.js overrides to top during the window, snap back instantly
+    const guard = () => {
+      if (Math.abs(window.scrollY - y) > 80) window.scrollTo(0, y);
+    };
+    window.addEventListener("scroll", guard, { passive: true });
+    const t1 = setTimeout(() => setSettled(true), 120); // reveal after position is stable
+    const t2 = setTimeout(() => window.removeEventListener("scroll", guard), 600);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      window.removeEventListener("scroll", guard);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const saveGoals = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -434,7 +457,7 @@ export default function Dashboard() {
   const dailyTarget = chartMode === "study" ? goals.study_target : chartMode === "gym" ? goals.workout_target : goals.habits_target;
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-4 pt-20 pb-24 max-w-4xl mx-auto">
+    <main className={`min-h-screen bg-slate-950 text-white px-4 pt-20 pb-24 max-w-4xl mx-auto transition-opacity duration-150 ${settled ? "opacity-100" : "opacity-0"}`}>
       {/* 🌆 DARK CALM HERO — with subtle backlight */}
       <div className="relative mb-3 overflow-hidden rounded-3xl bg-slate-900 border border-violet-500/20 p-5 shadow-[0_0_50px_-12px_rgba(139,92,246,0.35)]">
         {/* Ambient glow blobs */}
