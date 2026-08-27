@@ -1,42 +1,63 @@
 "use client";
 import Link from "next/link";
-import { IconTile } from "@/app/components/ui";
+import { BookOpen, Timer, Layers, Brain, Bot } from "lucide-react";
 
 export default function StudyHub() {
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-16 pb-24 max-w-4xl mx-auto">
+      {/* HEADER */}
       <div className="mb-6">
         <div className="flex items-center gap-3">
-          <span className="w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-2xl shadow-lg">📚</span>
+          <span className="w-11 h-11 shrink-0 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
+            <BookOpen size={22} strokeWidth={2.2} />
+          </span>
           <h1 className="text-2xl font-black text-white" style={{ whiteSpace: "nowrap" }}>Study</h1>
         </div>
-        <p className="text-[10px] text-slate-400 font-semibold mt-2">Choose your tool</p>
+        <p className="text-[11px] text-slate-500 font-semibold mt-2">Choose your tool</p>
       </div>
+
+      {/* CALM CARDS */}
       <div className="grid grid-cols-2 gap-3">
-        <Link href="/studylog" className="press bg-slate-900 border border-blue-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30">
-          <IconTile emoji="📖" gradient="bg-gradient-to-br from-blue-500 to-indigo-600" />
-          <p className="font-black text-sm mt-3 text-white">Study Log</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">Sessions, streaks & reminders</p>
+        <Link href="/studylog" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <span className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center mb-4">
+            <BookOpen size={18} strokeWidth={2.2} />
+          </span>
+          <p className="font-black text-sm text-white">Study Log</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">Sessions, streaks & reminders</p>
         </Link>
-        <Link href="/focus" className="press bg-slate-900 border border-red-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30">
-          <IconTile emoji="🍅" gradient="bg-gradient-to-br from-red-500 to-orange-600" />
-          <p className="font-black text-sm mt-3 text-white">Focus Timer</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">Pomodoro + growing plant</p>
+
+        <Link href="/focus" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <span className="w-9 h-9 rounded-lg bg-red-500/10 text-red-400 flex items-center justify-center mb-4">
+            <Timer size={18} strokeWidth={2.2} />
+          </span>
+          <p className="font-black text-sm text-white">Focus Timer</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">Pomodoro + growing plant</p>
         </Link>
-        <Link href="/flashcards" className="press bg-slate-900 border border-violet-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30">
-          <IconTile emoji="🃏" gradient="bg-gradient-to-br from-violet-500 to-purple-600" />
-          <p className="font-black text-sm mt-3 text-white">Flashcards</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">Memorize anything</p>
+
+        <Link href="/flashcards" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <span className="w-9 h-9 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center mb-4">
+            <Layers size={18} strokeWidth={2.2} />
+          </span>
+          <p className="font-black text-sm text-white">Flashcards</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">Memorize anything</p>
         </Link>
-        <Link href="/summarize" className="press bg-slate-900 border border-pink-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30">
-          <IconTile emoji="🧠" gradient="bg-gradient-to-br from-pink-500 to-rose-600" />
-          <p className="font-black text-sm mt-3 text-white">Summarize</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">Points + mind-map</p>
+
+        <Link href="/summarize" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <span className="w-9 h-9 rounded-lg bg-pink-500/10 text-pink-400 flex items-center justify-center mb-4">
+            <Brain size={18} strokeWidth={2.2} />
+          </span>
+          <p className="font-black text-sm text-white">Summarize</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">Points + mind-map</p>
         </Link>
-        <Link href="/quiz" className="press col-span-2 bg-slate-900 border border-cyan-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30">
-          <IconTile emoji="🤖" gradient="bg-gradient-to-br from-cyan-500 to-teal-600" />
-          <p className="font-black text-sm mt-3 text-white">AI Quiz</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">Any topic → instant test with score</p>
+
+        <Link href="/quiz" className="press col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center gap-4">
+          <span className="w-9 h-9 shrink-0 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
+            <Bot size={18} strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0">
+            <p className="font-black text-sm text-white">AI Quiz</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Any topic → instant test with score</p>
+          </div>
         </Link>
       </div>
     </main>
