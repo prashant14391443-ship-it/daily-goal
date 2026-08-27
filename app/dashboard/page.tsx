@@ -319,6 +319,35 @@ export default function Dashboard() {
   };
   useEffect(() => { load(); }, []);
 
+  // 💾 SAVE scroll position while on dashboard (throttled)
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        sessionStorage.setItem("dg-dash-scroll", String(window.scrollY));
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  // 📍 RESTORE scroll position after data loads (back from any sub-page)
+  useEffect(() => {
+    if (loading) return;
+    const y = Number(sessionStorage.getItem("dg-dash-scroll") || 0);
+    if (y > 50) {
+      // double rAF = wait for full layout before jumping
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => window.scrollTo(0, y))
+      );
+    }
+  }, [loading]);
+
   const saveGoals = async (e: React.FormEvent) => {
     e.preventDefault();
     const { data } = await supabase.auth.getSession();
