@@ -648,7 +648,8 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* 💡 TIP OF THE DAY — tap anywhere to open full page */}
+      {/* 💡 TIP OF THE DAY — only show after data loads (prevents flicker) */}
+      {!loading && (
       <div
         onClick={() => router.push("/tips")}
         className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-3 cursor-pointer hover:border-amber-500/40 transition-colors"
@@ -666,7 +667,7 @@ export default function Dashboard() {
                 <Flame size={11} /> {tipStreak}
               </span>
             )}
-            <Link href="/tips" className="text-[10px] font-bold text-slate-500 hover:text-white transition-colors">
+            <Link href="/tips" onClick={(e) => e.stopPropagation()} className="text-[10px] font-bold text-slate-500 hover:text-white transition-colors">
               Full page →
             </Link>
           </div>
@@ -683,11 +684,11 @@ export default function Dashboard() {
         </div>
 
         <div className="flex gap-2 mt-3">
-          <button onClick={() => speakTip(tip.tip + " " + tip.why)} className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 flex items-center justify-center gap-1.5 transition-colors">
+          <button onClick={(e) => { e.stopPropagation(); speakTip(tip.tip + " " + tip.why); }} className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 flex items-center justify-center gap-1.5 transition-colors">
             <Volume2 size={13} /> Hear
           </button>
           <button
-            onClick={didTip}
+            onClick={(e) => { e.stopPropagation(); didTip(); }}
             disabled={tipDone}
             className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${
               tipDone ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400" : "bg-emerald-600 hover:bg-emerald-500 text-white"
@@ -695,7 +696,7 @@ export default function Dashboard() {
           >
             <Check size={13} /> {tipDone ? "Done today!" : "Did it!"}
           </button>
-          <button onClick={() => setTipOffset((tipOffset + 1) % 3)} className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors" title="Another tip">
+          <button onClick={(e) => { e.stopPropagation(); setTipOffset((tipOffset + 1) % 3); }} className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors" title="Another tip">
             <RefreshCw size={13} />
           </button>
         </div>
@@ -706,6 +707,7 @@ export default function Dashboard() {
           ))}
         </div>
       </div>
+      )}
     </main>
   );
 }
