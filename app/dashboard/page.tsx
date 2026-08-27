@@ -648,8 +648,11 @@ export default function Dashboard() {
         </>
       )}
 
-      {/* 💡 TIP OF THE DAY — bottom of dashboard */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-3">
+      {/* 💡 TIP OF THE DAY — tap anywhere to open full page */}
+      <div
+        onClick={() => router.push("/tips")}
+        className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-3 cursor-pointer hover:border-amber-500/40 transition-colors"
+      >
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
