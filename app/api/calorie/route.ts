@@ -1,48 +1,45 @@
 import { NextResponse } from "next/server";
 
-type ModelInfo = { name: string; supportedGenerationMethods?: string[] };
+const GEMINI_MODELS = ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-3-flash-preview"];
+const GROQ_CHAT = [
+  "openai/gpt-oss-120b",
+  "openai/gpt-oss-20b",
+  "meta-llama/llama-4-scout-17b-16e-instruct",
+  "meta-llama/llama-4-maverick-17b-128e-instruct",
+];
 
-async function getCandidates(key: string): Promise<string[]> {
-  const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=200`
-  );
-  const d = await r.json();
-  const list: ModelInfo[] = d.models || [];
-
-  const usable = list.filter(
-    (m) =>
-      (m.supportedGenerationMethods || []).includes("generateContent") &&
-      /gemini/.test(m.name) &&
-      !/embedding|tts|image|a2i|deep-research|robotics/i.test(m.name)
-  );
-
-  const clean = (m: ModelInfo) => m.name.replace("models/", "");
-
-  const ordered = [
-    ...usable.filter((m) => /flash/.test(m.name) && !/preview/.test(m.name)),
-    ...usable.filter((m) => /flash/.test(m.name) && /preview/.test(m.name)),
-    ...usable.filter((m) => /pro/.test(m.name) && !/preview/.test(m.name)),
-    ...usable.filter((m) => /pro/.test(m.name) && /preview/.test(m.name)),
-    ...usable.filter(
-      (m) => !/flash/.test(m.name) && !/pro/.test(m.name)
-    ),
-  ].map(clean);
-
-  // remove duplicates, keep order
-  return [...new Set(ordered)].slice(0, 4);
+function extractJson(raw: string): any | null {
+  try {
+    let text = (raw || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const match = text.match(/\{[\s\S]*\}/);
+    if (match) text = match[0];
+    const obj = JSON.parse(text);
+    if (!obj.food || typeof obj.calories !== "number") return null;
+    return {
+      food: String(obj.food),
+      calories: Math.max(0, Math.round(Number(obj.calories) || 0)),
+      protein: Math.max(0, Math.round(Number(obj.protein) || 0)),
+      carbs: Math.max(0, Math.round(Number(obj.carbs) || 0)),
+      fat: Math.max(0, Math.round(Number(obj.fat) || 0)),
+      advice: String(obj.advice || "Enjoy in moderation as part of a balanced diet."),
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function POST(req: Request) {
   try {
     const { image, foodName, quantity } = await req.json();
-    const key = process.env.GEMINI_API_KEY;
+    const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    const groqKey = process.env.GROQ_API_KEY;
 
-    if (!key) {
-      return NextResponse.json({ error: "API key not configured." }, { status: 500 });
+    if (!gKey && !groqKey) {
+      return NextResponse.json({ error: "API keys not configured." }, { status: 500 });
     }
 
-    const base64 = String(image).split(",")[1];
-    const mime = String(image).split(";")[0].split(":")[1] || "image/jpeg";
+    const base64 = String(image || "").split(",")[1];
+    const mime = String(image || "").split(";")[0].split(":")[1] || "image/jpeg";
 
     if (!base64 || base64.length < 100) {
       return NextResponse.json({ error: "Invalid image. Try a new photo." }, { status: 400 });
@@ -58,59 +55,99 @@ export async function POST(req: Request) {
     }
 
     const prompt = `You are a nutritionist. Analyze this food photo and estimate the total meal's nutritional value.
-    ${userContext}
-    Reply ONLY with valid JSON (no markdown):
-    {"food": "short food name", "calories": number, "protein": number, "carbs": number, "fat": number, "advice": "one short healthy tip"}`;
+${userContext}
+Reply ONLY with valid JSON (no markdown):
+{"food": "short food name", "calories": number, "protein": number, "carbs": number, "fat": number, "advice": "one short healthy tip"}`;
 
-    const candidates = await getCandidates(key);
-    if (candidates.length === 0) {
-      return NextResponse.json({ error: "No AI model available on this key." }, { status: 500 });
-    }
+    const errs: string[] = [];
 
-    let data: any = null;
-    let lastError = "";
-    for (const model of candidates) {
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: prompt },
-                  { inline_data: { mime_type: mime, data: base64 } },
+    // 1️⃣ GEMINI FIRST (only engine that handles images well on free tier)
+    if (gKey) {
+      for (const model of GEMINI_MODELS) {
+        try {
+          const r = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [
+                      { text: prompt },
+                      { inline_data: { mime_type: mime, data: base64 } },
+                    ],
+                  },
                 ],
-              },
-            ],
-            generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
-          }),
+                generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
+              }),
+            }
+          );
+          if (r.ok) {
+            const d = await r.json();
+            const text = d.candidates?.[0]?.content?.parts?.[0]?.text;
+            const parsed = extractJson(text || "");
+            if (parsed) return NextResponse.json(parsed);
+            errs.push(`${model}: bad parse`);
+          } else {
+            const t = await r.text().catch(() => "");
+            errs.push(`${model}: ${r.status} ${t.slice(0, 60)}`);
+          }
+        } catch (e: unknown) {
+          errs.push(`${model}: ${e instanceof Error ? e.message : "fail"}`);
         }
-      );
-      data = await r.json();
-      if (data.candidates && data.candidates.length > 0) break;
-      lastError = data?.error?.message || "model failed";
+      }
+    } else errs.push("gemini: NO KEY");
+
+    // 2️⃣ GROQ TEXT-ONLY FALLBACK (only works if user gave food name + quantity)
+    if (groqKey && (foodName || quantity)) {
+      const fallbackPrompt = `You are a nutritionist. The user ate "${foodName || "unknown food"}" with quantity "${quantity || "1 serving"}".
+Estimate nutritional values based on standard food databases.
+Reply ONLY with valid JSON (no markdown):
+{"food": "short food name", "calories": number, "protein": number, "carbs": number, "fat": number, "advice": "one short healthy tip"}`;
+
+      for (const model of GROQ_CHAT) {
+        try {
+          const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: "user", content: fallbackPrompt }],
+              max_tokens: 400,
+              temperature: 0.4,
+            }),
+          });
+          if (r.ok) {
+            const d = await r.json();
+            const parsed = extractJson(d.choices?.[0]?.message?.content || "");
+            if (parsed) {
+              // Add a note that this is text-only estimation
+              parsed.advice = parsed.advice + " (Estimated from text description — add clearer photos for better accuracy.)";
+              return NextResponse.json(parsed);
+            }
+            errs.push(`groq-${model}: bad parse`);
+          } else {
+            const t = await r.text().catch(() => "");
+            errs.push(`groq-${model}: ${r.status} ${t.slice(0, 60)}`);
+          }
+        } catch (e: unknown) {
+          errs.push(`groq-${model}: ${e instanceof Error ? e.message : "fail"}`);
+        }
+      }
     }
 
-    if (!data || data.error || !data.candidates?.length) {
-      return NextResponse.json({ error: `AI error: ${lastError}` }, { status: 500 });
-    }
-
-    let text = data.candidates[0]?.content?.parts?.[0]?.text || "";
-    if (!text) {
-      return NextResponse.json({ error: "AI returned empty. Try another photo." }, { status: 500 });
-    }
-
-    text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) text = jsonMatch[0];
-
-    try {
-      return NextResponse.json(JSON.parse(text));
-    } catch {
-      return NextResponse.json({ error: "Could not parse AI response. Try again." }, { status: 500 });
-    }
+    return NextResponse.json(
+      {
+        error:
+          "Could not analyze this photo. " +
+          (foodName || quantity
+            ? "Try taking a clearer, well-lit photo."
+            : "Try adding a food name and quantity for a text-based estimate."),
+        debug: errs,
+      },
+      { status: 503 }
+    );
   } catch {
     return NextResponse.json({ error: "Server error. Try again." }, { status: 500 });
   }
