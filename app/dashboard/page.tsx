@@ -224,9 +224,11 @@ export default function Dashboard() {
       <div className="relative mb-3 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-purple-700 p-5 shadow-xl shadow-fuchsia-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-bold text-white/70">{new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</p>
-            <span className="text-sm">🦇</span>
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <p className="text-[11px] font-bold text-white/70 pt-1.5">
+              🦇 {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
+            </p>
+            <span className="shrink-0"><CoinPill /></span>
           </div>
           <div className="flex items-center gap-4">
             <div className="min-w-0 flex-1">
@@ -237,9 +239,7 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-      <div className="flex items-center px-1 mb-5">
-        <span className="scale-90 origin-left"><CoinPill /></span>
-      </div>
+
       <DraggableAIBubble />
 
       {/* 📊 CALM STAT CARDS */}
