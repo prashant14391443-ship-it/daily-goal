@@ -248,7 +248,7 @@ export default function Dashboard() {
         <StatCard href="/gym-log" icon={Dumbbell} tint="bg-green-500/10 text-green-400" bar="bg-green-500" label="Gym" value={String(workouts)} sub={workouts === 0 ? "Crush a workout" : "workouts today"} streak={gymStreak} pct={gymPct} />
         <StatCard href="/routine-habits" icon={ListChecks} tint="bg-violet-500/10 text-violet-400" bar="bg-violet-500" label="Habits" value={`${habitsDone}/${goals.habits_target}`} sub={habitsDone === 0 ? "Pick one easy habit" : "completed today"} streak={habitStreaks.reduce((m, h) => Math.max(m, h.streak), 0)} pct={habitsPct} />
         <StatCard href="/todo" icon={ListTodo} tint="bg-amber-500/10 text-amber-400" bar="bg-amber-500" label="To-do" value={`${todoDone}/${todoTotal}`} sub={todoDone === 0 ? "One small task" : "done today"} streak={todoStreak} pct={todoPct} />
-        <StatCard href="/speaking" icon={Mic} tint="bg-teal-500/10 text-teal-400" bar="bg-teal-500" label="English" value="Talk live" sub="Practice speaking" streak={0} pct={0} />
+        <StatCard href="/english" icon={Mic} tint="bg-teal-500/10 text-teal-400" bar="bg-teal-500" label="English" value="Talk live" sub="Practice speaking" streak={0} pct={0} />
         <Link href="/streaks" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
           <div className="flex items-start justify-between mb-4">
             <span className="w-9 h-9 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center"><Flame size={18} strokeWidth={2.2} /></span>
