@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Target, BookOpen, Dumbbell, ListChecks, ListTodo, Check, Clock, TrendingUp, ArrowLeft } from "lucide-react";
 
 type Goal = {
   id: string;
@@ -13,6 +14,13 @@ type Goal = {
   detail: string;
   completed: boolean;
   time?: string;
+};
+
+const typeStyle: Record<string, { icon: any; color: string; tint: string }> = {
+  Study: { icon: BookOpen, color: "text-blue-400", tint: "bg-blue-500/10 border-blue-500/20" },
+  Gym: { icon: Dumbbell, color: "text-orange-400", tint: "bg-orange-500/10 border-orange-500/20" },
+  Habit: { icon: ListChecks, color: "text-green-400", tint: "bg-green-500/10 border-green-500/20" },
+  ToDo: { icon: ListTodo, color: "text-pink-400", tint: "bg-pink-500/10 border-pink-500/20" },
 };
 
 export default function DailyGoalsPage() {
@@ -89,7 +97,7 @@ export default function DailyGoalsPage() {
   if (loading) {
     return (
       <main className="min-h-screen bg-slate-950 text-white p-6">
-        <p className="text-slate-400">Loading daily goals...</p>
+        <p className="text-slate-400 text-sm font-medium">Loading daily goals...</p>
       </main>
     );
   }
@@ -99,47 +107,96 @@ export default function DailyGoalsPage() {
   const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-6">
-      <h1 className="text-2xl font-bold mb-2">🎯 Today's Goals</h1>
-      <p className="text-slate-400 mb-6">
-        {completed}/{total} completed ({pct}%)
-      </p>
+    <main className="min-h-screen bg-slate-950 text-white p-4 pb-24 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-2">
+        <div className="w-11 h-11 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+          <Target size={22} className="text-violet-400" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-white">Today's Goals</h1>
+          <p className="text-xs text-slate-400 font-medium">
+            {completed}/{total} completed ({pct}%)
+          </p>
+        </div>
+      </div>
 
+      {/* Progress bar */}
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl p-4 mt-4 mb-6">
+        <div className="flex justify-between text-xs mb-2">
+          <span className="font-semibold text-slate-400">Daily progress</span>
+          <span className="font-semibold text-violet-400">{pct}%</span>
+        </div>
+        <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-full bg-violet-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+
+      {/* Goal list */}
       <div className="grid gap-3">
         {goals.length === 0 ? (
-          <p className="text-slate-500 text-center py-8">No goals for today yet!</p>
-        ) : (
-          goals.map((g) => (
-            <div
-              key={g.id}
-              className={`bg-slate-900 rounded-xl p-4 flex items-start gap-3 ${
-                g.completed ? "opacity-60" : ""
-              }`}
-            >
-              <span className="text-3xl">{g.icon}</span>
-              <div className="flex-1">
-                <div className="flex items-center justify-between mb-1">
-                  <h3 className="font-bold">{g.title}</h3>
-                  {g.time && <span className="text-xs text-slate-400">{g.time}</span>}
-                </div>
-                <p className="text-sm text-slate-300">{g.detail}</p>
-                <p className="text-xs text-slate-500 mt-1">{g.type}</p>
-              </div>
-              <span className="text-2xl">{g.completed ? "✅" : "⏳"}</span>
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 text-center">
+            <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center">
+              <Target size={24} className="text-slate-500" />
             </div>
-          ))
+            <p className="text-sm text-slate-500 font-medium">No goals for today yet!</p>
+          </div>
+        ) : (
+          goals.map((g) => {
+            const st = typeStyle[g.type] || typeStyle.ToDo;
+            const Icon = st.icon;
+            return (
+              <div
+                key={g.id}
+                className={`bg-slate-900 border border-slate-700 rounded-2xl p-4 flex items-start gap-3 transition-opacity ${
+                  g.completed ? "opacity-60" : ""
+                }`}
+              >
+                <div className={`w-11 h-11 rounded-xl ${st.tint} flex items-center justify-center flex-shrink-0`}>
+                  <Icon size={20} className={st.color} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1 gap-2">
+                    <h3 className={`font-semibold text-sm truncate ${g.completed ? "line-through text-slate-500" : "text-white"}`}>
+                      {g.title}
+                    </h3>
+                    {g.time && <span className="text-xs text-slate-500 flex-shrink-0">{g.time}</span>}
+                  </div>
+                  <p className="text-sm text-slate-400">{g.detail}</p>
+                  <p className="text-xs text-slate-500 mt-1">{g.type}</p>
+                </div>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  g.completed ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-slate-800 border border-slate-700"
+                }`}>
+                  {g.completed ? (
+                    <Check size={15} className="text-emerald-400" />
+                  ) : (
+                    <Clock size={15} className="text-slate-500" />
+                  )}
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
 
-      <div className="bg-slate-900 rounded-xl p-5 mt-6">
-        <h2 className="text-lg font-bold mb-2">📈 Today's score</h2>
+      {/* Score */}
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 mt-6">
+        <div className="flex items-center gap-2 mb-2">
+          <TrendingUp size={18} className="text-emerald-400" />
+          <h2 className="text-base font-semibold text-white">Today's score</h2>
+        </div>
         <p className="text-sm text-slate-300">
           {pct}% — {pct >= 80 ? "excellent! 🔥" : pct >= 50 ? "good & improving 💪" : pct >= 20 ? "keep going 🌱" : "start today! 🚀"}
         </p>
       </div>
 
-      <Link href="/dashboard" className="inline-block mt-6 text-sm text-slate-400 hover:text-white">
-        ← Back to Dashboard
+      <Link
+        href="/dashboard"
+        className="inline-flex items-center gap-1.5 mt-6 text-sm text-slate-400 hover:text-slate-300 transition-colors"
+      >
+        <ArrowLeft size={16} />
+        Back to Dashboard
       </Link>
     </main>
   );
