@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
-import { SectionCard, CardTitle, IconTile, GradButton, Chip, EmptyState } from "@/app/components/ui";
+import { Activity, PersonStanding, Bike, Mountain, Trophy, Ruler, Rocket, TrendingUp, Flag, Footprints, Timer, Radio, Pause, Square, Play, Coins } from "lucide-react";
 
 const MODES = [
-  { id: "walk", icon: "🚶", label: "Walk", met: 3.5, grad: "from-green-500 to-emerald-600" },
-  { id: "run", icon: "🏃", label: "Run", met: 9.8, grad: "from-blue-500 to-indigo-600" },
-  { id: "ride", icon: "🚴", label: "Ride", met: 7.5, grad: "from-amber-500 to-orange-600" },
-  { id: "hike", icon: "🥾", label: "Hike", met: 6.0, grad: "from-violet-500 to-purple-600" },
+  { id: "walk", icon: PersonStanding, label: "Walk", met: 3.5 },
+  { id: "run", icon: Activity, label: "Run", met: 9.8 },
+  { id: "ride", icon: Bike, label: "Ride", met: 7.5 },
+  { id: "hike", icon: Mountain, label: "Hike", met: 6.0 },
 ];
 
 const MIN_ACCURACY = 25; const MIN_JUMP = 7; const MAX_JUMP = 100; const MIN_SPEED = 1.0;
@@ -144,7 +144,7 @@ export default function MoveTracker() {
     const uid = uidRef.current;
     if (uid && secs >= 10) {
       await supabase.from("gym_logs").insert({
-        user_id: uid, workout_type: `${mode.icon} ${mode.label} ${km.toFixed(2)} km`, duration_minutes: mins,
+        user_id: uid, workout_type: `${mode.label} ${km.toFixed(2)} km`, duration_minutes: mins,
         session_date: todayStr(), completed: true, activity_type: mode.id,
         distance_km: Math.round(km * 100) / 100, calories: cal,
         avg_speed: secs > 0 ? Math.round((km / (secs / 3600)) * 10) / 10 : 0,
@@ -189,107 +189,167 @@ export default function MoveTracker() {
   const cal = km > 0.01 ? Math.round(((mode.met * 3.5 * userWeight) / 200) * (sec / 60)) : 0;
   const maxSpeed = Math.max(...weekChart.map((w) => w.speed), 1);
 
+  const ModeIcon = mode.icon;
+
   return (
     <div className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 HERO */}
-      <div className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 p-5 shadow-2xl shadow-emerald-900/30">
-        <div className="absolute -right-8 -top-8 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+      {/* 🌆 CALM HERO */}
+      <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 p-5 shadow-xl shadow-emerald-900/20">
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
           <div className="flex items-center justify-between mb-4">
-            <span className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg">🏃</span>
-            <span className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-sm font-black border border-white/20">⏱️ {fmtTime(sec)}</span>
+            <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
+              <ModeIcon size={22} strokeWidth={2.2} className="text-white" />
+            </span>
+            <span className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-[11px] font-black border border-white/20 flex items-center gap-1.5">
+              <Timer size={11} />
+              {fmtTime(sec)}
+            </span>
           </div>
-          <h1 className="text-2xl font-black text-white">Auto Tracker</h1>
-          <p className="text-xs text-white/70 font-semibold mt-1">GPS + steps + calories</p>
+          <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Auto Tracker</h1>
+          <p className="text-[11px] text-white/75 font-semibold mt-0.5">GPS + steps + calories</p>
         </div>
       </div>
 
       {/* 🏆 PB BAR */}
-      <div className="flex justify-center gap-4 mb-4 bg-gradient-to-r from-amber-900/20 to-orange-900/20 border border-amber-500/30 rounded-2xl p-3 text-xs font-black">
-        <span className="text-amber-300">🚀 Best pace: {pbs.pace ? `${fmtPace(pbs.pace)}/km` : "—"}</span>
-        <span className="text-orange-300">📏 Longest: {pbs.dist ? `${pbs.dist.toFixed(2)} km` : "—"}</span>
+      <div className="flex justify-center gap-4 mb-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 text-[11px] font-black">
+        <span className="text-amber-300 flex items-center gap-1"><Rocket size={11} /> Best pace: {pbs.pace ? `${fmtPace(pbs.pace)}/km` : "—"}</span>
+        <span className="text-orange-300 flex items-center gap-1"><Ruler size={11} /> Longest: {pbs.dist ? `${pbs.dist.toFixed(2)} km` : "—"}</span>
       </div>
 
       {/* MODES */}
       <div className="grid grid-cols-4 gap-2 mb-4">
-        {MODES.map((m) => (
-          <button key={m.id} onClick={() => !tracking && setMode(m)}
-            className={`press py-3 rounded-xl text-xs font-black border transition-all ${mode.id === m.id ? `bg-gradient-to-br ${m.grad} border-transparent text-white shadow-lg` : "bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800"}`}>
-            {m.icon} {m.label}
-          </button>
-        ))}
+        {MODES.map((m) => {
+          const Icon = m.icon;
+          return (
+            <button key={m.id} onClick={() => !tracking && setMode(m)}
+              className={`press py-3 rounded-xl text-[10px] font-black border transition-all flex flex-col items-center gap-1 ${mode.id === m.id ? "bg-green-500/15 border-green-500/30 text-green-300" : "bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800"}`}>
+              <Icon size={16} strokeWidth={2.2} />
+              {m.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* WEIGHT */}
-      <SectionCard className="p-4 mb-4 flex items-center justify-between">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4 flex items-center justify-between">
         <span className="text-sm font-bold text-slate-400">Body Weight (kg)</span>
         <input type="number" min="20" max="300" value={weight} onChange={(e) => setWeight(e.target.value)} disabled={tracking}
           placeholder="kg"
-          className="bg-slate-800 border border-slate-700 rounded-xl w-20 text-center text-white py-1.5 outline-none focus:border-green-500 disabled:opacity-50" />
-      </SectionCard>
+          className="bg-slate-800 border border-slate-700 rounded-xl w-20 text-center text-white py-1.5 text-sm outline-none focus:border-green-500 disabled:opacity-50" />
+      </div>
 
       {/* STATS */}
-      <SectionCard className="p-4 grid gap-3 mb-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid gap-3 mb-4">
         <div className="grid grid-cols-2 gap-3 text-center">
-          <div className="bg-slate-800/60 rounded-xl p-4"><p className="text-xs text-slate-400 font-bold mb-1">👟 Total Steps</p><p className="text-3xl font-black">{steps}</p></div>
-          <div className="bg-slate-800/60 rounded-xl p-4"><p className="text-xs text-slate-400 font-bold mb-1">📏 Distance</p><p className="text-3xl font-black">{km.toFixed(2)} <span className="text-base text-slate-400">km</span></p></div>
+          <div className="bg-slate-800/60 rounded-xl p-4">
+            <div className="w-8 h-8 mx-auto mb-2 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
+              <Footprints size={15} strokeWidth={2.2} />
+            </div>
+            <p className="text-[10px] font-black text-slate-500">TOTAL STEPS</p>
+            <p className="text-2xl font-black text-white mt-1">{steps}</p>
+          </div>
+          <div className="bg-slate-800/60 rounded-xl p-4">
+            <div className="w-8 h-8 mx-auto mb-2 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center">
+              <Ruler size={15} strokeWidth={2.2} />
+            </div>
+            <p className="text-[10px] font-black text-slate-500">DISTANCE</p>
+            <p className="text-2xl font-black text-white mt-1">{km.toFixed(2)} <span className="text-sm text-slate-500">km</span></p>
+          </div>
         </div>
-        <div className="grid grid-cols-3 gap-3 text-center">
-          <div className="bg-slate-800/60 rounded-xl p-3"><p className="text-[10px] text-slate-400 font-bold mb-1">Speed</p><p className="text-2xl font-black text-orange-400">{speed || "0.0"}</p><p className="text-[9px] text-slate-500">km/h</p></div>
-          <div className="bg-slate-800/60 rounded-xl p-3"><p className="text-[10px] text-slate-400 font-bold mb-1">Pace</p><p className="text-2xl font-black text-green-400">{paceStr}</p><p className="text-[9px] text-slate-500">min/km</p></div>
-          <div className="bg-slate-800/60 rounded-xl p-3"><p className="text-[10px] text-slate-400 font-bold mb-1">Burned</p><p className="text-2xl font-black text-red-400">{cal}</p><p className="text-[9px] text-slate-500">kcal</p></div>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="bg-slate-800/60 rounded-xl p-3">
+            <p className="text-[10px] font-black text-slate-500">SPEED</p>
+            <p className="text-xl font-black text-orange-400 mt-1">{speed || "0.0"}</p>
+            <p className="text-[10px] text-slate-500 font-bold">km/h</p>
+          </div>
+          <div className="bg-slate-800/60 rounded-xl p-3">
+            <p className="text-[10px] font-black text-slate-500">PACE</p>
+            <p className="text-xl font-black text-green-400 mt-1">{paceStr}</p>
+            <p className="text-[10px] text-slate-500 font-bold">min/km</p>
+          </div>
+          <div className="bg-slate-800/60 rounded-xl p-3">
+            <p className="text-[10px] font-black text-slate-500">BURNED</p>
+            <p className="text-xl font-black text-red-400 mt-1">{cal}</p>
+            <p className="text-[10px] text-slate-500 font-bold">kcal</p>
+          </div>
         </div>
         {tracking && (
-          <div className={`text-center text-xs font-black py-1.5 rounded-lg ${gpsMoving ? "bg-green-900/30 text-green-400" : "bg-slate-800/50 text-slate-500"}`}>
-            {gpsMoving ? "🟢 GPS tracking movement" : "⏸️ Waiting for real movement..."}
+          <div className={`text-center text-[10px] font-black py-2 rounded-lg flex items-center justify-center gap-1.5 ${gpsMoving ? "bg-green-500/15 text-green-400" : "bg-slate-800/50 text-slate-500"}`}>
+            {gpsMoving ? <><Radio size={11} /> GPS tracking movement</> : <><Pause size={11} /> Waiting for real movement...</>}
           </div>
         )}
-      </SectionCard>
+      </div>
 
-      {hint && <div className="bg-amber-900/20 border border-amber-900/50 rounded-xl p-2.5 mb-4 text-center"><p className="text-xs text-amber-400 font-semibold">{hint}</p></div>}
+      {hint && <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 mb-4 text-center"><p className="text-[11px] text-amber-300 font-bold">{hint}</p></div>}
 
-      {/* START */}
-      <GradButton onClick={tracking ? stop : start} gradient={tracking ? "from-red-600 to-red-500" : "from-green-600 to-emerald-500"} className="w-full py-4 text-lg tracking-wide mb-6">
-        {tracking ? "⏹ STOP & SAVE" : "▶ START TRACKING"}
-      </GradButton>
+      {/* START/STOP */}
+      <button onClick={tracking ? stop : start}
+        className={`press w-full py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 border transition-all ${
+          tracking
+            ? "bg-red-500/15 border-red-500/30 text-red-300"
+            : "bg-green-500/15 border-green-500/30 text-green-300"
+        }`}>
+        {tracking ? <><Square size={18} /> STOP & SAVE</> : <><Play size={18} fill="currentColor" /> START TRACKING</>}
+      </button>
 
       {/* WEEKLY CHART */}
-      <SectionCard className="p-4 mb-6">
-        <CardTitle emoji="📈" gradient="bg-gradient-to-br from-blue-500 to-indigo-600" title="Your speed journey" />
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-5 mb-5">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
+            <TrendingUp size={14} strokeWidth={2.2} />
+          </span>
+          <p className="text-xs font-black text-slate-400">YOUR SPEED JOURNEY</p>
+        </div>
         <div className="flex items-end justify-between gap-2 h-24">
           {weekChart.map((w, i) => (
             <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <span className="text-[9px] text-slate-400 font-bold">{w.speed > 0 ? w.speed : ""}</span>
-              <div className={`w-full rounded-t-lg bg-gradient-to-t ${i === 5 ? "from-green-600 to-green-400" : "from-blue-600 to-blue-400"}`}
+              <span className="text-[9px] text-slate-500 font-black">{w.speed > 0 ? w.speed : ""}</span>
+              <div className={`w-full rounded-t-lg ${i === 5 ? "bg-green-500" : "bg-blue-500"}`}
                 style={{ height: `${Math.max((w.speed / maxSpeed) * 70, w.speed > 0 ? 8 : 2)}px` }} />
-              <span className="text-[9px] text-slate-500">{w.label}</span>
+              <span className="text-[9px] text-slate-600 font-bold">{w.label}</span>
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-slate-500 mt-2 text-center">Higher bars = faster you! 🚀</p>
-      </SectionCard>
+        <p className="text-[10px] text-slate-600 mt-2 text-center font-bold">Higher bars = faster you!</p>
+      </div>
 
       {/* LAST RUN */}
       {last && (
-        <SectionCard className="p-4 mb-6">
-          <div className="flex justify-between items-center text-sm font-black mb-2"><span>🏁 Run Saved!</span><span className="text-slate-400">{fmtTime(last.sec)}</span></div>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
+          <div className="flex justify-between items-center text-sm font-black mb-3">
+            <span className="flex items-center gap-2">
+              <Flag size={15} className="text-green-400" />
+              Run Saved!
+            </span>
+            <span className="text-slate-500 text-xs">{fmtTime(last.sec)}</span>
+          </div>
           {last.coins > 0 ? (
-            <div className="bg-green-900/30 border border-green-800 rounded-xl p-3 text-center text-green-400 text-sm font-bold mb-2">✅ COMPLETED {last.label} → +{last.coins} 🪙</div>
+            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3 text-center text-green-300 text-sm font-black mb-2 flex items-center justify-center gap-1.5">
+              <Coins size={15} />
+              COMPLETED {last.label} → +{last.coins} coins
+            </div>
           ) : (
-            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 text-center text-slate-400 text-sm font-bold mb-2">⚠️ Run ≥1 km to earn coins (0 🪙)</div>
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 text-center text-slate-400 text-sm font-bold mb-2">
+              Run ≥1 km to earn coins (0 coins)
+            </div>
           )}
-          {coachTip && <div className="bg-violet-900/20 border border-violet-700/40 rounded-xl p-3 text-xs text-violet-200 whitespace-pre-wrap">{coachTip}</div>}
-        </SectionCard>
+          {coachTip && <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl p-3 text-xs text-violet-200 whitespace-pre-wrap font-semibold">{coachTip}</div>}
+        </div>
       )}
 
       {/* PB MODAL */}
       {pbFlash && (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border-2 border-amber-500 rounded-3xl p-8 text-center max-w-sm w-full shadow-2xl">
-            <p className="text-7xl mb-4 animate-bounce">🏆</p>
+          <div className="bg-slate-900 border-2 border-amber-500/40 rounded-3xl p-8 text-center max-w-sm w-full">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-amber-500/20 flex items-center justify-center">
+              <Trophy size={40} className="text-amber-400 animate-bounce" />
+            </div>
             <p className="text-2xl font-black text-amber-400 mb-2">PERSONAL BEST!</p>
-            <p className="text-white font-bold mb-6">{pbFlash}</p>
-            <GradButton onClick={() => setPbFlash("")} gradient="from-amber-500 to-amber-400" className="w-full py-3.5 text-slate-900">🚀 LET&apos;S GO!</GradButton>
+            <p className="text-white font-bold mb-6 text-sm">{pbFlash}</p>
+            <button onClick={() => setPbFlash("")} className="press w-full py-3.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-sm font-black text-amber-300 flex items-center justify-center gap-1.5">
+              <Rocket size={16} /> LET&apos;S GO!
+            </button>
           </div>
         </div>
       )}
