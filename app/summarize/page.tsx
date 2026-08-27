@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { IconTile, GradButton, EmptyState, Chip } from "@/app/components/ui";
+import { Brain, Sparkles, Pin, Camera, Download, Share2, Image as ImageIcon } from "lucide-react";
+import { EmptyState } from "@/app/components/ui";
 
 type MapData = {
   center: string;
@@ -38,13 +39,7 @@ const DESIGN_NAMES = [
   "Cluster Groups", "3×3 Grid", "Corner Spread", "Spiral",
 ];
 
-function wrapText(
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  maxW: number,
-  font: string,
-  maxLines: number
-): string[] {
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxW: number, font: string, maxLines: number): string[] {
   ctx.font = font;
   const words = String(text).split(/\s+/).filter(Boolean);
   const lines: string[] = [];
@@ -52,10 +47,7 @@ function wrapText(
   for (const wd of words) {
     const test = cur ? cur + " " + wd : wd;
     if (!cur || ctx.measureText(test).width <= maxW) cur = test;
-    else {
-      lines.push(cur);
-      cur = wd;
-    }
+    else { lines.push(cur); cur = wd; }
   }
   if (cur) lines.push(cur);
   if (lines.length > maxLines) {
@@ -70,29 +62,20 @@ function wrapText(
 
 function drawMap(map: MapData, title: string, designOverride?: number): string {
   const canvas = document.createElement("canvas");
-  canvas.width = 1080;
-  canvas.height = 1080;
+  canvas.width = 1080; canvas.height = 1080;
   const ctx = canvas.getContext("2d");
   if (!ctx) return "";
-
-  ctx.fillStyle = "#020617";
-  ctx.fillRect(0, 0, 1080, 1080);
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  ctx.fillStyle = "#0f172a";
-  ctx.fillRect(0, 0, 1080, 90);
+  ctx.fillStyle = "#020617"; ctx.fillRect(0, 0, 1080, 1080);
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillStyle = "#0f172a"; ctx.fillRect(0, 0, 1080, 90);
   ctx.fillStyle = "#ffffff";
   const tLine = wrapText(ctx, "🧠 " + (title || "Summary"), 1000, "bold 36px sans-serif", 1);
   ctx.fillText(tLine[0], 540, 48);
-
   const design = designOverride ?? (hashStr(title + map.center) % 20);
   const pal = PALETTES[design % PALETTES.length];
-
   type Node = { x: number; y: number; lines: string[]; w: number; h: number; bg: string; font: string; lh: number; sub?: string[] };
   const nodes: Node[] = [];
   const edges: { a: number; b: number; color: string; w: number }[] = [];
-
   const addNode = (x: number, y: number, text: string, bg: string, font: string, maxW: number, lh: number, maxLines: number, sub?: string[]) => {
     const lines = wrapText(ctx, text, maxW, font, maxLines);
     const subLines = (sub || []).map((s) => wrapText(ctx, s, maxW, "18px sans-serif", 1)[0]);
@@ -106,11 +89,9 @@ function drawMap(map: MapData, title: string, designOverride?: number): string {
     nodes.push({ x: cx, y: cy, lines, w, h, bg, font, lh, sub: subLines });
     return nodes.length - 1;
   };
-
   const branches = (map.branches || []).slice(0, 6);
   const n = Math.max(branches.length, 1);
   let centerIdx = -1;
-
   if (design === 0) {
     centerIdx = addNode(540, 560, map.center, "#f59e0b", "bold 28px sans-serif", 340, 34, 2);
     branches.forEach((b, i) => {
@@ -193,12 +174,8 @@ function drawMap(map: MapData, title: string, designOverride?: number): string {
   } else if (design === 7) {
     centerIdx = addNode(540, 200, map.center, "#f59e0b", "bold 28px sans-serif", 500, 34, 2);
     const colW = 1000 / Math.max(n, 1);
-    ctx.strokeStyle = "#475569";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(80, 540);
-    ctx.lineTo(1000, 540);
-    ctx.stroke();
+    ctx.strokeStyle = "#475569"; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(80, 540); ctx.lineTo(1000, 540); ctx.stroke();
     branches.forEach((b, i) => {
       const x = 80 + colW * (i + 0.5);
       const top = i % 2 === 0;
@@ -210,8 +187,7 @@ function drawMap(map: MapData, title: string, designOverride?: number): string {
     centerIdx = addNode(540, 540, map.center, "#f59e0b", "bold 28px sans-serif", 300, 34, 2);
     branches.forEach((b, i) => {
       const a = (i / n) * Math.PI * 2 - Math.PI / 2;
-      const rx = 380;
-      const ry = 250;
+      const rx = 380, ry = 250;
       const x = 540 + Math.cos(a) * rx * (Math.abs(Math.cos(a)) > 0.5 ? 1 : 0.7);
       const y = 540 + Math.sin(a) * ry * (Math.abs(Math.sin(a)) > 0.5 ? 1 : 0.7);
       const bi = addNode(x, y, b.name, pal[i % 6], "bold 20px sans-serif", 240, 26, 2);
@@ -329,21 +305,13 @@ function drawMap(map: MapData, title: string, designOverride?: number): string {
       prev = bi;
     });
   }
-
   edges.forEach((e) => {
-    ctx.strokeStyle = e.color;
-    ctx.lineWidth = e.w;
-    ctx.beginPath();
-    ctx.moveTo(nodes[e.a].x, nodes[e.a].y);
-    ctx.lineTo(nodes[e.b].x, nodes[e.b].y);
-    ctx.stroke();
+    ctx.strokeStyle = e.color; ctx.lineWidth = e.w;
+    ctx.beginPath(); ctx.moveTo(nodes[e.a].x, nodes[e.a].y); ctx.lineTo(nodes[e.b].x, nodes[e.b].y); ctx.stroke();
   });
-
   nodes.forEach((nd) => {
     ctx.fillStyle = nd.bg;
-    ctx.beginPath();
-    ctx.roundRect(nd.x - nd.w / 2, nd.y - nd.h / 2, nd.w, nd.h, 16);
-    ctx.fill();
+    ctx.beginPath(); ctx.roundRect(nd.x - nd.w / 2, nd.y - nd.h / 2, nd.w, nd.h, 16); ctx.fill();
     ctx.fillStyle = "#ffffff";
     const subCount = nd.sub?.length || 0;
     const contentH = nd.lines.length * nd.lh + subCount * 24;
@@ -357,7 +325,6 @@ function drawMap(map: MapData, title: string, designOverride?: number): string {
       nd.sub.forEach((ln) => { ctx.fillText("• " + ln, nd.x, yy + 8); yy += 24; });
     }
   });
-
   return canvas.toDataURL("image/png");
 }
 
@@ -390,8 +357,7 @@ export default function SummarizePage() {
           let { width, height } = image;
           if (width > height) { if (width > maxSize) { height *= maxSize / width; width = maxSize; } }
           else { if (height > maxSize) { width *= maxSize / height; height = maxSize; } }
-          canvas.width = width;
-          canvas.height = height;
+          canvas.width = width; canvas.height = height;
           canvas.getContext("2d")?.drawImage(image, 0, 0, width, height);
           resolve(canvas.toDataURL("image/jpeg", 0.8));
         };
@@ -412,20 +378,11 @@ export default function SummarizePage() {
     setError("");
     setResult(null);
     try {
-      const res = await fetch("/api/summarize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: text || undefined,
-          image: img || undefined,
-        }),
-      });
+      const res = await fetch("/api/summarize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text || undefined, image: img || undefined }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "failed");
       setResult(data);
-      if (data.map) {
-        setMapImg(drawMap(data.map, data.title || "Summary", designPick ?? undefined));
-      }
+      if (data.map) setMapImg(drawMap(data.map, data.title || "Summary", designPick ?? undefined));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed. Try again.");
     }
@@ -435,9 +392,7 @@ export default function SummarizePage() {
   const download = () => {
     if (!mapImg) return;
     const a = document.createElement("a");
-    a.href = mapImg;
-    a.download = "summary-mindmap.png";
-    a.click();
+    a.href = mapImg; a.download = "summary-mindmap.png"; a.click();
   };
 
   const share = async () => {
@@ -459,22 +414,28 @@ export default function SummarizePage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-500 via-teal-600 to-blue-600 p-5 shadow-2xl shadow-teal-900/30">
-        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
-        <div className="relative flex items-center gap-3">
-          <span className={`w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg ${loading ? "animate-pulse" : ""}`}>🧠</span>
+      {/* 🌆 CALM HERO */}
+      <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-500 via-teal-600 to-blue-600 p-5 shadow-xl shadow-teal-900/20">
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+        <div className="relative flex items-center gap-4">
+          <span className={`w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center ${loading ? "animate-pulse" : ""}`}>
+            <Brain size={22} strokeWidth={2.2} className="text-white" />
+          </span>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-black text-white leading-tight">Summarize Anything</h1>
-            <p className="text-[10px] text-white/80 font-semibold">
+            <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Summarize Anything</h1>
+            <p className="text-[11px] text-white/75 font-semibold mt-0.5">
               AI picks optimal points (5-10) + draws mind-map (20 designs!)
             </p>
           </div>
         </div>
       </div>
 
-      <form onSubmit={generate} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5 grid gap-3 shadow-lg shadow-black/30">
+      {/* 📝 FORM */}
+      <form onSubmit={generate} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5 grid gap-3">
         <div className="flex items-center gap-2 mb-1">
-          <IconTile emoji="✨" gradient="bg-gradient-to-br from-cyan-500 to-teal-600" size="sm" />
+          <span className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
+            <Sparkles size={16} strokeWidth={2.2} />
+          </span>
           <p className="font-black text-sm text-white">What to summarize?</p>
         </div>
         <textarea
@@ -485,44 +446,51 @@ export default function SummarizePage() {
           className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-cyan-500"
         />
 
-        <label className="block bg-slate-800 border-2 border-dashed border-slate-700 rounded-xl p-4 text-center cursor-pointer hover:border-cyan-500/50 transition-colors">
-          <span className="text-3xl">📷</span>
-          <p className="text-sm text-slate-400 mt-1 font-semibold">
+        <label className="press block bg-slate-800 border-2 border-dashed border-slate-700 hover:border-cyan-500/40 rounded-xl p-4 text-center cursor-pointer transition-colors">
+          <span className="w-12 h-12 mx-auto rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
+            <Camera size={22} strokeWidth={2.2} />
+          </span>
+          <p className="text-sm text-slate-400 mt-2 font-bold">
             {img ? "Photo attached ✅ (tap to change)" : "or tap to add photo of notes"}
           </p>
           <input type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
         </label>
         {img && <img src={img} alt="notes" className="rounded-xl max-h-52 object-cover" />}
 
-        <GradButton
+        <button
           type="submit"
-          gradient="from-cyan-500 to-teal-600"
           disabled={loading || (!text && !img)}
-          className="w-full py-3.5 text-sm"
+          className="press w-full py-3.5 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-sm font-black text-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
         >
-          {loading ? "🤖 AI is summarizing..." : "⚡ Summarize + Draw Map"}
-        </GradButton>
+          <Sparkles size={15} />
+          {loading ? "AI is summarizing..." : "Summarize + Draw Map"}
+        </button>
       </form>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/40 rounded-2xl p-3 mb-4 text-center">
+        <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-3 mb-4 text-center">
           <p className="text-sm font-bold text-red-300">❌ {error}</p>
         </div>
       )}
 
       {result && (
-        <div className="grid gap-5">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg shadow-black/30">
+        <div className="grid gap-4">
+          {/* POINTS */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
             <div className="flex items-center gap-2 mb-3">
-              <IconTile emoji="📌" gradient="bg-gradient-to-br from-amber-500 to-orange-600" size="sm" />
-              <h3 className="font-black text-base text-white">{result.title}</h3>
-              <Chip color="amber">{result.points.length} points</Chip>
+              <span className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                <Pin size={15} strokeWidth={2.2} />
+              </span>
+              <h3 className="font-black text-base text-white flex-1">{result.title}</h3>
+              <span className="text-[9px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-md">
+                {result.points.length} points
+              </span>
             </div>
             <div className="grid gap-2">
               {(result.points || []).map((p, i) => (
                 <div key={i} className="flex gap-3 items-start bg-slate-800/60 rounded-xl p-3">
-                  <span className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black text-white bg-gradient-to-br ${
-                    i < 3 ? "from-amber-500 to-orange-600" : "from-slate-600 to-slate-700"
+                  <span className={`shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black text-white ${
+                    i < 3 ? "bg-gradient-to-br from-amber-500 to-orange-600" : "bg-slate-700"
                   }`}>
                     {i + 1}
                   </span>
@@ -532,25 +500,30 @@ export default function SummarizePage() {
             </div>
           </div>
 
+          {/* MAP */}
           {mapImg && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg shadow-black/30">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-3">
-                <IconTile emoji="🧠" gradient="bg-gradient-to-br from-violet-500 to-fuchsia-600" size="sm" />
-                <h3 className="font-black text-base text-white">Memory Map</h3>
-                <Chip color="violet">Design {designPick !== null ? designPick : "auto"}</Chip>
+                <span className="w-8 h-8 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center">
+                  <Brain size={15} strokeWidth={2.2} />
+                </span>
+                <h3 className="font-black text-base text-white flex-1">Memory Map</h3>
+                <span className="text-[9px] font-black text-violet-300 bg-violet-500/10 border border-violet-500/20 px-2 py-1 rounded-md">
+                  Design {designPick !== null ? designPick : "auto"}
+                </span>
               </div>
               <img src={mapImg} alt="mind map" className="rounded-xl w-full" />
 
               <div className="mt-4">
-                <p className="text-[10px] font-black text-slate-400 mb-2">🎨 TRY A DIFFERENT LAYOUT:</p>
-                <div className="grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto">
+                <p className="text-[10px] font-black text-slate-500 mb-2">🎨 TRY A DIFFERENT LAYOUT</p>
+                <div className="grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto [scrollbar-width:thin]">
                   {DESIGN_NAMES.map((name, i) => (
                     <button
                       key={i}
                       onClick={() => redrawWithDesign(i)}
                       className={`press px-2 py-2 rounded-lg text-[10px] font-black transition-all ${
                         designPick === i
-                          ? "bg-gradient-to-br from-cyan-500 to-teal-600 text-white shadow-lg"
+                          ? "bg-cyan-500/20 border border-cyan-500/40 text-cyan-300"
                           : "bg-slate-800 border border-slate-700 text-slate-400 hover:bg-slate-700"
                       }`}
                     >
@@ -561,11 +534,11 @@ export default function SummarizePage() {
               </div>
 
               <div className="flex gap-2 mt-4">
-                <GradButton onClick={download} gradient="from-cyan-500 to-teal-600" className="flex-1 py-3 text-sm">
-                  📥 Download
-                </GradButton>
-                <button onClick={share} className="press flex-1 py-3 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-sm font-black">
-                  📤 Share
+                <button onClick={download} className="press flex-1 py-3 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-sm font-black text-cyan-300 flex items-center justify-center gap-1.5">
+                  <Download size={15} /> Download
+                </button>
+                <button onClick={share} className="press flex-1 py-3 rounded-xl bg-slate-800 border border-slate-700 text-sm font-black text-slate-300 flex items-center justify-center gap-1.5">
+                  <Share2 size={15} /> Share
                 </button>
               </div>
             </div>
@@ -579,7 +552,7 @@ export default function SummarizePage() {
         </div>
       )}
 
-      <Link href="/study-tracker" className="inline-block mt-6 text-sm text-slate-400 hover:text-white press font-semibold">
+      <Link href="/study" className="inline-block mt-6 text-sm text-slate-500 hover:text-white press font-bold">
         ← Back to Study
       </Link>
     </main>
