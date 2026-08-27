@@ -7,7 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ProgressRing, IconTile, GradButton, EmptyState } from "@/app/components/ui";
+import { Dumbbell, Flame, Bell, BellOff, Plus, Pencil, X, Check, AlarmClock } from "lucide-react";
+import { ProgressRing, GradButton, EmptyState } from "@/app/components/ui";
 
 type Workout = {
   id: string;
@@ -18,23 +19,9 @@ type Workout = {
   session_date: string;
 };
 
-function toLocalISO(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-function addDays(dateStr: string, days: number) {
-  const d = new Date(dateStr + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return toLocalISO(d);
-}
-function calcStreak(dates: Set<string>, today: string) {
-  let streak = 0;
-  let cursor = dates.has(today) ? today : addDays(today, -1);
-  while (dates.has(cursor)) { streak += 1; cursor = addDays(cursor, -1); }
-  return streak;
-}
+function toLocalISO(d: Date) { const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, "0"); const day = String(d.getDate()).padStart(2, "0"); return `${y}-${m}-${day}`; }
+function addDays(dateStr: string, days: number) { const d = new Date(dateStr + "T00:00:00"); d.setDate(d.getDate() + days); return toLocalISO(d); }
+function calcStreak(dates: Set<string>, today: string) { let streak = 0; let cursor = dates.has(today) ? today : addDays(today, -1); while (dates.has(cursor)) { streak += 1; cursor = addDays(cursor, -1); } return streak; }
 
 export default function WorkoutPage() {
   const today = toLocalISO(new Date());
@@ -151,16 +138,18 @@ export default function WorkoutPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 HERO */}
-      <div className="relative mb-4 overflow-hidden rounded-2xl bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 p-4 shadow-2xl shadow-emerald-900/30">
-        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
-        <div className="relative flex items-center gap-3">
-          <span className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg">🏋️</span>
+      {/* 🌆 CALM HERO */}
+      <div className="relative mb-4 overflow-hidden rounded-3xl bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 p-5 shadow-xl shadow-emerald-900/20">
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+        <div className="relative flex items-center gap-4">
+          <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
+            <Dumbbell size={22} strokeWidth={2.2} className="text-white" />
+          </span>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-black text-white leading-tight">Workout Log</h1>
-            <p className="text-[10px] text-white/80 font-semibold">
+            <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Workout Log</h1>
+            <p className="text-[11px] text-white/75 font-semibold mt-0.5 flex items-center gap-1.5">
               {date === today ? "Today" : date} • {total} min
-              {streak > 0 && <span className="text-amber-200"> • 🔥 {streak}d streak</span>}
+              {streak > 0 && <span className="flex items-center gap-0.5 text-amber-300"><Flame size={11} /> {streak}</span>}
             </p>
           </div>
           <ProgressRing pct={pct} size={56} stroke={6} color="#ffffff" track="rgba(0,0,0,0.25)" />
@@ -171,17 +160,18 @@ export default function WorkoutPage() {
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <button
           onClick={toggleReminders}
-          className={`press px-3 py-2 rounded-xl text-xs font-black whitespace-nowrap border ${
-            remindersOn ? "bg-green-600/20 border-green-500/40 text-green-300" : "bg-slate-900 border-slate-800 text-slate-400"
+          className={`press px-3 py-2 rounded-xl text-xs font-black whitespace-nowrap border flex items-center gap-1.5 ${
+            remindersOn ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-slate-900 border-slate-800 text-slate-500"
           }`}
         >
-          ⏰ {remindersOn ? "Reminders ON" : "Reminders OFF"}
+          {remindersOn ? <Bell size={13} /> : <BellOff size={13} />}
+          {remindersOn ? "Reminders ON" : "Reminders OFF"}
         </button>
         <div className="flex-1 flex items-center gap-1.5 justify-end">
-          <button onClick={() => setDate(addDays(date, -1))} className="press px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm">←</button>
+          <button onClick={() => setDate(addDays(date, -1))} className="press px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm text-slate-400">←</button>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
             className="px-2 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs outline-none focus:border-emerald-500" />
-          <button onClick={() => setDate(addDays(date, 1))} className="press px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm">→</button>
+          <button onClick={() => setDate(addDays(date, 1))} className="press px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-sm text-slate-400">→</button>
           {date !== today && (
             <button onClick={() => setDate(today)} className="press px-3 py-2 rounded-xl bg-emerald-600 text-xs font-black">Today</button>
           )}
@@ -189,20 +179,20 @@ export default function WorkoutPage() {
       </div>
 
       {/* COMPLETION BAR */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4 shadow-lg shadow-black/30">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
         <div className="flex justify-between items-center mb-2">
-          <p className="text-xs font-black text-slate-400">✅ DAY COMPLETION</p>
+          <p className="text-xs font-black text-slate-400">DAY COMPLETION</p>
           <p className="text-xs font-black text-slate-300">{doneCount}/{logs.length} • {pct}%</p>
         </div>
-        <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-          <div className="h-full bg-gradient-to-r from-emerald-500 to-green-400 rounded-full transition-all" style={{ width: `${pct}%` }} />
+        <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
         </div>
       </div>
 
       {/* ADD FORM */}
-      <form onSubmit={addLog} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4 grid gap-3 shadow-lg shadow-black/30">
+      <form onSubmit={addLog} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4 grid gap-3">
         <div className="flex items-center gap-2 mb-1">
-          <IconTile emoji="💪" gradient="bg-gradient-to-br from-emerald-500 to-green-600" size="sm" />
+          <span className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center"><Dumbbell size={16} strokeWidth={2.2} /></span>
           <p className="font-black text-sm text-white">Log a workout</p>
         </div>
         <input value={workout} onChange={(e) => setWorkout(e.target.value)} placeholder="Workout (e.g. Pushups, Bench Press)" required className={inputCls} />
@@ -210,21 +200,21 @@ export default function WorkoutPage() {
           <input type="number" min="1" value={minutes} onChange={(e) => setMinutes(e.target.value)} placeholder="Minutes" required className={inputCls} />
           <div className="relative">
             {reminderTime === "" && (
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">⏰ Time</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none flex items-center gap-1 text-sm"><AlarmClock size={13} /> Time</span>
             )}
             <input type="time" value={reminderTime} onChange={(e) => setReminderTime(e.target.value)}
               className={`${inputCls} ${reminderTime === "" ? "text-transparent" : ""}`} title="Reminder time (optional)" />
           </div>
         </div>
         <GradButton type="submit" gradient="from-emerald-500 to-green-600" className="w-full py-3 text-sm">
-          ➕ Add Workout
+          <span className="flex items-center justify-center gap-1.5"><Plus size={15} /> Add Workout</span>
         </GradButton>
       </form>
 
       {/* WORKOUT LOGS */}
-      <div className="grid gap-3">
+      <div className="grid gap-2">
         {logs.map((l) => (
-          <div key={l.id} className={`bg-slate-900 border rounded-2xl p-4 shadow-lg shadow-black/30 ${l.completed ? "border-green-500/30" : "border-slate-800"}`}>
+          <div key={l.id} className={`bg-slate-900 border rounded-2xl p-4 ${l.completed ? "border-green-500/20" : "border-slate-800"}`}>
             {editingId === l.id ? (
               <div className="flex flex-wrap gap-2">
                 <input value={editWorkout} onChange={(e) => setEditWorkout(e.target.value)}
@@ -234,32 +224,32 @@ export default function WorkoutPage() {
                 <input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)}
                   className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-sm" />
                 <button onClick={saveEdit} className="press px-4 py-2 rounded-xl bg-amber-600 text-sm font-black">Save</button>
-                <button onClick={() => setEditingId(null)} className="press px-4 py-2 rounded-xl bg-slate-800 text-sm">Cancel</button>
+                <button onClick={() => setEditingId(null)} className="press px-4 py-2 rounded-xl bg-slate-800 text-sm text-slate-400">Cancel</button>
               </div>
             ) : (
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <button
                     onClick={() => toggleLog(l.id, l.completed)}
-                    className={`press w-7 h-7 rounded-lg border-2 flex items-center justify-center shrink-0 ${
-                      l.completed ? "bg-green-500 border-green-500" : "border-slate-600"
+                    className={`press w-7 h-7 rounded-md border-2 flex items-center justify-center shrink-0 ${
+                      l.completed ? "bg-green-500 border-green-500" : "border-slate-700"
                     }`}
                   >
-                    {l.completed && <span className="text-xs text-white font-black">✓</span>}
+                    {l.completed && <Check size={14} strokeWidth={3} className="text-white" />}
                   </button>
                   <div className="min-w-0">
                     <p className={`font-bold text-sm truncate ${l.completed ? "line-through text-slate-500" : "text-white"}`}>
                       {l.workout_type}
                     </p>
-                    <p className="text-[10px] text-slate-400 font-semibold">
-                      💪 {l.duration_minutes} min
-                      {l.reminder_time && <span className="ml-2">⏰ {l.reminder_time.slice(0, 5)}</span>}
+                    <p className="text-[10px] text-slate-500 font-semibold flex items-center gap-1.5 mt-0.5">
+                      {l.duration_minutes} min
+                      {l.reminder_time && <span className="flex items-center gap-0.5"><AlarmClock size={10} /> {l.reminder_time.slice(0, 5)}</span>}
                     </p>
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <button onClick={() => startEdit(l)} className="press text-amber-400 text-xs font-bold">Edit</button>
-                  <button onClick={() => deleteLog(l.id)} className="press text-red-400 text-xs font-bold">✕</button>
+                  <button onClick={() => startEdit(l)} className="press w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-amber-400"><Pencil size={13} /></button>
+                  <button onClick={() => deleteLog(l.id)} className="press w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-red-400"><X size={14} /></button>
                 </div>
               </div>
             )}
@@ -272,7 +262,7 @@ export default function WorkoutPage() {
         )}
       </div>
 
-      <Link href="/gym-log" className="inline-block mt-6 text-sm text-slate-400 hover:text-white press font-semibold">
+      <Link href="/gym-log" className="inline-block mt-6 text-sm text-slate-500 hover:text-white press font-semibold">
         ← Back to Gym
       </Link>
     </main>
