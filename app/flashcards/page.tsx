@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconTile, GradButton, EmptyState, Chip } from "@/app/components/ui";
+import { Layers, Plus, Play, X, Check, BookOpen, RotateCw, Trophy } from "lucide-react";
+import { EmptyState } from "@/app/components/ui";
 
 type Card = { id: string; subject: string; front: string; back: string };
 
@@ -24,8 +25,7 @@ export default function FlashcardsPage() {
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id;
     if (!userId) { router.push("/login"); return; }
-    const { data } = await supabase
-      .from("flashcards").select("*").eq("user_id", userId).order("created_at");
+    const { data } = await supabase.from("flashcards").select("*").eq("user_id", userId).order("created_at");
     setCards(data || []);
   };
 
@@ -36,9 +36,7 @@ export default function FlashcardsPage() {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
     if (!userId) return;
-    await supabase.from("flashcards").insert({
-      user_id: userId, subject: subject || "General", front, back,
-    });
+    await supabase.from("flashcards").insert({ user_id: userId, subject: subject || "General", front, back });
     setFront(""); setBack(""); setSubject("");
     await load();
   };
@@ -59,10 +57,7 @@ export default function FlashcardsPage() {
   const answer = (knew: boolean) => {
     if (queue.length === 0) return;
     const [current, ...rest] = queue;
-    setStats((s) => ({
-      knew: s.knew + (knew ? 1 : 0),
-      forgot: s.forgot + (knew ? 0 : 1),
-    }));
+    setStats((s) => ({ knew: s.knew + (knew ? 1 : 0), forgot: s.forgot + (knew ? 0 : 1) }));
     setFlipped(false);
     if (knew) setQueue(rest);
     else setQueue([...rest, current]);
@@ -76,52 +71,50 @@ export default function FlashcardsPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 HERO */}
+      {/* 🌆 CALM HERO */}
       {!reviewing && (
         <>
-          <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-pink-600 p-5 shadow-2xl shadow-fuchsia-900/30">
-            <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
-            <div className="relative flex items-center gap-3">
-              {/* tilted card deck */}
-              <div className="relative w-14 h-14 shrink-0">
-                <div className="absolute inset-0 rounded-xl bg-white/10 rotate-[-8deg]" />
-                <div className="absolute inset-0 rounded-xl bg-white/20 rotate-[-4deg]" />
-                <div className="absolute inset-0 rounded-xl bg-white/30 flex items-center justify-center text-3xl shadow-xl">🃏</div>
-              </div>
+          <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-pink-600 p-5 shadow-xl shadow-fuchsia-900/20">
+            <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+            <div className="relative flex items-center gap-4">
+              <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
+                <Layers size={22} strokeWidth={2.2} className="text-white" />
+              </span>
               <div className="flex-1 min-w-0">
-                <h1 className="text-lg font-black text-white leading-tight">Flashcards</h1>
-                <p className="text-[10px] text-white/80 font-semibold">
+                <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Flashcards</h1>
+                <p className="text-[11px] text-white/75 font-semibold mt-0.5">
                   {cards.length} cards • forgot cards repeat until known
                 </p>
               </div>
             </div>
           </div>
 
-          {/* 🎯 BIG START REVIEW BUTTON — the star */}
+          {/* 🎯 BIG START BUTTON */}
           {cards.length > 0 && (
-            <GradButton
+            <button
               onClick={startReview}
-              gradient="from-emerald-500 to-green-600"
-              className="w-full py-5 mb-5 text-base tracking-wide shadow-xl shadow-emerald-900/30"
+              className="press w-full mb-5 py-5 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-black text-base tracking-wide shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2"
             >
-              🎯 Start Review ({cards.length} cards)
-            </GradButton>
+              <Play size={20} fill="white" />
+              Start Review ({cards.length} cards)
+            </button>
           )}
         </>
       )}
 
       {/* 📝 ADD CARD FORM */}
       {!reviewing && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5 shadow-lg shadow-black/30">
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="flex items-center justify-between w-full"
-          >
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
+          <button onClick={() => setShowAddForm(!showAddForm)} className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
-              <IconTile emoji="✨" gradient="bg-gradient-to-br from-violet-500 to-fuchsia-600" size="sm" />
+              <span className="w-8 h-8 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center">
+                <Plus size={16} strokeWidth={2.2} />
+              </span>
               <p className="font-black text-sm text-white">{showAddForm ? "Add a card" : "Add a new card"}</p>
             </div>
-            <span className="text-slate-500 text-xl">{showAddForm ? "−" : "+"}</span>
+            <span className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400">
+              {showAddForm ? <X size={14} /> : <Plus size={14} />}
+            </span>
           </button>
 
           {showAddForm && (
@@ -141,9 +134,9 @@ export default function FlashcardsPage() {
                 placeholder="Answer (back)" required
                 className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500"
               />
-              <GradButton type="submit" gradient="from-violet-600 to-fuchsia-600" className="py-3 text-sm">
-                ➕ Add Card
-              </GradButton>
+              <button type="submit" className="press w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-sm font-black flex items-center justify-center gap-1.5">
+                <Plus size={15} /> Add Card
+              </button>
             </form>
           )}
         </div>
@@ -152,25 +145,24 @@ export default function FlashcardsPage() {
       {/* 📚 CARD LIST */}
       {!reviewing && (
         <>
-          <p className="text-xs font-black text-slate-400 mb-2 flex items-center gap-1.5">
-            <span className="w-6 h-6 rounded-lg bg-slate-800 flex items-center justify-center text-[10px]">📚</span>
-            YOUR DECK ({cards.length})
-          </p>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center">
+              <BookOpen size={14} strokeWidth={2.2} className="text-slate-400" />
+            </span>
+            <p className="text-xs font-black text-slate-400">YOUR DECK ({cards.length})</p>
+          </div>
           <div className="grid gap-2">
             {cards.map((c) => (
-              <div key={c.id} className="bg-slate-900 border border-slate-800 rounded-xl p-3 flex justify-between gap-3 shadow-md">
+              <div key={c.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Chip color="violet">{c.subject}</Chip>
-                  </div>
+                  <span className="inline-block px-2 py-0.5 rounded-md bg-violet-500/15 text-violet-300 text-[9px] font-black mb-1">
+                    {c.subject}
+                  </span>
                   <p className="font-bold text-sm text-white truncate">{c.front}</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5 truncate">{c.back}</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5 truncate">{c.back}</p>
                 </div>
-                <button
-                  onClick={() => deleteCard(c.id)}
-                  className="press text-red-400 text-xs font-bold shrink-0 self-start"
-                >
-                  ✕
+                <button onClick={() => deleteCard(c.id)} className="press w-8 h-8 shrink-0 self-start rounded-lg bg-slate-800 flex items-center justify-center text-red-400 hover:bg-red-500/20">
+                  <X size={14} />
                 </button>
               </div>
             ))}
@@ -183,32 +175,34 @@ export default function FlashcardsPage() {
         </>
       )}
 
-      {/* 🔄 REVIEW MODE — full screen focus */}
+      {/* 🔄 REVIEW MODE */}
       {reviewing && !reviewDone && currentCard && (
         <div className="max-w-md mx-auto">
           {/* stats chips */}
           <div className="flex justify-center gap-2 mb-4 flex-wrap">
-            <div className="bg-emerald-500/20 border border-emerald-500/40 px-3 py-1.5 rounded-full text-[11px] font-black text-emerald-300">
-              ✅ Knew {stats.knew}
+            <div className="bg-emerald-500/15 border border-emerald-500/30 px-3 py-1.5 rounded-full text-[11px] font-black text-emerald-400 flex items-center gap-1.5">
+              <Check size={12} /> Knew {stats.knew}
             </div>
-            <div className="bg-red-500/20 border border-red-500/40 px-3 py-1.5 rounded-full text-[11px] font-black text-red-300">
-              ❌ Forgot {stats.forgot}
+            <div className="bg-red-500/15 border border-red-500/30 px-3 py-1.5 rounded-full text-[11px] font-black text-red-400 flex items-center gap-1.5">
+              <X size={12} /> Forgot {stats.forgot}
             </div>
-            <div className="bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full text-[11px] font-black text-slate-300">
-              🃏 {queue.length} left
+            <div className="bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full text-[11px] font-black text-slate-300 flex items-center gap-1.5">
+              <RotateCw size={12} /> {queue.length} left
             </div>
           </div>
 
           {/* card */}
           <button
             onClick={() => setFlipped(!flipped)}
-            className="press w-full bg-gradient-to-br from-slate-900 to-slate-800 border-2 border-violet-500/40 rounded-3xl p-8 text-center min-h-[280px] shadow-2xl shadow-violet-900/30 flex flex-col justify-center"
+            className="press w-full bg-slate-900 border-2 border-violet-500/30 rounded-3xl p-8 text-center min-h-[280px] shadow-xl shadow-violet-900/20 flex flex-col justify-center"
           >
-            <Chip color="violet">{currentCard.subject}</Chip>
-            <p className={`text-2xl font-black mt-4 ${flipped ? "text-violet-200" : "text-white"}`}>
+            <span className="inline-block px-2.5 py-1 rounded-md bg-violet-500/15 text-violet-300 text-[10px] font-black mb-4">
+              {currentCard.subject}
+            </span>
+            <p className={`text-2xl font-black ${flipped ? "text-violet-200" : "text-white"}`}>
               {flipped ? currentCard.back : currentCard.front}
             </p>
-            <p className="text-xs text-slate-500 mt-6 font-semibold">
+            <p className="text-xs text-slate-500 mt-6 font-bold">
               {flipped ? "👇 Did you know it?" : "👆 Tap to flip"}
             </p>
           </button>
@@ -216,20 +210,18 @@ export default function FlashcardsPage() {
           {/* actions */}
           {flipped && (
             <div className="flex gap-3 mt-4">
-              <GradButton
+              <button
                 onClick={() => answer(false)}
-                gradient="from-red-600 to-rose-600"
-                className="flex-1 py-4 text-sm"
+                className="press flex-1 py-4 rounded-xl bg-red-500/15 border border-red-500/30 text-sm font-black text-red-300 flex items-center justify-center gap-1.5"
               >
-                ❌ Forgot
-              </GradButton>
-              <GradButton
+                <X size={16} /> Forgot
+              </button>
+              <button
                 onClick={() => answer(true)}
-                gradient="from-emerald-500 to-green-600"
-                className="flex-1 py-4 text-sm"
+                className="press flex-1 py-4 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-sm font-black text-emerald-300 flex items-center justify-center gap-1.5"
               >
-                ✅ Knew it
-              </GradButton>
+                <Check size={16} /> Knew it
+              </button>
             </div>
           )}
         </div>
@@ -237,40 +229,41 @@ export default function FlashcardsPage() {
 
       {/* 🎉 REVIEW COMPLETE */}
       {reviewDone && (
-        <div className="max-w-md mx-auto relative overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600/20 to-green-600/20 border-2 border-emerald-400/50 p-8 text-center shadow-2xl">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.08),_transparent_70%)]" />
+        <div className="max-w-md mx-auto relative overflow-hidden rounded-3xl bg-emerald-500/10 border-2 border-emerald-500/30 p-8 text-center">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.05),_transparent_70%)]" />
           <div className="relative">
-            <p className="text-6xl mb-3 animate-bounce">🎉</p>
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/20 flex items-center justify-center">
+              <Trophy size={32} className="text-emerald-400" />
+            </div>
             <p className="text-2xl font-black text-white mb-2">Deck mastered!</p>
-            <p className="text-xs text-emerald-200 font-semibold mb-5">Every card answered correctly</p>
+            <p className="text-xs text-emerald-200 font-bold mb-5">Every card answered correctly</p>
 
             <div className="grid grid-cols-3 gap-2 mb-6">
-              <div className="bg-emerald-500/20 border border-emerald-500/40 rounded-xl p-3">
+              <div className="bg-emerald-500/15 border border-emerald-500/30 rounded-xl p-3">
                 <p className="text-2xl font-black text-emerald-300">{stats.knew}</p>
                 <p className="text-[10px] font-black text-emerald-200/70">KNEW</p>
               </div>
-              <div className="bg-red-500/20 border border-red-500/40 rounded-xl p-3">
+              <div className="bg-red-500/15 border border-red-500/30 rounded-xl p-3">
                 <p className="text-2xl font-black text-red-300">{stats.forgot}</p>
                 <p className="text-[10px] font-black text-red-200/70">FORGOT</p>
               </div>
-              <div className="bg-amber-500/20 border border-amber-500/40 rounded-xl p-3">
+              <div className="bg-amber-500/15 border border-amber-500/30 rounded-xl p-3">
                 <p className="text-2xl font-black text-amber-300">{accuracy}%</p>
                 <p className="text-[10px] font-black text-amber-200/70">ACCURACY</p>
               </div>
             </div>
 
-            <GradButton
+            <button
               onClick={() => { setReviewDone(false); setQueue([]); }}
-              gradient="from-violet-600 to-fuchsia-600"
-              className="w-full py-3 text-sm"
+              className="press w-full py-3 rounded-xl bg-violet-600 text-sm font-black"
             >
               ← Back to cards
-            </GradButton>
+            </button>
           </div>
         </div>
       )}
 
-      <Link href="/study-tracker" className="inline-block mt-6 text-sm text-slate-400 hover:text-white press font-semibold">
+      <Link href="/study" className="inline-block mt-6 text-sm text-slate-500 hover:text-white press font-bold">
         ← Back to Study
       </Link>
     </main>
