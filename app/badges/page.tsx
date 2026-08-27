@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { Trophy, BookOpen, Dumbbell, ListChecks, Target, Award, Lock } from "lucide-react";
 
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -34,7 +35,10 @@ type Badge = { icon: string; name: string; desc: string; unlocked: boolean };
 
 const SECTIONS = [
   {
-    title: "📚 Study",
+    title: "Study",
+    icon: BookOpen,
+    color: "text-blue-400",
+    tint: "bg-blue-500/10 border-blue-500/20",
     items: [
       { id: "s1", icon: "📚", name: "Study Starter", desc: "First study session" },
       { id: "s2", icon: "📖", name: "Study Climber", desc: "10 study sessions" },
@@ -42,7 +46,10 @@ const SECTIONS = [
     ],
   },
   {
-    title: "💪 Gym",
+    title: "Gym",
+    icon: Dumbbell,
+    color: "text-orange-400",
+    tint: "bg-orange-500/10 border-orange-500/20",
     items: [
       { id: "g1", icon: "💪", name: "Gym Starter", desc: "First workout" },
       { id: "g2", icon: "🏋️", name: "Gym Climber", desc: "10 workouts" },
@@ -50,7 +57,10 @@ const SECTIONS = [
     ],
   },
   {
-    title: "✅ Habits",
+    title: "Habits",
+    icon: ListChecks,
+    color: "text-green-400",
+    tint: "bg-green-500/10 border-green-500/20",
     items: [
       { id: "h1", icon: "✅", name: "Habit Starter", desc: "First habit done" },
       { id: "h2", icon: "🌱", name: "Habit Climber", desc: "25 habits done" },
@@ -58,7 +68,10 @@ const SECTIONS = [
     ],
   },
   {
-    title: "🎯 Tasks",
+    title: "Tasks",
+    icon: Target,
+    color: "text-pink-400",
+    tint: "bg-pink-500/10 border-pink-500/20",
     items: [
       { id: "t1", icon: "🎯", name: "Task Starter", desc: "First task done" },
       { id: "t2", icon: "⚡", name: "Task Climber", desc: "10 tasks done" },
@@ -139,58 +152,97 @@ export default function BadgesPage() {
 
   const unlockedCount = earned.size + classic.filter((b) => b.unlocked).length;
   const total = 12 + classic.length;
+  const progress = total ? Math.round((unlockedCount / total) * 100) : 0;
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 md:p-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl bg-yellow-600/20 border border-yellow-500/40 flex items-center justify-center text-xl">🏆</span>
-          Badges
-        </h1>
-        <p className="text-slate-400">
-          {loading ? "Checking your achievements..." : `${unlockedCount} / ${total} unlocked`}
-        </p>
+    <main className="min-h-screen bg-slate-950 text-white p-4 pb-24 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+          <Trophy size={22} className="text-amber-400" />
+        </div>
+        <div className="flex-1">
+          <h1 className="text-xl font-bold text-white">Badges</h1>
+          <p className="text-xs text-slate-400 font-medium">
+            {loading ? "Checking your achievements..." : `${unlockedCount} / ${total} unlocked`}
+          </p>
+        </div>
       </div>
 
-      {SECTIONS.map((sec) => (
-        <div key={sec.title} className="mb-6">
-          <h2 className="font-bold text-lg mb-3">{sec.title}</h2>
-          <div className="grid grid-cols-3 gap-3">
-            {sec.items.map((b) => {
-              const un = earned.has(b.id);
-              return (
-                <div
-                  key={b.id}
-                  className={`rounded-xl p-4 text-center border ${
-                    un
-                      ? "bg-slate-900 border-yellow-500/40"
-                      : "bg-slate-900/40 border-slate-800 opacity-50"
-                  }`}
-                >
-                  <p className="text-3xl">{un ? b.icon : "🔒"}</p>
-                  <p className="font-bold mt-2 text-xs">{b.name}</p>
-                  <p className="text-[10px] text-slate-400 mt-1">{b.desc}</p>
-                </div>
-              );
-            })}
+      {/* Progress bar */}
+      {!loading && (
+        <div className="bg-slate-900 border border-slate-700 rounded-2xl p-4 mb-6">
+          <div className="flex justify-between text-xs mb-2">
+            <span className="font-semibold text-slate-400">Collection progress</span>
+            <span className="font-semibold text-amber-400">{progress}%</span>
+          </div>
+          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
           </div>
         </div>
-      ))}
+      )}
 
-      <h2 className="font-bold text-lg mb-3">🌟 Classic Achievements</h2>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {SECTIONS.map((sec) => {
+        const SecIcon = sec.icon;
+        return (
+          <div key={sec.title} className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <div className={`w-8 h-8 rounded-lg ${sec.tint} flex items-center justify-center`}>
+                <SecIcon size={16} className={sec.color} />
+              </div>
+              <h2 className="font-semibold text-base text-white">{sec.title}</h2>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {sec.items.map((b) => {
+                const un = earned.has(b.id);
+                return (
+                  <div
+                    key={b.id}
+                    className={`rounded-2xl p-4 text-center border transition-colors ${
+                      un
+                        ? "bg-slate-900 border-amber-500/30"
+                        : "bg-slate-900/40 border-slate-800 opacity-50"
+                    }`}
+                  >
+                    <div className={`w-12 h-12 mx-auto rounded-full flex items-center justify-center text-2xl ${
+                      un ? "bg-amber-500/10 border border-amber-500/20" : "bg-slate-800 border border-slate-700"
+                    }`}>
+                      {un ? b.icon : <Lock size={18} className="text-slate-500" />}
+                    </div>
+                    <p className="font-semibold mt-2 text-xs text-white">{b.name}</p>
+                    <p className="text-[10px] text-slate-500 mt-1 leading-snug">{b.desc}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Classic */}
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+          <Award size={16} className="text-amber-400" />
+        </div>
+        <h2 className="font-semibold text-base text-white">Classic Achievements</h2>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         {classic.map((b) => (
           <div
             key={b.name}
-            className={`rounded-xl p-5 text-center border ${
+            className={`rounded-2xl p-5 text-center border transition-colors ${
               b.unlocked
-                ? "bg-slate-900 border-yellow-500/40"
+                ? "bg-slate-900 border-amber-500/30"
                 : "bg-slate-900/40 border-slate-800 opacity-50"
             }`}
           >
-            <p className="text-4xl">{b.unlocked ? b.icon : "🔒"}</p>
-            <p className="font-bold mt-2 text-sm">{b.name}</p>
-            <p className="text-[11px] text-slate-400 mt-1">{b.desc}</p>
+            <div className={`w-14 h-14 mx-auto rounded-full flex items-center justify-center text-3xl ${
+              b.unlocked ? "bg-amber-500/10 border border-amber-500/20" : "bg-slate-800 border border-slate-700"
+            }`}>
+              {b.unlocked ? b.icon : <Lock size={20} className="text-slate-500" />}
+            </div>
+            <p className="font-semibold mt-3 text-sm text-white">{b.name}</p>
+            <p className="text-[11px] text-slate-500 mt-1 leading-snug">{b.desc}</p>
           </div>
         ))}
       </div>
