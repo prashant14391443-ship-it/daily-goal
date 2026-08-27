@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconTile, GradButton, Chip, EmptyState } from "@/app/components/ui";
+import { Home, Globe, Bot, Sparkles, Search, Users, Flag, UserPlus, Clock, ArrowRight, X, Building2 } from "lucide-react";
 
 type Community = {
   id: string;
@@ -127,167 +127,201 @@ export default function CommunityPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 HERO */}
-      <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-pink-600 via-fuchsia-600 to-violet-600 p-5 shadow-2xl shadow-fuchsia-900/30">
-        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-pink-300/20 rounded-full blur-3xl" />
+      {/* 🌆 CALM HERO */}
+      <div className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-pink-600 via-fuchsia-600 to-violet-600 p-5 shadow-xl shadow-fuchsia-900/20">
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
-          <div className="flex items-center justify-between gap-3">
-            <span className="w-12 h-12 shrink-0 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg">🏠</span>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center">
+              <Home size={22} strokeWidth={2.2} className="text-white" />
+            </div>
             {online > 0 && (
-              <div className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-xs font-black text-white border border-white/20 flex items-center gap-1.5 shrink-0">
+              <div className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-xs font-semibold text-white border border-white/20 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                 {online} online
               </div>
             )}
           </div>
-          <h1 className="text-xl font-black text-white mt-3">Community</h1>
-          <p className="text-[10px] text-white/80 font-semibold mt-1">Request → approved → chat & talk</p>
+          <h1 className="text-xl font-bold text-white">Community</h1>
+          <p className="text-xs text-white/75 font-medium mt-1">Request → approved → chat & talk</p>
         </div>
       </div>
 
       {/* 🎯 3 ACTION CARDS */}
-      <div className="grid gap-3 mb-5">
+      <div className="grid gap-3 mb-6">
         <Link
           href="/random-talk"
-          className="press group relative overflow-hidden rounded-2xl bg-gradient-to-r from-pink-600/20 to-rose-600/20 border-2 border-pink-500/40 p-4 flex items-center gap-3 shadow-lg shadow-black/30"
+          className="group bg-slate-900 border border-slate-700 hover:border-pink-500/40 rounded-2xl p-4 flex items-center gap-3 transition-colors"
         >
-          <IconTile emoji="🌍" gradient="bg-gradient-to-br from-pink-500 to-rose-600" size="lg" />
-          <div className="flex-1 min-w-0">
-            <p className="font-black text-sm text-white leading-tight">Talk to a Stranger</p>
-            <p className="text-[10px] text-pink-200 font-semibold mt-0.5">1-on-1 voice • practice English</p>
+          <div className="w-11 h-11 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center flex-shrink-0">
+            <Globe size={20} className="text-pink-400" />
           </div>
-          <span className="text-slate-400 text-lg">→</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-white leading-tight">Talk to a Stranger</p>
+            <p className="text-xs text-slate-400 mt-0.5">1-on-1 voice • practice English</p>
+          </div>
+          <ArrowRight size={18} className="text-slate-500 group-hover:text-pink-400 transition-colors flex-shrink-0" />
         </Link>
 
         <Link
           href="/speaking"
-          className="press group relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-600/20 to-violet-600/20 border-2 border-indigo-500/40 p-4 flex items-center gap-3 shadow-lg shadow-black/30"
+          className="group bg-slate-900 border border-slate-700 hover:border-indigo-500/40 rounded-2xl p-4 flex items-center gap-3 transition-colors"
         >
-          <IconTile emoji="🤖" gradient="bg-gradient-to-br from-indigo-500 to-violet-600" size="lg" />
-          <div className="flex-1 min-w-0">
-            <p className="font-black text-sm text-white leading-tight">Talk to AI</p>
-            <p className="text-[10px] text-indigo-200 font-semibold mt-0.5">Practice English, correct mistakes</p>
+          <div className="w-11 h-11 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center flex-shrink-0">
+            <Bot size={20} className="text-indigo-400" />
           </div>
-          <span className="text-slate-400 text-lg">→</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-white leading-tight">Talk to AI</p>
+            <p className="text-xs text-slate-400 mt-0.5">Practice English, correct mistakes</p>
+          </div>
+          <ArrowRight size={18} className="text-slate-500 group-hover:text-indigo-400 transition-colors flex-shrink-0" />
         </Link>
 
         <button
           onClick={() => setShowCreate(!showCreate)}
-          className="press group relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-600/20 to-orange-600/20 border-2 border-amber-500/40 p-4 flex items-center gap-3 shadow-lg shadow-black/30 w-full text-left"
+          className="group bg-slate-900 border border-slate-700 hover:border-amber-500/40 rounded-2xl p-4 flex items-center gap-3 transition-colors w-full text-left"
         >
-          <IconTile emoji="✨" gradient="bg-gradient-to-br from-amber-500 to-orange-600" size="lg" />
+          <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+            {showCreate ? <X size={20} className="text-amber-400" /> : <Sparkles size={20} className="text-amber-400" />}
+          </div>
           <div className="flex-1 min-w-0">
-            <p className="font-black text-sm text-white leading-tight">
+            <p className="font-semibold text-sm text-white leading-tight">
               {showCreate ? "Cancel Creation" : "Create My Community"}
             </p>
-            <p className="text-[10px] text-amber-200 font-semibold mt-0.5">Start your own space</p>
+            <p className="text-xs text-slate-400 mt-0.5">Start your own space</p>
           </div>
-          <span className="text-slate-400 text-lg">{showCreate ? "✕" : "→"}</span>
+          {showCreate ? (
+            <X size={18} className="text-slate-500 flex-shrink-0" />
+          ) : (
+            <ArrowRight size={18} className="text-slate-500 group-hover:text-amber-400 transition-colors flex-shrink-0" />
+          )}
         </button>
       </div>
 
       {/* 📝 CREATE FORM */}
       {showCreate && (
-        <form onSubmit={create} className="bg-slate-900 border border-amber-500/30 rounded-2xl p-4 mb-5 grid gap-3 shadow-lg shadow-black/30">
+        <form onSubmit={create} className="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-6 grid gap-3">
           <div className="flex items-center gap-2 mb-1">
-            <IconTile emoji="🏘️" gradient="bg-gradient-to-br from-amber-500 to-orange-600" size="sm" />
-            <p className="font-black text-sm text-white">New Community</p>
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+              <Building2 size={16} className="text-amber-400" />
+            </div>
+            <p className="font-semibold text-sm text-white">New Community</p>
           </div>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Community name (e.g. English Practice India)"
             required
-            className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-amber-500"
+            className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm focus:border-amber-500 focus:outline-none"
           />
           <input
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
             placeholder="What is it about?"
-            className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-amber-500"
+            className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm focus:border-amber-500 focus:outline-none"
           />
-          <GradButton type="submit" gradient="from-amber-500 to-orange-600" className="w-full py-3 text-sm">
-            🏘️ Create & Enter
-          </GradButton>
+          <button 
+            type="submit" 
+            className="w-full py-3 rounded-xl bg-amber-600 hover:bg-amber-500 text-sm font-semibold transition-colors"
+          >
+            Create & Enter
+          </button>
         </form>
       )}
 
       {/* 🔍 SEARCH */}
-      <div className="relative mb-5">
-        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm">🔍</span>
+      <div className="relative mb-6">
+        <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search communities..."
-          className="w-full pl-11 pr-4 p-3.5 rounded-2xl bg-slate-900 border border-slate-800 focus:border-pink-500 outline-none text-sm"
+          className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-900 border border-slate-700 focus:border-pink-500 focus:outline-none text-sm"
         />
       </div>
 
       {/* COMMUNITY LIST */}
       {loading ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
-          <p className="text-4xl mb-2 animate-bounce">🏠</p>
-          <p className="text-slate-400 text-sm">Loading communities...</p>
+        <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 text-center">
+          <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center animate-pulse">
+            <Home size={24} className="text-slate-400" />
+          </div>
+          <p className="text-slate-400 text-sm font-medium">Loading communities...</p>
         </div>
       ) : (
         <div className="grid gap-3">
           {filtered.map((c) => (
             <div
               key={c.id}
-              className={`press bg-slate-900 border-2 rounded-2xl p-4 shadow-lg shadow-black/30 ${
-                c.joined ? "border-green-500/40" : c.requested ? "border-amber-500/30" : "border-slate-800"
+              className={`bg-slate-900 border rounded-2xl p-4 ${
+                c.joined ? "border-emerald-500/30" : c.requested ? "border-amber-500/30" : "border-slate-700"
               }`}
             >
               <div className="flex items-start gap-3 mb-3">
-                <div className={`shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-lg ${
-                  c.joined ? "bg-gradient-to-br from-green-500 to-emerald-600" : "bg-gradient-to-br from-pink-500 to-fuchsia-600"
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                  c.joined ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-pink-500/10 border border-pink-500/20"
                 }`}>
-                  👥
+                  <Users size={22} className={c.joined ? "text-emerald-400" : "text-pink-400"} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-black text-sm text-white leading-tight truncate">
+                  <p className="font-semibold text-sm text-white leading-tight truncate mb-1">
                     {c.description ? `${c.name.trim()}'s ${c.description.trim()}` : `${c.name.trim()}`}
                   </p>
-                  <Chip color={c.joined ? "green" : "violet"}>
-                    👥 {c.members} {c.members === 1 ? "member" : "members"}
-                  </Chip>
+                  <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                    <Users size={12} />
+                    <span>{c.members} {c.members === 1 ? "member" : "members"}</span>
+                  </div>
                 </div>
                 <button
                   onClick={() => report(c.id)}
                   title="Report"
-                  className="press shrink-0 w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-slate-500 hover:text-red-400 hover:border-red-500/40 flex items-center justify-center text-xs"
+                  className="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 text-slate-500 hover:text-red-400 hover:border-red-500/40 flex items-center justify-center transition-colors flex-shrink-0"
                 >
-                  🚩
+                  <Flag size={14} />
                 </button>
               </div>
 
               <div className="flex items-center gap-2">
                 {c.joined ? (
-                  <GradButton onClick={() => open(c.id)} gradient="from-green-500 to-emerald-600" className="flex-1 py-2.5 text-sm">
-                    Open →
-                  </GradButton>
+                  <button 
+                    onClick={() => open(c.id)} 
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                  >
+                    Open
+                    <ArrowRight size={14} />
+                  </button>
                 ) : c.requested ? (
-                  <div className="flex-1 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-300 text-sm font-black text-center">
-                    ⏳ Requested
+                  <div className="flex-1 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm font-semibold text-center flex items-center justify-center gap-2">
+                    <Clock size={14} />
+                    Requested
                   </div>
                 ) : (
-                  <GradButton onClick={() => requestJoin(c.id)} gradient="from-pink-500 to-fuchsia-600" className="flex-1 py-2.5 text-sm">
-                    🙏 Request
-                  </GradButton>
+                  <button 
+                    onClick={() => requestJoin(c.id)} 
+                    className="flex-1 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                  >
+                    <UserPlus size={14} />
+                    Request
+                  </button>
                 )}
               </div>
             </div>
           ))}
 
           {list.length === 0 && (
-            <div className="bg-slate-900 border border-dashed border-pink-500/30 rounded-2xl">
-              <EmptyState emoji="🌟" text="No communities yet — be the first to create one!" />
+            <div className="bg-slate-900 border border-dashed border-slate-700 rounded-2xl p-8 text-center">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center">
+                <Sparkles size={24} className="text-slate-400" />
+              </div>
+              <p className="text-sm text-slate-400 font-medium">No communities yet — be the first to create one!</p>
             </div>
           )}
           {filtered.length === 0 && list.length > 0 && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl">
-              <EmptyState emoji="🔍" text={`No results for "${q}" — try different keywords!`} />
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 text-center">
+              <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center">
+                <Search size={24} className="text-slate-400" />
+              </div>
+              <p className="text-sm text-slate-400 font-medium">No results for "{q}" — try different keywords!</p>
             </div>
           )}
         </div>
