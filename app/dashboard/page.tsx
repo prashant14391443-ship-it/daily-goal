@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass, Sparkle } from "lucide-react";
+import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass, Sparkle, Lightbulb, Volume2, Check, RefreshCw } from "lucide-react";
+import { TIPS, categoryIcons, categoryColors, localISO, dayNum } from "@/app/components/tipsData";
 import CoinPill from "@/app/CoinPill";
 import DraggableAIBubble from "@/app/components/DraggableAIBubble";
 
@@ -123,6 +124,12 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const [moveStreak, setMoveStreak] = useState(0);
+  
+  // 💡 Tip of the Day state
+  const [tipOffset, setTipOffset] = useState(0);
+  const [tipDone, setTipDone] = useState(false);
+  const [tipStreak, setTipStreak] = useState(0);
+  const [tipWeek, setTipWeek] = useState<{ done: boolean }[]>([]);
 
   useEffect(() => {
     const loadMove = async () => {
@@ -149,6 +156,46 @@ export default function Dashboard() {
     };
     loadMove();
   }, []);
+
+  // 💡 Load tip data
+  useEffect(() => {
+    const todayStr = localISO(new Date());
+    const yest = localISO(new Date(Date.now() - 86400000));
+    setTipDone(localStorage.getItem("dg-tip-done-" + todayStr) === "1");
+    const st = JSON.parse(localStorage.getItem("dg-tip-streak") || "null");
+    if (st && (st.date === todayStr || st.date === yest)) setTipStreak(st.count);
+    const week: { done: boolean }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      week.push({ done: localStorage.getItem("dg-tip-done-" + localISO(new Date(Date.now() - i * 86400000))) === "1" });
+    }
+    setTipWeek(week);
+  }, []);
+
+  // 💡 Current tip + icon (derived values)
+  const tip = TIPS[(dayNum(new Date()) + tipOffset) % TIPS.length];
+  const TipIcon = categoryIcons[tip.cat] || Lightbulb;
+
+  const speakTip = (text: string) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "en-US";
+    u.rate = 0.95;
+    window.speechSynthesis.speak(u);
+  };
+
+  const didTip = () => {
+    if (tipDone) return;
+    const todayStr = localISO(new Date());
+    const yest = localISO(new Date(Date.now() - 86400000));
+    const st = JSON.parse(localStorage.getItem("dg-tip-streak") || "null");
+    const count = st && st.date === yest ? st.count + 1 : 1;
+    localStorage.setItem("dg-tip-streak", JSON.stringify({ date: todayStr, count }));
+    localStorage.setItem("dg-tip-done-" + todayStr, "1");
+    setTipStreak(count);
+    setTipDone(true);
+    setTipWeek((w) => w.map((d, i) => (i === w.length - 1 ? { done: true } : d)));
+  };
 
   const load = async () => {
     const { data } = await supabase.auth.getSession();
@@ -240,9 +287,7 @@ export default function Dashboard() {
     setCountdowns(cdRes.data || []);
     setLoading(false);
   };
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   const saveGoals = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -602,6 +647,62 @@ export default function Dashboard() {
           </div>
         </>
       )}
+
+      {/* 💡 TIP OF THE DAY — bottom of dashboard */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-3">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+              <Lightbulb size={14} strokeWidth={2.2} />
+            </span>
+            <p className="text-xs font-black text-slate-400">TIP OF THE DAY</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {tipStreak > 0 && (
+              <span className="flex items-center gap-1 text-[10px] font-black text-orange-400">
+                <Flame size={11} /> {tipStreak}
+              </span>
+            )}
+            <Link href="/tips" className="text-[10px] font-bold text-slate-500 hover:text-white transition-colors">
+              Full page →
+            </Link>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-3">
+          <span className={`w-9 h-9 rounded-lg bg-gradient-to-br ${categoryColors[tip.cat] || "from-slate-600 to-slate-700"} flex items-center justify-center shrink-0`}>
+            <TipIcon size={16} className="text-white" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-white leading-snug">&quot;{tip.tip}&quot;</p>
+            <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{tip.why}</p>
+          </div>
+        </div>
+
+        <div className="flex gap-2 mt-3">
+          <button onClick={() => speakTip(tip.tip + " " + tip.why)} className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 flex items-center justify-center gap-1.5 transition-colors">
+            <Volume2 size={13} /> Hear
+          </button>
+          <button
+            onClick={didTip}
+            disabled={tipDone}
+            className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${
+              tipDone ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400" : "bg-emerald-600 hover:bg-emerald-500 text-white"
+            }`}
+          >
+            <Check size={13} /> {tipDone ? "Done today!" : "Did it!"}
+          </button>
+          <button onClick={() => setTipOffset((tipOffset + 1) % 3)} className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors" title="Another tip">
+            <RefreshCw size={13} />
+          </button>
+        </div>
+
+        <div className="flex justify-center gap-1.5 mt-3">
+          {tipWeek.map((d, i) => (
+            <span key={i} className={`w-2 h-2 rounded-full ${d.done ? "bg-emerald-500" : "bg-slate-700"}`} />
+          ))}
+        </div>
+      </div>
     </main>
   );
 }
