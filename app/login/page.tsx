@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconTile, GradButton } from "@/app/components/ui";
+import { Target, Mail, Lock, Eye, EyeOff, ArrowRight, ArrowLeft, Check, Key, Flame, Trophy, Sparkles, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [newPass, setNewPass] = useState("");
+  const [showPass, setShowPass] = useState(false);
   const [mode, setMode] = useState<"login" | "reset" | "newpass">("login");
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
@@ -47,186 +48,306 @@ export default function LoginPage() {
     });
     setLoading(false);
     setMsg(
-      error ? error.message : "📧 Reset link sent! Open your email on this device."
+      error ? error.message : "Reset link sent! Open your email on this device."
     );
   };
 
   const setNew = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (newPass.length < 6) {
+      setError("Password must be at least 6 characters");
+      return;
+    }
     setError("");
     setLoading(true);
     const { error } = await supabase.auth.updateUser({ password: newPass });
     setLoading(false);
     if (error) setError(error.message);
     else {
-      setMsg("✅ Password updated! Now login.");
+      setMsg("Password updated! Now log in.");
       setMode("login");
+      setNewPass("");
     }
   };
 
-  const inputCls =
-    "w-full p-3.5 pl-11 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder-slate-500 text-sm outline-none focus:border-violet-500 focus:bg-slate-800 transition-all";
+  // Password strength (for newpass mode)
+  const strength = newPass.length === 0 ? 0 : newPass.length < 6 ? 1 : newPass.length < 10 ? 2 : 3;
+  const strengthLabel = ["", "Weak", "Good", "Strong"][strength];
+  const strengthColor = ["bg-slate-700", "bg-red-500", "bg-amber-500", "bg-emerald-500"][strength];
 
   const titles = {
-    login: { emoji: "🔓", title: "Welcome Back", sub: "Sign in to continue your streak" },
-    reset: { emoji: "📧", title: "Reset Password", sub: "We'll email you a link" },
-    newpass: { emoji: "🔑", title: "New Password", sub: "Choose something strong" },
+    login: { title: "Welcome back", sub: "Sign in to continue your streak", icon: Lock, color: "text-violet-400" },
+    reset: { title: "Reset password", sub: "We'll email you a secure link", icon: Mail, color: "text-amber-400" },
+    newpass: { title: "New password", sub: "Choose something strong (min 6 chars)", icon: Key, color: "text-emerald-400" },
   };
   const t = titles[mode];
+  const TitleIcon = t.icon;
+
+  const inputCls =
+    "w-full pl-10 pr-4 py-3 rounded-xl bg-slate-800 border border-slate-700 text-sm focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all placeholder:text-slate-500";
 
   return (
-    <main className="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
-      {/* 🌆 FULL-SCREEN GRADIENT BG */}
-      <div className="absolute inset-0 bg-gradient-to-br from-violet-600 via-indigo-700 to-blue-800" />
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-fuchsia-500/30 rounded-full blur-3xl" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-cyan-400/20 rounded-full blur-3xl" />
+    <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4 md:p-8 relative overflow-hidden">
+      {/* Ambient gradient blobs (match signup) */}
+      <div className="absolute top-0 -left-20 w-96 h-96 bg-violet-600/20 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 -right-20 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
 
-      {/* GLASS CARD */}
-      <div className="relative w-full max-w-md bg-slate-950/70 backdrop-blur-2xl border border-white/10 rounded-3xl p-7 shadow-2xl">
-        {/* LOGO + TITLE */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-600 shadow-xl shadow-amber-900/30 mb-4">
-            <span className="text-3xl">🎯</span>
+      <div className="w-full max-w-md relative">
+        {/* Brand header */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center shadow-xl shadow-violet-900/30">
+            <Target size={32} className="text-white" />
           </div>
-          <h1 className="text-2xl font-black text-white mb-1">{t.title}</h1>
-          <p className="text-xs text-white/60 font-semibold">{t.sub}</p>
+          <h1 className="text-2xl font-black text-white mb-1">
+            Daily<span className="text-violet-400">Goal</span>
+          </h1>
+          <p className="text-sm text-slate-400 font-medium">Build the life you want, one day at a time</p>
         </div>
 
-        {/* MESSAGES */}
-        {msg && (
-          <div className="mb-4 bg-emerald-500/15 border border-emerald-400/40 rounded-xl p-3 flex items-start gap-2">
-            <span className="text-emerald-300 text-sm">✅</span>
-            <p className="text-xs font-semibold text-emerald-200 flex-1">{msg}</p>
+        {/* Form card */}
+        <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-3xl p-6 md:p-8 shadow-2xl shadow-black/40">
+          {/* Mode header */}
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-11 h-11 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0">
+              <TitleIcon size={20} className={t.color} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-xl font-bold text-white mb-0.5">{t.title}</h2>
+              <p className="text-xs text-slate-400 font-medium">{t.sub}</p>
+            </div>
           </div>
-        )}
-        {error && (
-          <div className="mb-4 bg-red-500/15 border border-red-400/40 rounded-xl p-3 flex items-start gap-2">
-            <span className="text-red-300 text-sm">❌</span>
-            <p className="text-xs font-semibold text-red-200 flex-1">{error}</p>
-          </div>
-        )}
 
-        {/* LOGIN */}
+          {/* Messages */}
+          {msg && (
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3 mb-4 flex items-start gap-2">
+              <Check size={14} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-emerald-300 font-medium flex-1">{msg}</p>
+            </div>
+          )}
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 mb-4 flex items-start gap-2">
+              <AlertCircle size={14} className="text-red-400 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-red-300 font-medium flex-1">{error}</p>
+            </div>
+          )}
+
+          {/* LOGIN MODE */}
+          {mode === "login" && (
+            <form onSubmit={login} className="grid gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">Email</label>
+                <div className="relative">
+                  <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    required
+                    autoComplete="email"
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">Password</label>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type={showPass ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    required
+                    autoComplete="current-password"
+                    className={`${inputCls} pr-12`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(!showPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors p-1"
+                    tabIndex={-1}
+                  >
+                    {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => { setMsg(""); setError(""); setMode("reset"); }}
+                  className="text-xs text-violet-400 hover:text-violet-300 font-semibold transition-colors"
+                >
+                  Forgot password?
+                </button>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-violet-900/30 mt-1"
+              >
+                {loading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    Log in
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+
+              <div className="flex items-center gap-3 my-2">
+                <div className="flex-1 h-px bg-slate-800" />
+                <span className="text-[10px] font-black text-slate-600 uppercase tracking-wide">or</span>
+                <div className="flex-1 h-px bg-slate-800" />
+              </div>
+
+              <Link
+                href="/signup"
+                className="w-full py-3 rounded-xl bg-slate-800/50 border border-slate-700 hover:border-slate-600 hover:bg-slate-800 text-slate-200 text-sm font-bold text-center transition-all flex items-center justify-center gap-2"
+              >
+                <Sparkles size={15} />
+                Create new account
+              </Link>
+            </form>
+          )}
+
+          {/* RESET MODE */}
+          {mode === "reset" && (
+            <form onSubmit={sendReset} className="grid gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">Email</label>
+                <div className="relative">
+                  <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    required
+                    autoComplete="email"
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange-900/30 mt-1"
+              >
+                {loading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    Send reset link
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setMsg(""); setError(""); setMode("login"); }}
+                className="flex items-center justify-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 font-semibold transition-colors mt-2"
+              >
+                <ArrowLeft size={12} />
+                Back to login
+              </button>
+            </form>
+          )}
+
+          {/* NEW PASSWORD MODE */}
+          {mode === "newpass" && (
+            <form onSubmit={setNew} className="grid gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">New password</label>
+                <div className="relative">
+                  <Key size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type={showPass ? "text" : "password"}
+                    value={newPass}
+                    onChange={(e) => setNewPass(e.target.value)}
+                    placeholder="At least 6 characters"
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                    className={`${inputCls} pr-12`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass(!showPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors p-1"
+                    tabIndex={-1}
+                  >
+                    {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {newPass.length > 0 && (
+                  <div className="mt-2">
+                    <div className="flex gap-1 mb-1">
+                      <div className={`h-1 flex-1 rounded-full ${strength >= 1 ? strengthColor : "bg-slate-700"}`} />
+                      <div className={`h-1 flex-1 rounded-full ${strength >= 2 ? strengthColor : "bg-slate-700"}`} />
+                      <div className={`h-1 flex-1 rounded-full ${strength >= 3 ? strengthColor : "bg-slate-700"}`} />
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-semibold">{strengthLabel}</p>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30 mt-1"
+              >
+                {loading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    Save new password
+                    <Check size={16} />
+                  </>
+                )}
+              </button>
+            </form>
+          )}
+        </div>
+
+        {/* Value props */}
         {mode === "login" && (
-          <form onSubmit={login} className="grid gap-3">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">📧</span>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email"
-                required
-                className={inputCls}
-              />
+          <div className="mt-6 grid grid-cols-3 gap-2">
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-center">
+              <Flame size={18} className="mx-auto mb-1.5 text-orange-400" />
+              <p className="text-[10px] font-semibold text-slate-300">Build streaks</p>
             </div>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">🔒</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Password"
-                required
-                className={inputCls}
-              />
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-center">
+              <Trophy size={18} className="mx-auto mb-1.5 text-amber-400" />
+              <p className="text-[10px] font-semibold text-slate-300">Earn badges</p>
             </div>
-            <GradButton
-              type="submit"
-              gradient="from-violet-600 to-indigo-600"
-              disabled={loading}
-              className="w-full py-3.5 text-sm mt-1"
-            >
-              {loading ? "Signing in..." : "🔓 Login"}
-            </GradButton>
-
-            <button
-              type="button"
-              onClick={() => { setMsg(""); setError(""); setMode("reset"); }}
-              className="press text-xs text-white/60 hover:text-white font-semibold mt-2"
-            >
-              Forgot password?
-            </button>
-
-            <div className="flex items-center gap-3 my-2">
-              <div className="flex-1 h-px bg-white/10" />
-              <span className="text-[10px] font-black text-white/40">OR</span>
-              <div className="flex-1 h-px bg-white/10" />
+            <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 text-center">
+              <Sparkles size={18} className="mx-auto mb-1.5 text-violet-400" />
+              <p className="text-[10px] font-semibold text-slate-300">AI coach</p>
             </div>
-
-            <Link
-              href="/signup"
-              className="press w-full py-3 rounded-xl bg-white/10 border border-white/20 text-white text-sm font-black text-center hover:bg-white/15 transition-all"
-            >
-              ✨ Create new account
-            </Link>
-          </form>
+          </div>
         )}
 
-        {/* RESET */}
-        {mode === "reset" && (
-          <form onSubmit={sendReset} className="grid gap-3">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">📧</span>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Your email"
-                required
-                className={inputCls}
-              />
-            </div>
-            <GradButton
-              type="submit"
-              gradient="from-amber-500 to-orange-600"
-              disabled={loading}
-              className="w-full py-3.5 text-sm"
-            >
-              {loading ? "Sending..." : "📧 Send Reset Link"}
-            </GradButton>
-            <button
-              type="button"
-              onClick={() => setMode("login")}
-              className="press text-xs text-white/60 hover:text-white font-semibold mt-2"
-            >
-              ← Back to login
-            </button>
-          </form>
-        )}
-
-        {/* NEW PASSWORD */}
-        {mode === "newpass" && (
-          <form onSubmit={setNew} className="grid gap-3">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">🔑</span>
-              <input
-                type="password"
-                value={newPass}
-                onChange={(e) => setNewPass(e.target.value)}
-                placeholder="New password (min 6 characters)"
-                required
-                minLength={6}
-                className={inputCls}
-              />
-            </div>
-            <GradButton
-              type="submit"
-              gradient="from-emerald-500 to-green-600"
-              disabled={loading}
-              className="w-full py-3.5 text-sm"
-            >
-              {loading ? "Saving..." : "✅ Save New Password"}
-            </GradButton>
-          </form>
-        )}
-
-        {/* FOOTER MOTIVATION */}
-        <div className="mt-6 pt-5 border-t border-white/10 text-center">
-          <p className="text-[10px] font-black text-white/50">
-            💪 Small daily wins = big life changes
-          </p>
-        </div>
+        {/* Trust footer */}
+        <p className="text-center text-[10px] text-slate-600 mt-6 font-medium">
+          <Check size={10} className="inline mr-1" />
+          Free forever • Your data is private & secure
+        </p>
       </div>
     </main>
   );
