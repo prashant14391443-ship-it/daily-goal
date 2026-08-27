@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { IconTile, GradButton, ProgressRing, EmptyState } from "@/app/components/ui";
+import { Sunrise, Moon, Inbox, Play, Check, SkipForward, Trophy, ArrowLeft } from "lucide-react";
+import { ProgressRing, EmptyState } from "@/app/components/ui";
 
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -80,14 +81,16 @@ export default function RoutinesPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 HERO */}
-      <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 via-orange-600 to-rose-600 p-4 shadow-2xl shadow-orange-900/30">
-        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
-        <div className="relative flex items-center gap-3">
-          <span className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg">🌅</span>
-          <div>
-            <h1 className="text-lg font-black text-white leading-tight">Routines</h1>
-            <p className="text-[10px] text-white/80 font-semibold">Chain habits into morning & evening flows</p>
+      {/* 🌆 CALM HERO */}
+      <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500 via-orange-600 to-rose-600 p-5 shadow-xl shadow-orange-900/20">
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+        <div className="relative flex items-center gap-4">
+          <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
+            <Sunrise size={22} strokeWidth={2.2} className="text-white" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Routines</h1>
+            <p className="text-[11px] text-white/75 font-semibold mt-0.5">Chain habits into morning & evening flows</p>
           </div>
         </div>
       </div>
@@ -95,15 +98,24 @@ export default function RoutinesPage() {
       {!runner && (
         <>
           {unassigned.length > 0 && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4 shadow-lg shadow-black/30">
-              <p className="text-xs font-black text-slate-400 mb-3">📥 ASSIGN HABITS TO A ROUTINE:</p>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 flex items-center justify-center">
+                  <Inbox size={14} strokeWidth={2.2} />
+                </span>
+                <p className="text-[10px] font-black text-slate-500">ASSIGN HABITS TO A ROUTINE</p>
+              </div>
               <div className="grid gap-2">
                 {unassigned.map((h) => (
                   <div key={h.id} className="flex justify-between items-center gap-2 bg-slate-800/60 rounded-xl p-3">
-                    <span className="text-sm font-bold truncate">{h.habit_name}</span>
+                    <span className="text-sm font-bold truncate flex-1">{h.habit_name}</span>
                     <div className="flex gap-2 shrink-0">
-                      <button onClick={() => assign(h.id, "morning")} className="press px-3 py-1.5 rounded-lg bg-amber-600/20 border border-amber-500/40 text-amber-300 text-[10px] font-black">🌅 Morning</button>
-                      <button onClick={() => assign(h.id, "evening")} className="press px-3 py-1.5 rounded-lg bg-indigo-600/20 border border-indigo-500/40 text-indigo-300 text-[10px] font-black">🌙 Evening</button>
+                      <button onClick={() => assign(h.id, "morning")} className="press px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-black flex items-center gap-1">
+                        <Sunrise size={11} /> Morning
+                      </button>
+                      <button onClick={() => assign(h.id, "evening")} className="press px-3 py-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-[10px] font-black flex items-center gap-1">
+                        <Moon size={11} /> Evening
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -114,31 +126,42 @@ export default function RoutinesPage() {
           {(["morning", "evening"] as const).map((r) => {
             const list = r === "morning" ? morning : evening;
             const isM = r === "morning";
+            const Icon = isM ? Sunrise : Moon;
             return (
-              <div key={r} className={`bg-slate-900 border rounded-2xl p-4 mb-4 shadow-lg shadow-black/30 ${isM ? "border-amber-500/30" : "border-indigo-500/30"}`}>
+              <div key={r} className={`bg-slate-900 border rounded-2xl p-4 mb-4 ${isM ? "border-amber-500/20" : "border-indigo-500/20"}`}>
                 <div className="flex justify-between items-center mb-3">
                   <p className="font-black text-sm flex items-center gap-2">
-                    <IconTile emoji={isM ? "🌅" : "🌙"} gradient={isM ? "bg-gradient-to-br from-amber-500 to-orange-600" : "bg-gradient-to-br from-indigo-500 to-violet-600"} size="sm" />
+                    <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${isM ? "bg-amber-500/10 text-amber-400" : "bg-indigo-500/10 text-indigo-400"}`}>
+                      <Icon size={14} strokeWidth={2.2} />
+                    </span>
                     {isM ? "Morning" : "Evening"} ({list.length})
                   </p>
                   {list.length > 0 && (
-                    <GradButton onClick={() => start(r)} gradient={isM ? "from-amber-500 to-orange-600" : "from-indigo-500 to-violet-600"} className="px-4 py-2 text-xs">
-                      ▶ Start
-                    </GradButton>
+                    <button
+                      onClick={() => start(r)}
+                      className={`press px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 border ${
+                        isM ? "bg-amber-500/10 border-amber-500/30 text-amber-300" : "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
+                      }`}
+                    >
+                      <Play size={12} fill="currentColor" /> Start
+                    </button>
                   )}
                 </div>
                 <div className="grid gap-2">
                   {list.map((h, i) => (
                     <div key={h.id} className="flex justify-between items-center bg-slate-800/60 rounded-xl p-3">
-                      <span className="text-sm font-semibold">
-                        <span className="text-slate-500 font-black mr-1">{i + 1}.</span>
-                        {h.habit_name} {doneToday.has(h.id) && "✅"}
+                      <span className="text-sm font-semibold flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-slate-600 font-black text-xs">{i + 1}.</span>
+                        <span className="truncate">{h.habit_name}</span>
+                        {doneToday.has(h.id) && <Check size={14} className="text-green-400 shrink-0" />}
                       </span>
-                      <button onClick={() => assign(h.id, null)} className="press text-[10px] text-slate-500 hover:text-red-400 font-bold">Remove</button>
+                      <button onClick={() => assign(h.id, null)} className="press text-[10px] text-slate-600 hover:text-red-400 font-black shrink-0 ml-2">
+                        Remove
+                      </button>
                     </div>
                   ))}
                   {list.length === 0 && (
-                    <p className="text-[10px] text-slate-500 font-semibold">No habits here yet.</p>
+                    <p className="text-[10px] text-slate-600 font-bold py-2">No habits here yet.</p>
                   )}
                 </div>
               </div>
@@ -148,34 +171,49 @@ export default function RoutinesPage() {
       )}
 
       {runner && (
-        <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center shadow-2xl shadow-black/40">
+        <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center">
           <div className="flex justify-center mb-4">
             <ProgressRing pct={Math.round((runner.i / runner.queue.length) * 100)} size={72} stroke={7} color={runner.name === "morning" ? "#f59e0b" : "#818cf8"} />
           </div>
-          <p className="text-xs font-black text-slate-400 mb-2">
-            {runner.name === "morning" ? "🌅 Morning" : "🌙 Evening"} • step {runner.i + 1}/{runner.queue.length}
+          <p className="text-[10px] font-black text-slate-500 mb-2">
+            {runner.name === "morning" ? "MORNING" : "EVENING"} • step {runner.i + 1}/{runner.queue.length}
           </p>
           <p className="text-3xl font-black mb-8 text-white">{runner.queue[runner.i].habit_name}</p>
           <div className="flex gap-3">
-            <GradButton onClick={markDone} gradient="from-green-600 to-emerald-500" className="flex-1 py-3 text-sm">✅ Done</GradButton>
-            <button onClick={() => next()} className="press flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 font-black text-sm text-slate-300">⏭ Skip</button>
+            <button
+              onClick={markDone}
+              className="press flex-1 py-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-sm font-black text-emerald-300 flex items-center justify-center gap-1.5"
+            >
+              <Check size={15} /> Done
+            </button>
+            <button
+              onClick={() => next()}
+              className="press flex-1 py-3 rounded-xl bg-slate-800 border border-slate-700 text-sm font-black text-slate-300 flex items-center justify-center gap-1.5"
+            >
+              <SkipForward size={15} /> Skip
+            </button>
           </div>
         </div>
       )}
 
       {finished && (
-        <div className="max-w-md mx-auto bg-gradient-to-br from-amber-600/20 to-orange-600/20 border-2 border-amber-500/50 rounded-3xl p-8 text-center shadow-2xl">
-          <p className="text-6xl mb-3 animate-bounce">🎉</p>
+        <div className="max-w-md mx-auto bg-emerald-500/10 border-2 border-emerald-500/30 rounded-3xl p-8 text-center">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/20 flex items-center justify-center">
+            <Trophy size={32} className="text-emerald-400 animate-bounce" />
+          </div>
           <p className="text-xl font-black text-white">
             {finished === "morning" ? "Morning" : "Evening"} routine complete!
           </p>
-          <GradButton onClick={() => setFinished("")} gradient="from-amber-500 to-orange-600" className="mt-6 px-6 py-3 text-sm">
-            ← Back
-          </GradButton>
+          <button
+            onClick={() => setFinished("")}
+            className="press mt-6 px-6 py-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-sm font-black text-amber-300 flex items-center justify-center gap-1.5 mx-auto"
+          >
+            <ArrowLeft size={15} /> Back
+          </button>
         </div>
       )}
 
-      <Link href="/routine-habits" className="inline-block mt-6 text-sm text-slate-400 hover:text-white press">
+      <Link href="/routine-habits" className="inline-block mt-6 text-sm text-slate-500 hover:text-white press font-bold">
         ← Back to Habits
       </Link>
     </main>
