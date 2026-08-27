@@ -4,14 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
 import Link from "next/link";
-import { IconTile, GradButton } from "@/app/components/ui";
+import { Timer, Play, Pause, RotateCcw, Sun, Moon, BookOpen, Coffee } from "lucide-react";
 
-function toLocalISO(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
+function toLocalISO(d: Date) { const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, "0"); const day = String(d.getDate()).padStart(2, "0"); return `${y}-${m}-${day}`; }
 
 function playBeep() {
   try {
@@ -38,7 +33,7 @@ function playBeep() {
 
 const PRESETS = [15, 25, 40, 60, 90];
 
-// 🎨 Plant ring — progress ring with plant emoji in the center
+// 🎨 Plant ring — progress ring with plant emoji in the center (core feature, kept)
 function PlantRing({ pct, plant, ringColor }: { pct: number; plant: string; ringColor: string }) {
   const size = 220;
   const stroke = 10;
@@ -194,29 +189,32 @@ export default function FocusPage() {
   const isBreak = mode === "break";
   const heroGrad = isBreak ? "from-amber-500 via-orange-600 to-rose-600" : "from-emerald-500 via-green-600 to-teal-600";
   const ringColor = isBreak ? "#fbbf24" : "#10b981";
-  const modeLabel = isBreak ? "☕ BREAK TIME" : "🎯 FOCUS TIME";
+  const modeLabel = isBreak ? "BREAK TIME" : "FOCUS TIME";
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-4 pt-16 pb-24 max-w-md mx-auto">
-      {/* 🌆 HERO */}
-      <div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${heroGrad} p-5 shadow-2xl transition-all duration-700`}>
-        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
+    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-md mx-auto">
+      {/* 🌆 CALM HERO */}
+      <div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${heroGrad} p-5 shadow-xl transition-all duration-700`}>
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
           <div className="flex items-center justify-between mb-3">
-            <span className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg">🍅</span>
-            <span className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-xs font-black border border-white/20">
-              {isBreak ? "☕ BREAK" : "🎯 FOCUS"}
+            <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
+              <Timer size={22} strokeWidth={2.2} className="text-white" />
+            </span>
+            <span className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-[10px] font-black border border-white/20 flex items-center gap-1.5">
+              {isBreak ? <Coffee size={11} /> : <Timer size={11} />}
+              {isBreak ? "BREAK" : "FOCUS"}
             </span>
           </div>
-          <h1 className="text-xl font-black text-white leading-tight">Focus Timer</h1>
-          <p className="text-[10px] text-white/80 font-semibold mt-1">
+          <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Focus Timer</h1>
+          <p className="text-[11px] text-white/75 font-semibold mt-0.5">
             {focusMin}m focus → {breakMin}m break • 🍅 {doneToday} today
           </p>
         </div>
       </div>
 
       {/* 🌱 PLANT + RING + TIMER */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 mb-5 shadow-lg shadow-black/30 text-center">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 mb-4 text-center">
         <p className={`text-[10px] font-black mb-4 ${isBreak ? "text-amber-400" : "text-emerald-400"}`}>
           {modeLabel}
         </p>
@@ -228,41 +226,41 @@ export default function FocusPage() {
         <p className="text-6xl font-black tracking-tight mb-1 tabular-nums">
           {mm}:{ss}
         </p>
-        <p className="text-xs text-slate-400 font-semibold">
+        <p className="text-xs text-slate-500 font-bold">
           {isBreak ? "Stretch a little, hydrate ☕" : "Stay off your phone! 📵"}
         </p>
       </div>
 
       {/* 🎛️ PRESETS */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4 shadow-lg shadow-black/30">
-        <p className="text-[10px] font-black text-slate-400 mb-2">⏱ PRESET DURATIONS</p>
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
+        <p className="text-[10px] font-black text-slate-500 mb-2">PRESET DURATIONS</p>
         <div className="flex gap-1.5 flex-wrap">
           {PRESETS.map((m) => (
             <button
               key={m}
               onClick={() => pickPreset(m)}
               disabled={running}
-              className={`press flex-1 min-w-[50px] px-3 py-2 rounded-xl text-xs font-black border-2 transition-all disabled:opacity-50 ${
+              className={`press flex-1 min-w-[50px] px-3 py-2.5 rounded-xl text-xs font-black border transition-all disabled:opacity-50 ${
                 focusMin === m
-                  ? "bg-gradient-to-br from-emerald-500 to-green-600 border-transparent text-white shadow-lg"
-                  : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
+                  ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                  : "bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700"
               }`}
             >
               {m}m
             </button>
           ))}
         </div>
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2">
           <input
             type="number"
             min="1"
             max="180"
-            placeholder="Custom (min)"
+            placeholder="Custom (minutes)"
             value={custom}
             onChange={(e) => setCustom(e.target.value)}
             onBlur={applyCustom}
             disabled={running}
-            className="flex-1 p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs outline-none focus:border-emerald-500 disabled:opacity-50"
+            className="w-full p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs outline-none focus:border-emerald-500 disabled:opacity-50"
           />
         </div>
       </div>
@@ -271,47 +269,57 @@ export default function FocusPage() {
       {wakeSupported && (
         <button
           onClick={() => setAwake(!awake)}
-          className={`press w-full mb-4 px-4 py-3 rounded-2xl text-xs font-black border-2 transition-all ${
+          className={`press w-full mb-4 px-4 py-3 rounded-2xl text-xs font-black border transition-all flex items-center justify-center gap-2 ${
             awake
-              ? "bg-amber-500/10 border-amber-400/60 text-amber-300 shadow-lg shadow-amber-900/20"
+              ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
               : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
           }`}
         >
-          {awake ? "🔆 Screen stays ON while timer runs" : "😴 Screen can sleep normally"}
+          {awake ? <Sun size={14} /> : <Moon size={14} />}
+          {awake ? "Screen stays ON while timer runs" : "Screen can sleep normally"}
           {awake && running && (
-            <p className="mt-1 text-[10px] text-amber-300/80 animate-pulse">Active — screen won&apos;t sleep now</p>
+            <span className="ml-1 text-[10px] text-amber-300/80 animate-pulse">• Active</span>
           )}
         </button>
       )}
 
       {/* 📝 SUBJECT */}
-      <input
-        value={subject}
-        onChange={(e) => setSubject(e.target.value)}
-        placeholder="Subject (e.g. Math) — optional"
-        disabled={running}
-        className="w-full p-3 rounded-xl bg-slate-900 border border-slate-800 text-sm mb-4 outline-none focus:border-emerald-500 disabled:opacity-50"
-      />
+      <div className="relative mb-4">
+        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+          <BookOpen size={14} strokeWidth={2} />
+        </span>
+        <input
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          placeholder="Subject (e.g. Math) — optional"
+          disabled={running}
+          className="w-full pl-10 pr-3 py-3 rounded-xl bg-slate-900 border border-slate-800 text-sm outline-none focus:border-emerald-500 disabled:opacity-50"
+        />
+      </div>
 
       {/* ▶️ CONTROLS */}
       <div className="flex gap-2">
-        <GradButton
+        <button
           onClick={() => setRunning(!running)}
-          gradient={running ? "from-amber-500 to-orange-600" : "from-emerald-500 to-green-600"}
-          className="flex-1 py-4 text-base"
+          className={`press flex-1 py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 transition-all ${
+            running
+              ? "bg-amber-500/20 border border-amber-500/40 text-amber-300"
+              : "bg-emerald-500/20 border border-emerald-500/40 text-emerald-300"
+          }`}
         >
-          {running ? "⏸ Pause" : "▶ Start Focus"}
-        </GradButton>
+          {running ? <Pause size={18} /> : <Play size={18} fill="currentColor" />}
+          {running ? "Pause" : "Start Focus"}
+        </button>
         <button
           onClick={reset}
-          className="press w-14 py-4 rounded-xl bg-slate-900 border border-slate-800 text-white text-xl font-black hover:bg-slate-800"
+          className="press w-14 rounded-xl bg-slate-900 border border-slate-800 text-white flex items-center justify-center hover:bg-slate-800"
           title="Reset"
         >
-          ↺
+          <RotateCcw size={18} />
         </button>
       </div>
 
-      <Link href="/study-tracker" className="inline-block mt-6 text-sm text-slate-400 hover:text-white press font-semibold">
+      <Link href="/study" className="inline-block mt-6 text-sm text-slate-500 hover:text-white press font-bold">
         ← Back to Study
       </Link>
     </main>
