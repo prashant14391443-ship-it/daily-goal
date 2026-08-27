@@ -1,6 +1,6 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -319,33 +319,38 @@ export default function Dashboard() {
   };
   useEffect(() => { load(); }, []);
 
-  // 💾 SAVE scroll position while on dashboard (throttled)
+  // 🔒 Only allow saving AFTER restore is done (prevents overwrite with 0)
+  const canSaveScroll = useRef(false);
+
+  // 💾 SAVE scroll position (locked during loading/restore phase)
   useEffect(() => {
-    let raf = 0;
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        sessionStorage.setItem("dg-dash-scroll", String(window.scrollY));
-      });
+    if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
+    const save = () => {
+      if (!canSaveScroll.current) return; // ← THE FIX: ignore scrolls while page is short
+      sessionStorage.setItem("dg-dash-scroll", String(window.scrollY));
     };
-    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("scroll", save, { passive: true });
     return () => {
-      window.removeEventListener("scroll", onScroll);
-      if (raf) cancelAnimationFrame(raf);
+      save(); // save final position when leaving the page
+      window.removeEventListener("scroll", save);
     };
   }, []);
 
-  // 📍 RESTORE scroll position after data loads (back from any sub-page)
+  // 📍 RESTORE position after data loads, with retry until layout is tall enough
   useEffect(() => {
     if (loading) return;
     const y = Number(sessionStorage.getItem("dg-dash-scroll") || 0);
-    if (y > 50) {
-      // double rAF = wait for full layout before jumping
-      requestAnimationFrame(() =>
-        requestAnimationFrame(() => window.scrollTo(0, y))
-      );
-    }
+    let tries = 0;
+    const t = setInterval(() => {
+      tries++;
+      const tallEnough = document.documentElement.scrollHeight > y + 200;
+      if (tallEnough || tries >= 10) {
+        if (y > 50) window.scrollTo(0, y);
+        canSaveScroll.current = true; // unlock saving now
+        clearInterval(t);
+      }
+    }, 80);
+    return () => clearInterval(t);
   }, [loading]);
 
   const saveGoals = async (e: React.FormEvent) => {
