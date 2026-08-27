@@ -131,6 +131,36 @@ export default function Dashboard() {
   const [tipStreak, setTipStreak] = useState(0);
   const [tipWeek, setTipWeek] = useState<{ done: boolean }[]>([]);
 
+  // ==========================================
+  // ADDED CODE: Scroll Restoration Fix
+  // ==========================================
+  
+  // 1. Track and save the scroll position
+  useEffect(() => {
+    const handleScroll = () => {
+      sessionStorage.setItem("dashboard-scroll-pos", window.scrollY.toString());
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // 2. Restore scroll position exactly after data finishes loading
+  useEffect(() => {
+    if (!loading) {
+      const savedScroll = sessionStorage.getItem("dashboard-scroll-pos");
+      if (savedScroll) {
+        // setTimeout ensures the DOM has fully painted the loaded content before scrolling
+        setTimeout(() => {
+          window.scrollTo({ top: parseInt(savedScroll, 10), behavior: "instant" });
+        }, 10);
+      }
+    }
+  }, [loading]);
+
+  // ==========================================
+  // END OF ADDED CODE
+  // ==========================================
+
   useEffect(() => {
     const loadMove = async () => {
       const { data } = await supabase.auth.getSession();
