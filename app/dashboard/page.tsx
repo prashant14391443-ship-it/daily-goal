@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame } from "lucide-react";
+import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass } from "lucide-react";
 import CoinPill from "@/app/CoinPill";
 import DraggableAIBubble from "@/app/components/DraggableAIBubble";
 
@@ -19,7 +19,7 @@ function calcStreak(dates: Set<string>, today: string) { let streak = 0; let cur
 function brokenStreak(dates: Set<string>, today: string) { if (dates.has(today) || dates.has(addDays(today, -1))) return 0; let len = 0; let cursor = addDays(today, -2); while (dates.has(cursor)) { len += 1; cursor = addDays(cursor, -1); } return len; }
 function dayLabel(dateStr: string) { return new Date(dateStr + "T00:00:00").toLocaleDateString(undefined, { weekday: "short" }); }
 function daysLeft(target: string, today: string) { return Math.round((new Date(target + "T00:00:00").getTime() - new Date(today + "T00:00:00").getTime()) / 86400000); }
-function badgeColor(d: number) { if (d < 0) return "bg-slate-700 text-slate-300"; if (d === 0) return "bg-red-600 text-white"; if (d <= 7) return "bg-red-700 text-white"; if (d <= 30) return "bg-orange-600 text-white"; return "bg-green-700 text-white"; }
+function badgeColor(d: number) { if (d < 0) return "bg-slate-700 text-slate-300"; if (d === 0) return "bg-rose-600 text-white"; if (d <= 7) return "bg-rose-700 text-white"; if (d <= 30) return "bg-orange-600 text-white"; return "bg-green-700 text-white"; }
 
 function ProgressRing({ pct, size = 56, stroke = 5, color, track = "rgba(255,255,255,0.08)" }: { pct: number; size?: number; stroke?: number; color: string; track?: string }) {
   const r = (size - stroke) / 2; const c = 2 * Math.PI * r; const offset = c - (Math.min(100, Math.max(0, pct)) / 100) * c;
@@ -31,12 +31,18 @@ function ProgressRing({ pct, size = 56, stroke = 5, color, track = "rgba(255,255
     </svg>
   );
 }
-function IconTile({ emoji, gradient }: { emoji: string; gradient: string }) { return <div className={`w-8 h-8 rounded-lg ${gradient} flex items-center justify-center text-base shadow-md`}>{emoji}</div>; }
 
-// 🎨 CALM STAT CARD — line icon + thin bar (design #1 discipline)
+function IconTile({ icon: Icon, tint }: { icon: any; tint: string }) {
+  return (
+    <div className={`w-8 h-8 rounded-lg ${tint} flex items-center justify-center`}>
+      <Icon size={15} strokeWidth={2.2} />
+    </div>
+  );
+}
+
 function StatCard({ href, icon: Icon, tint, bar, label, value, sub, streak, pct }: { href: string; icon: any; tint: string; bar: string; label: string; value: string; sub: string; streak: number; pct: number }) {
   return (
-    <Link href={href} className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
+    <Link href={href} className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
       <div className="flex items-start justify-between mb-4">
         <span className={`w-9 h-9 rounded-lg ${tint} flex items-center justify-center`}><Icon size={18} strokeWidth={2.2} /></span>
         {streak > 0 && <span className="flex items-center gap-0.5 text-[10px] font-black text-orange-400"><Flame size={12} /> {streak}</span>}
@@ -202,7 +208,7 @@ export default function Dashboard() {
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const greetText = `${greeting}, ${userName}! 👋`;
+  const greetText = `${greeting}, ${userName}!`;
   const greetSize = Math.max(15, Math.min(26, Math.round(430 / greetText.length)));
   const studyPct = Math.min(100, Math.round((studyMinutes / Math.max(goals.study_target, 1)) * 100));
   const gymPct = Math.min(100, Math.round((workouts / Math.max(goals.workout_target, 1)) * 100));
@@ -220,12 +226,15 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-20 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 CALM HERO */}
-      <div className="relative mb-3 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-purple-700 p-5 shadow-xl shadow-fuchsia-900/20">
-        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+      {/* 🌆 DARK CALM HERO */}
+      <div className="relative mb-3 overflow-hidden rounded-3xl bg-slate-900 border border-slate-800 p-5">
+        {/* Soft glow blobs */}
+        <div className="absolute -right-16 -top-16 w-48 h-48 bg-violet-600/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -left-16 -bottom-16 w-48 h-48 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
+
         <div className="relative">
           <div className="flex items-start justify-between gap-3 mb-4">
-            <p className="text-[11px] font-bold text-white/70 pt-1.5">
+            <p className="text-[11px] font-bold text-slate-500 pt-1.5">
               🦇 {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
             </p>
             <span className="shrink-0"><CoinPill /></span>
@@ -233,9 +242,9 @@ export default function Dashboard() {
           <div className="flex items-center gap-4">
             <div className="min-w-0 flex-1">
               <h1 className="font-black text-white leading-tight" style={{ fontSize: greetSize, whiteSpace: "nowrap" }}>{greetText}</h1>
-              <p className="text-xs font-semibold text-white/75 mt-1.5">{motivation}</p>
+              <p className="text-xs font-semibold text-slate-400 mt-1.5">{motivation}</p>
             </div>
-            <ProgressRing pct={overallPct} size={64} stroke={6} color="#fbbf24" track="rgba(0,0,0,0.3)" />
+            <ProgressRing pct={overallPct} size={64} stroke={6} color="#fbbf24" track="rgba(255,255,255,0.08)" />
           </div>
         </div>
       </div>
@@ -249,14 +258,14 @@ export default function Dashboard() {
         <StatCard href="/routine-habits" icon={ListChecks} tint="bg-violet-500/10 text-violet-400" bar="bg-violet-500" label="Habits" value={`${habitsDone}/${goals.habits_target}`} sub={habitsDone === 0 ? "Pick one easy habit" : "completed today"} streak={habitStreaks.reduce((m, h) => Math.max(m, h.streak), 0)} pct={habitsPct} />
         <StatCard href="/todo" icon={ListTodo} tint="bg-amber-500/10 text-amber-400" bar="bg-amber-500" label="To-do" value={`${todoDone}/${todoTotal}`} sub={todoDone === 0 ? "One small task" : "done today"} streak={todoStreak} pct={todoPct} />
         <StatCard href="/english" icon={Mic} tint="bg-teal-500/10 text-teal-400" bar="bg-teal-500" label="English" value="Speak Live + AI" sub="Practice with AI & real people" streak={0} pct={0} />
-        <Link href="/streaks" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
+        <Link href="/streaks" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <div className="flex items-start justify-between mb-4">
             <span className="w-9 h-9 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center"><Flame size={18} strokeWidth={2.2} /></span>
             <span className="text-xl font-black text-orange-400">{maxStreak}</span>
           </div>
           <p className="text-xs font-semibold text-slate-400 mb-1">Streak</p>
           <p className="text-xl font-black text-white leading-none mb-1">{maxStreak} days</p>
-          <p className={`text-[10px] ${maxBroken >= 2 ? "text-red-400 font-black" : "text-slate-500"}`}>
+          <p className={`text-[10px] ${maxBroken >= 2 ? "text-rose-400 font-black" : "text-slate-500"}`}>
             {maxBroken >= 2 ? "💔 rescue today!" : "tap to see all"}
           </p>
         </Link>
@@ -267,15 +276,15 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
             <div className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-violet-500/40" onClick={() => router.push("/daily-goals")}>
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-black flex items-center gap-2"><IconTile emoji="🎯" gradient="bg-violet-600/20" />Daily Goals</h3>
-                <button onClick={(e) => { e.stopPropagation(); setEditingGoals(!editingGoals); }} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs font-bold press">{editingGoals ? "Close" : "Edit"}</button>
+                <h3 className="text-sm font-black flex items-center gap-2"><IconTile icon={Target} tint="bg-violet-500/10 text-violet-400" />Daily Goals</h3>
+                <button onClick={(e) => { e.stopPropagation(); setEditingGoals(!editingGoals); }} className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold press hover:bg-slate-700 transition-colors">{editingGoals ? "Close" : "Edit"}</button>
               </div>
               {editingGoals ? (
                 <form onSubmit={saveGoals} onClick={(e) => e.stopPropagation()} className="grid gap-3">
                   <label className="text-sm flex justify-between items-center gap-2">Study (min/day)<input type="number" min="1" value={goalStudy} onChange={(e) => setGoalStudy(e.target.value)} className="w-24 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-sm" /></label>
                   <label className="text-sm flex justify-between items-center gap-2">Workouts/day<input type="number" min="1" value={goalWorkout} onChange={(e) => setGoalWorkout(e.target.value)} className="w-24 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-sm" /></label>
                   <label className="text-sm flex justify-between items-center gap-2">Habits/day<input type="number" min="1" value={goalHabits} onChange={(e) => setGoalHabits(e.target.value)} className="w-24 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-sm" /></label>
-                  <button className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-violet-600 to-fuchsia-600 text-sm font-black press">Save goals</button>
+                  <button className="px-4 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-black press transition-colors">Save goals</button>
                 </form>
               ) : (
                 <div className="grid gap-3">
@@ -288,13 +297,13 @@ export default function Dashboard() {
             </div>
             <div className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-emerald-500/40" onClick={() => router.push("/weekly")}>
               <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <h3 className="text-sm font-black flex items-center gap-2"><IconTile emoji="📊" gradient="bg-emerald-600/20" />Last 7 days</h3>
+                <h3 className="text-sm font-black flex items-center gap-2"><IconTile icon={BarChart3} tint="bg-emerald-500/10 text-emerald-400" />Last 7 days</h3>
                 <div className="flex gap-1.5 flex-wrap">
                   {(["study", "gym", "habits", "todo"] as const).map((m) => {
                     const active = chartMode === m;
-                    const color = m === "study" ? "bg-blue-600" : m === "gym" ? "bg-green-600" : m === "habits" ? "bg-violet-600" : "bg-amber-600";
+                    const tint = m === "study" ? "bg-blue-500/15 border-blue-500/30 text-blue-300" : m === "gym" ? "bg-green-500/15 border-green-500/30 text-green-300" : m === "habits" ? "bg-violet-500/15 border-violet-500/30 text-violet-300" : "bg-amber-500/15 border-amber-500/30 text-amber-300";
                     const lbl = m === "study" ? "Study" : m === "gym" ? "Gym" : m === "habits" ? "Habits" : "To-do";
-                    return <button key={m} onClick={(e) => { e.stopPropagation(); setChartMode(m); }} className={`px-2.5 py-1 rounded-lg text-[10px] font-black press ${active ? color + " text-white" : "bg-slate-800 text-slate-500"}`}>{lbl}</button>;
+                    return <button key={m} onClick={(e) => { e.stopPropagation(); setChartMode(m); }} className={`px-2.5 py-1 rounded-lg text-[10px] font-black press border transition-colors ${active ? tint : "bg-slate-800 border-slate-700 text-slate-500"}`}>{lbl}</button>;
                   })}
                 </div>
               </div>
@@ -314,10 +323,10 @@ export default function Dashboard() {
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800">
-              <h3 className="text-sm font-black mb-4 flex items-center gap-2"><IconTile emoji="📋" gradient="bg-amber-600/20" />Today&apos;s Tasks</h3>
+              <h3 className="text-sm font-black mb-4 flex items-center gap-2"><IconTile icon={ClipboardList} tint="bg-amber-500/10 text-amber-400" />Today&apos;s Tasks</h3>
               <form onSubmit={addTask} className="flex gap-2 mb-4">
                 <input value={newTask} onChange={(e) => setNewTask(e.target.value)} placeholder="Add a task for today..." className="flex-1 p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
-                <button className="px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-sm font-black press">Add</button>
+                <button className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-sm font-black press transition-colors">Add</button>
               </form>
               <div className="grid gap-2 max-h-72 overflow-y-auto">
                 {tasks.map((t) => (
@@ -326,21 +335,21 @@ export default function Dashboard() {
                       <button onClick={() => toggleTask(t.id, t.completed)} className={`w-6 h-6 rounded-md border-2 flex items-center justify-center press ${t.completed ? "bg-green-500 border-green-500" : "border-slate-600"}`}>{t.completed && <span className="text-xs text-white font-black">✓</span>}</button>
                       <span className={`text-sm ${t.completed ? "line-through text-slate-500" : ""}`}>{t.title}</span>
                     </div>
-                    <button onClick={() => deleteTask(t.id)} className="text-red-400 text-xs press">✕</button>
+                    <button onClick={() => deleteTask(t.id)} className="text-rose-400 text-xs press">✕</button>
                   </div>
                 ))}
                 {tasks.length === 0 && <div className="text-center py-6"><p className="text-3xl mb-2">📭</p><p className="text-slate-500 text-sm">No tasks yet — add your first!</p></div>}
               </div>
             </div>
             <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800">
-              <h3 className="text-sm font-black mb-4 flex items-center gap-2"><IconTile emoji="⏳" gradient="bg-red-600/20" />Countdowns</h3>
+              <h3 className="text-sm font-black mb-4 flex items-center gap-2"><IconTile icon={Hourglass} tint="bg-rose-500/10 text-rose-400" />Countdowns</h3>
               <form onSubmit={addCountdown} className="flex flex-wrap gap-2 mb-4">
                 <input value={cdTitle} onChange={(e) => setCdTitle(e.target.value)} placeholder="e.g. Math exam" required className="flex-1 min-w-[140px] p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
                 <input type="date" value={cdDate} onChange={(e) => setCdDate(e.target.value)} required className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
                 <select value={cdEmoji} onChange={(e) => setCdEmoji(e.target.value)} className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500">
-                  <option value="📚">📚</option><option value="🏋️">🏋️</option><option value="✅">✅</option><option value="🎯"></option><option value="💼">💼</option>
+                  <option value="📚">📚</option><option value="🏋️">🏋️</option><option value="✅">✅</option><option value="🎯">🎯</option><option value="💼">💼</option>
                 </select>
-                <button className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-orange-500 text-sm font-black press">Add</button>
+                <button className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-sm font-black press transition-colors">Add</button>
               </form>
               <div className="grid gap-2 max-h-72 overflow-y-auto">
                 {countdowns.map((c) => {
@@ -350,7 +359,7 @@ export default function Dashboard() {
                       <div className="flex items-center gap-3"><span className="text-xl">{c.emoji}</span><div><p className="text-sm font-bold">{c.title}</p><p className="text-[10px] text-slate-500">{c.target_date}</p></div></div>
                       <div className="flex items-center gap-2">
                         <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${badgeColor(d)}`}>{d < 0 ? "passed" : d === 0 ? "TODAY! 🔥" : `${d}d left`}</span>
-                        <button onClick={() => deleteCountdown(c.id)} className="text-red-400 text-xs press">✕</button>
+                        <button onClick={() => deleteCountdown(c.id)} className="text-rose-400 text-xs press">✕</button>
                       </div>
                     </div>
                   );
