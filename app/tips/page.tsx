@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Lightbulb, Flame, Volume2, Check, RefreshCw, History, Mic, Brain, BookOpen, PenLine, Users, Coffee, Heart, Target } from "lucide-react";
 
 type Tip = { cat: string; emoji: string; tip: string; why: string; try?: string };
 
@@ -75,6 +76,28 @@ const TIPS: Tip[] = [
   { cat: "Confidence", emoji: "💬", tip: "Compare yourself only to yesterday's you.", why: "Others' highlight reels kill motivation.", try: "Write one thing you improved this week." },
 ];
 
+const categoryIcons: Record<string, any> = {
+  Speaking: Mic,
+  Pronunciation: Mic,
+  Vocabulary: BookOpen,
+  Writing: PenLine,
+  Interview: Users,
+  Study: Brain,
+  Habits: Coffee,
+  Confidence: Heart,
+};
+
+const categoryColors: Record<string, string> = {
+  Speaking: "from-blue-500 to-cyan-600",
+  Pronunciation: "from-purple-500 to-pink-600",
+  Vocabulary: "from-green-500 to-emerald-600",
+  Writing: "from-amber-500 to-orange-600",
+  Interview: "from-slate-600 to-gray-700",
+  Study: "from-indigo-500 to-violet-600",
+  Habits: "from-teal-500 to-cyan-600",
+  Confidence: "from-rose-500 to-red-600",
+};
+
 function localISO(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -90,6 +113,7 @@ export default function TipsPage() {
 
   const base = dayNum(new Date());
   const tip = TIPS[(base + offset) % TIPS.length];
+  const CategoryIcon = categoryIcons[tip.cat] || Lightbulb;
 
   useEffect(() => {
     const today = localISO(new Date());
@@ -134,60 +158,140 @@ export default function TipsPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 pb-24">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-black">💡 Daily Tips</h1>
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-3">
-          <span className="text-xs font-black text-orange-400 bg-orange-500/10 border border-orange-500/30 px-2 py-1 rounded-full">🔥 {streak}-day streak</span>
-          <Link href="/speaking" className="text-sm text-slate-400">← Back</Link>
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+            <Lightbulb size={20} className="text-amber-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">Daily Tips</h1>
+            <p className="text-xs text-slate-400">One tip a day = 365 upgrades a year</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-1.5">
+            <Flame size={14} className="text-orange-400" />
+            <span className="text-xs font-semibold text-orange-300">{streak} day streak</span>
+          </div>
+          <Link href="/speaking" className="text-sm text-slate-400 hover:text-slate-300">
+            ← Back
+          </Link>
         </div>
       </div>
 
-      {/* TODAY'S TIP */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 grid gap-4 max-w-md mx-auto">
-        <p className="text-[10px] font-black text-slate-500">
-          {new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" }).toUpperCase()} • {tip.emoji} {tip.cat.toUpperCase()}
-        </p>
-        <p className="text-xl font-black leading-snug">"{tip.tip}"</p>
-        <div className="bg-slate-950 rounded-xl p-3">
-          <p className="text-[10px] text-slate-500 font-bold mb-1">💡 WHY IT WORKS</p>
-          <p className="text-sm text-slate-300">{tip.why}</p>
-        </div>
-        {tip.try && (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3">
-            <p className="text-[10px] text-emerald-400 font-bold mb-1">📖 TRY NOW</p>
-            <p className="text-sm text-emerald-100">{tip.try}</p>
+      {/* Today's Tip Card */}
+      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-slate-700 rounded-2xl p-6 mb-6 max-w-2xl mx-auto">
+        {/* Category Badge */}
+        <div className="flex items-center gap-2 mb-4">
+          <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${categoryColors[tip.cat] || "from-slate-600 to-slate-700"} flex items-center justify-center`}>
+            <CategoryIcon size={16} className="text-white" />
           </div>
-        )}
-        <div className="flex gap-2">
-          <button onClick={() => speak(tip.tip + " " + tip.why)} className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-bold">🔊 Hear</button>
+          <div>
+            <p className="text-xs text-slate-400">
+              {new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" }).toUpperCase()}
+            </p>
+            <p className="text-xs font-semibold text-slate-300">{tip.cat.toUpperCase()}</p>
+          </div>
+        </div>
+
+        {/* Main Tip */}
+        <div className="mb-6">
+          <p className="text-xl font-semibold leading-relaxed mb-4">"{tip.tip}"</p>
+          
+          {/* Why Section */}
+          <div className="bg-slate-900/50 rounded-xl p-4 mb-4 border border-slate-700/50">
+            <div className="flex items-start gap-2">
+              <Lightbulb size={16} className="text-amber-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-slate-400 mb-1">Why it works</p>
+                <p className="text-sm text-slate-300 leading-relaxed">{tip.why}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Try Now Section */}
+          {tip.try && (
+            <div className="bg-emerald-500/5 rounded-xl p-4 border border-emerald-500/20">
+              <div className="flex items-start gap-2">
+                <Target size={16} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-xs font-semibold text-emerald-400 mb-1">Try now</p>
+                  <p className="text-sm text-emerald-100 leading-relaxed">{tip.try}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={() => speak(tip.tip + " " + tip.why)}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-medium transition-colors"
+          >
+            <Volume2 size={16} />
+            Hear
+          </button>
           <button
             onClick={didIt}
             disabled={done}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-bold ${done ? "bg-emerald-600/30 text-emerald-300 border border-emerald-500/40" : "bg-emerald-600 hover:bg-emerald-500"}`}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+              done
+                ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 cursor-not-allowed"
+                : "bg-emerald-500 hover:bg-emerald-400 text-white"
+            }`}
           >
-            {done ? "✅ Done today!" : "✅ Did it!"}
+            <Check size={16} />
+            {done ? "Done today!" : "Did it!"}
           </button>
         </div>
-        <button onClick={() => setOffset((offset + 1) % 3)} className="py-2 rounded-xl bg-slate-800/60 hover:bg-slate-700 text-xs font-bold text-slate-300">
-          🔁 Show another tip
+
+        {/* Another Tip Button */}
+        <button
+          onClick={() => setOffset((offset + 1) % 3)}
+          className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-slate-800/50 hover:bg-slate-700 text-xs font-medium text-slate-300 transition-colors"
+        >
+          <RefreshCw size={14} />
+          Show another tip
         </button>
       </div>
 
-      {/* PAST 7 DAYS */}
-      <p className="text-xs font-black text-slate-400 mt-6 mb-2 max-w-md mx-auto">📜 THIS WEEK</p>
-      <div className="grid gap-2 max-w-md mx-auto">
-        {history.map((h, i) => (
-          <div key={i} className={`rounded-xl p-3 border ${h.today ? "bg-slate-900 border-emerald-500/40" : "bg-slate-900/60 border-slate-800"}`}>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-500 w-8">{h.day}</span>
-              <span className="text-sm">{h.tip.emoji}</span>
-              <p className="flex-1 text-xs text-slate-300 truncate">{h.tip.tip}</p>
-              <span className="text-sm">{h.done ? "✅" : "⬜"}</span>
-            </div>
-          </div>
-        ))}
+      {/* This Week History */}
+      <div className="max-w-2xl mx-auto">
+        <div className="flex items-center gap-2 mb-3">
+          <History size={16} className="text-slate-400" />
+          <p className="text-sm font-semibold text-slate-400">This week</p>
+        </div>
+        <div className="grid gap-2">
+          {history.map((h, i) => {
+            const HistIcon = categoryIcons[h.tip.cat] || Lightbulb;
+            return (
+              <div
+                key={i}
+                className={`rounded-xl p-3 border ${
+                  h.today
+                    ? "bg-slate-800/50 border-emerald-500/30"
+                    : "bg-slate-900/30 border-slate-700/50"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-semibold text-slate-500 w-12">{h.day}</span>
+                  <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${categoryColors[h.tip.cat] || "from-slate-600 to-slate-700"} flex items-center justify-center flex-shrink-0`}>
+                    <HistIcon size={14} className="text-white" />
+                  </div>
+                  <p className="flex-1 text-xs text-slate-300 truncate">{h.tip.tip}</p>
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center ${
+                    h.done ? "bg-emerald-500/20" : "bg-slate-700/30"
+                  }`}>
+                    <Check size={14} className={h.done ? "text-emerald-400" : "text-slate-600"} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
-      <p className="text-[10px] text-slate-500 text-center mt-4">1 tip a day = 365 upgrades a year! 🚀</p>
     </main>
   );
 }
