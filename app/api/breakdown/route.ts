@@ -1,78 +1,111 @@
 import { NextResponse } from "next/server";
 
-type ModelInfo = { name: string; supportedGenerationMethods?: string[] };
+const GROQ_CHAT = [
+  "openai/gpt-oss-120b",
+  "openai/gpt-oss-20b",
+  "meta-llama/llama-4-scout-17b-16e-instruct",
+  "meta-llama/llama-4-maverick-17b-128e-instruct",
+];
+const GEMINI_MODELS = ["gemini-3-flash-preview", "gemini-3.7-flash"];
 
-async function getCandidates(key: string): Promise<string[]> {
-  const r = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=200`
-  );
-  const d = await r.json();
-  const list: ModelInfo[] = d.models || [];
-  const usable = list.filter(
-    (m) =>
-      (m.supportedGenerationMethods || []).includes("generateContent") &&
-      /gemini/.test(m.name) &&
-      !/embedding|tts|image|a2i|deep-research|robotics/i.test(m.name)
-  );
-  const clean = (m: ModelInfo) => m.name.replace("models/", "");
-  const ordered = [
-    ...usable.filter((m) => /flash/.test(m.name) && !/preview/.test(m.name)),
-    ...usable.filter((m) => /flash/.test(m.name) && /preview/.test(m.name)),
-    ...usable.filter((m) => /pro/.test(m.name)),
-  ].map(clean);
-  return [...new Set(ordered)].slice(0, 4);
+function extractSteps(raw: string): string[] | null {
+  try {
+    let text = (raw || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const match = text.match(/\[[\s\S]*\]/);
+    if (match) text = match[0];
+    const arr = JSON.parse(text);
+    if (!Array.isArray(arr) || arr.length === 0) return null;
+    const steps = arr
+      .filter((x) => typeof x === "string" && x.trim().length > 0)
+      .map((x) => String(x).trim())
+      .slice(0, 10); // cap at 10 to prevent abuse
+    return steps.length > 0 ? steps : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function POST(req: Request) {
   try {
     const { task } = await req.json();
-    const key = process.env.GEMINI_API_KEY;
+    const groqKey = process.env.GROQ_API_KEY;
+    const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
-    if (!key) {
-      return NextResponse.json({ error: "API key not configured." }, { status: 500 });
+    if (!groqKey && !gKey) {
+      return NextResponse.json({ error: "API keys not configured." }, { status: 500 });
     }
     if (!task) {
       return NextResponse.json({ error: "Enter a task first." }, { status: 400 });
     }
 
     const prompt = `Break this big task into 6-8 small actionable steps (each under 10 words, start with a verb): "${task}".
-    Reply ONLY with a valid JSON array of strings (no markdown): ["step 1","step 2"]`;
+Reply ONLY with a valid JSON array of strings (no markdown): ["step 1","step 2"]`;
 
-    const candidates = await getCandidates(key);
-    let data: any = null;
-    let lastError = "";
-    for (const model of candidates) {
-      const r = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.6, maxOutputTokens: 1024 },
-          }),
+    const errs: string[] = [];
+
+    // 1️⃣ GROQ FIRST (fast + excellent at structured text)
+    if (groqKey) {
+      for (const model of GROQ_CHAT) {
+        try {
+          const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: "user", content: prompt }],
+              max_tokens: 1024,
+              temperature: 0.6,
+            }),
+          });
+          if (r.ok) {
+            const d = await r.json();
+            const parsed = extractSteps(d.choices?.[0]?.message?.content || "");
+            if (parsed) return NextResponse.json({ steps: parsed, engine: model });
+            errs.push(`${model}: bad parse`);
+          } else {
+            const t = await r.text().catch(() => "");
+            errs.push(`${model}: ${r.status} ${t.slice(0, 60)}`);
+          }
+        } catch (e: unknown) {
+          errs.push(`${model}: ${e instanceof Error ? e.message : "fail"}`);
         }
-      );
-      data = await r.json();
-      if (data.candidates && data.candidates.length > 0) break;
-      lastError = data?.error?.message || "model failed";
-    }
+      }
+    } else errs.push("groq: NO KEY");
 
-    if (!data?.candidates?.length) {
-      return NextResponse.json({ error: `AI error: ${lastError}` }, { status: 500 });
-    }
+    // 2️⃣ GEMINI FALLBACK
+    if (gKey) {
+      for (const model of GEMINI_MODELS) {
+        try {
+          const r = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { temperature: 0.6, maxOutputTokens: 1024 },
+              }),
+            }
+          );
+          if (r.ok) {
+            const d = await r.json();
+            const parsed = extractSteps(d.candidates?.[0]?.content?.parts?.[0]?.text || "");
+            if (parsed) return NextResponse.json({ steps: parsed, engine: model });
+            errs.push(`${model}: bad parse`);
+          } else {
+            const t = await r.text().catch(() => "");
+            errs.push(`${model}: ${r.status} ${t.slice(0, 60)}`);
+          }
+        } catch (e: unknown) {
+          errs.push(`${model}: ${e instanceof Error ? e.message : "fail"}`);
+        }
+      }
+    } else errs.push("gemini: NO KEY");
 
-    let text = data.candidates[0]?.content?.parts?.[0]?.text || "";
-    text = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const match = text.match(/\[[\s\S]*\]/);
-    if (match) text = match[0];
-
-    try {
-      const steps = JSON.parse(text);
-      return NextResponse.json({ steps });
-    } catch {
-      return NextResponse.json({ error: "Could not parse steps. Try again." }, { status: 500 });
-    }
+    return NextResponse.json(
+      { error: "All AI engines are resting. Try again in a minute!", debug: errs },
+      { status: 503 }
+    );
   } catch {
     return NextResponse.json({ error: "Server error. Try again." }, { status: 500 });
   }
