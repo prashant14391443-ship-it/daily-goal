@@ -9,7 +9,7 @@ const GROQ_CHAT = [
 ];
 const GEMINI_MODELS = ["gemini-3-flash-preview", "gemini-3.7-flash"];
 
-const VEER_PROMPT = (topic: string) => `You are "Veer", a friendly human conversation partner on a voice call with a student practicing English.
+const Swati_PROMPT = (topic: string) => `You are "Swati", a friendly human conversation partner on a voice call with a student practicing English.
 TOPIC: ${topic}
 Rules:
 1. Sound warm and natural — like a real friend on the phone.
@@ -324,7 +324,7 @@ SENT: <wrong sentence> | <correct sentence> | <brief reason> | <hindi meaning of
 
         // 💬 CALL / ENGLISH
         const systemPrompt = mode === "call"
-          ? VEER_PROMPT(topic || "daily life")
+          ? Swati_PROMPT(topic || "daily life")
           : `You are an expert English language tutor helping a student practice speaking.
 Rules:
 1. Find ALL grammar and pronunciation mistakes in their spoken English.
@@ -414,7 +414,7 @@ Rules:
 
     let system = "";
     if (mode === "call") {
-      system = VEER_PROMPT(topic || "daily life");
+      system = Swati_PROMPT(topic || "daily life");
     } else if (mode === "english") {
       system = `You are an expert English language tutor. Rules:
 1. Find ALL mistakes (grammar, spelling, word order, missing words).

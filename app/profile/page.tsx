@@ -199,8 +199,8 @@ function Inner() {
     }
     const finalName = editName.trim() || prof?.display_name || "friend";
     await supabase.auth.updateUser({ data: { display_name: finalName, avatar_url: newAvatarUrl, bio: editBio } });
-    const { error: saveErr } = await supabase.from("profiles").upsert({ user_id: me, bio: editBio, display_name: finalName, avatar_url: newAvatarUrl }, { onConflict: "user_id" });
-    if (saveErr) alert("Save failed: " + saveErr.message);
+    const { error: saSwatir } = await supabase.from("profiles").upsert({ user_id: me, bio: editBio, display_name: finalName, avatar_url: newAvatarUrl }, { onConflict: "user_id" });
+    if (saSwatir) alert("Save failed: " + saSwatir.message);
     setProf((prev: any) => ({ ...prev, display_name: finalName, bio: editBio, avatar_url: newAvatarUrl }));
     setEditing(false); setSaving(false); load();
   };

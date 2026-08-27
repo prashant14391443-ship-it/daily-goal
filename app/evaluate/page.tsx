@@ -168,7 +168,7 @@ export default function EvaluatePage() {
           </div>
           <p className="font-semibold mb-2">Record yourself ONCE</p>
           <p className="text-sm text-slate-400 leading-relaxed">
-            Speak 5-20 seconds about anything — your day, a story, your hobby. Veer grades Accuracy, Expression, Fluency + fixes EVERY mistake!
+            Speak 5-20 seconds about anything — your day, a story, your hobby. Swati grades Accuracy, Expression, Fluency + fixes EVERY mistake!
           </p>
         </div>
       )}
@@ -273,7 +273,7 @@ export default function EvaluatePage() {
               className="flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold transition-colors"
             >
               <Volume2 size={16} />
-              Hear Veer's feedback
+              Hear Swati's feedback
             </button>
           )}
         </div>

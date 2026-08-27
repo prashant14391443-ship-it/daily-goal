@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { IconTile, Chip, GradButton } from "@/app/components/ui";
+import { Mic, Send, PhoneOff, Volume2, MessageCircle, ArrowLeft, Bot, User, Shuffle, Loader2 } from "lucide-react";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -58,6 +58,7 @@ export default function SpeakingPage() {
   const recTimerRef = useRef<number | null>(null);
   const recSecRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -81,8 +82,11 @@ export default function SpeakingPage() {
     initMic();
   }, []);
 
+  // 🔒 SCROLL ONLY THE MESSAGES CONTAINER (not the whole page)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesRef.current) {
+      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+    }
   }, [msgs, loading, speaking]);
 
   const speak = (text: string) => {
@@ -145,7 +149,7 @@ export default function SpeakingPage() {
   const startChat = () => {
     setPicker(false);
     setMode("chat");
-    setMsgs([{ role: "assistant", content: `Hi! I'm Veer 😊 Let's talk about ${topic}. Write your first sentence!` }]);
+    setMsgs([{ role: "assistant", content: `Hi! I'm Swati 😊 Let's talk about ${topic}. Write your first sentence!` }]);
   };
 
   const startDrill = () => {
@@ -260,23 +264,27 @@ export default function SpeakingPage() {
   // 🏠 HOME VIEW
   if (!mode) {
     return (
-      <main className="min-h-screen bg-slate-950 text-white px-4 pt-16 pb-24 max-w-4xl mx-auto">
-        {/* 🌆 HERO */}
-        <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 p-5 shadow-2xl shadow-teal-900/30">
-          <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
-          <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-cyan-300/20 rounded-full blur-3xl" />
+      <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
+        {/* HERO */}
+        <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 p-5 shadow-xl shadow-teal-900/20">
+          <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
           <div className="relative flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <span className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg shrink-0">🗣️</span>
+              <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                <Mic size={22} className="text-white" />
+              </div>
               <div className="min-w-0">
-                <h1 className="text-lg font-black text-white leading-tight">Practice Speaking</h1>
-                <p className="text-[10px] text-white/80 font-semibold">Speak English with AI coach</p>
+                <h1 className="text-lg font-bold text-white leading-tight">Practice Speaking</h1>
+                <p className="text-xs text-white/75 font-semibold">Speak English with Swati (AI coach)</p>
               </div>
             </div>
             <div className="flex flex-col items-end gap-1 shrink-0">
-              <Chip color="violet">{left}/16 free</Chip>
-              {/* ✅ FIXED: Back now goes to dashboard (not community) */}
-              <Link href="/dashboard" className="text-[10px] text-white/70 font-bold hover:text-white">← Back</Link>
+              <span className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-[10px] font-bold text-white border border-white/20">
+                {left}/16 free
+              </span>
+              <Link href="/english" className="text-[10px] text-white/70 font-bold hover:text-white flex items-center gap-1">
+                <ArrowLeft size={10} /> English Club
+              </Link>
             </div>
           </div>
         </div>
@@ -292,36 +300,42 @@ export default function SpeakingPage() {
                 };
 
                 const content = (
-                  <div key={m.id} className={`press bg-slate-900 border-2 ${m.border} rounded-2xl p-4 text-left shadow-lg shadow-black/30 hover:shadow-xl transition-all`}>
-                    <IconTile emoji={m.emoji} gradient={`bg-gradient-to-br ${m.grad}`} />
-                    <p className="font-black text-sm text-white mt-3 leading-tight">{m.title}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{m.desc}</p>
+                  <div className={`bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-2xl p-4 text-left transition-colors`}>
+                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${m.grad} flex items-center justify-center text-xl mb-3`}>
+                      {m.emoji}
+                    </div>
+                    <p className="font-semibold text-sm text-white leading-tight">{m.title}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{m.desc}</p>
                   </div>
                 );
 
                 return m.href ? (
                   <Link key={m.id} href={m.href}>{content}</Link>
                 ) : (
-                  <button key={m.id} onClick={handleClick}>{content}</button>
+                  <button key={m.id} onClick={handleClick} className="text-left">{content}</button>
                 );
               })}
             </div>
-
           </>
         ) : (
           <>
             {/* TOPIC PICKER */}
-            <button onClick={() => setView("home")} className="press text-sm text-slate-400 mb-3 font-semibold">← All modes</button>
-            <p className="text-xs font-black text-slate-400 mb-3">🎯 PICK A TOPIC → call or chat with Veer:</p>
+            <button onClick={() => setView("home")} className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 mb-4 font-semibold transition-colors">
+              <ArrowLeft size={14} />
+              All modes
+            </button>
+            <p className="text-xs font-bold text-slate-400 mb-4">🎯 PICK A TOPIC → call or chat with Swati:</p>
             <div className="grid grid-cols-2 gap-3">
               {TOPICS.map((t) => (
                 <button
                   key={t.title}
                   onClick={() => { setTopic(t.title); setPicker(true); }}
-                  className={`press bg-slate-900 border-2 ${t.border} rounded-2xl p-4 text-center shadow-lg shadow-black/30 hover:shadow-xl transition-all`}
+                  className="bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-2xl p-4 text-center transition-colors"
                 >
-                  <IconTile emoji={t.emoji} gradient={`bg-gradient-to-br ${t.grad}`} />
-                  <p className="text-xs font-black text-white mt-2 leading-tight">{t.title}</p>
+                  <div className={`w-11 h-11 mx-auto rounded-xl bg-gradient-to-br ${t.grad} flex items-center justify-center text-xl mb-2`}>
+                    {t.emoji}
+                  </div>
+                  <p className="text-xs font-semibold text-white leading-tight">{t.title}</p>
                 </button>
               ))}
             </div>
@@ -331,21 +345,25 @@ export default function SpeakingPage() {
         {/* METHOD PICKER MODAL */}
         {picker && (
           <div className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-end justify-center">
-            <div className="bg-slate-900 border-t-2 border-slate-700 rounded-t-3xl p-6 w-full max-w-md shadow-2xl">
+            <div className="bg-slate-900 border-t border-slate-700 rounded-t-3xl p-6 w-full max-w-md">
               <div className="flex justify-between items-center mb-4">
                 <div>
-                  <p className="font-black text-base text-white">Select method</p>
+                  <p className="font-bold text-base text-white">Select method</p>
                   <p className="text-xs text-slate-400 mt-0.5">Topic: {topic}</p>
                 </div>
-                <button onClick={() => setPicker(false)} className="press w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white text-lg">✕</button>
+                <button onClick={() => setPicker(false)} className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors">
+                  ✕
+                </button>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <GradButton onClick={() => startCall()} gradient="from-emerald-500 to-green-600" className="py-5 text-base">
-                  📞 Call
-                </GradButton>
-                <GradButton onClick={startChat} gradient="from-blue-500 to-indigo-600" className="py-5 text-base">
-                  💬 Chat
-                </GradButton>
+                <button onClick={() => startCall()} className="py-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-base flex items-center justify-center gap-2 transition-colors">
+                  <PhoneOff size={18} className="rotate-[135deg]" />
+                  Call
+                </button>
+                <button onClick={startChat} className="py-5 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-base flex items-center justify-center gap-2 transition-colors">
+                  <MessageCircle size={18} />
+                  Chat
+                </button>
               </div>
             </div>
           </div>
@@ -354,143 +372,171 @@ export default function SpeakingPage() {
     );
   }
 
-  // 🎙️ CONVERSATION / DRILL SCREEN
+  // 🎙️ CONVERSATION / DRILL SCREEN — LOCKED LAYOUT
   return (
-    <main className="h-screen bg-slate-950 text-white flex flex-col px-4 pt-6 pb-4 max-w-4xl mx-auto">
-      {/* HEADER */}
-      <div className="relative mb-4 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 p-4 shadow-2xl shadow-teal-900/30 shrink-0">
-        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
+    <main className="fixed inset-0 bg-slate-950 text-white flex flex-col">
+      {/* HEADER — always visible */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-4 shrink-0">
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className={`shrink-0 w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg ${speaking ? "animate-pulse ring-4 ring-white/30" : ""}`}>
-              🤖
+            <div className={`shrink-0 w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center ${speaking ? "animate-pulse ring-2 ring-white/30" : ""}`}>
+              <Bot size={22} className="text-white" />
             </div>
             <div className="min-w-0">
-              <p className="font-black text-sm text-white leading-tight">Veer • {mode === "drill" ? "Sentence Practice" : topic}</p>
-              <p className="text-[10px] text-white/80 font-semibold">
-                {speaking ? "🔊 Veer is speaking..." : mode === "chat" ? "💬 chat mode" : "🎤 Your turn — tap mic & speak"}
+              <p className="font-bold text-sm text-white leading-tight truncate">
+                Swati • {mode === "drill" ? "Sentence Practice" : topic}
+              </p>
+              <p className="text-xs text-white/75 font-semibold">
+                {speaking ? "🔊 Swati is speaking..." : mode === "chat" ? "💬 chat mode" : "🎤 Your turn — tap mic & speak"}
               </p>
             </div>
           </div>
           <button
             onClick={() => { stopAll(); setMode(""); setMsgs([]); }}
-            className="press shrink-0 px-3 py-2 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-black"
+            className="shrink-0 px-3 py-2 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold flex items-center gap-1.5 hover:bg-red-500/30 transition-colors"
           >
-            📴 End
+            <PhoneOff size={14} />
+            End
           </button>
         </div>
       </div>
 
       {/* DRILL TARGET */}
       {mode === "drill" && (
-        <div className="bg-gradient-to-r from-amber-600/20 to-orange-600/20 border-2 border-amber-500/40 rounded-2xl p-4 mb-4 shadow-lg shrink-0">
+        <div className="bg-amber-500/10 border-b border-amber-500/20 p-4 shrink-0">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-black text-amber-300">REPEAT AFTER VEER ({drillIdx + 1}/{DRILLS.length})</p>
-            <button onClick={() => speak(DRILLS[drillIdx])} className="press text-[10px] font-black bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-lg text-slate-300 hover:text-white">
-              🔊 Hear it
+            <p className="text-xs font-bold text-amber-300">
+              REPEAT AFTER Swati ({drillIdx + 1}/{DRILLS.length})
+            </p>
+            <button
+              onClick={() => speak(DRILLS[drillIdx])}
+              className="flex items-center gap-1.5 text-xs font-bold bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors"
+            >
+              <Volume2 size={12} />
+              Hear it
             </button>
           </div>
-          <p className="font-black text-base text-amber-200 leading-snug">{DRILLS[drillIdx]}</p>
+          <p className="font-bold text-base text-amber-200 leading-snug">{DRILLS[drillIdx]}</p>
         </div>
       )}
 
-      {/* MESSAGE STREAM */}
-      <div className="flex-1 overflow-y-auto min-h-0 grid gap-3 content-start pb-2">
-        {msgs.map((m, i) => (
-          <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-            {m.role === "assistant" && (
-              <span className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xs shadow-lg self-end">
-                🤖
-              </span>
-            )}
-            <div
-              className={`max-w-[80%] p-3 rounded-2xl text-sm whitespace-pre-wrap shadow-md ${
-                m.role === "user"
-                  ? "bg-gradient-to-br from-emerald-600 to-teal-600 text-white rounded-br-sm"
-                  : "bg-slate-800 text-slate-100 rounded-bl-sm border border-slate-700"
-              }`}
-            >
-              {m.content}
-              {m.role === "assistant" && mode === "chat" && (
-                <button onClick={() => speak(m.content)} className="press block mt-2 text-[10px] font-black bg-slate-700 border border-slate-600 px-2 py-1 rounded-lg">
-                  🔊 Listen
-                </button>
+      {/* MESSAGE STREAM — scrolls ONLY inside this box */}
+      <div ref={messagesRef} className="flex-1 overflow-y-auto px-4 py-4 min-h-0">
+        <div className="max-w-4xl mx-auto grid gap-3 content-start">
+          {msgs.map((m, i) => (
+            <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              {m.role === "assistant" && (
+                <div className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xs self-end">
+                  <Bot size={14} className="text-white" />
+                </div>
+              )}
+              <div
+                className={`max-w-[80%] p-3 rounded-2xl text-sm whitespace-pre-wrap ${
+                  m.role === "user"
+                    ? "bg-gradient-to-br from-emerald-600 to-teal-600 text-white rounded-br-sm"
+                    : "bg-slate-800 text-slate-100 rounded-bl-sm border border-slate-700"
+                }`}
+              >
+                {m.content}
+                {m.role === "assistant" && mode === "chat" && (
+                  <button
+                    onClick={() => speak(m.content)}
+                    className="flex items-center gap-1.5 mt-2 text-xs font-bold bg-slate-700 border border-slate-600 px-2 py-1 rounded-lg hover:bg-slate-600 transition-colors"
+                  >
+                    <Volume2 size={12} />
+                    Listen
+                  </button>
+                )}
+              </div>
+              {m.role === "user" && (
+                <div className="shrink-0 w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-xs border border-slate-700 self-end">
+                  <User size={14} className="text-slate-400" />
+                </div>
               )}
             </div>
-            {m.role === "user" && (
-              <span className="shrink-0 w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-xs border border-slate-700 self-end">
-                👤
-              </span>
-            )}
-          </div>
-        ))}
-        {loading && (
-          <div className="flex gap-2 justify-start">
-            <span className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xs shadow-lg">
-              🤖
-            </span>
-            <div className="bg-slate-800 border border-slate-700 p-3 rounded-2xl rounded-bl-sm shadow-md">
-              <div className="flex gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+          ))}
+          {loading && (
+            <div className="flex gap-2 justify-start">
+              <div className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xs">
+                <Bot size={14} className="text-white" />
+              </div>
+              <div className="bg-slate-800 border border-slate-700 p-3 rounded-2xl rounded-bl-sm">
+                <Loader2 size={16} className="text-emerald-400 animate-spin" />
               </div>
             </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
+          )}
+          <div ref={bottomRef} />
+        </div>
       </div>
 
-      {/* CONTROLS */}
-      <div className="shrink-0 pt-2">
-        {mode === "drill" ? (
-          <div className="flex items-center justify-center gap-3">
-            <button
-              onClick={toggleRecord}
-              disabled={loading || speaking}
-              className={`press w-16 h-16 rounded-full text-xl flex items-center justify-center disabled:opacity-40 shadow-xl transition-all ${
-                recording ? "bg-red-600 animate-pulse shadow-red-900/40" : "bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-900/40"
-              }`}
-            >
-              {recording ? <span className="text-sm font-black">⏹️ {recSec}s</span> : "🎤"}
-            </button>
-            <button
-              onClick={() => setDrillIdx((drillIdx + 1) % DRILLS.length)}
-              className="press px-5 py-3 rounded-xl bg-slate-800 border border-slate-700 text-sm font-black hover:bg-slate-700"
-            >
-              Next ➡️
-            </button>
-          </div>
-        ) : mode === "call" ? (
-          <div className="flex flex-col items-center gap-2">
-            <button
-              onClick={toggleRecord}
-              disabled={loading || speaking}
-              className={`press w-20 h-20 rounded-full font-black text-sm flex items-center justify-center transition-all disabled:opacity-40 shadow-2xl ${
-                recording
-                  ? "bg-red-600 animate-pulse shadow-red-900/40"
-                  : "bg-gradient-to-br from-emerald-500 to-teal-600 hover:shadow-emerald-900/40"
-              }`}
-            >
-              {recording ? <span className="text-base font-black">⏹️ {recSec}s</span> : <span className="text-2xl">🎤</span>}
-            </button>
-            <p className="text-[10px] text-slate-400 font-bold">
-              {speaking ? "Listen to Veer first..." : "Tap & speak your answer"}
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type in English..."
-              className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-800 text-sm outline-none focus:border-blue-500"
-            />
-            <GradButton type="submit" disabled={loading} gradient="from-blue-500 to-indigo-600" className="px-5 text-lg">
-              ➤
-            </GradButton>
-          </form>
-        )}
+      {/* CONTROLS — docked at bottom, always visible */}
+      <div className="shrink-0 p-4 bg-slate-950 border-t border-slate-800">
+        <div className="max-w-4xl mx-auto">
+          {mode === "drill" ? (
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={toggleRecord}
+                disabled={loading || speaking}
+                className={`w-16 h-16 rounded-full flex items-center justify-center disabled:opacity-40 transition-all ${
+                  recording
+                    ? "bg-red-600 animate-pulse"
+                    : "bg-gradient-to-br from-amber-500 to-orange-600"
+                }`}
+              >
+                {recording ? (
+                  <span className="text-sm font-bold text-white">⏹️ {recSec}s</span>
+                ) : (
+                  <Mic size={24} className="text-white" />
+                )}
+              </button>
+              <button
+                onClick={() => setDrillIdx((drillIdx + 1) % DRILLS.length)}
+                className="px-5 py-3 rounded-xl bg-slate-800 border border-slate-700 text-sm font-bold hover:bg-slate-700 flex items-center gap-2 transition-colors"
+              >
+                <Shuffle size={14} />
+                Next
+              </button>
+            </div>
+          ) : mode === "call" ? (
+            <div className="flex flex-col items-center gap-2">
+              <button
+                onClick={toggleRecord}
+                disabled={loading || speaking}
+                className={`w-20 h-20 rounded-full flex items-center justify-center transition-all disabled:opacity-40 ${
+                  recording
+                    ? "bg-red-600 animate-pulse"
+                    : "bg-gradient-to-br from-emerald-500 to-teal-600"
+                }`}
+              >
+                {recording ? (
+                  <span className="text-base font-bold text-white">⏹️ {recSec}s</span>
+                ) : (
+                  <Mic size={28} className="text-white" />
+                )}
+              </button>
+              <p className="text-xs text-slate-400 font-semibold">
+                {speaking ? "Listen to Swati first..." : "Tap & speak your answer"}
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type in English..."
+                className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-800 text-sm focus:outline-none focus:border-blue-500"
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                className="shrink-0 px-5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white disabled:opacity-40 flex items-center justify-center transition-colors"
+              >
+                <Send size={18} />
+              </button>
+            </form>
+          )}
+        </div>
       </div>
     </main>
   );
