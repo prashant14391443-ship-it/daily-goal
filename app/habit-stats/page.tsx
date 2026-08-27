@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ProgressRing, IconTile, EmptyState } from "@/app/components/ui";
+import { BarChart3, Calendar, Trophy, Flame, Check } from "lucide-react";
+import { ProgressRing, EmptyState } from "@/app/components/ui";
 
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -62,21 +63,23 @@ export default function HabitStatsPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 HERO */}
-      <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 p-4 shadow-2xl shadow-indigo-900/30">
-        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
-        <div className="relative flex items-center gap-3">
-          <span className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg">📊</span>
+      {/* 🌆 CALM HERO */}
+      <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-blue-500 via-indigo-600 to-violet-600 p-5 shadow-xl shadow-indigo-900/20">
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+        <div className="relative flex items-center gap-4">
+          <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
+            <BarChart3 size={22} strokeWidth={2.2} className="text-white" />
+          </span>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-black text-white leading-tight">Habit Stats</h1>
-            <p className="text-[10px] text-white/80 font-semibold">Last 14 days • last 30 days %</p>
+            <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Habit Stats</h1>
+            <p className="text-[11px] text-white/75 font-semibold mt-0.5">Last 14 days • last 30 days %</p>
           </div>
           <ProgressRing pct={consistency} size={64} stroke={7} color="#fbbf24" track="rgba(0,0,0,0.25)" />
         </div>
       </div>
 
       {loading ? (
-        <p className="text-slate-400">Reading your habits...</p>
+        <p className="text-slate-500 text-sm font-bold">Reading your habits...</p>
       ) : stats.length === 0 ? (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl">
           <EmptyState emoji="📈" text="No habits yet — create some in Habit Log!" />
@@ -85,35 +88,44 @@ export default function HabitStatsPage() {
         <>
           {/* 🏆 STATS GRID */}
           <div className="grid grid-cols-2 gap-3 mb-5">
-            <div className="bg-slate-900 border border-violet-500/30 rounded-2xl p-4 shadow-lg shadow-black/30">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-2">
-                <IconTile emoji="📅" gradient="bg-gradient-to-br from-violet-500 to-purple-600" size="sm" />
-                <p className="text-[10px] font-black text-slate-400">14-DAY CONSISTENCY</p>
+                <span className="w-8 h-8 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center">
+                  <Calendar size={16} strokeWidth={2.2} />
+                </span>
+                <p className="text-[10px] font-black text-slate-500">14-DAY CONSISTENCY</p>
               </div>
               <p className="text-3xl font-black text-white">{consistency}%</p>
-              <p className="text-[10px] text-slate-500 mt-1">{doneCells}/{totalCells} cells filled</p>
+              <p className="text-[10px] text-slate-500 font-bold mt-1">{doneCells}/{totalCells} cells filled</p>
             </div>
-            <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-4 shadow-lg shadow-black/30">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-2">
-                <IconTile emoji="🏆" gradient="bg-gradient-to-br from-amber-400 to-orange-600" size="sm" />
-                <p className="text-[10px] font-black text-slate-400">BEST HABIT</p>
+                <span className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                  <Trophy size={16} strokeWidth={2.2} />
+                </span>
+                <p className="text-[10px] font-black text-slate-500">BEST HABIT</p>
               </div>
               <p className="text-base font-black text-white truncate">{best ? best.habit_name : "—"}</p>
-              <p className="text-[10px] text-slate-500 mt-1">{best ? `${best.pct}% this month` : "—"}</p>
+              <p className="text-[10px] text-slate-500 font-bold mt-1">{best ? `${best.pct}% this month` : "—"}</p>
             </div>
           </div>
 
           {/* 📋 PER-HABIT HEATMAP */}
-          <p className="text-xs font-black text-slate-400 mb-2 flex items-center gap-1.5">
-            <span className="w-6 h-6 rounded-lg bg-slate-800 flex items-center justify-center text-[10px]">🔥</span>
-            YOUR HEATMAP
-          </p>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-7 h-7 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center">
+              <Flame size={14} strokeWidth={2.2} />
+            </span>
+            <p className="text-xs font-black text-slate-400">YOUR HEATMAP</p>
+          </div>
+
           <div className="grid gap-3">
             {stats.map((s) => (
-              <div key={s.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-lg shadow-black/30">
+              <div key={s.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
                 <div className="flex justify-between items-center mb-3">
                   <div className="flex items-center gap-2 min-w-0">
-                    <IconTile emoji="✅" gradient="bg-gradient-to-br from-green-500 to-emerald-600" size="sm" />
+                    <span className="w-7 h-7 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center">
+                      <Check size={14} strokeWidth={2.2} />
+                    </span>
                     <p className="font-black text-sm truncate">{s.habit_name}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -123,7 +135,7 @@ export default function HabitStatsPage() {
                 </div>
 
                 {/* 🔥 HEATMAP GRID */}
-                <div className="flex gap-1 flex-wrap mb-2">
+                <div className="flex gap-1 flex-wrap mb-3">
                   {days14.map((d) => (
                     <div
                       key={d}
@@ -166,7 +178,7 @@ export default function HabitStatsPage() {
         </>
       )}
 
-      <Link href="/routine-habits" className="inline-block mt-6 text-sm text-slate-400 hover:text-white press font-semibold">
+      <Link href="/routine-habits" className="inline-block mt-6 text-sm text-slate-500 hover:text-white press font-bold">
         ← Back to Habits
       </Link>
     </main>
