@@ -1,42 +1,63 @@
 "use client";
 import Link from "next/link";
-import { IconTile } from "@/app/components/ui";
+import { Dumbbell, Camera, Target, Footprints, Satellite } from "lucide-react";
 
 export default function GymHub() {
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-16 pb-24 max-w-4xl mx-auto">
+      {/* HEADER */}
       <div className="mb-6">
         <div className="flex items-center gap-3">
-          <span className="w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-2xl shadow-lg">🏋️</span>
+          <span className="w-11 h-11 shrink-0 rounded-xl bg-green-500/10 text-green-400 flex items-center justify-center">
+            <Dumbbell size={22} strokeWidth={2.2} />
+          </span>
           <h1 className="text-2xl font-black text-white" style={{ whiteSpace: "nowrap" }}>Gym</h1>
         </div>
-        <p className="text-[10px] text-slate-400 font-semibold mt-2">Choose your tool</p>
+        <p className="text-[11px] text-slate-500 font-semibold mt-2">Choose your tool</p>
       </div>
+
+      {/* CALM CARDS */}
       <div className="grid grid-cols-2 gap-3">
-        <Link href="/workout" className="press bg-slate-900 border border-green-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30">
-          <IconTile emoji="🏋️" gradient="bg-gradient-to-br from-green-500 to-emerald-600" />
-          <p className="font-black text-sm mt-3 text-white">Workout Log</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">Add workouts, tick & build streaks</p>
+        <Link href="/workout" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <span className="w-9 h-9 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center mb-4">
+            <Dumbbell size={18} strokeWidth={2.2} />
+          </span>
+          <p className="font-black text-sm text-white">Workout Log</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">Add workouts, tick & build streaks</p>
         </Link>
-        <Link href="/calorie" className="press bg-slate-900 border border-amber-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30">
-          <IconTile emoji="📷" gradient="bg-gradient-to-br from-amber-500 to-orange-600" />
-          <p className="font-black text-sm mt-3 text-white">Calorie Scanner</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">Photo of food → instant calories</p>
+
+        <Link href="/calorie" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <span className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4">
+            <Camera size={18} strokeWidth={2.2} />
+          </span>
+          <p className="font-black text-sm text-white">Calorie Scanner</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">Photo of food → instant calories</p>
         </Link>
-        <Link href="/calculator" className="press bg-slate-900 border border-rose-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30">
-          <IconTile emoji="🎯" gradient="bg-gradient-to-br from-rose-500 to-red-600" />
-          <p className="font-black text-sm mt-3 text-white">Goal Calculator</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">BMR, TDEE & daily calorie plan</p>
+
+        <Link href="/calculator" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <span className="w-9 h-9 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center mb-4">
+            <Target size={18} strokeWidth={2.2} />
+          </span>
+          <p className="font-black text-sm text-white">Goal Calculator</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">BMR, TDEE & daily calorie plan</p>
         </Link>
-        <Link href="/running" className="press bg-slate-900 border border-blue-500/30 rounded-2xl p-4 text-center shadow-lg shadow-black/30">
-          <IconTile emoji="🏃" gradient="bg-gradient-to-br from-blue-500 to-indigo-600" />
-          <p className="font-black text-sm mt-3 text-white">Running Calculator</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">Speed, pace & race predictions</p>
+
+        <Link href="/running" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <span className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center mb-4">
+            <Footprints size={18} strokeWidth={2.2} />
+          </span>
+          <p className="font-black text-sm text-white">Running Calculator</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">Speed, pace & race predictions</p>
         </Link>
-        <Link href="/move" className="press col-span-2 bg-slate-900 border-2 border-green-500/50 rounded-2xl p-4 text-center shadow-lg shadow-green-900/20">
-          <IconTile emoji="🛰️" gradient="bg-gradient-to-br from-green-500 to-teal-600" />
-          <p className="font-black text-sm mt-3 text-green-400">Auto Tracker</p>
-          <p className="text-[10px] text-slate-400 mt-0.5">GPS: walk, run, ride, hike — auto calories!</p>
+
+        <Link href="/move" className="press col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center gap-4">
+          <span className="w-9 h-9 shrink-0 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center">
+            <Satellite size={18} strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0">
+            <p className="font-black text-sm text-green-400">Auto Tracker</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">GPS: walk, run, ride, hike — auto calories!</p>
+          </div>
         </Link>
       </div>
     </main>
