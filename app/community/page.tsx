@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Home, Globe, Bot, Sparkles, Search, Users, Flag, UserPlus, Clock, ArrowRight, X, Building2 } from "lucide-react";
+import { Home, Sparkles, Search, Users, Flag, UserPlus, Clock, ArrowRight, ArrowLeft, X, Building2 } from "lucide-react";
 
 type Community = {
   id: string;
@@ -127,6 +127,15 @@ export default function CommunityPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
+      {/* Back to English hub */}
+      <Link
+        href="/english"
+        className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition-colors mb-4"
+      >
+        <ArrowLeft size={16} />
+        English Club
+      </Link>
+
       {/* 🌆 CALM HERO */}
       <div className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-pink-600 via-fuchsia-600 to-violet-600 p-5 shadow-xl shadow-fuchsia-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
@@ -143,60 +152,30 @@ export default function CommunityPage() {
             )}
           </div>
           <h1 className="text-xl font-bold text-white">Community</h1>
-          <p className="text-xs text-white/75 font-medium mt-1">Request → approved → chat & talk</p>
+          <p className="text-xs text-white/75 font-medium mt-1">Create or join a space → chat & talk</p>
         </div>
       </div>
 
-      {/* 🎯 3 ACTION CARDS */}
-      <div className="grid gap-3 mb-6">
-        <Link
-          href="/random-talk"
-          className="group bg-slate-900 border border-slate-700 hover:border-pink-500/40 rounded-2xl p-4 flex items-center gap-3 transition-colors"
-        >
-          <div className="w-11 h-11 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center flex-shrink-0">
-            <Globe size={20} className="text-pink-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm text-white leading-tight">Talk to a Stranger</p>
-            <p className="text-xs text-slate-400 mt-0.5">1-on-1 voice • practice English</p>
-          </div>
-          <ArrowRight size={18} className="text-slate-500 group-hover:text-pink-400 transition-colors flex-shrink-0" />
-        </Link>
-
-        <Link
-          href="/speaking"
-          className="group bg-slate-900 border border-slate-700 hover:border-indigo-500/40 rounded-2xl p-4 flex items-center gap-3 transition-colors"
-        >
-          <div className="w-11 h-11 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center flex-shrink-0">
-            <Bot size={20} className="text-indigo-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm text-white leading-tight">Talk to AI</p>
-            <p className="text-xs text-slate-400 mt-0.5">Practice English, correct mistakes</p>
-          </div>
-          <ArrowRight size={18} className="text-slate-500 group-hover:text-indigo-400 transition-colors flex-shrink-0" />
-        </Link>
-
-        <button
-          onClick={() => setShowCreate(!showCreate)}
-          className="group bg-slate-900 border border-slate-700 hover:border-amber-500/40 rounded-2xl p-4 flex items-center gap-3 transition-colors w-full text-left"
-        >
-          <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
-            {showCreate ? <X size={20} className="text-amber-400" /> : <Sparkles size={20} className="text-amber-400" />}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm text-white leading-tight">
-              {showCreate ? "Cancel Creation" : "Create My Community"}
-            </p>
-            <p className="text-xs text-slate-400 mt-0.5">Start your own space</p>
-          </div>
-          {showCreate ? (
-            <X size={18} className="text-slate-500 flex-shrink-0" />
-          ) : (
-            <ArrowRight size={18} className="text-slate-500 group-hover:text-amber-400 transition-colors flex-shrink-0" />
-          )}
-        </button>
-      </div>
+      {/*  CREATE COMMUNITY */}
+      <button
+        onClick={() => setShowCreate(!showCreate)}
+        className="group bg-slate-900 border border-slate-700 hover:border-amber-500/40 rounded-2xl p-4 flex items-center gap-3 transition-colors w-full text-left mb-6"
+      >
+        <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+          {showCreate ? <X size={20} className="text-amber-400" /> : <Sparkles size={20} className="text-amber-400" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm text-white leading-tight">
+            {showCreate ? "Cancel Creation" : "Create My Community"}
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">Start your own space</p>
+        </div>
+        {showCreate ? (
+          <X size={18} className="text-slate-500 flex-shrink-0" />
+        ) : (
+          <ArrowRight size={18} className="text-slate-500 group-hover:text-amber-400 transition-colors flex-shrink-0" />
+        )}
+      </button>
 
       {/* 📝 CREATE FORM */}
       {showCreate && (
