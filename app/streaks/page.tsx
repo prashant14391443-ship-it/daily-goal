@@ -131,8 +131,7 @@ export default function StreaksPage() {
         </div>
       </div>
 
-      <Link href="/dashboard" className="inline-block mt-6 text-sm text-slate-400 hover:text-white press font-semibold">← Back to Dashboard</Link>
-    </main>
+<Link href="/dashboard" scroll={false} className="inline-block mt-6 text-sm text-slate-400 hover:text-white press font-semibold">← Back to Dashboard</Link>    </main>
   );
 }
 

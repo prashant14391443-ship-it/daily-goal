@@ -270,8 +270,9 @@ export default function WeeklyPage() {
         </div>
       </div>
 
-      <Link 
-        href="/dashboard" 
+          <Link
+        href="/dashboard"
+        scroll={false}
         className="inline-flex items-center gap-1.5 mt-6 text-sm text-slate-400 hover:text-slate-300 transition-colors"
       >
         <ArrowLeft size={16} />

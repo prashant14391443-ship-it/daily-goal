@@ -174,7 +174,7 @@ export default function TipsPage() {
             <Flame size={14} className="text-orange-400" />
             <span className="text-xs font-semibold text-orange-300">{streak} day streak</span>
           </div>
-          <Link href="/dashboard" className="text-sm text-slate-400 hover:text-slate-300">
+          <Link href="/dashboard" scroll={false} className="text-sm text-slate-400 hover:text-slate-300">
             ← Back
           </Link>
         </div>
