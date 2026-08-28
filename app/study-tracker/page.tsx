@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { BookOpen, Timer, Layers, Brain, Bot } from "lucide-react";
+import { BookOpen, Timer, Layers, Brain, Bot, RefreshCw } from "lucide-react";
 
 export default function StudyHub() {
   return (
@@ -50,7 +50,15 @@ export default function StudyHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Points + mind-map</p>
         </Link>
 
-             <Link href="/quiz" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors col-span-2">
+        <Link href="/review" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors col-span-2">
+          <div className="w-11 h-11 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center mb-6">
+            <RefreshCw size={20} />
+          </div>
+          <p className="font-bold text-white text-sm leading-tight">Review (SRS)</p>
+          <p className="text-xs text-slate-400 mt-1">Spaced repetition — never forget again</p>
+        </Link>
+
+        <Link href="/quiz" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors col-span-2">
         <div className="w-11 h-11 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-6">
           <Bot size={20} />
         </div>
