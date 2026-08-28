@@ -141,7 +141,12 @@ export default function Dashboard() {
   // ===== 📍 SCROLL POSITION MEMORY =====
   const [backNav] = useState(() => !!readDashScroll());
   const [loading, setLoading] = useState(true);
-  const [settled, setSettled] = useState(() => !readDashScroll());
+  const [settled, setSettled] = useState(false); // always invisible at first (server + client)
+
+  // Fresh visit (no saved position): reveal immediately after mount
+  useEffect(() => {
+    if (!backNav) setSettled(true);
+  }, [backNav]);
 
   const [tipOffset, setTipOffset] = useState(0);
   const [tipDone, setTipDone] = useState(false);
@@ -200,6 +205,13 @@ export default function Dashboard() {
       const closeEnough = Math.abs(window.scrollY - finalY) < 25;
       if (closeEnough || tries >= 20) {
         setSettled(true);
+        // 🛡️ GUARD: if Next/browser yanks to top right after, snap back (800ms window)
+        let g = 0;
+        const guard = setInterval(() => {
+          g++;
+          if (Math.abs(window.scrollY - finalY) > 80) window.scrollTo(0, finalY);
+          if (g >= 8) clearInterval(guard);
+        }, 100);
         return;
       }
       requestAnimationFrame(restore);
