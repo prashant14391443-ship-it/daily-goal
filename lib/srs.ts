@@ -61,3 +61,6 @@ export function reviewItem(uid: string, id: string, good: boolean) {
   it.reviews += 1;
   saveSrs(uid, items);
 }
+export function deleteItem(uid: string, id: string) {
+  saveSrs(uid, loadSrs(uid).filter((i) => i.id !== id));
+}
