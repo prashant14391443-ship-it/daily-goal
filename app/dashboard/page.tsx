@@ -188,9 +188,7 @@ export default function Dashboard() {
     };
   }, [settled]);
 
-  // 📍 DETERMINISTIC RESTORE: hold the page at the saved position for up to 2.5s.
-  // No matter WHEN Next/browser tries to scroll to top (before, during, after),
-  // we snap back within 80ms. Stops automatically when stable or user touches.
+  // 📍 DETERMINISTIC RESTORE (fixed): hold position until data ready — NO early give-up
   useLayoutEffect(() => {
     if (!backNav) return;
     const saved = readDashScroll();
@@ -201,6 +199,7 @@ export default function Dashboard() {
     }
 
     let revealed = false;
+    let revealedAt = 0;
     let userTookOver = false;
     const takeOver = () => { userTookOver = true; };
     window.addEventListener("touchstart", takeOver, { passive: true });
@@ -211,22 +210,29 @@ export default function Dashboard() {
       const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
       const finalY = Math.min(targetY, maxY);
 
-      // Force position (unless the user grabbed the page)
+      // Keep forcing position until the user grabs the page
       if (!userTookOver && Math.abs(window.scrollY - finalY) > 10) {
         window.scrollTo(0, finalY);
       }
 
-      // Reveal only when positioned AND data rendered
-      const positioned = Math.abs(window.scrollY - finalY) < 40;
+      const positioned = Math.abs(window.scrollY - finalY) < 40 && finalY > 0;
+
+      // ✅ Reveal ONLY when at the spot AND data has rendered (no time limit!)
       if (!revealed && positioned && !loadingRef.current) {
         revealed = true;
+        revealedAt = Date.now();
         setSettled(true);
       }
 
-      // Stop after 2.5s, or once revealed and user took control
-      if (Date.now() - start > 2500 || (revealed && userTookOver)) {
+      // Stop: 1s guard after reveal / user took over / hard 8s safety (never stay invisible)
+      const guardDone = revealed && (Date.now() - revealedAt > 1000 || userTookOver);
+      const hardSafety = Date.now() - start > 8000;
+      if (guardDone || hardSafety) {
+        if (hardSafety && !revealed) {
+          window.scrollTo(0, finalY);
+          setSettled(true);
+        }
         clearInterval(iv);
-        setSettled(true);
         window.removeEventListener("touchstart", takeOver);
         window.removeEventListener("wheel", takeOver);
       }
