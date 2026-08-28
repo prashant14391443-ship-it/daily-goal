@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
 import Link from "next/link";
-import { Timer, Play, Pause, RotateCcw, Sun, Moon, BookOpen, Coffee } from "lucide-react";
+import { Timer, Play, Pause, RotateCcw, Sun, Moon, BookOpen, Coffee, Wind } from "lucide-react";
+import BoxBreather from "@/app/components/BoxBreather";
 
 function toLocalISO(d: Date) { const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, "0"); const day = String(d.getDate()).padStart(2, "0"); return `${y}-${m}-${day}`; }
 
@@ -33,7 +34,6 @@ function playBeep() {
 
 const PRESETS = [15, 25, 40, 60, 90];
 
-// 🎨 Plant ring — progress ring with plant emoji in the center (core feature, kept)
 function PlantRing({ pct, plant, ringColor }: { pct: number; plant: string; ringColor: string }) {
   const size = 220;
   const stroke = 10;
@@ -71,6 +71,8 @@ export default function FocusPage() {
   const [doneToday, setDoneToday] = useState(0);
   const [awake, setAwake] = useState(false);
   const [wakeSupported, setWakeSupported] = useState(false);
+  const [warmupEnabled, setWarmupEnabled] = useState(false);
+  const [showBreather, setShowBreather] = useState(false);
   const wakeRef = useRef<any>(null);
 
   useEffect(() => {
@@ -185,7 +187,6 @@ export default function FocusPage() {
   const mm = String(Math.floor(Math.max(left, 0) / 60)).padStart(2, "0");
   const ss = String(Math.max(left, 0) % 60).padStart(2, "0");
 
-  // Mode-based theming
   const isBreak = mode === "break";
   const heroGrad = isBreak ? "from-amber-500 via-orange-600 to-rose-600" : "from-emerald-500 via-green-600 to-teal-600";
   const ringColor = isBreak ? "#fbbf24" : "#10b981";
@@ -193,7 +194,6 @@ export default function FocusPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-md mx-auto">
-      {/* 🌆 CALM HERO */}
       <div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${heroGrad} p-5 shadow-xl transition-all duration-700`}>
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
@@ -213,7 +213,6 @@ export default function FocusPage() {
         </div>
       </div>
 
-      {/* 🌱 PLANT + RING + TIMER */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 mb-4 text-center">
         <p className={`text-[10px] font-black mb-4 ${isBreak ? "text-amber-400" : "text-emerald-400"}`}>
           {modeLabel}
@@ -231,7 +230,6 @@ export default function FocusPage() {
         </p>
       </div>
 
-      {/* 🎛️ PRESETS */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
         <p className="text-[10px] font-black text-slate-500 mb-2">PRESET DURATIONS</p>
         <div className="flex gap-1.5 flex-wrap">
@@ -265,7 +263,6 @@ export default function FocusPage() {
         </div>
       </div>
 
-      {/* 🔆 SCREEN LOCK TOGGLE */}
       {wakeSupported && (
         <button
           onClick={() => setAwake(!awake)}
@@ -283,7 +280,6 @@ export default function FocusPage() {
         </button>
       )}
 
-      {/* 📝 SUBJECT */}
       <div className="relative mb-4">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
           <BookOpen size={14} strokeWidth={2} />
@@ -297,10 +293,28 @@ export default function FocusPage() {
         />
       </div>
 
-      {/* ▶️ CONTROLS */}
+      {/* 🧘 CALM WARM-UP TOGGLE */}
+      <label className="flex items-center justify-center gap-2 mb-4 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={warmupEnabled}
+          onChange={(e) => setWarmupEnabled(e.target.checked)}
+          disabled={running}
+          className="w-4 h-4 rounded accent-indigo-500"
+        />
+        <Wind size={14} className="text-indigo-400" />
+        <span className="text-xs font-semibold text-slate-400">60-sec calm warm-up before focus</span>
+      </label>
+
       <div className="flex gap-2">
         <button
-          onClick={() => setRunning(!running)}
+          onClick={() => {
+            if (!running && warmupEnabled) {
+              setShowBreather(true);
+              return;
+            }
+            setRunning(!running);
+          }}
           className={`press flex-1 py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 transition-all ${
             running
               ? "bg-amber-500/20 border border-amber-500/40 text-amber-300"
@@ -308,7 +322,7 @@ export default function FocusPage() {
           }`}
         >
           {running ? <Pause size={18} /> : <Play size={18} fill="currentColor" />}
-          {running ? "Pause" : "Start Focus"}
+          {running ? "Pause" : warmupEnabled ? "Start Calm + Focus" : "Start Focus"}
         </button>
         <button
           onClick={reset}
@@ -322,6 +336,19 @@ export default function FocusPage() {
       <Link href="/study" className="inline-block mt-6 text-sm text-slate-500 hover:text-white press font-bold">
         ← Back to Study
       </Link>
+
+      {/* 🧘 BREATHING WARM-UP MODAL */}
+      {showBreather && !running && (
+        <BoxBreather
+          seconds={60}
+          autoStart={false}
+          onDone={() => {
+            setShowBreather(false);
+            setRunning(true);
+          }}
+          onCancel={() => setShowBreather(false)}
+        />
+      )}
     </main>
   );
 }
