@@ -128,12 +128,14 @@ export default function Dashboard() {
   const [backNav] = useState(() => {
     try {
       const s = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null");
-      return !!(s && s.y > 50 && Date.now() - s.t < 5 * 60 * 1000);
+      return !!(s && s.y !== undefined && Date.now() - s.t < 15 * 60 * 1000); // Increased timeout to 15m
     } catch {
       return false;
     }
   });
-  const [loading, setLoading] = useState(!backNav);
+  
+  // ALWAYS start loading as true so DOM can expand to full height before we restore scroll
+  const [loading, setLoading] = useState(true);
   const [settled, setSettled] = useState(!backNav);
 
   const [tipOffset, setTipOffset] = useState(0);
@@ -141,8 +143,9 @@ export default function Dashboard() {
   const [tipStreak, setTipStreak] = useState(0);
   const [tipWeek, setTipWeek] = useState<{ done: boolean }[]>([]);
 
-  // 💾 save position continuously + final position on leave
+  // 💾 Save position continuously, ONLY when settled (prevents saving bad positions during the jump)
   useEffect(() => {
+    if (!settled) return;
     const save = () => sessionStorage.setItem("dg-dash-scroll", JSON.stringify({ y: window.scrollY, t: Date.now() }));
     let raf = 0;
     const onScroll = () => {
@@ -154,33 +157,44 @@ export default function Dashboard() {
       save();
       window.removeEventListener("scroll", onScroll);
     };
-  }, []);
+  }, [settled]);
 
-  // 📍 RESTORE: stay invisible, force position every 60ms, reveal ONLY when truly there
+  // 📍 RESTORE: wait for data to load, then jump, then reveal UI
   useEffect(() => {
-    if (!backNav) return;
-    let y = 0;
-    try { y = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null")?.y || 0; } catch {}
-    window.scrollTo(0, y);
-    let ok = 0;
-    const iv = setInterval(() => {
-      window.scrollTo(0, y);
-      ok = Math.abs(window.scrollY - y) < 60 ? ok + 1 : 0;
-      if (ok >= 2) {
-        clearInterval(iv);
-        setSettled(true); // reveal at the EXACT spot
+    if (loading) return; // Important: Wait until data populates the DOM
+    
+    if (backNav) {
+      let y = 0;
+      try { y = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null")?.y || 0; } catch {}
+      
+      if (y > 0) {
+        let attempts = 0;
+        const iv = setInterval(() => {
+          window.scrollTo({ top: y, behavior: 'instant' });
+          attempts++;
+          // If we reached the target OR tried enough times (max height reached) -> Settle
+          if (Math.abs(window.scrollY - y) < 20 || attempts > 5) {
+            clearInterval(iv);
+            setSettled(true); // reveal at the EXACT spot
+          }
+        }, 40);
+        
+        const safety = setTimeout(() => {
+          clearInterval(iv);
+          setSettled(true);
+        }, 600);
+        
+        return () => {
+          clearInterval(iv);
+          clearTimeout(safety);
+        };
+      } else {
+        setSettled(true);
       }
-    }, 60);
-    const safety = setTimeout(() => {
-      clearInterval(iv);
+    } else {
       setSettled(true);
-    }, 1200);
-    return () => {
-      clearInterval(iv);
-      clearTimeout(safety);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    }
+  }, [loading, backNav]);
 
   // 💡 Tip of the Day data
   useEffect(() => {
@@ -303,8 +317,11 @@ export default function Dashboard() {
     setTodoWeekTotals(totals);
     setTasks(tasksRes.data || []);
     setCountdowns(cdRes.data || []);
+    
+    // Everything is loaded! DOM will now expand.
     setLoading(false);
   };
+  
   useEffect(() => { load(); }, []);
 
   const saveGoals = async (e: React.FormEvent) => {
