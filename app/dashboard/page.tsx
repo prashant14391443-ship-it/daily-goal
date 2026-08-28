@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass, Sparkle, Lightbulb, Volume2, Check, RefreshCw, Heart } from "lucide-react";
 import { TIPS, categoryIcons, categoryColors, localISO, dayNum } from "@/app/components/tipsData";
-import { MOOD_EMOJIS, getTodayMood, logMood } from "@/lib/mind";
 import CoinPill from "@/app/CoinPill";
 import DraggableAIBubble from "@/app/components/DraggableAIBubble";
 
@@ -115,8 +114,6 @@ export default function Dashboard() {
   const [cdEmoji, setCdEmoji] = useState("📚");
   const router = useRouter();
   const [moveStreak, setMoveStreak] = useState(boot?.moveStreak ?? 0);
-  const [uid, setUid] = useState("guest");
-  const [todayMood, setTodayMood] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
 
@@ -126,8 +123,6 @@ export default function Dashboard() {
   const [tipWeek, setTipWeek] = useState<{ done: boolean }[]>([]);
 
   const saveAndGo = (href: string) => { writeDashScroll(); router.push(href); };
-
-  const pickMood = (m: number) => { logMood(uid, m); setTodayMood(m); };
 
   useEffect(() => {
     let raf = 0;
@@ -191,8 +186,7 @@ export default function Dashboard() {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
     if (!userId) { router.push("/login"); return; }
-    setUid(userId);
-    setTodayMood(getTodayMood(userId));
+
     const meta = (data.session?.user.user_metadata || {}) as { display_name?: string };
     const name = (meta.display_name || (data.session?.user.email || "friend").split("@")[0]);
     const nameCap = name.charAt(0).toUpperCase() + name.slice(1);
@@ -312,20 +306,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 🧘 MIND CHECK-IN */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center shrink-0"><Heart size={15} /></span>
-          <p className="text-xs font-bold text-slate-400 truncate">How are you feeling?</p>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {MOOD_EMOJIS.map((e, i) => (
-            <button key={i} onClick={() => pickMood(i)} className={`w-8 h-8 rounded-lg text-base flex items-center justify-center border transition-all ${todayMood === i ? "bg-indigo-500/20 border-indigo-500/50" : "bg-slate-800 border-slate-700 hover:border-slate-600"}`}>{e}</button>
-          ))}
-          <Link href="/mind" className="ml-1 text-[10px] font-black text-indigo-400">Mind →</Link>
-        </div>
-      </div>
-
       <DraggableAIBubble />
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
@@ -334,6 +314,7 @@ export default function Dashboard() {
         <StatCard href="/routine-habits" icon={ListChecks} tint="bg-violet-500/10 text-violet-400" bar="bg-violet-500" label="Habits" value={`${habitsDone}/${goals.habits_target}`} sub={habitsDone === 0 ? "Pick one easy habit" : "completed today"} streak={habitStreaks.reduce((m, h) => Math.max(m, h.streak), 0)} pct={habitsPct} />
         <StatCard href="/todo" icon={ListTodo} tint="bg-amber-500/10 text-amber-400" bar="bg-amber-500" label="To-do" value={`${todoDone}/${todoTotal}`} sub={todoDone === 0 ? "One small task" : "done today"} streak={todoStreak} pct={todoPct} />
         <StatCard href="/english" icon={Mic} tint="bg-teal-500/10 text-teal-400" bar="bg-teal-500" label="English" value="Speak Live + AI" sub="Practice with AI & real people" streak={0} pct={0} />
+        <StatCard href="/mind" icon={Heart} tint="bg-indigo-500/10 text-indigo-400" bar="bg-indigo-500" label="Mind Care" value="Breathe" sub="Calm down → study better" streak={0} pct={0} />
         <Link href="/streaks" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <div className="flex items-start justify-between mb-4">
             <span className="w-9 h-9 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center"><Flame size={18} strokeWidth={2.2} /></span>
