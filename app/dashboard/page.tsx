@@ -1,6 +1,6 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -143,7 +143,6 @@ export default function Dashboard() {
 
   // 💾 save position continuously + final position on leave
   useEffect(() => {
-    if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
     const save = () => sessionStorage.setItem("dg-dash-scroll", JSON.stringify({ y: window.scrollY, t: Date.now() }));
     let raf = 0;
     const onScroll = () => {
@@ -157,34 +156,31 @@ export default function Dashboard() {
     };
   }, []);
 
-  // 📍 restore BEFORE paint + guard window (any top-override gets snapped back invisibly)
-  useLayoutEffect(() => {
+  // 📍 RESTORE: stay invisible, force position every 60ms, reveal ONLY when truly there
+  useEffect(() => {
     if (!backNav) return;
     let y = 0;
     try { y = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null")?.y || 0; } catch {}
     window.scrollTo(0, y);
-    const guard = () => {
-      if (Math.abs(window.scrollY - y) > 80) window.scrollTo(0, y);
-    };
-    window.addEventListener("scroll", guard, { passive: true });
-    const reveal = setTimeout(() => setSettled(true), 150);
-    const stop = setTimeout(() => window.removeEventListener("scroll", guard), 800);
+    let ok = 0;
+    const iv = setInterval(() => {
+      window.scrollTo(0, y);
+      ok = Math.abs(window.scrollY - y) < 60 ? ok + 1 : 0;
+      if (ok >= 2) {
+        clearInterval(iv);
+        setSettled(true); // reveal at the EXACT spot
+      }
+    }, 60);
+    const safety = setTimeout(() => {
+      clearInterval(iv);
+      setSettled(true);
+    }, 1200);
     return () => {
-      clearTimeout(reveal);
-      clearTimeout(stop);
-      window.removeEventListener("scroll", guard);
+      clearInterval(iv);
+      clearTimeout(safety);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // 📍 re-assert after data lands (heights change) — still before paint
-  useLayoutEffect(() => {
-    if (!backNav) return;
-    try {
-      const y = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null")?.y || 0;
-      if (y > 50) window.scrollTo(0, y);
-    } catch {}
-  }, [loading, tasks, countdowns, studyMinutes, workouts, habitsDone, todoDone]);
 
   // 💡 Tip of the Day data
   useEffect(() => {
@@ -380,12 +376,7 @@ export default function Dashboard() {
 
   return (
     <main className={`min-h-screen bg-slate-950 text-white px-4 pt-20 pb-24 max-w-4xl mx-auto transition-opacity duration-200 ${settled ? "opacity-100" : "opacity-0"}`}>
-      {/* 🙈 PRE-PAINT GUARD: runs during HTML parsing (before ANY paint) on full reloads */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `(function(){try{var s=JSON.parse(sessionStorage.getItem('dg-dash-scroll')||'null');if(s&&s.y>50&&Date.now()-s.t<300000){var d=document.documentElement;d.style.opacity='0';setTimeout(function(){d.style.opacity='';},900);var n=0;var t=setInterval(function(){n++;window.scrollTo(0,s.y);if(n>6)clearInterval(t);},30);}}catch(e){}})();`,
-        }}
-      />
+
       {/* 🌆 DARK CALM HERO */}
       <div className="relative mb-3 overflow-hidden rounded-3xl bg-slate-900 border border-violet-500/20 p-5 shadow-[0_0_50px_-12px_rgba(139,92,246,0.35)]">
         <div className="absolute -right-16 -top-16 w-48 h-48 bg-violet-600/15 rounded-full blur-3xl pointer-events-none" />
