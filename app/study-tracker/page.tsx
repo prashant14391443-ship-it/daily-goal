@@ -16,7 +16,7 @@ export default function StudyHub() {
         <p className="text-[11px] text-slate-500 font-semibold mt-2">Choose your tool</p>
       </div>
 
-      {/* CALM CARDS */}
+      {/* CARDS */}
       <div className="grid grid-cols-2 gap-3">
         <Link href="/studylog" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
           <span className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center mb-4">
@@ -50,6 +50,7 @@ export default function StudyHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Points + mind-map</p>
         </Link>
 
+        {/* 🧠 REVIEW (SRS) — wide flagship card */}
         <Link href="/review" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors col-span-2">
           <div className="w-11 h-11 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center mb-6">
             <RefreshCw size={20} />
@@ -59,12 +60,12 @@ export default function StudyHub() {
         </Link>
 
         <Link href="/quiz" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors col-span-2">
-        <div className="w-11 h-11 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-6">
-          <Bot size={20} />
-        </div>
-        <p className="font-bold text-white text-sm leading-tight">AI Quiz</p>
-        <p className="text-xs text-slate-400 mt-1">Any topic → instant test with score</p>
-      </Link>
+          <div className="w-11 h-11 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-6">
+            <Bot size={20} />
+          </div>
+          <p className="font-bold text-white text-sm leading-tight">AI Quiz</p>
+          <p className="text-xs text-slate-400 mt-1">Any topic → instant test with score</p>
+        </Link>
       </div>
     </main>
   );

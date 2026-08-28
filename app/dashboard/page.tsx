@@ -5,8 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
 import Link from "next/link";
-import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass, Sparkle, Lightbulb, Volume2, Check, RefreshCw, Brain } from "lucide-react";
-import { countDue } from "@/lib/srs";
+import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass, Sparkle, Lightbulb, Volume2, Check, RefreshCw } from "lucide-react";
 import { TIPS, categoryIcons, categoryColors, localISO, dayNum } from "@/app/components/tipsData";
 import CoinPill from "@/app/CoinPill";
 import DraggableAIBubble from "@/app/components/DraggableAIBubble";
@@ -115,7 +114,7 @@ export default function Dashboard() {
   const [cdEmoji, setCdEmoji] = useState("📚");
   const router = useRouter();
   const [moveStreak, setMoveStreak] = useState(boot?.moveStreak ?? 0);
-  const [reviewDue, setReviewDue] = useState(0);
+
   const [loading, setLoading] = useState(true);
 
   const [tipOffset, setTipOffset] = useState(0);
@@ -187,7 +186,6 @@ export default function Dashboard() {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
     if (!userId) { router.push("/login"); return; }
-    setReviewDue(countDue(userId));
     const meta = (data.session?.user.user_metadata || {}) as { display_name?: string };
     const name = (meta.display_name || (data.session?.user.email || "friend").split("@")[0]);
     const nameCap = name.charAt(0).toUpperCase() + name.slice(1);
@@ -315,7 +313,6 @@ export default function Dashboard() {
         <StatCard href="/routine-habits" icon={ListChecks} tint="bg-violet-500/10 text-violet-400" bar="bg-violet-500" label="Habits" value={`${habitsDone}/${goals.habits_target}`} sub={habitsDone === 0 ? "Pick one easy habit" : "completed today"} streak={habitStreaks.reduce((m, h) => Math.max(m, h.streak), 0)} pct={habitsPct} />
         <StatCard href="/todo" icon={ListTodo} tint="bg-amber-500/10 text-amber-400" bar="bg-amber-500" label="To-do" value={`${todoDone}/${todoTotal}`} sub={todoDone === 0 ? "One small task" : "done today"} streak={todoStreak} pct={todoPct} />
         <StatCard href="/english" icon={Mic} tint="bg-teal-500/10 text-teal-400" bar="bg-teal-500" label="English" value="Speak Live + AI" sub="Practice with AI & real people" streak={0} pct={0} />
-        <StatCard href="/review" icon={Brain} tint="bg-cyan-500/10 text-cyan-400" bar="bg-cyan-500" label="Review" value={String(reviewDue)} sub={reviewDue > 0 ? "due today — open queue" : "all caught up"} streak={0} pct={Math.min(100, reviewDue * 20)} />
         <Link href="/streaks" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <div className="flex items-start justify-between mb-4">
             <span className="w-9 h-9 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center"><Flame size={18} strokeWidth={2.2} /></span>
@@ -404,7 +401,7 @@ export default function Dashboard() {
             <input value={cdTitle} onChange={(e) => setCdTitle(e.target.value)} placeholder="e.g. Math exam" required className="flex-1 min-w-[140px] p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
             <input type="date" value={cdDate} onChange={(e) => setCdDate(e.target.value)} required className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
             <select value={cdEmoji} onChange={(e) => setCdEmoji(e.target.value)} className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500">
-              <option value="📚"></option><option value="🏋️">🏋️</option><option value="✅">✅</option><option value="🎯"></option><option value="💼">💼</option>
+              <option value="📚">📚</option><option value="🏋️">🏋️</option><option value="✅">✅</option><option value="🎯">🎯</option><option value="💼">💼</option>
             </select>
             <button className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-sm font-black press transition-colors">Add</button>
           </form>
