@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { SYNONYMS, shuffle, randomWord } from "@/lib/gameWords";
+import { playCorrect, playWrong, playWin } from "@/lib/sounds";
 import { Check, X, Trophy, ArrowLeftRight } from "lucide-react";
 
 type Round = { a: string; b: string; isSyn: boolean };
@@ -32,11 +33,13 @@ export default function SynonymSwipe({ onExit }: { onExit?: () => void }) {
 
   const end = (fs?: number) => {
     const f = fs ?? score;
+    playWin();
     if (f > best) { setBest(f); localStorage.setItem("dg-best-synonym", String(f)); }
     setOver(true);
   };
   const answer = (chosen: boolean) => {
     const correct = chosen === round.isSyn;
+    correct ? playCorrect() : playWrong();
     setFlash(correct); setTimeout(() => setFlash(null), 250);
     const ns = correct ? score + 1 : score;
     if (correct) setScore(ns);
@@ -57,7 +60,7 @@ export default function SynonymSwipe({ onExit }: { onExit?: () => void }) {
         <>
           <div className="flex justify-between text-xs font-black text-slate-400 mb-4">
             <span className="flex items-center gap-1"><Trophy size={12} className="text-amber-400" /> {best}</span>
-            <span>Score {score}</span>
+            <span>Score {score}/{deck.length}</span>
             <span>{"❤️".repeat(lives)}{"🖤".repeat(3 - lives)}</span>
           </div>
           <div
@@ -81,7 +84,7 @@ export default function SynonymSwipe({ onExit }: { onExit?: () => void }) {
       ) : (
         <div className="bg-slate-900 border border-slate-700 rounded-3xl p-8 text-center">
           <p className="text-4xl mb-2">👏</p>
-          <p className="text-xl font-black mb-1">Score: {score}</p>
+          <p className="text-xl font-black mb-1">Score: {score}/{deck.length}</p>
           <p className="text-xs text-slate-500 mb-6">Best: {best}</p>
           <button onClick={restart} className="w-full py-3 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 font-black">Play again</button>
         </div>

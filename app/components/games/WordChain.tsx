@@ -1,13 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
 import { randomWord } from "@/lib/gameWords";
+import { playCorrect, playWrong, playWin } from "@/lib/sounds";
 import { Trophy, Link2, Play } from "lucide-react";
+
+const TARGET = 10;
 
 export default function WordChain({ onExit }: { onExit?: () => void }) {
   const [chain, setChain] = useState<string[]>([]);
   const [input, setInput] = useState("");
   const [lives, setLives] = useState(3);
   const [over, setOver] = useState(false);
+  const [won, setWon] = useState(false);
   const [best, setBest] = useState(0);
   const [msg, setMsg] = useState("");
 
@@ -15,14 +19,15 @@ export default function WordChain({ onExit }: { onExit?: () => void }) {
   const current = chain[chain.length - 1] || "";
   const need = current ? current[current.length - 1] : "";
 
-  const start = () => { setChain([randomWord()]); setLives(3); setOver(false); setInput(""); setMsg(""); };
-  const end = () => {
-    setOver(true);
+  const start = () => { setChain([randomWord()]); setLives(3); setOver(false); setWon(false); setInput(""); setMsg(""); };
+  const end = (didWin: boolean) => {
+    setOver(true); setWon(didWin);
+    if (didWin) playWin();
     if (chain.length > best) { setBest(chain.length); localStorage.setItem("dg-best-chain", String(chain.length)); }
   };
   const fail = (m: string) => {
-    setMsg(m); setInput("");
-    setLives((l) => { if (l - 1 <= 0) end(); return l - 1; });
+    playWrong(); setMsg(m); setInput("");
+    setLives((l) => { if (l - 1 <= 0) end(false); return l - 1; });
   };
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +37,10 @@ export default function WordChain({ onExit }: { onExit?: () => void }) {
     if (!/^[a-z]+$/.test(w)) return fail("Letters only");
     if (w[0] !== need) return fail(`Must start with "${need.toUpperCase()}"`);
     if (chain.includes(w)) return fail("Already used");
-    setChain((c) => [...c, w]); setInput(""); setMsg("");
+    playCorrect();
+    const next = [...chain, w];
+    setChain(next); setInput(""); setMsg("");
+    if (next.length >= TARGET) end(true);
   };
 
   return (
@@ -41,15 +49,18 @@ export default function WordChain({ onExit }: { onExit?: () => void }) {
         <div className="bg-slate-900 border border-slate-700 rounded-3xl p-8 text-center">
           <Link2 size={40} className="mx-auto mb-3 text-green-400" />
           <p className="text-lg font-black mb-1">Word Chain</p>
-          <p className="text-xs text-slate-500 mb-6">Each word must start with the LAST letter of the previous word.</p>
+          <p className="text-xs text-slate-500 mb-6">Chain {TARGET} words to WIN! Each starts with the LAST letter of the previous.</p>
           <button onClick={start} className="w-full py-3 rounded-xl bg-green-600 hover:bg-green-500 font-black flex items-center justify-center gap-2"><Play size={16} /> Start</button>
         </div>
       ) : !over ? (
         <>
-          <div className="flex justify-between text-xs font-black text-slate-400 mb-4">
+          <div className="flex justify-between text-xs font-black text-slate-400 mb-2">
             <span className="flex items-center gap-1"><Trophy size={12} className="text-amber-400" /> {best}</span>
-            <span>Chain {chain.length}</span>
+            <span className="text-green-400">{chain.length}/{TARGET} 🎯</span>
             <span>{"❤️".repeat(lives)}{"🖤".repeat(3 - lives)}</span>
+          </div>
+          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mb-4">
+            <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${(chain.length / TARGET) * 100}%` }} />
           </div>
           <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 text-center mb-4">
             <p className="text-[10px] text-slate-500 mb-1">CURRENT WORD</p>
@@ -69,8 +80,8 @@ export default function WordChain({ onExit }: { onExit?: () => void }) {
         </>
       ) : (
         <div className="bg-slate-900 border border-slate-700 rounded-3xl p-8 text-center">
-          <p className="text-4xl mb-2">🔗</p>
-          <p className="text-xl font-black mb-1">Chain: {chain.length}</p>
+          <p className="text-4xl mb-2">{won ? "🏆" : "🔗"}</p>
+          <p className="text-xl font-black mb-1">{won ? "YOU WIN!" : `Chain: ${chain.length}`}</p>
           <p className="text-xs text-slate-500 mb-6">Best: {best}</p>
           <button onClick={start} className="w-full py-3 rounded-xl bg-green-600 hover:bg-green-500 font-black">Play again</button>
         </div>

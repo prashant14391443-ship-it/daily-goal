@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { randomWord } from "@/lib/gameWords";
+import { playCorrect, playWrong, playWin } from "@/lib/sounds";
 import { Volume2, Trophy, Play, Ear } from "lucide-react";
 
 export default function EarRace({ onExit }: { onExit?: () => void }) {
@@ -31,14 +32,14 @@ export default function EarRace({ onExit }: { onExit?: () => void }) {
 
   const start = () => { setStarted(true); setOver(false); setScore(0); setTime(45); setInput(""); setWord(randomWord()); };
   const end = () => {
-    setOver(true); setStarted(false);
+    setOver(true); setStarted(false); playWin();
     if (score > best) { setBest(score); localStorage.setItem("dg-best-ear", String(score)); }
   };
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!started || over) return;
-    if (input.trim().toLowerCase() === word) { setScore((s) => s + 1); setInput(""); setWord(randomWord(word)); }
-    else { setWrong(true); setTimeout(() => setWrong(false), 250); setInput(""); }
+    if (input.trim().toLowerCase() === word) { playCorrect(); setScore((s) => s + 1); setInput(""); setWord(randomWord(word)); }
+    else { playWrong(); setWrong(true); setTimeout(() => setWrong(false), 250); setInput(""); }
   };
 
   return (
