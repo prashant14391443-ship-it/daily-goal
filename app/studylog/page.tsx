@@ -1,4 +1,5 @@
 "use client";
+import TopBar from "@/app/TopBar";
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
@@ -137,7 +138,8 @@ export default function StudyTracker() {
   const inputCls = "w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-blue-500";
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
+    <main className="min-h-screen bg-slate-950 text-white px-4 pt-20 pb-24 max-w-4xl mx-auto">
+      <TopBar />
       {/* 🌆 CALM HERO */}
       <div className="relative mb-4 overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 p-5 shadow-xl shadow-blue-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
