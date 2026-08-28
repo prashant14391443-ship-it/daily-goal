@@ -24,118 +24,95 @@ function badgeColor(d: number) { if (d < 0) return "bg-slate-700 text-slate-300"
 
 function readDashScroll() {
   if (typeof window === "undefined") return null;
-  try {
-    const s = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null");
-    if (s && typeof s.y === "number" && Date.now() - s.t < 15 * 60 * 1000) return s;
-  } catch {}
+  try { const s = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null"); if (s && typeof s.y === "number" && Date.now() - s.t < 15 * 60 * 1000) return s; } catch {}
   return null;
 }
 function writeDashScroll() {
   if (typeof window === "undefined") return;
   sessionStorage.setItem("dg-dash-scroll", JSON.stringify({ y: window.scrollY, t: Date.now() }));
 }
+// ⚡ INSTANT BACK: read cached dashboard so first paint has real data + full height
+function readCache(): any {
+  if (typeof window === "undefined") return null;
+  try { return JSON.parse(sessionStorage.getItem("dg-dash-cache") || "null"); } catch { return null; }
+}
 
 function ProgressRing({ pct, size = 56, stroke = 5, color, track = "rgba(255,255,255,0.08)", showText = true }: { pct: number; size?: number; stroke?: number; color: string; track?: string; showText?: boolean }) {
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const offset = c - (Math.min(100, Math.max(0, pct)) / 100) * c;
+  const r = (size - stroke) / 2; const c = 2 * Math.PI * r; const offset = c - (Math.min(100, Math.max(0, pct)) / 100) * c;
   return (
     <svg width={size} height={size} className="-rotate-90 shrink-0">
       <circle cx={size / 2} cy={size / 2} r={r} stroke={track} strokeWidth={stroke} fill="none" />
       <circle cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={stroke} fill="none" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset} style={{ transition: "stroke-dashoffset 0.6s ease" }} />
-      {showText && (
-        <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" transform={`rotate(90 ${size / 2} ${size / 2})`} className="fill-white text-[10px] font-black">
-          {Math.round(pct)}%
-        </text>
-      )}
+      {showText && <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" transform={`rotate(90 ${size / 2} ${size / 2})`} className="fill-white text-[10px] font-black">{Math.round(pct)}%</text>}
     </svg>
   );
 }
-
-function IconTile({ icon: Icon, tint }: { icon: any; tint: string }) {
-  return (
-    <div className={`w-8 h-8 rounded-lg ${tint} flex items-center justify-center`}>
-      <Icon size={15} strokeWidth={2.2} />
-    </div>
-  );
-}
-
+function IconTile({ icon: Icon, tint }: { icon: any; tint: string }) { return <div className={`w-8 h-8 rounded-lg ${tint} flex items-center justify-center`}><Icon size={15} strokeWidth={2.2} /></div>; }
 function StatCard({ href, icon: Icon, tint, bar, label, value, sub, streak, pct }: { href: string; icon: any; tint: string; bar: string; label: string; value: string; sub: string; streak: number; pct: number }) {
   return (
     <Link href={href} className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
       <div className="flex items-start justify-between mb-4">
-        <span className={`w-9 h-9 rounded-lg ${tint} flex items-center justify-center`}>
-          <Icon size={18} strokeWidth={2.2} />
-        </span>
-        {streak > 0 && (
-          <span className="flex items-center gap-0.5 text-[10px] font-black text-orange-400">
-            <Flame size={12} /> {streak}
-          </span>
-        )}
+        <span className={`w-9 h-9 rounded-lg ${tint} flex items-center justify-center`}><Icon size={18} strokeWidth={2.2} /></span>
+        {streak > 0 && <span className="flex items-center gap-0.5 text-[10px] font-black text-orange-400"><Flame size={12} /> {streak}</span>}
       </div>
       <p className="text-xs font-semibold text-slate-400 mb-1">{label}</p>
       <p className="text-xl font-black text-white leading-none mb-1 truncate">{value}</p>
       <p className="text-[10px] text-slate-500 mb-3">{sub}</p>
-      <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.min(100, pct)}%` }} />
-      </div>
+      <div className="h-1 bg-slate-800 rounded-full overflow-hidden"><div className={`h-full rounded-full ${bar}`} style={{ width: `${Math.min(100, pct)}%` }} /></div>
     </Link>
   );
 }
-
 function ProgressBar({ label, value, target, unit, color }: { label: string; value: number; target: number; unit: string; color: string }) {
-  const pct = Math.min(100, Math.round((value / Math.max(target, 1)) * 100));
-  const full = pct >= 100;
+  const pct = Math.min(100, Math.round((value / Math.max(target, 1)) * 100)); const full = pct >= 100;
   return (
     <div>
       <div className="flex justify-between text-xs mb-1.5">
         <span className="font-semibold text-slate-400">{label}</span>
-        <span className={full ? "text-green-400 font-black" : "text-slate-500 font-semibold"}>
-          {value} / {target} {unit} • {pct}% {full ? "🎉" : ""}
-        </span>
+        <span className={full ? "text-green-400 font-black" : "text-slate-500 font-semibold"}>{value} / {target} {unit} • {pct}% {full ? "🎉" : ""}</span>
       </div>
-      <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-        <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
-      </div>
+      <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden"><div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} /></div>
     </div>
   );
 }
 
 export default function Dashboard() {
   const today = toLocalISO(new Date());
-  const [userName, setUserName] = useState("friend");
-  const [studyMinutes, setStudyMinutes] = useState(0);
-  const [workouts, setWorkouts] = useState(0);
-  const [habitsDone, setHabitsDone] = useState(0);
-  const [todoDone, setTodoDone] = useState(0);
-  const [todoTotal, setTodoTotal] = useState(0);
-  const [studyStreak, setStudyStreak] = useState(0);
-  const [gymStreak, setGymStreak] = useState(0);
-  const [todoStreak, setTodoStreak] = useState(0);
-  const [studyBroken, setStudyBroken] = useState(0);
-  const [gymBroken, setGymBroken] = useState(0);
-  const [todoBroken, setTodoBroken] = useState(0);
-  const [habitBroken, setHabitBroken] = useState<{ name: string; broken: number }[]>([]);
-  const [goals, setGoals] = useState<Goals>({ study_target: 120, workout_target: 1, habits_target: 3 });
+  // ⚡ Boot from cache so first paint is instant + full height
+  const [boot] = useState(readCache);
+
+  const [userName, setUserName] = useState(boot?.userName ?? "friend");
+  const [studyMinutes, setStudyMinutes] = useState(boot?.studyMinutes ?? 0);
+  const [workouts, setWorkouts] = useState(boot?.workouts ?? 0);
+  const [habitsDone, setHabitsDone] = useState(boot?.habitsDone ?? 0);
+  const [todoDone, setTodoDone] = useState(boot?.todoDone ?? 0);
+  const [todoTotal, setTodoTotal] = useState(boot?.todoTotal ?? 0);
+  const [studyStreak, setStudyStreak] = useState(boot?.studyStreak ?? 0);
+  const [gymStreak, setGymStreak] = useState(boot?.gymStreak ?? 0);
+  const [todoStreak, setTodoStreak] = useState(boot?.todoStreak ?? 0);
+  const [studyBroken, setStudyBroken] = useState(boot?.studyBroken ?? 0);
+  const [gymBroken, setGymBroken] = useState(boot?.gymBroken ?? 0);
+  const [todoBroken, setTodoBroken] = useState(boot?.todoBroken ?? 0);
+  const [habitBroken, setHabitBroken] = useState<{ name: string; broken: number }[]>(boot?.habitBroken ?? []);
+  const [goals, setGoals] = useState<Goals>(boot?.goals ?? { study_target: 120, workout_target: 1, habits_target: 3 });
   const [editingGoals, setEditingGoals] = useState(false);
-  const [goalStudy, setGoalStudy] = useState("120");
-  const [goalWorkout, setGoalWorkout] = useState("1");
-  const [goalHabits, setGoalHabits] = useState("3");
-  const [habitStreaks, setHabitStreaks] = useState<{ name: string; streak: number }[]>([]);
-  const [studyWeekData, setStudyWeekData] = useState<DayStat[]>([]);
-  const [gymWeekData, setGymWeekData] = useState<DayStat[]>([]);
-  const [habitsWeekData, setHabitsWeekData] = useState<DayStat[]>([]);
+  const [goalStudy, setGoalStudy] = useState(String(boot?.goals?.study_target ?? 120));
+  const [goalWorkout, setGoalWorkout] = useState(String(boot?.goals?.workout_target ?? 1));
+  const [goalHabits, setGoalHabits] = useState(String(boot?.goals?.habits_target ?? 3));
+  const [habitStreaks, setHabitStreaks] = useState<{ name: string; streak: number }[]>(boot?.habitStreaks ?? []);
+  const [studyWeekData, setStudyWeekData] = useState<DayStat[]>(boot?.studyWeekData ?? []);
+  const [gymWeekData, setGymWeekData] = useState<DayStat[]>(boot?.gymWeekData ?? []);
+  const [habitsWeekData, setHabitsWeekData] = useState<DayStat[]>(boot?.habitsWeekData ?? []);
   const [chartMode, setChartMode] = useState<"study" | "gym" | "habits" | "todo">("study");
-  const [todoWeekData, setTodoWeekData] = useState<DayStat[]>([]);
-  const [todoWeekTotals, setTodoWeekTotals] = useState<Record<string, number>>({});
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [todoWeekData, setTodoWeekData] = useState<DayStat[]>(boot?.todoWeekData ?? []);
+  const [todoWeekTotals, setTodoWeekTotals] = useState<Record<string, number>>(boot?.todoWeekTotals ?? {});
+  const [tasks, setTasks] = useState<Task[]>(boot?.tasks ?? []);
   const [newTask, setNewTask] = useState("");
-  const [countdowns, setCountdowns] = useState<Countdown[]>([]);
+  const [countdowns, setCountdowns] = useState<Countdown[]>(boot?.countdowns ?? []);
   const [cdTitle, setCdTitle] = useState("");
   const [cdDate, setCdDate] = useState("");
   const [cdEmoji, setCdEmoji] = useState("📚");
   const router = useRouter();
-  const [moveStreak, setMoveStreak] = useState(0);
+  const [moveStreak, setMoveStreak] = useState(boot?.moveStreak ?? 0);
   const [loading, setLoading] = useState(true);
 
   const [tipOffset, setTipOffset] = useState(0);
@@ -143,53 +120,24 @@ export default function Dashboard() {
   const [tipStreak, setTipStreak] = useState(0);
   const [tipWeek, setTipWeek] = useState<{ done: boolean }[]>([]);
 
-  const saveAndGo = (href: string) => {
-    writeDashScroll();
-    router.push(href);
-  };
+  const saveAndGo = (href: string) => { writeDashScroll(); router.push(href); };
 
-  // Save position while scrolling (always on)
   useEffect(() => {
     let raf = 0;
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => { raf = 0; writeDashScroll(); });
-    };
+    const onScroll = () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; writeDashScroll(); }); };
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      if (raf) cancelAnimationFrame(raf);
-      window.removeEventListener("scroll", onScroll);
-    };
+    return () => { if (raf) cancelAnimationFrame(raf); window.removeEventListener("scroll", onScroll); };
   }, []);
 
-  // Scroll to saved spot BEFORE paint (runs on mount + after data loads)
   const restoreScroll = () => {
     const saved = readDashScroll();
     if (!saved || saved.y <= 0) return;
     const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-    const y = Math.min(saved.y, maxY);
-    window.scrollTo(0, y);
+    window.scrollTo(0, Math.min(saved.y, maxY));
   };
-  useLayoutEffect(() => {
-    let tries = 0;
-    const tick = () => {
-      restoreScroll();
-      if (++tries < 20) requestAnimationFrame(tick);
-    };
-    tick();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  useLayoutEffect(() => {
-    let tries = 0;
-    const tick = () => {
-      restoreScroll();
-      if (++tries < 8) requestAnimationFrame(tick);
-    };
-    tick();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
+  useLayoutEffect(() => { let t = 0; const tick = () => { restoreScroll(); if (++t < 20) requestAnimationFrame(tick); }; tick(); /* eslint-disable-next-line */ }, []);
+  useLayoutEffect(() => { let t = 0; const tick = () => { restoreScroll(); if (++t < 8) requestAnimationFrame(tick); }; tick(); /* eslint-disable-next-line */ }, [loading]);
 
-  // Tip of the Day data
   useEffect(() => {
     const todayStr = localISO(new Date());
     const yest = localISO(new Date(Date.now() - 86400000));
@@ -197,34 +145,21 @@ export default function Dashboard() {
     const st = JSON.parse(localStorage.getItem("dg-tip-streak") || "null");
     if (st && (st.date === todayStr || st.date === yest)) setTipStreak(st.count);
     const week: { done: boolean }[] = [];
-    for (let i = 6; i >= 0; i--) {
-      week.push({ done: localStorage.getItem("dg-tip-done-" + localISO(new Date(Date.now() - i * 86400000))) === "1" });
-    }
+    for (let i = 6; i >= 0; i--) week.push({ done: localStorage.getItem("dg-tip-done-" + localISO(new Date(Date.now() - i * 86400000))) === "1" });
     setTipWeek(week);
   }, []);
 
   const tip = TIPS[(dayNum(new Date()) + tipOffset) % TIPS.length];
   const TipIcon = categoryIcons[tip.cat] || Lightbulb;
-
-  const speakTip = (text: string) => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "en-US";
-    u.rate = 0.95;
-    window.speechSynthesis.speak(u);
-  };
-
+  const speakTip = (text: string) => { if (typeof window === "undefined" || !window.speechSynthesis) return; window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang = "en-US"; u.rate = 0.95; window.speechSynthesis.speak(u); };
   const didTip = () => {
     if (tipDone) return;
-    const todayStr = localISO(new Date());
-    const yest = localISO(new Date(Date.now() - 86400000));
+    const todayStr = localISO(new Date()); const yest = localISO(new Date(Date.now() - 86400000));
     const st = JSON.parse(localStorage.getItem("dg-tip-streak") || "null");
     const count = st && st.date === yest ? st.count + 1 : 1;
     localStorage.setItem("dg-tip-streak", JSON.stringify({ date: todayStr, count }));
     localStorage.setItem("dg-tip-done-" + todayStr, "1");
-    setTipStreak(count);
-    setTipDone(true);
+    setTipStreak(count); setTipDone(true);
     setTipWeek((w) => w.map((d, i) => (i === w.length - 1 ? { done: true } : d)));
   };
 
@@ -237,8 +172,7 @@ export default function Dashboard() {
       if (!rows || rows.length === 0) return;
       const days = [...new Set(rows.map((r) => r.session_date))];
       const isDay = (d: Date) => days.includes(toLocalISO(d));
-      let streak = 0;
-      const cursor = new Date();
+      let streak = 0; const cursor = new Date();
       if (!isDay(cursor)) cursor.setDate(cursor.getDate() - 1);
       while (isDay(cursor)) { streak++; cursor.setDate(cursor.getDate() - 1); }
       setMoveStreak(streak);
@@ -251,8 +185,8 @@ export default function Dashboard() {
     const userId = data.session?.user.id;
     if (!userId) { router.push("/login"); return; }
     const meta = (data.session?.user.user_metadata || {}) as { display_name?: string };
-    const rawName = meta.display_name || (data.session?.user.email || "friend").split("@")[0];
-    setUserName(rawName.charAt(0).toUpperCase() + rawName.slice(1));
+    const name = (meta.display_name || (data.session?.user.email || "friend").split("@")[0]);
+    const nameCap = name.charAt(0).toUpperCase() + name.slice(1);
     const weekStart = addDays(today, -6);
     const [study, studyW, gym, gymW, habits, habitLogs, tasksRes, goalsRes, cdRes, todoRes, studyDoneRes, gymDoneRes, todoDoneRes, todoWeekRes] = await Promise.all([
       supabase.from("study_sessions").select("duration_minutes").eq("user_id", userId).eq("session_date", today).eq("completed", true),
@@ -270,92 +204,55 @@ export default function Dashboard() {
       supabase.from("tasks").select("task_date").eq("user_id", userId).eq("category", "todo").eq("completed", true),
       supabase.from("tasks").select("task_date, completed").eq("user_id", userId).eq("category", "todo").gte("task_date", weekStart),
     ]);
-    setStudyMinutes((study.data || []).reduce((s, r) => s + r.duration_minutes, 0));
-    setWorkouts((gym.data || []).length);
-    if (goalsRes.data) {
-      setGoals({ study_target: goalsRes.data.study_target, workout_target: goalsRes.data.workout_target, habits_target: goalsRes.data.habits_target });
-      setGoalStudy(String(goalsRes.data.study_target));
-      setGoalWorkout(String(goalsRes.data.workout_target));
-      setGoalHabits(String(goalsRes.data.habits_target));
-    }
-    setHabitsDone(new Set((habitLogs.data || []).filter((l) => l.log_date === today).map((l) => l.habit_id)).size);
+
+    const studyMin = (study.data || []).reduce((s, r) => s + r.duration_minutes, 0);
+    const wk = (gym.data || []).length;
+    const gObj: Goals = goalsRes.data ? { study_target: goalsRes.data.study_target, workout_target: goalsRes.data.workout_target, habits_target: goalsRes.data.habits_target } : goals;
+    const hd = new Set((habitLogs.data || []).filter((l) => l.log_date === today).map((l) => l.habit_id)).size;
     const todoRows = todoRes.data || [];
-    setTodoTotal(todoRows.length);
-    setTodoDone(todoRows.filter((t) => t.completed).length);
+    const tt = todoRows.length; const td = todoRows.filter((t) => t.completed).length;
     const studyDates = new Set((studyDoneRes.data || []).map((r) => r.session_date));
     const gymDates = new Set((gymDoneRes.data || []).map((r) => r.session_date));
     const todoDates = new Set((todoDoneRes.data || []).map((r) => r.task_date));
-    setStudyStreak(calcStreak(studyDates, today));
-    setGymStreak(calcStreak(gymDates, today));
-    setTodoStreak(calcStreak(todoDates, today));
-    setStudyBroken(brokenStreak(studyDates, today));
-    setGymBroken(brokenStreak(gymDates, today));
-    setTodoBroken(brokenStreak(todoDates, today));
-    setHabitBroken((habits.data || []).map((h) => { const dates = new Set((habitLogs.data || []).filter((l) => l.habit_id === h.id).map((l) => l.log_date)); return { name: h.habit_name, broken: brokenStreak(dates, today) }; }));
-    setHabitStreaks((habits.data || []).map((h) => { const dates = new Set((habitLogs.data || []).filter((l) => l.habit_id === h.id).map((l) => l.log_date)); return { name: h.habit_name, streak: calcStreak(dates, today) }; }));
-    const buildWeek = (rows: { session_date: string; duration_minutes: number }[] | null) => {
-      const days: DayStat[] = [];
-      for (let i = 6; i >= 0; i--) { const d = addDays(today, -i); days.push({ date: d, value: (rows || []).filter((r) => r.session_date === d).reduce((s, r) => s + r.duration_minutes, 0) }); }
-      return days;
-    };
-    setStudyWeekData(buildWeek(studyW.data));
-    setGymWeekData(buildWeek(gymW.data));
-    const habitDays: DayStat[] = [];
-    for (let i = 6; i >= 0; i--) { const d = addDays(today, -i); habitDays.push({ date: d, value: new Set((habitLogs.data || []).filter((l) => l.log_date === d).map((l) => l.habit_id)).size }); }
-    setHabitsWeekData(habitDays);
-    const todoDays: DayStat[] = [];
-    const totals: Record<string, number> = {};
-    for (let i = 6; i >= 0; i--) { const d = addDays(today, -i); const rows = (todoWeekRes.data || []).filter((t) => t.task_date === d); totals[d] = rows.length; todoDays.push({ date: d, value: rows.filter((t) => t.completed).length }); }
-    setTodoWeekData(todoDays);
-    setTodoWeekTotals(totals);
-    setTasks(tasksRes.data || []);
-    setCountdowns(cdRes.data || []);
+    const sStreak = calcStreak(studyDates, today); const gStreak = calcStreak(gymDates, today); const tStreak = calcStreak(todoDates, today);
+    const sBroken = brokenStreak(studyDates, today); const gBroken = brokenStreak(gymDates, today); const tBroken = brokenStreak(todoDates, today);
+    const hBroken = (habits.data || []).map((h) => { const dates = new Set((habitLogs.data || []).filter((l) => l.habit_id === h.id).map((l) => l.log_date)); return { name: h.habit_name, broken: brokenStreak(dates, today) }; });
+    const hStreaks = (habits.data || []).map((h) => { const dates = new Set((habitLogs.data || []).filter((l) => l.habit_id === h.id).map((l) => l.log_date)); return { name: h.habit_name, streak: calcStreak(dates, today) }; });
+    const buildWeek = (rows: { session_date: string; duration_minutes: number }[] | null) => { const days: DayStat[] = []; for (let i = 6; i >= 0; i--) { const d = addDays(today, -i); days.push({ date: d, value: (rows || []).filter((r) => r.session_date === d).reduce((s, r) => s + r.duration_minutes, 0) }); } return days; };
+    const sw = buildWeek(studyW.data); const gw = buildWeek(gymW.data);
+    const hw: DayStat[] = []; for (let i = 6; i >= 0; i--) { const d = addDays(today, -i); hw.push({ date: d, value: new Set((habitLogs.data || []).filter((l) => l.log_date === d).map((l) => l.habit_id)).size }); }
+    const tw: DayStat[] = []; const twt: Record<string, number> = {};
+    for (let i = 6; i >= 0; i--) { const d = addDays(today, -i); const rows = (todoWeekRes.data || []).filter((t) => t.task_date === d); twt[d] = rows.length; tw.push({ date: d, value: rows.filter((t) => t.completed).length }); }
+    const taskList = tasksRes.data || []; const cdList = cdRes.data || [];
+
+    setUserName(nameCap); setStudyMinutes(studyMin); setWorkouts(wk); setGoals(gObj);
+    setGoalStudy(String(gObj.study_target)); setGoalWorkout(String(gObj.workout_target)); setGoalHabits(String(gObj.habits_target));
+    setHabitsDone(hd); setTodoTotal(tt); setTodoDone(td);
+    setStudyStreak(sStreak); setGymStreak(gStreak); setTodoStreak(tStreak);
+    setStudyBroken(sBroken); setGymBroken(gBroken); setTodoBroken(tBroken);
+    setHabitBroken(hBroken); setHabitStreaks(hStreaks);
+    setStudyWeekData(sw); setGymWeekData(gw); setHabitsWeekData(hw);
+    setTodoWeekData(tw); setTodoWeekTotals(twt); setTasks(taskList); setCountdowns(cdList);
     setLoading(false);
+
+    // ⚡ Write cache so the NEXT back-navigation is instant
+    try {
+      sessionStorage.setItem("dg-dash-cache", JSON.stringify({
+        userName: nameCap, studyMinutes: studyMin, workouts: wk, habitsDone: hd, todoDone: td, todoTotal: tt,
+        studyStreak: sStreak, gymStreak: gStreak, todoStreak: tStreak, studyBroken: sBroken, gymBroken: gBroken, todoBroken: tBroken,
+        habitBroken: hBroken, goals: gObj, habitStreaks: hStreaks, studyWeekData: sw, gymWeekData: gw, habitsWeekData: hw,
+        todoWeekData: tw, todoWeekTotals: twt, tasks: taskList, countdowns: cdList, moveStreak,
+      }));
+    } catch {}
   };
   useEffect(() => { load(); }, []);
 
-  const saveGoals = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { data } = await supabase.auth.getSession();
-    const userId = data.session?.user.id;
-    if (!userId) return;
-    const g: Goals = { study_target: Number(goalStudy) || 120, workout_target: Number(goalWorkout) || 1, habits_target: Number(goalHabits) || 3 };
-    const { error } = await supabase.from("user_goals").upsert({ user_id: userId, ...g });
-    if (error) { alert("Could not save goals: " + error.message); return; }
-    setGoals(g);
-    setEditingGoals(false);
-  };
-  const addTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { data } = await supabase.auth.getSession();
-    const userId = data.session?.user.id;
-    if (!userId || !newTask.trim()) return;
-    await supabase.from("tasks").insert({ user_id: userId, title: newTask.trim(), task_date: today, category: "general" });
-    setNewTask("");
-    await load();
-  };
-  const toggleTask = async (id: string, completed: boolean) => {
-    await supabase.from("tasks").update({ completed: !completed }).eq("id", id);
-    setTasks(tasks.map((t) => (t.id === id ? { ...t, completed: !completed } : t)));
-  };
-  const deleteTask = async (id: string) => {
-    await supabase.from("tasks").delete().eq("id", id);
-    setTasks(tasks.filter((t) => t.id !== id));
-  };
-  const addCountdown = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { data } = await supabase.auth.getSession();
-    const userId = data.session?.user.id;
-    if (!userId || !cdTitle.trim() || !cdDate) return;
-    await supabase.from("countdowns").insert({ user_id: userId, title: cdTitle.trim(), target_date: cdDate, emoji: cdEmoji });
-    setCdTitle("");
-    setCdDate("");
-    await load();
-  };
-  const deleteCountdown = async (id: string) => {
-    await supabase.from("countdowns").delete().eq("id", id);
-    setCountdowns(countdowns.filter((c) => c.id !== id));
-  };
+  const saveGoals = async (e: React.FormEvent) => { e.preventDefault(); const { data } = await supabase.auth.getSession(); const userId = data.session?.user.id; if (!userId) return; const g: Goals = { study_target: Number(goalStudy) || 120, workout_target: Number(goalWorkout) || 1, habits_target: Number(goalHabits) || 3 }; const { error } = await supabase.from("user_goals").upsert({ user_id: userId, ...g }); if (error) { alert("Could not save goals: " + error.message); return; } setGoals(g); setEditingGoals(false); };
+  const addTask = async (e: React.FormEvent) => { e.preventDefault(); const { data } = await supabase.auth.getSession(); const userId = data.session?.user.id; if (!userId || !newTask.trim()) return; await supabase.from("tasks").insert({ user_id: userId, title: newTask.trim(), task_date: today, category: "general" }); setNewTask(""); await load(); };
+  const toggleTask = async (id: string, completed: boolean) => { await supabase.from("tasks").update({ completed: !completed }).eq("id", id); setTasks(tasks.map((t) => (t.id === id ? { ...t, completed: !completed } : t))); };
+  const deleteTask = async (id: string) => { await supabase.from("tasks").delete().eq("id", id); setTasks(tasks.filter((t) => t.id !== id)); };
+  const addCountdown = async (e: React.FormEvent) => { e.preventDefault(); const { data } = await supabase.auth.getSession(); const userId = data.session?.user.id; if (!userId || !cdTitle.trim() || !cdDate) return; await supabase.from("countdowns").insert({ user_id: userId, title: cdTitle.trim(), target_date: cdDate, emoji: cdEmoji }); setCdTitle(""); setCdDate(""); await load(); };
+  const deleteCountdown = async (id: string) => { await supabase.from("countdowns").delete().eq("id", id); setCountdowns(countdowns.filter((c) => c.id !== id)); };
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -365,16 +262,10 @@ export default function Dashboard() {
   const gymPct = Math.min(100, Math.round((workouts / Math.max(goals.workout_target, 1)) * 100));
   const habitsPct = Math.min(100, Math.round((habitsDone / Math.max(goals.habits_target, 1)) * 100));
   const generalDone = tasks.filter((t) => t.completed).length;
-  const todoAllDone = todoDone + generalDone;
-  const todoAllTotal = todoTotal + tasks.length;
+  const todoAllDone = todoDone + generalDone; const todoAllTotal = todoTotal + tasks.length;
   const todoPct = todoAllTotal > 0 ? Math.min(100, Math.round((todoAllDone / todoAllTotal) * 100)) : 0;
   const overallPct = Math.round((studyPct + gymPct + habitsPct + todoPct) / 4);
-  const motivation =
-    overallPct >= 100 ? "⚡ BATMAN MODE: COMPLETE!"
-    : overallPct >= 75 ? "Keep it up, champion!"
-    : overallPct >= 50 ? "Better than yesterday!"
-    : overallPct >= 25 ? "Good start, keep pushing!"
-    : "Rise, hero — start NOW!";
+  const motivation = overallPct >= 100 ? "⚡ BATMAN MODE: COMPLETE!" : overallPct >= 75 ? "Keep it up, champion!" : overallPct >= 50 ? "Better than yesterday!" : overallPct >= 25 ? "Good start, keep pushing!" : "Rise, hero — start NOW!";
   const maxStreak = Math.max(studyStreak, gymStreak, moveStreak, todoStreak);
   const maxBroken = Math.max(studyBroken, gymBroken, todoBroken, ...habitBroken.map((b) => b.broken), 0);
   const weekData = chartMode === "study" ? studyWeekData : chartMode === "gym" ? gymWeekData : chartMode === "todo" ? todoWeekData : habitsWeekData;
@@ -383,7 +274,6 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-20 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 DARK CALM HERO */}
       <div className="relative mb-3 overflow-hidden rounded-3xl bg-slate-900 border border-violet-500/20 p-5 shadow-[0_0_50px_-12px_rgba(139,92,246,0.35)]">
         <div className="absolute -right-16 -top-16 w-48 h-48 bg-violet-600/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -left-16 -bottom-16 w-48 h-48 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
@@ -393,9 +283,7 @@ export default function Dashboard() {
         <Sparkle size={18} className="absolute bottom-4 right-5 text-slate-700 pointer-events-none" />
         <div className="relative">
           <div className="flex items-start justify-between gap-3 mb-4">
-            <p className="text-[11px] font-bold text-slate-500 pt-1.5">
-              🦇 {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
-            </p>
+            <p className="text-[11px] font-bold text-slate-500 pt-1.5">🦇 {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</p>
             <span className="shrink-0 drop-shadow-[0_0_14px_rgba(139,92,246,0.45)]"><CoinPill /></span>
           </div>
           <div className="flex items-center gap-4">
@@ -417,7 +305,6 @@ export default function Dashboard() {
 
       <DraggableAIBubble />
 
-      {/* 📊 STAT CARDS */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
         <StatCard href="/study-tracker" icon={BookOpen} tint="bg-blue-500/10 text-blue-400" bar="bg-blue-500" label="Study" value={`${Math.floor(studyMinutes / 60)}h ${studyMinutes % 60}m`} sub={studyMinutes === 0 ? "Start with 25 min" : "studied today"} streak={studyStreak} pct={studyPct} />
         <StatCard href="/gym-log" icon={Dumbbell} tint="bg-green-500/10 text-green-400" bar="bg-green-500" label="Gym" value={String(workouts)} sub={workouts === 0 ? "Crush a workout" : "workouts today"} streak={gymStreak} pct={gymPct} />
@@ -435,13 +322,8 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {/* Always render full-height layout so first paint is tall enough to scroll */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
-        <div
-          className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-violet-500/40 transition-colors"
-          onPointerDown={writeDashScroll}
-          onClick={() => saveAndGo("/daily-goals")}
-        >
+        <div className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-violet-500/40 transition-colors" onPointerDown={writeDashScroll} onClick={() => saveAndGo("/daily-goals")}>
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-sm font-black flex items-center gap-2"><IconTile icon={Target} tint="bg-violet-500/10 text-violet-400" />Daily Goals</h3>
             <button onClick={(e) => { e.stopPropagation(); setEditingGoals(!editingGoals); }} className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold press hover:bg-slate-700 transition-colors">{editingGoals ? "Close" : "Edit"}</button>
@@ -463,11 +345,7 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div
-          className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-emerald-500/40 transition-colors"
-          onPointerDown={writeDashScroll}
-          onClick={() => saveAndGo("/weekly")}
-        >
+        <div className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-emerald-500/40 transition-colors" onPointerDown={writeDashScroll} onClick={() => saveAndGo("/weekly")}>
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <h3 className="text-sm font-black flex items-center gap-2"><IconTile icon={BarChart3} tint="bg-emerald-500/10 text-emerald-400" />Last 7 days</h3>
             <div className="flex gap-1.5 flex-wrap">
@@ -475,9 +353,7 @@ export default function Dashboard() {
                 const active = chartMode === m;
                 const tint = m === "study" ? "bg-blue-500/15 border-blue-500/30 text-blue-300" : m === "gym" ? "bg-green-500/15 border-green-500/30 text-green-300" : m === "habits" ? "bg-violet-500/15 border-violet-500/30 text-violet-300" : "bg-amber-500/15 border-amber-500/30 text-amber-300";
                 const lbl = m === "study" ? "Study" : m === "gym" ? "Gym" : m === "habits" ? "Habits" : "To-do";
-                return (
-                  <button key={m} onClick={(e) => { e.stopPropagation(); setChartMode(m); }} className={`px-2.5 py-1 rounded-lg text-[10px] font-black press border transition-colors ${active ? tint : "bg-slate-800 border-slate-700 text-slate-500"}`}>{lbl}</button>
-                );
+                return <button key={m} onClick={(e) => { e.stopPropagation(); setChartMode(m); }} className={`px-2.5 py-1 rounded-lg text-[10px] font-black press border transition-colors ${active ? tint : "bg-slate-800 border-slate-700 text-slate-500"}`}>{lbl}</button>;
               })}
             </div>
           </div>
@@ -513,9 +389,7 @@ export default function Dashboard() {
                 <button onClick={() => deleteTask(t.id)} className="text-rose-400 text-xs press">✕</button>
               </div>
             ))}
-            {tasks.length === 0 && (
-              <div className="text-center py-6"><p className="text-3xl mb-2">📭</p><p className="text-slate-500 text-sm">No tasks yet — add your first!</p></div>
-            )}
+            {tasks.length === 0 && <div className="text-center py-6"><p className="text-3xl mb-2">📭</p><p className="text-slate-500 text-sm">No tasks yet — add your first!</p></div>}
           </div>
         </div>
 
@@ -525,7 +399,7 @@ export default function Dashboard() {
             <input value={cdTitle} onChange={(e) => setCdTitle(e.target.value)} placeholder="e.g. Math exam" required className="flex-1 min-w-[140px] p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
             <input type="date" value={cdDate} onChange={(e) => setCdDate(e.target.value)} required className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
             <select value={cdEmoji} onChange={(e) => setCdEmoji(e.target.value)} className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500">
-              <option value="📚"></option><option value="️">🏋️</option><option value="✅">✅</option><option value="🎯"></option><option value="💼">💼</option>
+              <option value="📚"></option><option value="🏋️">🏋️</option><option value="✅">✅</option><option value="🎯"></option><option value="💼">💼</option>
             </select>
             <button className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-sm font-black press transition-colors">Add</button>
           </form>
@@ -542,41 +416,24 @@ export default function Dashboard() {
                 </div>
               );
             })}
-            {countdowns.length === 0 && (
-              <div className="text-center py-6"><p className="text-3xl mb-2">🎯</p><p className="text-slate-500 text-sm">Add your exam or goal date!</p></div>
-            )}
+            {countdowns.length === 0 && <div className="text-center py-6"><p className="text-3xl mb-2">🎯</p><p className="text-slate-500 text-sm">Add your exam or goal date!</p></div>}
           </div>
         </div>
       </div>
 
-      {/* 💡 TIP OF THE DAY */}
-      <div
-        onPointerDown={writeDashScroll}
-        onClick={() => saveAndGo("/tips")}
-        className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-3 cursor-pointer hover:border-amber-500/40 transition-colors"
-      >
+      <div onPointerDown={writeDashScroll} onClick={() => saveAndGo("/tips")} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-3 cursor-pointer hover:border-amber-500/40 transition-colors">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <span className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center"><Lightbulb size={14} strokeWidth={2.2} /></span>
             <p className="text-xs font-black text-slate-400">TIP OF THE DAY</p>
           </div>
           <div className="flex items-center gap-2">
-            {tipStreak > 0 && (
-              <span className="flex items-center gap-1 text-[10px] font-black text-orange-400"><Flame size={11} /> {tipStreak}</span>
-            )}
-            <Link
-              href="/tips"
-              onClick={(e) => { e.stopPropagation(); writeDashScroll(); }}
-              className="text-[10px] font-bold text-slate-500 hover:text-white transition-colors"
-            >
-              Full page →
-            </Link>
+            {tipStreak > 0 && <span className="flex items-center gap-1 text-[10px] font-black text-orange-400"><Flame size={11} /> {tipStreak}</span>}
+            <Link href="/tips" onClick={(e) => { e.stopPropagation(); writeDashScroll(); }} className="text-[10px] font-bold text-slate-500 hover:text-white transition-colors">Full page →</Link>
           </div>
         </div>
         <div className="flex items-start gap-3">
-          <span className={`w-9 h-9 rounded-lg bg-gradient-to-br ${categoryColors[tip.cat] || "from-slate-600 to-slate-700"} flex items-center justify-center shrink-0`}>
-            <TipIcon size={16} className="text-white" />
-          </span>
+          <span className={`w-9 h-9 rounded-lg bg-gradient-to-br ${categoryColors[tip.cat] || "from-slate-600 to-slate-700"} flex items-center justify-center shrink-0`}><TipIcon size={16} className="text-white" /></span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-white leading-snug">&quot;{tip.tip}&quot;</p>
             <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{tip.why}</p>
@@ -588,9 +445,7 @@ export default function Dashboard() {
           <button onClick={(e) => { e.stopPropagation(); setTipOffset((tipOffset + 1) % 3); }} className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors" title="Another tip"><RefreshCw size={13} /></button>
         </div>
         <div className="flex justify-center gap-1.5 mt-3">
-          {tipWeek.map((d, i) => (
-            <span key={i} className={`w-2 h-2 rounded-full ${d.done ? "bg-emerald-500" : "bg-slate-700"}`} />
-          ))}
+          {tipWeek.map((d, i) => <span key={i} className={`w-2 h-2 rounded-full ${d.done ? "bg-emerald-500" : "bg-slate-700"}`} />)}
         </div>
       </div>
     </main>
