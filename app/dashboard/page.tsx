@@ -1,6 +1,6 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -142,11 +142,16 @@ export default function Dashboard() {
   const [backNav] = useState(() => !!readDashScroll());
   const [loading, setLoading] = useState(true);
   const [settled, setSettled] = useState(false); // always invisible at first (server + client)
+  const loadingRef = useRef(true);
 
   // Fresh visit (no saved position): reveal immediately after mount
   useEffect(() => {
     if (!backNav) setSettled(true);
   }, [backNav]);
+
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
 
   const [tipOffset, setTipOffset] = useState(0);
   const [tipDone, setTipDone] = useState(false);
@@ -183,41 +188,57 @@ export default function Dashboard() {
     };
   }, [settled]);
 
-  // 📍 Restore BEFORE paint, after data loads
+  // 📍 DETERMINISTIC RESTORE: hold the page at the saved position for up to 2.5s.
+  // No matter WHEN Next/browser tries to scroll to top (before, during, after),
+  // we snap back within 80ms. Stops automatically when stable or user touches.
   useLayoutEffect(() => {
     if (!backNav) return;
-    if (loading) return;
-
     const saved = readDashScroll();
     const targetY = saved?.y || 0;
-
     if (targetY <= 0) {
       setSettled(true);
       return;
     }
 
-    let tries = 0;
-    const restore = () => {
-      tries++;
+    let revealed = false;
+    let userTookOver = false;
+    const takeOver = () => { userTookOver = true; };
+    window.addEventListener("touchstart", takeOver, { passive: true });
+    window.addEventListener("wheel", takeOver, { passive: true });
+
+    const start = Date.now();
+    const iv = setInterval(() => {
       const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
       const finalY = Math.min(targetY, maxY);
-      window.scrollTo(0, finalY);
-      const closeEnough = Math.abs(window.scrollY - finalY) < 25;
-      if (closeEnough || tries >= 20) {
-        setSettled(true);
-        // 🛡️ GUARD: if Next/browser yanks to top right after, snap back (800ms window)
-        let g = 0;
-        const guard = setInterval(() => {
-          g++;
-          if (Math.abs(window.scrollY - finalY) > 80) window.scrollTo(0, finalY);
-          if (g >= 8) clearInterval(guard);
-        }, 100);
-        return;
+
+      // Force position (unless the user grabbed the page)
+      if (!userTookOver && Math.abs(window.scrollY - finalY) > 10) {
+        window.scrollTo(0, finalY);
       }
-      requestAnimationFrame(restore);
+
+      // Reveal only when positioned AND data rendered
+      const positioned = Math.abs(window.scrollY - finalY) < 40;
+      if (!revealed && positioned && !loadingRef.current) {
+        revealed = true;
+        setSettled(true);
+      }
+
+      // Stop after 2.5s, or once revealed and user took control
+      if (Date.now() - start > 2500 || (revealed && userTookOver)) {
+        clearInterval(iv);
+        setSettled(true);
+        window.removeEventListener("touchstart", takeOver);
+        window.removeEventListener("wheel", takeOver);
+      }
+    }, 80);
+
+    return () => {
+      clearInterval(iv);
+      window.removeEventListener("touchstart", takeOver);
+      window.removeEventListener("wheel", takeOver);
     };
-    requestAnimationFrame(restore);
-  }, [loading, backNav]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 💡 Tip of the Day data
   useEffect(() => {
