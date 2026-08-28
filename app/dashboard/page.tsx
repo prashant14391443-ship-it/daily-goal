@@ -1,6 +1,6 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -21,6 +21,20 @@ function brokenStreak(dates: Set<string>, today: string) { if (dates.has(today) 
 function dayLabel(dateStr: string) { return new Date(dateStr + "T00:00:00").toLocaleDateString(undefined, { weekday: "short" }); }
 function daysLeft(target: string, today: string) { return Math.round((new Date(target + "T00:00:00").getTime() - new Date(today + "T00:00:00").getTime()) / 86400000); }
 function badgeColor(d: number) { if (d < 0) return "bg-slate-700 text-slate-300"; if (d === 0) return "bg-rose-600 text-white"; if (d <= 7) return "bg-rose-700 text-white"; if (d <= 30) return "bg-orange-600 text-white"; return "bg-green-700 text-white"; }
+
+// 📍 SCROLL MEMORY HELPERS
+function readDashScroll() {
+  if (typeof window === "undefined") return null;
+  try {
+    const s = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null");
+    if (s && typeof s.y === "number" && Date.now() - s.t < 15 * 60 * 1000) return s;
+  } catch {}
+  return null;
+}
+function writeDashScroll() {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem("dg-dash-scroll", JSON.stringify({ y: window.scrollY, t: Date.now() }));
+}
 
 function ProgressRing({ pct, size = 56, stroke = 5, color, track = "rgba(255,255,255,0.08)", showText = true }: { pct: number; size?: number; stroke?: number; color: string; track?: string; showText?: boolean }) {
   const r = (size - stroke) / 2;
@@ -124,76 +138,73 @@ export default function Dashboard() {
   const router = useRouter();
   const [moveStreak, setMoveStreak] = useState(0);
 
-  // ===== 📍 SCROLL POSITION MEMORY (native-app feel) =====
-  const [backNav] = useState(() => {
-    try {
-      const s = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null");
-      return !!(s && s.y !== undefined && Date.now() - s.t < 15 * 60 * 1000); // Increased timeout to 15m
-    } catch {
-      return false;
-    }
-  });
-  
-  // ALWAYS start loading as true so DOM can expand to full height before we restore scroll
+  // ===== 📍 SCROLL POSITION MEMORY =====
+  const [backNav] = useState(() => !!readDashScroll());
   const [loading, setLoading] = useState(true);
-  const [settled, setSettled] = useState(!backNav);
+  const [settled, setSettled] = useState(() => !readDashScroll());
 
   const [tipOffset, setTipOffset] = useState(0);
   const [tipDone, setTipDone] = useState(false);
   const [tipStreak, setTipStreak] = useState(0);
   const [tipWeek, setTipWeek] = useState<{ done: boolean }[]>([]);
 
-  // 💾 Save position continuously, ONLY when settled (prevents saving bad positions during the jump)
+  // Save position + navigate (used by Daily Goals / Weekly / Tips)
+  const saveAndGo = (href: string) => {
+    writeDashScroll();
+    router.push(href);
+  };
+
+  // Stop browser/Next from doing its own scroll restore
+  useEffect(() => {
+    if ("scrollRestoration" in window.history) {
+      const old = window.history.scrollRestoration;
+      window.history.scrollRestoration = "manual";
+      return () => { window.history.scrollRestoration = old; };
+    }
+  }, []);
+
+  // Save position while scrolling (only when settled — no save on unmount!)
   useEffect(() => {
     if (!settled) return;
-    const save = () => sessionStorage.setItem("dg-dash-scroll", JSON.stringify({ y: window.scrollY, t: Date.now() }));
     let raf = 0;
     const onScroll = () => {
-      if (!raf) raf = requestAnimationFrame(() => { raf = 0; save(); });
+      if (raf) return;
+      raf = requestAnimationFrame(() => { raf = 0; writeDashScroll(); });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       if (raf) cancelAnimationFrame(raf);
-      save();
       window.removeEventListener("scroll", onScroll);
     };
   }, [settled]);
 
-  // 📍 RESTORE: wait for data to load, then jump, then reveal UI
-  useEffect(() => {
-    if (loading) return; // Important: Wait until data populates the DOM
-    
-    if (backNav) {
-      let y = 0;
-      try { y = JSON.parse(sessionStorage.getItem("dg-dash-scroll") || "null")?.y || 0; } catch {}
-      
-      if (y > 0) {
-        let attempts = 0;
-        const iv = setInterval(() => {
-          window.scrollTo({ top: y, behavior: 'instant' });
-          attempts++;
-          // If we reached the target OR tried enough times (max height reached) -> Settle
-          if (Math.abs(window.scrollY - y) < 20 || attempts > 5) {
-            clearInterval(iv);
-            setSettled(true); // reveal at the EXACT spot
-          }
-        }, 40);
-        
-        const safety = setTimeout(() => {
-          clearInterval(iv);
-          setSettled(true);
-        }, 600);
-        
-        return () => {
-          clearInterval(iv);
-          clearTimeout(safety);
-        };
-      } else {
-        setSettled(true);
-      }
-    } else {
+  // 📍 Restore BEFORE paint, after data loads
+  useLayoutEffect(() => {
+    if (!backNav) return;
+    if (loading) return;
+
+    const saved = readDashScroll();
+    const targetY = saved?.y || 0;
+
+    if (targetY <= 0) {
       setSettled(true);
+      return;
     }
+
+    let tries = 0;
+    const restore = () => {
+      tries++;
+      const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const finalY = Math.min(targetY, maxY);
+      window.scrollTo(0, finalY);
+      const closeEnough = Math.abs(window.scrollY - finalY) < 25;
+      if (closeEnough || tries >= 20) {
+        setSettled(true);
+        return;
+      }
+      requestAnimationFrame(restore);
+    };
+    requestAnimationFrame(restore);
   }, [loading, backNav]);
 
   // 💡 Tip of the Day data
@@ -317,11 +328,8 @@ export default function Dashboard() {
     setTodoWeekTotals(totals);
     setTasks(tasksRes.data || []);
     setCountdowns(cdRes.data || []);
-    
-    // Everything is loaded! DOM will now expand.
     setLoading(false);
   };
-  
   useEffect(() => { load(); }, []);
 
   const saveGoals = async (e: React.FormEvent) => {
@@ -393,7 +401,6 @@ export default function Dashboard() {
 
   return (
     <main className={`min-h-screen bg-slate-950 text-white px-4 pt-20 pb-24 max-w-4xl mx-auto transition-opacity duration-200 ${settled ? "opacity-100" : "opacity-0"}`}>
-
       {/* 🌆 DARK CALM HERO */}
       <div className="relative mb-3 overflow-hidden rounded-3xl bg-slate-900 border border-violet-500/20 p-5 shadow-[0_0_50px_-12px_rgba(139,92,246,0.35)]">
         <div className="absolute -right-16 -top-16 w-48 h-48 bg-violet-600/15 rounded-full blur-3xl pointer-events-none" />
@@ -451,7 +458,11 @@ export default function Dashboard() {
       ) : (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
-            <div className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-violet-500/40 transition-colors" onClick={() => router.push("/daily-goals")}>
+            <div
+              className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-violet-500/40 transition-colors"
+              onPointerDown={writeDashScroll}
+              onClick={() => saveAndGo("/daily-goals")}
+            >
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-sm font-black flex items-center gap-2"><IconTile icon={Target} tint="bg-violet-500/10 text-violet-400" />Daily Goals</h3>
                 <button onClick={(e) => { e.stopPropagation(); setEditingGoals(!editingGoals); }} className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold press hover:bg-slate-700 transition-colors">{editingGoals ? "Close" : "Edit"}</button>
@@ -473,7 +484,11 @@ export default function Dashboard() {
               )}
             </div>
 
-            <div className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-emerald-500/40 transition-colors" onClick={() => router.push("/weekly")}>
+            <div
+              className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-emerald-500/40 transition-colors"
+              onPointerDown={writeDashScroll}
+              onClick={() => saveAndGo("/weekly")}
+            >
               <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                 <h3 className="text-sm font-black flex items-center gap-2"><IconTile icon={BarChart3} tint="bg-emerald-500/10 text-emerald-400" />Last 7 days</h3>
                 <div className="flex gap-1.5 flex-wrap">
@@ -560,7 +575,8 @@ export default function Dashboard() {
       {/* 💡 TIP OF THE DAY */}
       {!loading && (
         <div
-          onClick={() => router.push("/tips")}
+          onPointerDown={writeDashScroll}
+          onClick={() => saveAndGo("/tips")}
           className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-3 cursor-pointer hover:border-amber-500/40 transition-colors"
         >
           <div className="flex items-center justify-between mb-3">
@@ -572,7 +588,13 @@ export default function Dashboard() {
               {tipStreak > 0 && (
                 <span className="flex items-center gap-1 text-[10px] font-black text-orange-400"><Flame size={11} /> {tipStreak}</span>
               )}
-              <Link href="/tips" onClick={(e) => e.stopPropagation()} className="text-[10px] font-bold text-slate-500 hover:text-white transition-colors">Full page →</Link>
+              <Link
+                href="/tips"
+                onClick={(e) => { e.stopPropagation(); writeDashScroll(); }}
+                className="text-[10px] font-bold text-slate-500 hover:text-white transition-colors"
+              >
+                Full page →
+              </Link>
             </div>
           </div>
           <div className="flex items-start gap-3">
