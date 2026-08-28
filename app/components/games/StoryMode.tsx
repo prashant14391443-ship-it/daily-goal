@@ -1,12 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { STORIES } from "@/lib/stories";
+import { STORIES, Story } from "@/lib/stories";
+import { generateStory } from "@/lib/storyGen";
 import { playCorrect, playWrong, playWin } from "@/lib/sounds";
-import { Play, Pause, SkipForward, Volume2, Check, X, Trophy, BookOpen } from "lucide-react";
+import { Play, Pause, SkipForward, Volume2, Check, X, Trophy, BookOpen, Sparkles } from "lucide-react";
 
 export default function StoryMode({ onExit }: { onExit?: () => void }) {
   const [mode, setMode] = useState<"select" | "story" | "questions" | "results">("select");
   const [storyIdx, setStoryIdx] = useState(0);
+  const [activeStory, setActiveStory] = useState<Story | null>(null);
   const [visibleSentences, setVisibleSentences] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -18,7 +20,7 @@ export default function StoryMode({ onExit }: { onExit?: () => void }) {
   const [best, setBest] = useState(0);
   const chatRef = useRef<HTMLDivElement>(null);
 
-  const story = STORIES[storyIdx];
+  const story = activeStory ?? STORIES[storyIdx];
   const question = story.questions[currentQ];
 
   useEffect(() => {
@@ -57,7 +59,19 @@ export default function StoryMode({ onExit }: { onExit?: () => void }) {
   }, [visibleSentences, isPlaying, speed, story.sentences]);
 
   const startStory = (idx: number) => {
+    setActiveStory(STORIES[idx]);
     setStoryIdx(idx);
+    setMode("story");
+    setVisibleSentences(0);
+    setIsPlaying(false);
+    setCurrentQ(0);
+    setUserAnswers([]);
+    setScore(0);
+    setShowAnswer(false);
+  };
+
+  const startEndless = () => {
+    setActiveStory(generateStory());
     setMode("story");
     setVisibleSentences(0);
     setIsPlaying(false);
@@ -104,7 +118,6 @@ export default function StoryMode({ onExit }: { onExit?: () => void }) {
     const a = q.answer.trim().toLowerCase();
     if (q.type === "mcq") return u === a;
     if (q.type === "word") return u === a;
-    // For sentence/speak: accept if key words match
     const userWords = new Set(u.split(/\s+/));
     const answerWords = a.split(/\s+/);
     const matchCount = answerWords.filter((w) => userWords.has(w)).length;
@@ -112,6 +125,7 @@ export default function StoryMode({ onExit }: { onExit?: () => void }) {
   };
 
   const restart = () => {
+    setActiveStory(null);
     setMode("select");
     setVisibleSentences(0);
     setIsPlaying(false);
@@ -128,6 +142,15 @@ export default function StoryMode({ onExit }: { onExit?: () => void }) {
           <p className="text-lg font-black mb-1">Story Mode</p>
           <p className="text-xs text-slate-500 mb-4">Listen to a story, then answer questions!</p>
         </div>
+
+        <button
+          onClick={startEndless}
+          className="w-full mb-3 py-4 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 font-black flex items-center justify-center gap-2 text-white shadow-lg shadow-indigo-900/30"
+        >
+          <Sparkles size={18} /> ♾️ Play Endless Story (never repeats!)
+        </button>
+
+        <p className="text-[10px] font-black text-slate-500 mb-2 mt-4">FEATURED STORIES</p>
         <div className="grid gap-3">
           {STORIES.map((s, i) => (
             <button key={s.id} onClick={() => startStory(i)} className="bg-slate-900 border border-slate-700 rounded-2xl p-4 text-left hover:border-slate-600 transition-colors">
@@ -151,7 +174,7 @@ export default function StoryMode({ onExit }: { onExit?: () => void }) {
         <div className="bg-slate-900 border border-slate-700 rounded-2xl p-4 mb-4">
           <div className="flex items-center gap-3 mb-3">
             <span className="text-2xl">{story.emoji}</span>
-            <div>
+            <div className="flex-1">
               <p className="font-bold text-sm text-white">{story.title}</p>
               <p className="text-[10px] text-slate-500">{story.difficulty} • {story.sentences.length} sentences</p>
             </div>
