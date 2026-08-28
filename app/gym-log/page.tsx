@@ -50,15 +50,13 @@ export default function GymHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Speed, pace & race predictions</p>
         </Link>
 
-        <Link href="/move" className="press col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center gap-4">
-          <span className="w-9 h-9 shrink-0 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center">
-            <Satellite size={18} strokeWidth={2.2} />
-          </span>
-          <div className="min-w-0">
-            <p className="font-black text-sm text-green-400">Auto Tracker</p>
-            <p className="text-[10px] text-slate-500 mt-0.5">GPS: walk, run, ride, hike — auto calories!</p>
-          </div>
-        </Link>
+             <Link href="/move" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors col-span-2">
+        <div className="w-11 h-11 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center mb-6">
+          <Dumbbell size={20} />
+        </div>
+        <p className="font-bold text-green-400 text-sm leading-tight">Auto Tracker</p>
+        <p className="text-xs text-slate-400 mt-1">GPS: walk, run, ride, hike — auto calories!</p>
+      </Link>
       </div>
     </main>
   );

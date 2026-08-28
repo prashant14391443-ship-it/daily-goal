@@ -50,15 +50,13 @@ export default function StudyHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Points + mind-map</p>
         </Link>
 
-        <Link href="/quiz" className="press col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center gap-4">
-          <span className="w-9 h-9 shrink-0 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
-            <Bot size={18} strokeWidth={2.2} />
-          </span>
-          <div className="min-w-0">
-            <p className="font-black text-sm text-white">AI Quiz</p>
-            <p className="text-[10px] text-slate-500 mt-0.5">Any topic → instant test with score</p>
-          </div>
-        </Link>
+             <Link href="/quiz" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors col-span-2">
+        <div className="w-11 h-11 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-6">
+          <Bot size={20} />
+        </div>
+        <p className="font-bold text-white text-sm leading-tight">AI Quiz</p>
+        <p className="text-xs text-slate-400 mt-1">Any topic → instant test with score</p>
+      </Link>
       </div>
     </main>
   );
