@@ -6,21 +6,22 @@ import MatchPairs from "@/app/components/games/MatchPairs";
 import Scramble from "@/app/components/games/Scramble";
 import SayItRace from "@/app/components/games/SayItRace";
 import DailyChallenge from "@/app/components/games/DailyChallenge";
+import SynonymSwipe from "@/app/components/games/SynonymSwipe";
+import EarRace from "@/app/components/games/EarRace";
+import WordChain from "@/app/components/games/WordChain";
 import { getBest, levelInfo, chalConfig } from "@/app/components/games/gameData";
+import { Gamepad2, Zap, Layers, Puzzle, Mic, Trophy, Flame, Star, ArrowLeft, ArrowLeftRight, Ear, Link2 } from "lucide-react";
 
-type GameId = "" | "quiz" | "match" | "scramble" | "sayit" | "challenge";
+type GameId = "" | "quiz" | "match" | "scramble" | "sayit" | "challenge" | "swipe" | "ear" | "chain";
 
 const TITLES: Record<string, string> = {
-  quiz: "⚡ Speed Quiz",
-  match: "🃏 Match Pairs",
-  scramble: "🧩 Word Scramble",
-  sayit: "🎤 Say-It Race",
-  challenge: "🏆 Daily Challenge",
+  quiz: "Speed Quiz", match: "Match Pairs", scramble: "Word Scramble", sayit: "Say-It Race",
+  challenge: "Daily Challenge", swipe: "Synonym Swipe", ear: "Ear Race", chain: "Word Chain",
 };
 
 export default function GamesPage() {
   const [game, setGame] = useState<GameId>("");
-  const [bests, setBests] = useState({ quiz: 0, match: 0, scramble: 0, sayit: 0 });
+  const [bests, setBests] = useState({ quiz: 0, match: 0, scramble: 0, sayit: 0, swipe: 0, ear: 0, chain: 0 });
   const [chalDone, setChalDone] = useState(false);
   const [chalStreak, setChalStreak] = useState(0);
   const [chalStars, setChalStars] = useState(0);
@@ -28,10 +29,9 @@ export default function GamesPage() {
   useEffect(() => {
     if (game === "") {
       setBests({
-        quiz: getBest("dg-game-quiz"),
-        match: getBest("dg-game-match"),
-        scramble: getBest("dg-game-scramble"),
-        sayit: getBest("dg-game-sayit"),
+        quiz: getBest("dg-game-quiz"), match: getBest("dg-game-match"),
+        scramble: getBest("dg-game-scramble"), sayit: getBest("dg-game-sayit"),
+        swipe: getBest("dg-best-synonym"), ear: getBest("dg-best-ear"), chain: getBest("dg-best-chain"),
       });
       const today = new Date();
       const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -50,14 +50,19 @@ export default function GamesPage() {
     return (
       <main className="min-h-screen bg-slate-950 text-white p-4 pb-24">
         <div className="flex justify-between items-center mb-6 max-w-md mx-auto">
-          <h1 className="text-xl font-black">{TITLES[game]}</h1>
-          <button onClick={exit} className="text-sm text-slate-400">← Games</button>
+          <h1 className="text-xl font-bold">{TITLES[game]}</h1>
+          <button onClick={exit} className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-300 transition-colors">
+            <ArrowLeft size={16} /> Games
+          </button>
         </div>
         {game === "quiz" && <SpeedQuiz onExit={exit} />}
         {game === "match" && <MatchPairs onExit={exit} />}
         {game === "scramble" && <Scramble onExit={exit} />}
         {game === "sayit" && <SayItRace onExit={exit} />}
         {game === "challenge" && <DailyChallenge onExit={exit} />}
+        {game === "swipe" && <SynonymSwipe onExit={exit} />}
+        {game === "ear" && <EarRace onExit={exit} />}
+        {game === "chain" && <WordChain onExit={exit} />}
       </main>
     );
   }
@@ -66,59 +71,81 @@ export default function GamesPage() {
   const cfg = chalConfig(li.level);
   const progress = Math.min(100, ((chalStars - li.prev) / (li.next - li.prev)) * 100);
 
+  const games = [
+    { id: "quiz" as GameId, icon: Zap, title: "Speed Quiz", desc: "60 sec • combo • 4 options", best: bests.quiz ? `${bests.quiz}` : null, tint: "bg-blue-500/10 border-blue-500/20", color: "text-blue-400" },
+    { id: "match" as GameId, icon: Layers, title: "Match Pairs", desc: "word ↔ meaning • beat time", best: bests.match ? `${bests.match}s` : null, tint: "bg-violet-500/10 border-violet-500/20", color: "text-violet-400" },
+    { id: "scramble" as GameId, icon: Puzzle, title: "Word Scramble", desc: "build words from letters", best: bests.scramble ? `${bests.scramble}/5` : null, tint: "bg-green-500/10 border-green-500/20", color: "text-green-400" },
+    { id: "sayit" as GameId, icon: Mic, title: "Say-It Race", desc: "speak • get % • pass 70%", best: bests.sayit ? `${bests.sayit}%` : null, tint: "bg-pink-500/10 border-pink-500/20", color: "text-pink-400" },
+    { id: "swipe" as GameId, icon: ArrowLeftRight, title: "Synonym Swipe", desc: "swipe ✓ same / ✗ different", best: bests.swipe ? `${bests.swipe}` : null, tint: "bg-fuchsia-500/10 border-fuchsia-500/20", color: "text-fuchsia-400" },
+    { id: "ear" as GameId, icon: Ear, title: "Ear Race", desc: "hear it → type it fast", best: bests.ear ? `${bests.ear}` : null, tint: "bg-cyan-500/10 border-cyan-500/20", color: "text-cyan-400" },
+    { id: "chain" as GameId, icon: Link2, title: "Word Chain", desc: "last letter → next word", best: bests.chain ? `${bests.chain}` : null, tint: "bg-orange-500/10 border-orange-500/20", color: "text-orange-400" },
+  ];
+
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 pb-24">
-      <div className="flex justify-between items-center mb-2">
-        <h1 className="text-2xl font-black">🎮 Game Zone</h1>
-        <Link href="/speaking" className="text-sm text-slate-400">← Back</Link>
+    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-fuchsia-500/10 border border-fuchsia-500/20 flex items-center justify-center">
+            <Gamepad2 size={22} className="text-fuchsia-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-white">Game Zone</h1>
+            <p className="text-xs text-slate-400 font-medium">Play with YOUR words • beat your best</p>
+          </div>
+        </div>
+        <Link href="/speaking" className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-300 transition-colors">
+          <ArrowLeft size={16} /> Back
+        </Link>
       </div>
-      <p className="text-xs text-slate-400 mb-5">Play with YOUR words • beat your best • learn without feeling it!</p>
 
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => setGame("quiz")} className="bg-slate-900 border border-slate-800 hover:border-emerald-500/60 rounded-xl p-4 text-left transition-colors">
-          <p className="text-3xl">⚡</p>
-          <p className="font-bold mt-2 text-sm">Speed Quiz</p>
-          <p className="text-[10px] text-slate-400">60 sec • combo • 4 options</p>
-          <p className="text-xs font-black text-amber-400 mt-2">🏆 {bests.quiz || "—"}</p>
-        </button>
-        <button onClick={() => setGame("match")} className="bg-slate-900 border border-slate-800 hover:border-violet-500/60 rounded-xl p-4 text-left transition-colors">
-          <p className="text-3xl">🃏</p>
-          <p className="font-bold mt-2 text-sm">Match Pairs</p>
-          <p className="text-[10px] text-slate-400">word ↔ meaning • beat time</p>
-          <p className="text-xs font-black text-amber-400 mt-2">🏆 {bests.match ? `${bests.match}s` : "—"}</p>
-        </button>
-        <button onClick={() => setGame("scramble")} className="bg-slate-900 border border-slate-800 hover:border-amber-500/60 rounded-xl p-4 text-left transition-colors">
-          <p className="text-3xl">🧩</p>
-          <p className="font-bold mt-2 text-sm">Word Scramble</p>
-          <p className="text-[10px] text-slate-400">build words from letters</p>
-          <p className="text-xs font-black text-amber-400 mt-2">🏆 {bests.scramble ? `${bests.scramble}/5` : "—"}</p>
-        </button>
-        <button onClick={() => setGame("sayit")} className="bg-slate-900 border border-slate-800 hover:border-red-500/60 rounded-xl p-4 text-left transition-colors">
-          <p className="text-3xl">🎤</p>
-          <p className="font-bold mt-2 text-sm">Say-It Race</p>
-          <p className="text-[10px] text-slate-400">speak • get % • pass 70%</p>
-          <p className="text-xs font-black text-amber-400 mt-2">🏆 {bests.sayit ? `${bests.sayit}%` : "—"}</p>
-        </button>
+        {games.map((g) => {
+          const Icon = g.icon;
+          return (
+            <button key={g.id} onClick={() => setGame(g.id)} className="relative bg-slate-900 p-4 rounded-2xl border border-slate-700 hover:border-slate-600 text-left transition-colors overflow-hidden">
+              {g.best && (
+                <div className="absolute top-3 right-3 bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px] font-semibold px-2 py-1 rounded-lg flex items-center gap-1">
+                  <Trophy size={10} /> {g.best}
+                </div>
+              )}
+              <div className={`w-11 h-11 rounded-xl ${g.tint} flex items-center justify-center mb-3`}>
+                <Icon size={20} className={g.color} />
+              </div>
+              <p className="font-semibold text-sm text-white">{g.title}</p>
+              <p className="text-xs text-slate-500 mt-0.5">{g.desc}</p>
+            </button>
+          );
+        })}
       </div>
 
-      {/* 🏆 LEVEL-AWARE DAILY CHALLENGE */}
-      <button onClick={() => setGame("challenge")} className="mt-6 w-full bg-gradient-to-r from-amber-600/20 to-orange-600/20 border border-amber-500/40 hover:border-amber-400 rounded-xl p-4 text-left transition-colors">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">🏆</span>
-          <div className="flex-1">
-            <p className="font-bold text-sm">Daily Challenge <span className="text-amber-400">• ⭐ Level {li.level}</span></p>
-            <p className="text-[10px] text-slate-400">
-              ⚡{cfg.quiz} + 🃏{cfg.match} + 🧩{cfg.scram} + 🎤{cfg.say} {li.level >= 3 ? "• HARD MODE" : "• grows every level!"}
+      <button onClick={() => setGame("challenge" as GameId)} className="mt-4 w-full relative overflow-hidden rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 text-left hover:border-amber-500/50 transition-colors">
+        <div className="relative flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+            <Trophy size={20} className="text-amber-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm text-white flex items-center gap-2">
+              Daily Challenge
+              <span className="text-amber-300 flex items-center gap-1 text-xs"><Star size={12} fill="currentColor" /> Level {li.level}</span>
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+              <Zap size={11} className="text-blue-400" />{cfg.quiz}
+              <Layers size={11} className="text-violet-400" />{cfg.match}
+              <Puzzle size={11} className="text-green-400" />{cfg.scram}
+              <Mic size={11} className="text-pink-400" />{cfg.say}
+              {li.level >= 3 ? "• HARD MODE" : "• grows every level!"}
             </p>
           </div>
-          <span className={`text-xs font-black ${chalDone ? "text-emerald-400" : "text-orange-400"}`}>{chalDone ? "✅ done" : "▶ play"}</span>
+          <span className={`shrink-0 text-[10px] font-semibold px-2.5 py-1 rounded-lg border ${chalDone ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-orange-500/10 border-orange-500/30 text-orange-300"}`}>
+            {chalDone ? "Done" : "Play"}
+          </span>
         </div>
-        <div className="h-1.5 bg-slate-800 rounded-full mt-3 overflow-hidden">
-          <div className="h-full bg-amber-500" style={{ width: `${progress}%` }} />
+        <div className="relative h-1.5 bg-slate-800 rounded-full mt-4 overflow-hidden">
+          <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
         </div>
-        <div className="flex justify-between mt-1">
-          <p className="text-[10px] text-slate-400">⭐ {chalStars} • {chalStars - li.prev}/{li.next - li.prev} to Level {li.level + 1}</p>
-          <p className="text-xs font-black text-orange-400">🔥 {chalStreak}</p>
+        <div className="relative flex justify-between mt-2">
+          <p className="text-xs text-slate-400 flex items-center gap-1"><Star size={11} className="text-amber-400" /> {chalStars} • {chalStars - li.prev}/{li.next - li.prev} to Level {li.level + 1}</p>
+          <p className="text-xs font-semibold text-orange-300 flex items-center gap-1"><Flame size={11} /> {chalStreak}-day streak</p>
         </div>
       </button>
     </main>
