@@ -1,6 +1,6 @@
 "use client";
 export const dynamic = "force-dynamic";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -22,7 +22,6 @@ function dayLabel(dateStr: string) { return new Date(dateStr + "T00:00:00").toLo
 function daysLeft(target: string, today: string) { return Math.round((new Date(target + "T00:00:00").getTime() - new Date(today + "T00:00:00").getTime()) / 86400000); }
 function badgeColor(d: number) { if (d < 0) return "bg-slate-700 text-slate-300"; if (d === 0) return "bg-rose-600 text-white"; if (d <= 7) return "bg-rose-700 text-white"; if (d <= 30) return "bg-orange-600 text-white"; return "bg-green-700 text-white"; }
 
-// 📍 SCROLL MEMORY HELPERS
 function readDashScroll() {
   if (typeof window === "undefined") return null;
   try {
@@ -137,45 +136,20 @@ export default function Dashboard() {
   const [cdEmoji, setCdEmoji] = useState("📚");
   const router = useRouter();
   const [moveStreak, setMoveStreak] = useState(0);
-
-  // ===== 📍 SCROLL POSITION MEMORY =====
-  const [backNav] = useState(() => !!readDashScroll());
   const [loading, setLoading] = useState(true);
-  const [settled, setSettled] = useState(false); // always invisible at first (server + client)
-  const loadingRef = useRef(true);
-
-  // Fresh visit (no saved position): reveal immediately after mount
-  useEffect(() => {
-    if (!backNav) setSettled(true);
-  }, [backNav]);
-
-  useEffect(() => {
-    loadingRef.current = loading;
-  }, [loading]);
 
   const [tipOffset, setTipOffset] = useState(0);
   const [tipDone, setTipDone] = useState(false);
   const [tipStreak, setTipStreak] = useState(0);
   const [tipWeek, setTipWeek] = useState<{ done: boolean }[]>([]);
 
-  // Save position + navigate (used by Daily Goals / Weekly / Tips)
   const saveAndGo = (href: string) => {
     writeDashScroll();
     router.push(href);
   };
 
-  // Stop browser/Next from doing its own scroll restore
+  // Save position while scrolling (always on)
   useEffect(() => {
-    if ("scrollRestoration" in window.history) {
-      const old = window.history.scrollRestoration;
-      window.history.scrollRestoration = "manual";
-      return () => { window.history.scrollRestoration = old; };
-    }
-  }, []);
-
-  // Save position while scrolling (only when settled — no save on unmount!)
-  useEffect(() => {
-    if (!settled) return;
     let raf = 0;
     const onScroll = () => {
       if (raf) return;
@@ -186,67 +160,36 @@ export default function Dashboard() {
       if (raf) cancelAnimationFrame(raf);
       window.removeEventListener("scroll", onScroll);
     };
-  }, [settled]);
-
-  // 📍 DETERMINISTIC RESTORE (fixed): hold position until data ready — NO early give-up
-  useLayoutEffect(() => {
-    if (!backNav) return;
-    const saved = readDashScroll();
-    const targetY = saved?.y || 0;
-    if (targetY <= 0) {
-      setSettled(true);
-      return;
-    }
-
-    let revealed = false;
-    let revealedAt = 0;
-    let userTookOver = false;
-    const takeOver = () => { userTookOver = true; };
-    window.addEventListener("touchstart", takeOver, { passive: true });
-    window.addEventListener("wheel", takeOver, { passive: true });
-
-    const start = Date.now();
-    const iv = setInterval(() => {
-      const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-      const finalY = Math.min(targetY, maxY);
-
-      // Keep forcing position until the user grabs the page
-      if (!userTookOver && Math.abs(window.scrollY - finalY) > 10) {
-        window.scrollTo(0, finalY);
-      }
-
-      const positioned = Math.abs(window.scrollY - finalY) < 40 && finalY > 0;
-
-      // ✅ Reveal ONLY when at the spot AND data has rendered (no time limit!)
-      if (!revealed && positioned && !loadingRef.current) {
-        revealed = true;
-        revealedAt = Date.now();
-        setSettled(true);
-      }
-
-      // Stop: 1s guard after reveal / user took over / hard 8s safety (never stay invisible)
-      const guardDone = revealed && (Date.now() - revealedAt > 1000 || userTookOver);
-      const hardSafety = Date.now() - start > 8000;
-      if (guardDone || hardSafety) {
-        if (hardSafety && !revealed) {
-          window.scrollTo(0, finalY);
-          setSettled(true);
-        }
-        clearInterval(iv);
-        window.removeEventListener("touchstart", takeOver);
-        window.removeEventListener("wheel", takeOver);
-      }
-    }, 80);
-
-    return () => {
-      clearInterval(iv);
-      window.removeEventListener("touchstart", takeOver);
-      window.removeEventListener("wheel", takeOver);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 💡 Tip of the Day data
+  // Scroll to saved spot BEFORE paint (runs on mount + after data loads)
+  const restoreScroll = () => {
+    const saved = readDashScroll();
+    if (!saved || saved.y <= 0) return;
+    const maxY = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    const y = Math.min(saved.y, maxY);
+    window.scrollTo(0, y);
+  };
+  useLayoutEffect(() => {
+    let tries = 0;
+    const tick = () => {
+      restoreScroll();
+      if (++tries < 20) requestAnimationFrame(tick);
+    };
+    tick();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useLayoutEffect(() => {
+    let tries = 0;
+    const tick = () => {
+      restoreScroll();
+      if (++tries < 8) requestAnimationFrame(tick);
+    };
+    tick();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  // Tip of the Day data
   useEffect(() => {
     const todayStr = localISO(new Date());
     const yest = localISO(new Date(Date.now() - 86400000));
@@ -439,7 +382,7 @@ export default function Dashboard() {
   const dailyTarget = chartMode === "study" ? goals.study_target : chartMode === "gym" ? goals.workout_target : goals.habits_target;
 
   return (
-    <main className={`min-h-screen bg-slate-950 text-white px-4 pt-20 pb-24 max-w-4xl mx-auto transition-opacity duration-200 ${settled ? "opacity-100" : "opacity-0"}`}>
+    <main className="min-h-screen bg-slate-950 text-white px-4 pt-20 pb-24 max-w-4xl mx-auto">
       {/* 🌆 DARK CALM HERO */}
       <div className="relative mb-3 overflow-hidden rounded-3xl bg-slate-900 border border-violet-500/20 p-5 shadow-[0_0_50px_-12px_rgba(139,92,246,0.35)]">
         <div className="absolute -right-16 -top-16 w-48 h-48 bg-violet-600/15 rounded-full blur-3xl pointer-events-none" />
@@ -492,171 +435,164 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {loading ? (
-        <p className="text-slate-500 text-sm">Loading your day...</p>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
-            <div
-              className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-violet-500/40 transition-colors"
-              onPointerDown={writeDashScroll}
-              onClick={() => saveAndGo("/daily-goals")}
-            >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-black flex items-center gap-2"><IconTile icon={Target} tint="bg-violet-500/10 text-violet-400" />Daily Goals</h3>
-                <button onClick={(e) => { e.stopPropagation(); setEditingGoals(!editingGoals); }} className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold press hover:bg-slate-700 transition-colors">{editingGoals ? "Close" : "Edit"}</button>
-              </div>
-              {editingGoals ? (
-                <form onSubmit={saveGoals} onClick={(e) => e.stopPropagation()} className="grid gap-3">
-                  <label className="text-sm flex justify-between items-center gap-2">Study (min/day)<input type="number" min="1" value={goalStudy} onChange={(e) => setGoalStudy(e.target.value)} className="w-24 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-sm" /></label>
-                  <label className="text-sm flex justify-between items-center gap-2">Workouts/day<input type="number" min="1" value={goalWorkout} onChange={(e) => setGoalWorkout(e.target.value)} className="w-24 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-sm" /></label>
-                  <label className="text-sm flex justify-between items-center gap-2">Habits/day<input type="number" min="1" value={goalHabits} onChange={(e) => setGoalHabits(e.target.value)} className="w-24 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-sm" /></label>
-                  <button className="px-4 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-black press transition-colors">Save goals</button>
-                </form>
-              ) : (
-                <div className="grid gap-3">
-                  <ProgressBar label="Study" value={studyMinutes} target={goals.study_target} unit="min" color="bg-blue-500" />
-                  <ProgressBar label="Workouts" value={workouts} target={goals.workout_target} unit="" color="bg-green-500" />
-                  <ProgressBar label="Habits" value={habitsDone} target={goals.habits_target} unit="" color="bg-violet-500" />
-                  <ProgressBar label="To-do" value={todoDone} target={todoTotal} unit="" color="bg-amber-500" />
-                </div>
-              )}
-            </div>
-
-            <div
-              className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-emerald-500/40 transition-colors"
-              onPointerDown={writeDashScroll}
-              onClick={() => saveAndGo("/weekly")}
-            >
-              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <h3 className="text-sm font-black flex items-center gap-2"><IconTile icon={BarChart3} tint="bg-emerald-500/10 text-emerald-400" />Last 7 days</h3>
-                <div className="flex gap-1.5 flex-wrap">
-                  {(["study", "gym", "habits", "todo"] as const).map((m) => {
-                    const active = chartMode === m;
-                    const tint = m === "study" ? "bg-blue-500/15 border-blue-500/30 text-blue-300" : m === "gym" ? "bg-green-500/15 border-green-500/30 text-green-300" : m === "habits" ? "bg-violet-500/15 border-violet-500/30 text-violet-300" : "bg-amber-500/15 border-amber-500/30 text-amber-300";
-                    const lbl = m === "study" ? "Study" : m === "gym" ? "Gym" : m === "habits" ? "Habits" : "To-do";
-                    return (
-                      <button key={m} onClick={(e) => { e.stopPropagation(); setChartMode(m); }} className={`px-2.5 py-1 rounded-lg text-[10px] font-black press border transition-colors ${active ? tint : "bg-slate-800 border-slate-700 text-slate-500"}`}>{lbl}</button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="flex gap-2 h-32 items-end">
-                {weekData.map((w) => {
-                  const pct = chartMode === "todo" ? (todoWeekTotals[w.date] ? Math.min(100, Math.round((w.value / todoWeekTotals[w.date]) * 100)) : 0) : Math.min(100, Math.round((w.value / Math.max(dailyTarget, 1)) * 100));
-                  return (
-                    <div key={w.date} className="flex-1 h-full flex flex-col justify-end items-center gap-1">
-                      {pct > 0 && <span className="text-[9px] text-slate-500 font-bold">{pct}%</span>}
-                      <div className={`w-full rounded-t-lg bg-gradient-to-t ${barColor}`} style={{ height: `${Math.max(pct * 0.8, w.value > 0 ? 10 : 3)}%` }} />
-                      <span className="text-[9px] text-slate-500 font-semibold">{dayLabel(w.date)}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800">
-              <h3 className="text-sm font-black mb-4 flex items-center gap-2"><IconTile icon={ClipboardList} tint="bg-amber-500/10 text-amber-400" />Today&apos;s Tasks</h3>
-              <form onSubmit={addTask} className="flex gap-2 mb-4">
-                <input value={newTask} onChange={(e) => setNewTask(e.target.value)} placeholder="Add a task for today..." className="flex-1 p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
-                <button className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-sm font-black press transition-colors">Add</button>
-              </form>
-              <div className="grid gap-2 max-h-72 overflow-y-auto">
-                {tasks.map((t) => (
-                  <div key={t.id} className="flex items-center justify-between bg-slate-800/60 p-3 rounded-xl">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => toggleTask(t.id, t.completed)} className={`w-6 h-6 rounded-md border-2 flex items-center justify-center press ${t.completed ? "bg-green-500 border-green-500" : "border-slate-600"}`}>{t.completed && <span className="text-xs text-white font-black">✓</span>}</button>
-                      <span className={`text-sm ${t.completed ? "line-through text-slate-500" : ""}`}>{t.title}</span>
-                    </div>
-                    <button onClick={() => deleteTask(t.id)} className="text-rose-400 text-xs press">✕</button>
-                  </div>
-                ))}
-                {tasks.length === 0 && (
-                  <div className="text-center py-6"><p className="text-3xl mb-2">📭</p><p className="text-slate-500 text-sm">No tasks yet — add your first!</p></div>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800">
-              <h3 className="text-sm font-black mb-4 flex items-center gap-2"><IconTile icon={Hourglass} tint="bg-rose-500/10 text-rose-400" />Countdowns</h3>
-              <form onSubmit={addCountdown} className="flex flex-wrap gap-2 mb-4">
-                <input value={cdTitle} onChange={(e) => setCdTitle(e.target.value)} placeholder="e.g. Math exam" required className="flex-1 min-w-[140px] p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
-                <input type="date" value={cdDate} onChange={(e) => setCdDate(e.target.value)} required className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
-                <select value={cdEmoji} onChange={(e) => setCdEmoji(e.target.value)} className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500">
-                  <option value="📚">📚</option><option value="🏋️">🏋️</option><option value="✅">✅</option><option value="🎯">🎯</option><option value="💼">💼</option>
-                </select>
-                <button className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-sm font-black press transition-colors">Add</button>
-              </form>
-              <div className="grid gap-2 max-h-72 overflow-y-auto">
-                {countdowns.map((c) => {
-                  const d = daysLeft(c.target_date, today);
-                  return (
-                    <div key={c.id} className="flex items-center justify-between bg-slate-800/60 p-3 rounded-xl">
-                      <div className="flex items-center gap-3"><span className="text-xl">{c.emoji}</span><div><p className="text-sm font-bold">{c.title}</p><p className="text-[10px] text-slate-500">{c.target_date}</p></div></div>
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${badgeColor(d)}`}>{d < 0 ? "passed" : d === 0 ? "TODAY! 🔥" : `${d}d left`}</span>
-                        <button onClick={() => deleteCountdown(c.id)} className="text-rose-400 text-xs press">✕</button>
-                      </div>
-                    </div>
-                  );
-                })}
-                {countdowns.length === 0 && (
-                  <div className="text-center py-6"><p className="text-3xl mb-2">🎯</p><p className="text-slate-500 text-sm">Add your exam or goal date!</p></div>
-                )}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* 💡 TIP OF THE DAY */}
-      {!loading && (
+      {/* Always render full-height layout so first paint is tall enough to scroll */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
         <div
+          className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-violet-500/40 transition-colors"
           onPointerDown={writeDashScroll}
-          onClick={() => saveAndGo("/tips")}
-          className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-3 cursor-pointer hover:border-amber-500/40 transition-colors"
+          onClick={() => saveAndGo("/daily-goals")}
         >
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <span className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center"><Lightbulb size={14} strokeWidth={2.2} /></span>
-              <p className="text-xs font-black text-slate-400">TIP OF THE DAY</p>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-sm font-black flex items-center gap-2"><IconTile icon={Target} tint="bg-violet-500/10 text-violet-400" />Daily Goals</h3>
+            <button onClick={(e) => { e.stopPropagation(); setEditingGoals(!editingGoals); }} className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold press hover:bg-slate-700 transition-colors">{editingGoals ? "Close" : "Edit"}</button>
+          </div>
+          {editingGoals ? (
+            <form onSubmit={saveGoals} onClick={(e) => e.stopPropagation()} className="grid gap-3">
+              <label className="text-sm flex justify-between items-center gap-2">Study (min/day)<input type="number" min="1" value={goalStudy} onChange={(e) => setGoalStudy(e.target.value)} className="w-24 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-sm" /></label>
+              <label className="text-sm flex justify-between items-center gap-2">Workouts/day<input type="number" min="1" value={goalWorkout} onChange={(e) => setGoalWorkout(e.target.value)} className="w-24 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-sm" /></label>
+              <label className="text-sm flex justify-between items-center gap-2">Habits/day<input type="number" min="1" value={goalHabits} onChange={(e) => setGoalHabits(e.target.value)} className="w-24 p-1.5 rounded-lg bg-slate-800 border border-slate-700 text-sm" /></label>
+              <button className="px-4 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-black press transition-colors">Save goals</button>
+            </form>
+          ) : (
+            <div className="grid gap-3">
+              <ProgressBar label="Study" value={studyMinutes} target={goals.study_target} unit="min" color="bg-blue-500" />
+              <ProgressBar label="Workouts" value={workouts} target={goals.workout_target} unit="" color="bg-green-500" />
+              <ProgressBar label="Habits" value={habitsDone} target={goals.habits_target} unit="" color="bg-violet-500" />
+              <ProgressBar label="To-do" value={todoDone} target={todoTotal} unit="" color="bg-amber-500" />
             </div>
-            <div className="flex items-center gap-2">
-              {tipStreak > 0 && (
-                <span className="flex items-center gap-1 text-[10px] font-black text-orange-400"><Flame size={11} /> {tipStreak}</span>
-              )}
-              <Link
-                href="/tips"
-                onClick={(e) => { e.stopPropagation(); writeDashScroll(); }}
-                className="text-[10px] font-bold text-slate-500 hover:text-white transition-colors"
-              >
-                Full page →
-              </Link>
+          )}
+        </div>
+
+        <div
+          className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-emerald-500/40 transition-colors"
+          onPointerDown={writeDashScroll}
+          onClick={() => saveAndGo("/weekly")}
+        >
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <h3 className="text-sm font-black flex items-center gap-2"><IconTile icon={BarChart3} tint="bg-emerald-500/10 text-emerald-400" />Last 7 days</h3>
+            <div className="flex gap-1.5 flex-wrap">
+              {(["study", "gym", "habits", "todo"] as const).map((m) => {
+                const active = chartMode === m;
+                const tint = m === "study" ? "bg-blue-500/15 border-blue-500/30 text-blue-300" : m === "gym" ? "bg-green-500/15 border-green-500/30 text-green-300" : m === "habits" ? "bg-violet-500/15 border-violet-500/30 text-violet-300" : "bg-amber-500/15 border-amber-500/30 text-amber-300";
+                const lbl = m === "study" ? "Study" : m === "gym" ? "Gym" : m === "habits" ? "Habits" : "To-do";
+                return (
+                  <button key={m} onClick={(e) => { e.stopPropagation(); setChartMode(m); }} className={`px-2.5 py-1 rounded-lg text-[10px] font-black press border transition-colors ${active ? tint : "bg-slate-800 border-slate-700 text-slate-500"}`}>{lbl}</button>
+                );
+              })}
             </div>
           </div>
-          <div className="flex items-start gap-3">
-            <span className={`w-9 h-9 rounded-lg bg-gradient-to-br ${categoryColors[tip.cat] || "from-slate-600 to-slate-700"} flex items-center justify-center shrink-0`}>
-              <TipIcon size={16} className="text-white" />
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-white leading-snug">&quot;{tip.tip}&quot;</p>
-              <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{tip.why}</p>
-            </div>
-          </div>
-          <div className="flex gap-2 mt-3">
-            <button onClick={(e) => { e.stopPropagation(); speakTip(tip.tip + " " + tip.why); }} className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 flex items-center justify-center gap-1.5 transition-colors"><Volume2 size={13} /> Hear</button>
-            <button onClick={(e) => { e.stopPropagation(); didTip(); }} disabled={tipDone} className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${tipDone ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400" : "bg-emerald-600 hover:bg-emerald-500 text-white"}`}><Check size={13} /> {tipDone ? "Done today!" : "Did it!"}</button>
-            <button onClick={(e) => { e.stopPropagation(); setTipOffset((tipOffset + 1) % 3); }} className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors" title="Another tip"><RefreshCw size={13} /></button>
-          </div>
-          <div className="flex justify-center gap-1.5 mt-3">
-            {tipWeek.map((d, i) => (
-              <span key={i} className={`w-2 h-2 rounded-full ${d.done ? "bg-emerald-500" : "bg-slate-700"}`} />
-            ))}
+          <div className="flex gap-2 h-32 items-end">
+            {weekData.map((w) => {
+              const pct = chartMode === "todo" ? (todoWeekTotals[w.date] ? Math.min(100, Math.round((w.value / todoWeekTotals[w.date]) * 100)) : 0) : Math.min(100, Math.round((w.value / Math.max(dailyTarget, 1)) * 100));
+              return (
+                <div key={w.date} className="flex-1 h-full flex flex-col justify-end items-center gap-1">
+                  {pct > 0 && <span className="text-[9px] text-slate-500 font-bold">{pct}%</span>}
+                  <div className={`w-full rounded-t-lg bg-gradient-to-t ${barColor}`} style={{ height: `${Math.max(pct * 0.8, w.value > 0 ? 10 : 3)}%` }} />
+                  <span className="text-[9px] text-slate-500 font-semibold">{dayLabel(w.date)}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
-      )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800">
+          <h3 className="text-sm font-black mb-4 flex items-center gap-2"><IconTile icon={ClipboardList} tint="bg-amber-500/10 text-amber-400" />Today&apos;s Tasks</h3>
+          <form onSubmit={addTask} className="flex gap-2 mb-4">
+            <input value={newTask} onChange={(e) => setNewTask(e.target.value)} placeholder="Add a task for today..." className="flex-1 p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
+            <button className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-sm font-black press transition-colors">Add</button>
+          </form>
+          <div className="grid gap-2 max-h-72 overflow-y-auto">
+            {tasks.map((t) => (
+              <div key={t.id} className="flex items-center justify-between bg-slate-800/60 p-3 rounded-xl">
+                <div className="flex items-center gap-2">
+                  <button onClick={() => toggleTask(t.id, t.completed)} className={`w-6 h-6 rounded-md border-2 flex items-center justify-center press ${t.completed ? "bg-green-500 border-green-500" : "border-slate-600"}`}>{t.completed && <span className="text-xs text-white font-black">✓</span>}</button>
+                  <span className={`text-sm ${t.completed ? "line-through text-slate-500" : ""}`}>{t.title}</span>
+                </div>
+                <button onClick={() => deleteTask(t.id)} className="text-rose-400 text-xs press">✕</button>
+              </div>
+            ))}
+            {tasks.length === 0 && (
+              <div className="text-center py-6"><p className="text-3xl mb-2">📭</p><p className="text-slate-500 text-sm">No tasks yet — add your first!</p></div>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800">
+          <h3 className="text-sm font-black mb-4 flex items-center gap-2"><IconTile icon={Hourglass} tint="bg-rose-500/10 text-rose-400" />Countdowns</h3>
+          <form onSubmit={addCountdown} className="flex flex-wrap gap-2 mb-4">
+            <input value={cdTitle} onChange={(e) => setCdTitle(e.target.value)} placeholder="e.g. Math exam" required className="flex-1 min-w-[140px] p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
+            <input type="date" value={cdDate} onChange={(e) => setCdDate(e.target.value)} required className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
+            <select value={cdEmoji} onChange={(e) => setCdEmoji(e.target.value)} className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500">
+              <option value="📚"></option><option value="️">🏋️</option><option value="✅">✅</option><option value="🎯"></option><option value="💼">💼</option>
+            </select>
+            <button className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-sm font-black press transition-colors">Add</button>
+          </form>
+          <div className="grid gap-2 max-h-72 overflow-y-auto">
+            {countdowns.map((c) => {
+              const d = daysLeft(c.target_date, today);
+              return (
+                <div key={c.id} className="flex items-center justify-between bg-slate-800/60 p-3 rounded-xl">
+                  <div className="flex items-center gap-3"><span className="text-xl">{c.emoji}</span><div><p className="text-sm font-bold">{c.title}</p><p className="text-[10px] text-slate-500">{c.target_date}</p></div></div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${badgeColor(d)}`}>{d < 0 ? "passed" : d === 0 ? "TODAY! 🔥" : `${d}d left`}</span>
+                    <button onClick={() => deleteCountdown(c.id)} className="text-rose-400 text-xs press">✕</button>
+                  </div>
+                </div>
+              );
+            })}
+            {countdowns.length === 0 && (
+              <div className="text-center py-6"><p className="text-3xl mb-2">🎯</p><p className="text-slate-500 text-sm">Add your exam or goal date!</p></div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 💡 TIP OF THE DAY */}
+      <div
+        onPointerDown={writeDashScroll}
+        onClick={() => saveAndGo("/tips")}
+        className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-3 cursor-pointer hover:border-amber-500/40 transition-colors"
+      >
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center"><Lightbulb size={14} strokeWidth={2.2} /></span>
+            <p className="text-xs font-black text-slate-400">TIP OF THE DAY</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {tipStreak > 0 && (
+              <span className="flex items-center gap-1 text-[10px] font-black text-orange-400"><Flame size={11} /> {tipStreak}</span>
+            )}
+            <Link
+              href="/tips"
+              onClick={(e) => { e.stopPropagation(); writeDashScroll(); }}
+              className="text-[10px] font-bold text-slate-500 hover:text-white transition-colors"
+            >
+              Full page →
+            </Link>
+          </div>
+        </div>
+        <div className="flex items-start gap-3">
+          <span className={`w-9 h-9 rounded-lg bg-gradient-to-br ${categoryColors[tip.cat] || "from-slate-600 to-slate-700"} flex items-center justify-center shrink-0`}>
+            <TipIcon size={16} className="text-white" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-white leading-snug">&quot;{tip.tip}&quot;</p>
+            <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{tip.why}</p>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-3">
+          <button onClick={(e) => { e.stopPropagation(); speakTip(tip.tip + " " + tip.why); }} className="flex-1 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 flex items-center justify-center gap-1.5 transition-colors"><Volume2 size={13} /> Hear</button>
+          <button onClick={(e) => { e.stopPropagation(); didTip(); }} disabled={tipDone} className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${tipDone ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400" : "bg-emerald-600 hover:bg-emerald-500 text-white"}`}><Check size={13} /> {tipDone ? "Done today!" : "Did it!"}</button>
+          <button onClick={(e) => { e.stopPropagation(); setTipOffset((tipOffset + 1) % 3); }} className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 transition-colors" title="Another tip"><RefreshCw size={13} /></button>
+        </div>
+        <div className="flex justify-center gap-1.5 mt-3">
+          {tipWeek.map((d, i) => (
+            <span key={i} className={`w-2 h-2 rounded-full ${d.done ? "bg-emerald-500" : "bg-slate-700"}`} />
+          ))}
+        </div>
+      </div>
     </main>
   );
 }
