@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import StoryMode from "@/app/components/games/StoryMode";
 import SpeedQuiz from "@/app/components/games/SpeedQuiz";
 import MatchPairs from "@/app/components/games/MatchPairs";
 import Scramble from "@/app/components/games/Scramble";
@@ -10,18 +11,19 @@ import SynonymSwipe from "@/app/components/games/SynonymSwipe";
 import EarRace from "@/app/components/games/EarRace";
 import WordChain from "@/app/components/games/WordChain";
 import { getBest, levelInfo, chalConfig } from "@/app/components/games/gameData";
-import { Gamepad2, Zap, Layers, Puzzle, Mic, Trophy, Flame, Star, ArrowLeft, ArrowLeftRight, Ear, Link2 } from "lucide-react";
+import { Gamepad2, Zap, Layers, Puzzle, Mic, Trophy, Flame, Star, ArrowLeft, ArrowLeftRight, Ear, Link2, BookOpen } from "lucide-react";
 
-type GameId = "" | "quiz" | "match" | "scramble" | "sayit" | "challenge" | "swipe" | "ear" | "chain";
+type GameId = "" | "quiz" | "match" | "scramble" | "sayit" | "challenge" | "swipe" | "ear" | "chain" | "story";
 
 const TITLES: Record<string, string> = {
   quiz: "Speed Quiz", match: "Match Pairs", scramble: "Word Scramble", sayit: "Say-It Race",
   challenge: "Daily Challenge", swipe: "Synonym Swipe", ear: "Ear Race", chain: "Word Chain",
+  story: "Story Mode",
 };
 
 export default function GamesPage() {
   const [game, setGame] = useState<GameId>("");
-  const [bests, setBests] = useState({ quiz: 0, match: 0, scramble: 0, sayit: 0, swipe: 0, ear: 0, chain: 0 });
+  const [bests, setBests] = useState({ quiz: 0, match: 0, scramble: 0, sayit: 0, swipe: 0, ear: 0, chain: 0, story: 0 });
   const [chalDone, setChalDone] = useState(false);
   const [chalStreak, setChalStreak] = useState(0);
   const [chalStars, setChalStars] = useState(0);
@@ -32,6 +34,7 @@ export default function GamesPage() {
         quiz: getBest("dg-game-quiz"), match: getBest("dg-game-match"),
         scramble: getBest("dg-game-scramble"), sayit: getBest("dg-game-sayit"),
         swipe: getBest("dg-best-synonym"), ear: getBest("dg-best-ear"), chain: getBest("dg-best-chain"),
+        story: getBest("dg-best-story"),
       });
       const today = new Date();
       const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
@@ -63,6 +66,7 @@ export default function GamesPage() {
         {game === "swipe" && <SynonymSwipe onExit={exit} />}
         {game === "ear" && <EarRace onExit={exit} />}
         {game === "chain" && <WordChain onExit={exit} />}
+        {game === "story" && <StoryMode onExit={exit} />}
       </main>
     );
   }
@@ -79,6 +83,7 @@ export default function GamesPage() {
     { id: "swipe" as GameId, icon: ArrowLeftRight, title: "Synonym Swipe", desc: "swipe ✓ same / ✗ different", best: bests.swipe ? `${bests.swipe}` : null, tint: "bg-fuchsia-500/10 border-fuchsia-500/20", color: "text-fuchsia-400" },
     { id: "ear" as GameId, icon: Ear, title: "Ear Race", desc: "hear it → type it fast", best: bests.ear ? `${bests.ear}` : null, tint: "bg-cyan-500/10 border-cyan-500/20", color: "text-cyan-400" },
     { id: "chain" as GameId, icon: Link2, title: "Word Chain", desc: "last letter → next word", best: bests.chain ? `${bests.chain}` : null, tint: "bg-orange-500/10 border-orange-500/20", color: "text-orange-400" },
+    { id: "story" as GameId, icon: BookOpen, title: "Story Mode", desc: "listen + read + answer", best: bests.story ? `${bests.story}/4` : null, tint: "bg-indigo-500/10 border-indigo-500/20", color: "text-indigo-400" },
   ];
 
   return (
