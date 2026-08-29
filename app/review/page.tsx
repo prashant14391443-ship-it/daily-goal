@@ -65,8 +65,8 @@ export default function ReviewPage() {
       <form onSubmit={submitTopic} className="bg-slate-900 border border-slate-700 rounded-2xl p-4 mb-6">
         <p className="text-xs font-black text-slate-400 mb-2">📓 ADD NOTE REMINDER</p>
         <div className="flex gap-2">
-          <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. Newton's Laws / Ch 4 Bio" className="flex-1 p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-teal-500" />
-          <button className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-sm font-black flex items-center gap-1 transition-colors"><Plus size={15} /> Add</button>
+          <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="e.g. Newton's Laws / Ch 4 Bio" className="flex-1 min-w-0 p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-teal-500" />
+          <button className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-sm font-black flex items-center gap-1 transition-colors shrink-0"><Plus size={15} /> Add</button>
         </div>
         <p className="text-[10px] text-slate-500 mt-2">We'll remind you on the perfect days (1 → 3 → 7 → 16 → 35…).</p>
       </form>
@@ -81,7 +81,7 @@ export default function ReviewPage() {
       ) : (
         <div className="grid gap-3">
           {due.map((it) => (
-            <div key={it.id} className="relative bg-slate-900 border border-slate-700 rounded-2xl p-4">
+            <div key={it.id} className="relative bg-slate-900 border border-slate-700 rounded-2xl p-4 max-w-full">
               <button onClick={() => onDelete(it.id)} className="absolute top-3 right-3 w-7 h-7 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-500 hover:text-rose-400 hover:border-rose-500/40 flex items-center justify-center transition-colors" title="Delete">
                 <Trash2 size={13} />
               </button>
@@ -89,8 +89,8 @@ export default function ReviewPage() {
                 <>
                   <div className="flex items-start gap-3 mb-3 pr-8">
                     <span className="w-9 h-9 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center shrink-0"><BookOpen size={17} /></span>
-                    <div>
-                      <p className="text-sm font-bold leading-snug">Review your notes: {it.front}</p>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold leading-snug break-words">Review your notes: {it.front}</p>
                       <p className="text-[10px] text-slate-500 mt-0.5">Open your notebook. Recall from memory first, then check.</p>
                     </div>
                   </div>
@@ -101,8 +101,8 @@ export default function ReviewPage() {
                 </>
               ) : (
                 <>
-                  <p className="text-sm font-bold leading-snug mb-3 pr-8">{it.front}</p>
-                  {revealed === it.id && it.back && <p className="text-sm text-teal-300 bg-teal-500/5 border border-teal-500/20 rounded-lg p-2 mb-3">{it.back}</p>}
+                  <p className="text-sm font-bold leading-snug mb-3 pr-8 break-words">{it.front}</p>
+                  {revealed === it.id && it.back && <p className="text-sm text-teal-300 bg-teal-500/5 border border-teal-500/20 rounded-lg p-2 mb-3 break-words">{it.back}</p>}
                   <div className="flex gap-2">
                     {!it.back || revealed === it.id ? (
                       <>
@@ -128,7 +128,9 @@ export default function ReviewPage() {
               <div key={it.id} className="flex items-center gap-2 bg-slate-900/60 border border-slate-800 rounded-xl p-3 max-w-full">
                 <p className="text-xs text-slate-300 truncate flex-1 min-w-0">{it.type === "topic" ? "📓 " : "🃏 "}{it.front}</p>
                 <span className="text-[10px] text-slate-500 shrink-0">{it.due}</span>
-                <button onClick={() => onDelete(it.id)} className="w-7 h-7 shrink-0 rounded-lg bg-slate-800 border border-slate-700 text-slate-500 hover:text-rose-400 flex items-center justify-center" title="Delete"><Trash2 size={13} /></button>
+                <button onClick={() => onDelete(it.id)} className="w-7 h-7 shrink-0 rounded-lg bg-slate-800 border border-slate-700 text-slate-500 hover:text-rose-400 hover:border-rose-500/40 flex items-center justify-center" title="Delete">
+                  <Trash2 size={13} />
+                </button>
               </div>
             ))}
           </div>
