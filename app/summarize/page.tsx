@@ -71,15 +71,17 @@ export default function SummarizePage() {
   };
 
   /* ── Memorize ── */
-  const buildOfflineMemo = (pts: string[]) => {
-    const keys = pts.slice(0, 8).map((p) => { const w = p.replace(/[^A-Za-z ]/g, " ").split(/\s+/).find((x) => x.length > 2); return (w || "X")[0].toUpperCase(); });
+  const buildOfflineMemo = (title: string, pts: string[]) => {
+    const kw = (s: string) => s.replace(/[^A-Za-z ]/g, " ").split(/\s+/).filter((x) => x.length > 3);
+    const keys = pts.slice(0, 8).map((p) => { const w = kw(p)[0]; return (w || "X")[0].toUpperCase(); });
     const acronym = keys.join("");
-    const chain = pts.slice(0, 6).map((p) => p.replace(/[^A-Za-z ]/g, " ").split(/\s+/).filter((x) => x.length > 3)[0] || "idea").join(" → ");
+    const chain = pts.slice(0, 6).map((p) => kw(p)[0] || "idea").join(" → ");
+    const t = kw(title)[0] || "topic";
     return {
       acronym,
-      story: `Imagine a movie: ${pts.slice(0, 5).map((p) => p.split(" ").slice(0, 6).join(" ")).join("; then ")}; the end.`,
-      rhyme: `Remember the chain: ${chain}.`,
-      palace: `Place each point in a room of your house: ${pts.slice(0, 4).map((_, i) => `Room ${i + 1}`).join(", ")}. Walk the rooms to recall.`,
+      story: `Picture "${t}" as a movie: ${pts.slice(0, 5).map((p) => p.split(" ").slice(0, 6).join(" ")).join("; then ")}; the end.`,
+      rhyme: `${acronym} — the ${t} chain: ${chain}.`,
+      palace: `Imagine your house IS "${t}". Put ${(kw(pts[0] || "")[0] || "point 1")} at the door, ${(kw(pts[1] || "")[0] || "point 2")} on the sofa, ${(kw(pts[2] || "")[0] || "point 3")} in the kitchen, ${(kw(pts[3] || "")[0] || "point 4")} on your bed. Walk the house to recall ${t}.`,
     };
   };
   const memorize = async () => {
@@ -92,7 +94,7 @@ export default function SummarizePage() {
       if (d.story || d.acronym) { setMemo(d); setMemoVisible(true); setMemoBusy(false); return; }
       throw 0;
     } catch {
-      setMemo(buildOfflineMemo(result.points));
+      setMemo(buildOfflineMemo(result.title, result.points));
       setMemoVisible(true);
     }
     setMemoBusy(false);
@@ -274,7 +276,7 @@ export default function SummarizePage() {
             )}
           </div>
 
-          {/* MEMORIZE (toggle) */}
+          {/* MEMORIZE (toggle + editable) */}
           {memo && memoVisible && (
             <div className="bg-slate-900 border border-fuchsia-500/30 rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-3">
@@ -282,11 +284,14 @@ export default function SummarizePage() {
                 <h3 className="font-black text-base text-white flex-1">Memorize It</h3>
                 <button onClick={speakMemo} className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 flex items-center justify-center" title="Hear it"><Volume2 size={14} /></button>
               </div>
-              <p className="text-[10px] font-black text-slate-500 mb-1">✏️ YOUR MEMORY WORD (tap to type your own — like your watermelon trick)</p>
-              <input value={memo.acronym || ""} onChange={(e) => setMemo({ ...memo, acronym: e.target.value.toUpperCase() })} placeholder="Type a word YOU know" className="w-full bg-transparent text-2xl font-black tracking-widest text-fuchsia-300 outline-none border-b border-fuchsia-500/30 mb-3" />
-              {memo.story && (<><p className="text-[10px] font-black text-slate-500">🎬 STORY</p><p className="text-sm text-slate-200 mb-2">{memo.story}</p></>)}
-              {memo.rhyme && (<><p className="text-[10px] font-black text-slate-500">🎵 RHYME</p><p className="text-sm text-slate-200 mb-2">{memo.rhyme}</p></>)}
-              {memo.palace && (<><p className="text-[10px] font-black text-slate-500">🏰 MEMORY PALACE</p><p className="text-sm text-slate-200">{memo.palace}</p></>)}
+              <p className="text-[10px] font-black text-slate-500 mb-1">✏️ MEMORY WORD — tap to type your own</p>
+              <input value={memo.acronym || ""} onChange={(e) => setMemo({ ...memo, acronym: e.target.value.toUpperCase() })} placeholder="Your own word" className="w-full bg-transparent text-2xl font-black tracking-widest text-fuchsia-300 outline-none border-b border-fuchsia-500/30 mb-3" />
+              <p className="text-[10px] font-black text-slate-500">🎬 STORY — edit to make it yours</p>
+              <textarea value={memo.story || ""} onChange={(e) => setMemo({ ...memo, story: e.target.value })} rows={3} className="w-full bg-slate-800/60 border border-slate-700 rounded-xl p-2 text-sm text-slate-200 outline-none focus:border-fuchsia-500 mb-2 resize-none" />
+              <p className="text-[10px] font-black text-slate-500">🎵 RHYME</p>
+              <textarea value={memo.rhyme || ""} onChange={(e) => setMemo({ ...memo, rhyme: e.target.value })} rows={2} className="w-full bg-slate-800/60 border border-slate-700 rounded-xl p-2 text-sm text-slate-200 outline-none focus:border-fuchsia-500 mb-2 resize-none" />
+              <p className="text-[10px] font-black text-slate-500">🏰 MEMORY PALACE — each point in a real place</p>
+              <textarea value={memo.palace || ""} onChange={(e) => setMemo({ ...memo, palace: e.target.value })} rows={3} className="w-full bg-slate-800/60 border border-slate-700 rounded-xl p-2 text-sm text-slate-200 outline-none focus:border-fuchsia-500 resize-none" />
             </div>
           )}
 

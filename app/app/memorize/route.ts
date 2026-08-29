@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-const SYS = `You are a memory coach. Given a title and bullet points, return ONLY valid JSON:
-{"acronym":"first-letter acronym of the key ideas","story":"a vivid, funny 2-4 sentence story linking ALL points in order","rhyme":"a short catchy rhyme","palace":"a memory-palace tip placing each point in a familiar location"}
-Make it vivid, emotional and easy to remember.`;
+const SYS = `You are a world-class memory coach. Given a title and bullet points, create mnemonics that are CONCRETE, VISUAL and DIFFERENT for every topic. Return ONLY valid JSON:
+{"acronym":"a pronounceable word or short code from first letters (reorder if needed so it sounds like a real word)","story":"a vivid 2-4 sentence mini-story linking ALL points in order using the actual topic words","rhyme":"a short catchy rhyme","palace":"a memory palace: assign EACH point to a specific familiar place (door, sofa, kitchen, bed...) with a vivid image of that point"}
+Rules: never generic; always use the real topic words; keep each field short and memorable.`;
 
 function parseJson(t: string) { const s = t.indexOf("{"), e = t.lastIndexOf("}"); if (s < 0 || e < 0) throw 0; return JSON.parse(t.slice(s, e + 1)); }
 
