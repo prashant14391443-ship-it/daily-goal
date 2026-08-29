@@ -434,7 +434,7 @@ export default function CalculatorPage() {
             </select>
             <select value={pace} onChange={(e) => setPace(e.target.value)} className={inputCls}>
               <option value="0.5">Steady pace (0.5 kg/week)</option>
-              <option value="1">Fast pace (1 kg/week)</option>
+              <option value="1">Fast pace (1 kg/week) — aggressive, short-term</option>
             </select>
             <button className="md:col-span-2 press py-3.5 rounded-xl bg-blue-500/15 border border-blue-500/30 text-sm font-black text-blue-300 flex items-center justify-center gap-1.5">
               <Calculator size={15} /> Calculate My Plan
@@ -469,6 +469,9 @@ export default function CalculatorPage() {
                 </p>
               </div>
               <p className="text-center text-sm text-green-400 font-bold">{motivation(result)}</p>
+{result.direction === "loss" && Number(pace) === 1 && (
+  <p className="text-center text-[11px] text-amber-400 font-bold">⚠️ 1 kg/week is aggressive. If it feels too hard, switch to steady pace (0.5 kg/week).</p>
+)}
               <p className="text-[10px] text-slate-600 text-center font-bold">
                 Based on Mifflin-St Jeor formula. Estimates for guidance only.
               </p>
