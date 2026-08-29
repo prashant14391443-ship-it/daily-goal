@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { loadSrs, saveSrs, getDue, addTopic, reviewItem, deleteItem, SrsItem, todayISO } from "@/lib/srs";
-import { ArrowLeft, BookOpen, Check, X, Plus, RefreshCw, Brain, Trash2, Edit3 } from "lucide-react";
+import { ArrowLeft, BookOpen, Check, X, Plus, RefreshCw, Brain } from "lucide-react";
 
 export default function ReviewPage() {
   const [uid, setUid] = useState("guest");
@@ -38,7 +38,6 @@ export default function ReviewPage() {
   };
   const onReview = (id: string, good: boolean) => { reviewItem(uid, id, good); setRevealed(null); refresh(uid); };
   const onDelete = (id: string) => { deleteItem(uid, id); setRevealed(null); refresh(uid); };
-
   const startRename = (it: SrsItem) => { setRenamingId(it.id); setRenameVal(it.front); };
   const saveRename = (id: string) => {
     const items = loadSrs(uid);
@@ -86,8 +85,8 @@ export default function ReviewPage() {
                   <>
                     <span className="w-9 h-9 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center shrink-0"><BookOpen size={17} /></span>
                     <p className="text-sm font-bold leading-snug break-words flex-1 min-w-0">{it.type === "topic" ? `Review: ${it.front}` : it.front}</p>
-                    <button onClick={() => startRename(it)} className="w-8 h-8 shrink-0 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 flex items-center justify-center" title="Rename"><Edit3 size={13} /></button>
-                    <button onClick={() => onDelete(it.id)} className="w-8 h-8 shrink-0 rounded-lg bg-slate-800 border border-slate-700 text-red-400 flex items-center justify-center" title="Delete"><Trash2 size={13} /></button>
+                    <button onClick={() => startRename(it)} className="w-8 h-8 shrink-0 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-base" title="Rename">✏️</button>
+                    <button onClick={() => onDelete(it.id)} className="w-8 h-8 shrink-0 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-base" title="Delete">🗑️</button>
                   </>
                 )}
               </div>
@@ -126,8 +125,8 @@ export default function ReviewPage() {
                   <>
                     <p className="text-xs text-slate-300 truncate flex-1 min-w-0">{it.type === "topic" ? "📓 " : "🃏 "}{it.front}</p>
                     <span className="text-[10px] text-slate-500 shrink-0">{it.due}</span>
-                    <button onClick={() => startRename(it)} className="w-7 h-7 shrink-0 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 flex items-center justify-center" title="Rename"><Edit3 size={13} /></button>
-                    <button onClick={() => onDelete(it.id)} className="w-7 h-7 shrink-0 rounded-lg bg-slate-800 border border-slate-700 text-red-400 flex items-center justify-center" title="Delete"><Trash2 size={13} /></button>
+                    <button onClick={() => startRename(it)} className="w-7 h-7 shrink-0 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-sm" title="Rename">✏️</button>
+                    <button onClick={() => onDelete(it.id)} className="w-7 h-7 shrink-0 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-sm" title="Delete">🗑️</button>
                   </>
                 )}
               </div>
