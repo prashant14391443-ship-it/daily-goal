@@ -70,7 +70,7 @@ export default function FlashcardsPage() {
   const accuracy = totalAnswered > 0 ? Math.round((stats.knew / totalAnswered) * 100) : 0;
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto overflow-x-hidden">
+    <main className="min-h-screen bg-slate-950 text-white px-6 pt-6 pb-24 max-w-4xl mx-auto overflow-x-hidden">
       {/* 🌆 CALM HERO */}
       {!reviewing && (
         <>

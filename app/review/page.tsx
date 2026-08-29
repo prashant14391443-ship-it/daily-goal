@@ -48,7 +48,7 @@ export default function ReviewPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 pb-24 max-w-2xl mx-auto overflow-x-hidden">
+    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-2xl mx-auto overflow-x-hidden">
       <div className="flex items-center gap-3 mb-6">
         <BackBtn />
         <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center"><Brain size={20} className="text-teal-400" /></div>

@@ -193,7 +193,7 @@ export default function FocusPage() {
   const modeLabel = isBreak ? "BREAK TIME" : "FOCUS TIME";
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-md mx-auto">
+    <main className="min-h-screen bg-slate-950 text-white px-6 pt-6 pb-24 max-w-md mx-auto">
       <div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${heroGrad} p-5 shadow-xl transition-all duration-700`}>
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">

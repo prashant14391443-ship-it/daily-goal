@@ -193,7 +193,7 @@ export default function SummarizePage() {
   const nextQ = () => { setPicked(null); setQuizIdx((i) => i + 1); };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
+    <main className="min-h-screen bg-slate-950 text-white px-6 pt-6 pb-24 max-w-4xl mx-auto">
       {/* 🌆 CALM HERO */}
       <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-500 via-teal-600 to-blue-600 p-5 shadow-xl shadow-teal-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
