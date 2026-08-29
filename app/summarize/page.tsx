@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Brain, Sparkles, Pin, Camera, Download, Share2, Star, Layers, RefreshCw, HelpCircle, Copy } from "lucide-react";
+import { Brain, Sparkles, Pin, Camera, Download, Share2, Star, Layers, RefreshCw, HelpCircle, Copy, Save, Trash2, Edit3 } from "lucide-react";
 import { EmptyState } from "@/app/components/ui";
 import { supabase } from "@/lib/supabase";
 import { addTopic } from "@/lib/srs";
@@ -25,8 +25,47 @@ export default function SummarizePage() {
   const [quizIdx, setQuizIdx] = useState(0);
   const [picked, setPicked] = useState<string | null>(null);
   const [quizScore, setQuizScore] = useState(0);
+  const [saved, setSaved] = useState<any[]>([]);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renameVal, setRenameVal] = useState("");
 
   useEffect(() => { supabase.auth.getSession().then(({ data }) => setUid(data.session?.user.id || "guest")); }, []);
+
+  /* ── Saved summaries (Supabase, syncs all devices) ── */
+  const loadSaved = async (id?: string) => {
+    const userId = id || uid;
+    if (!userId || userId === "guest") { setSaved([]); return; }
+    const { data } = await supabase.from("summaries").select("*").eq("user_id", userId).order("created_at", { ascending: false });
+    setSaved(data || []);
+  };
+  useEffect(() => { loadSaved(); }, [uid]);
+
+  const saveSummary = async () => {
+    if (!result) return;
+    const { data } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+    if (!userId) return notify("⚠️ Login first to save");
+    const { error } = await supabase.from("summaries").insert({ user_id: userId, title: result.title || "Summary", points: result.points, map: result.map || null });
+    notify(error ? "⚠️ Save failed" : "💾 Saved! See 'Saved' below.");
+    await loadSaved(userId);
+  };
+  const deleteSummary = async (id: string) => {
+    await supabase.from("summaries").delete().eq("id", id);
+    setSaved(saved.filter((s) => s.id !== id));
+    notify("🗑 Deleted");
+  };
+  const startRename = (s: any) => { setRenaming(s.id); setRenameVal(s.title); };
+  const saveRename = async (id: string) => {
+    await supabase.from("summaries").update({ title: renameVal }).eq("id", id);
+    setRenaming(null);
+    await loadSaved();
+  };
+  const openSaved = (s: any) => {
+    setResult({ title: s.title, points: s.points, map: s.map });
+    setQuiz([]); setQuizIdx(0); setQuizScore(0); setPicked(null);
+    if (s.map) setMapImg(drawMap(s.map, s.title, designPick ?? undefined));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const compressImage = (file: File): Promise<string> =>
     new Promise((resolve) => {
@@ -174,6 +213,7 @@ export default function SummarizePage() {
               <button onClick={toReview} className="press py-2.5 rounded-xl bg-teal-600/20 border border-teal-500/30 text-teal-300 text-xs font-black flex items-center justify-center gap-1.5"><RefreshCw size={14} /> Review</button>
               <button onClick={startQuiz} className="press py-2.5 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 text-xs font-black flex items-center justify-center gap-1.5"><HelpCircle size={14} /> Quiz</button>
               <button onClick={copyPoints} className="press py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-black flex items-center justify-center gap-1.5"><Copy size={14} /> Copy</button>
+              <button onClick={saveSummary} className="press py-2.5 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-xs font-black flex items-center justify-center gap-1.5 col-span-2"><Save size={14} /> Save Summary</button>
             </div>
             {confirm && <p className="text-center text-xs font-bold text-cyan-300 mt-3">{confirm}</p>}
 
@@ -219,6 +259,34 @@ export default function SummarizePage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 💾 SAVED SUMMARIES */}
+      {saved.length > 0 && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-5">
+          <p className="text-xs font-black text-slate-400 mb-3">💾 SAVED SUMMARIES ({saved.length})</p>
+          <div className="grid gap-2">
+            {saved.map((s) => (
+              <div key={s.id} className="bg-slate-800/60 border border-slate-700 rounded-xl p-3">
+                {renaming === s.id ? (
+                  <div className="flex gap-2">
+                    <input value={renameVal} onChange={(e) => setRenameVal(e.target.value)} className="flex-1 min-w-0 p-2 rounded-lg bg-slate-900 border border-slate-700 text-sm outline-none focus:border-amber-500" />
+                    <button onClick={() => saveRename(s.id)} className="px-3 rounded-lg bg-amber-600 text-xs font-black shrink-0">Save</button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => openSaved(s)} className="flex-1 min-w-0 text-left">
+                      <p className="text-sm font-bold text-white truncate">{s.title}</p>
+                      <p className="text-[10px] text-slate-500">{(s.points || []).length} points</p>
+                    </button>
+                    <button onClick={() => startRename(s)} className="w-8 h-8 shrink-0 rounded-lg bg-slate-900 border border-slate-700 text-slate-400 flex items-center justify-center" title="Rename"><Edit3 size={13} /></button>
+                    <button onClick={() => deleteSummary(s.id)} className="w-8 h-8 shrink-0 rounded-lg bg-slate-900 border border-slate-700 text-red-400 flex items-center justify-center" title="Delete"><Trash2 size={13} /></button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
