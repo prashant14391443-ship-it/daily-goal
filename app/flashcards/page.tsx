@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Layers, Plus, Play, X, Check, BookOpen, RotateCw, Trophy } from "lucide-react";
 import { EmptyState } from "@/app/components/ui";
-
+import BackBtn from "@/app/components/BackBtn";
 type Card = { id: string; subject: string; front: string; back: string };
 
 export default function FlashcardsPage() {
@@ -263,9 +263,7 @@ export default function FlashcardsPage() {
         </div>
       )}
 
-      <Link href="/study" className="inline-block mt-6 text-sm text-slate-500 hover:text-white press font-bold">
-        ← Back to Study
-      </Link>
+     <BackBtn />
     </main>
   );
 }

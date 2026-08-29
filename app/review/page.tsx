@@ -4,7 +4,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { loadSrs, saveSrs, getDue, addTopic, reviewItem, deleteItem, SrsItem, todayISO } from "@/lib/srs";
 import { ArrowLeft, BookOpen, Check, X, Plus, RefreshCw, Brain } from "lucide-react";
-
+import BackBtn from "@/app/components/BackBtn";
 export default function ReviewPage() {
   const [uid, setUid] = useState("guest");
   const [due, setDue] = useState<SrsItem[]>([]);
@@ -50,7 +50,7 @@ export default function ReviewPage() {
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4 pb-24 max-w-2xl mx-auto overflow-x-hidden">
       <div className="flex items-center gap-3 mb-6">
-        <Link href="/study" className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center hover:bg-slate-800 transition-colors"><ArrowLeft size={18} className="text-slate-300" /></Link>
+        <BackBtn />
         <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center"><Brain size={20} className="text-teal-400" /></div>
         <div><h1 className="text-xl font-bold">Review</h1><p className="text-xs text-slate-400">Spaced repetition — never forget again</p></div>
       </div>

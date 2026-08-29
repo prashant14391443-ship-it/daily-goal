@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Bot, Sparkles, Zap, BookOpen, Check, X, Lightbulb, Play } from "lucide-react";
 import { ProgressRing } from "@/app/components/ui";
-
+import BackBtn from "@/app/components/BackBtn";
 type Question = {
   q: string;
   options: string[];
@@ -317,9 +317,7 @@ export default function QuizPage() {
         </div>
       )}
 
-      <Link href="/study" className="inline-block mt-6 text-sm text-slate-500 hover:text-white press font-bold">
-        ← Back to Study
-      </Link>
+      <BackBtn />
     </main>
   );
 }

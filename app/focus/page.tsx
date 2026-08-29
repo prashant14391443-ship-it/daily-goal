@@ -6,7 +6,7 @@ import { recordNotification } from "@/lib/notify";
 import Link from "next/link";
 import { Timer, Play, Pause, RotateCcw, Sun, Moon, BookOpen, Coffee, Wind } from "lucide-react";
 import BoxBreather from "@/app/components/BoxBreather";
-
+import BackBtn from "@/app/components/BackBtn";
 function toLocalISO(d: Date) { const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, "0"); const day = String(d.getDate()).padStart(2, "0"); return `${y}-${m}-${day}`; }
 
 function playBeep() {
@@ -333,9 +333,7 @@ export default function FocusPage() {
         </button>
       </div>
 
-      <Link href="/study" className="inline-block mt-6 text-sm text-slate-500 hover:text-white press font-bold">
-        ← Back to Study
-      </Link>
+     <BackBtn />
 
       {/* 🧘 BREATHING WARM-UP MODAL */}
       {showBreather && !running && (
