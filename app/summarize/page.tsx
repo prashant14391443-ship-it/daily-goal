@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Brain, Sparkles, Pin, Camera, Download, Share2, Star, Layers, RefreshCw, HelpCircle, Copy, Save, Trash2, Edit3 } from "lucide-react";
+import { Brain, Sparkles, Pin, Camera, Download, Share2, Star, Layers, RefreshCw, HelpCircle, Copy, Save, Trash2, Edit3, Lightbulb, Volume2 } from "lucide-react";
 import { EmptyState } from "@/app/components/ui";
 import { supabase } from "@/lib/supabase";
 import { addTopic } from "@/lib/srs";
@@ -28,10 +28,12 @@ export default function SummarizePage() {
   const [saved, setSaved] = useState<any[]>([]);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState("");
+  const [memo, setMemo] = useState<any>(null);
+  const [memoBusy, setMemoBusy] = useState(false);
 
   useEffect(() => { supabase.auth.getSession().then(({ data }) => setUid(data.session?.user.id || "guest")); }, []);
 
-  /* ── Saved summaries (Supabase, syncs all devices) ── */
+  /* ── Saved summaries (Supabase) ── */
   const loadSaved = async (id?: string) => {
     const userId = id || uid;
     if (!userId || userId === "guest") { setSaved([]); return; }
@@ -62,9 +64,43 @@ export default function SummarizePage() {
   };
   const openSaved = (s: any) => {
     setResult({ title: s.title, points: s.points, map: s.map });
-    setQuiz([]); setQuizIdx(0); setQuizScore(0); setPicked(null);
+    setQuiz([]); setQuizIdx(0); setQuizScore(0); setPicked(null); setMemo(null);
     if (s.map) setMapImg(drawMap(s.map, s.title, designPick ?? undefined));
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  /* ── Memorize ── */
+  const buildOfflineMemo = (pts: string[]) => {
+    const keys = pts.slice(0, 8).map((p) => { const w = p.replace(/[^A-Za-z ]/g, " ").split(/\s+/).find((x) => x.length > 2); return (w || "X")[0].toUpperCase(); });
+    const acronym = keys.join("");
+    const chain = pts.slice(0, 6).map((p) => p.replace(/[^A-Za-z ]/g, " ").split(/\s+/).filter((x) => x.length > 3)[0] || "idea").join(" → ");
+    return {
+      acronym,
+      story: `Imagine a movie: ${pts.slice(0, 5).map((p) => p.split(" ").slice(0, 6).join(" ")).join("; then ")}; the end.`,
+      rhyme: `${acronym} — remember the chain: ${chain}.`,
+      palace: `Place each point in a room of your house: ${pts.slice(0, 4).map((_, i) => `Room ${i + 1}`).join(", ")}. Walk the rooms to recall.`,
+    };
+  };
+  const memorize = async () => {
+    if (!result) return;
+    setMemoBusy(true);
+    try {
+      const res = await fetch("/api/memorize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: result.title, points: result.points }) });
+      if (!res.ok) throw 0;
+      const d = await res.json();
+      if (d.story || d.acronym) { setMemo(d); setMemoBusy(false); return; }
+      throw 0;
+    } catch {
+      setMemo(buildOfflineMemo(result.points));
+    }
+    setMemoBusy(false);
+  };
+  const speakMemo = () => {
+    if (!memo || typeof window === "undefined" || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(`Acronym ${memo.acronym}. Story: ${memo.story}`);
+    u.lang = "en-US";
+    window.speechSynthesis.speak(u);
   };
 
   const compressImage = (file: File): Promise<string> =>
@@ -95,13 +131,13 @@ export default function SummarizePage() {
 
   const generate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError(""); setResult(null); setQuiz([]);
+    setLoading(true); setError(""); setResult(null); setQuiz([]); setMemo(null);
     try {
       const res = await fetch("/api/summarize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text || undefined, image: img || undefined }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "failed");
       setResult(data);
-      setQuiz([]); setQuizIdx(0); setQuizScore(0); setPicked(null);
+      setQuiz([]); setQuizIdx(0); setQuizScore(0); setPicked(null); setMemo(null);
       if (data.map) setMapImg(drawMap(data.map, data.title || "Summary", designPick ?? undefined));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed. Try again.");
@@ -162,7 +198,7 @@ export default function SummarizePage() {
           </span>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>AI Study Brain</h1>
-            <p className="text-[11px] text-white/75 font-semibold mt-0.5">Summarize → importance points + mind-map + flashcards + quiz</p>
+            <p className="text-[11px] text-white/75 font-semibold mt-0.5">Summarize → points + map + cards + quiz + memorize</p>
           </div>
         </div>
       </div>
@@ -213,7 +249,8 @@ export default function SummarizePage() {
               <button onClick={toReview} className="press py-2.5 rounded-xl bg-teal-600/20 border border-teal-500/30 text-teal-300 text-xs font-black flex items-center justify-center gap-1.5"><RefreshCw size={14} /> Review</button>
               <button onClick={startQuiz} className="press py-2.5 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 text-xs font-black flex items-center justify-center gap-1.5"><HelpCircle size={14} /> Quiz</button>
               <button onClick={copyPoints} className="press py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-black flex items-center justify-center gap-1.5"><Copy size={14} /> Copy</button>
-              <button onClick={saveSummary} className="press py-2.5 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-xs font-black flex items-center justify-center gap-1.5 col-span-2"><Save size={14} /> Save Summary</button>
+              <button onClick={saveSummary} className="press py-2.5 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-xs font-black flex items-center justify-center gap-1.5"><Save size={14} /> Save</button>
+              <button onClick={memorize} disabled={memoBusy} className="press py-2.5 rounded-xl bg-fuchsia-600/20 border border-fuchsia-500/30 text-fuchsia-300 text-xs font-black flex items-center justify-center gap-1.5 disabled:opacity-50"><Lightbulb size={14} /> {memoBusy ? "Thinking…" : "Memorize"}</button>
             </div>
             {confirm && <p className="text-center text-xs font-bold text-cyan-300 mt-3">{confirm}</p>}
 
@@ -233,6 +270,21 @@ export default function SummarizePage() {
               <div className="bg-slate-800/60 border border-slate-700 rounded-2xl p-5 text-center mt-4"><p className="text-2xl mb-1">{quizScore >= quiz.length * 0.7 ? "🏆" : "📚"}</p><p className="text-lg font-black">{quizScore}/{quiz.length}</p></div>
             )}
           </div>
+
+          {/* MEMORIZE */}
+          {memo && (
+            <div className="bg-slate-900 border border-fuchsia-500/30 rounded-2xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-8 h-8 rounded-lg bg-fuchsia-500/10 text-fuchsia-400 flex items-center justify-center"><Lightbulb size={15} /></span>
+                <h3 className="font-black text-base text-white flex-1">Memorize It</h3>
+                <button onClick={speakMemo} className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 flex items-center justify-center" title="Hear it"><Volume2 size={14} /></button>
+              </div>
+              {memo.acronym && <p className="text-2xl font-black tracking-widest text-fuchsia-300 mb-2">{memo.acronym}</p>}
+              {memo.story && (<><p className="text-[10px] font-black text-slate-500">🎬 STORY</p><p className="text-sm text-slate-200 mb-2">{memo.story}</p></>)}
+              {memo.rhyme && (<><p className="text-[10px] font-black text-slate-500">🎵 RHYME</p><p className="text-sm text-slate-200 mb-2">{memo.rhyme}</p></>)}
+              {memo.palace && (<><p className="text-[10px] font-black text-slate-500">🏰 MEMORY PALACE</p><p className="text-sm text-slate-200">{memo.palace}</p></>)}
+            </div>
+          )}
 
           {/* MAP */}
           {mapImg && (
@@ -292,7 +344,7 @@ export default function SummarizePage() {
 
       {!result && !loading && !error && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl mt-2">
-          <EmptyState emoji="🧠✨" text="Type a topic or add a photo — AI will summarize, rank importance, draw a mind-map & build flashcards + quiz!" />
+          <EmptyState emoji="🧠✨" text="Type a topic or add a photo — AI will summarize, rank importance, draw a mind-map & build flashcards + quiz + mnemonics!" />
         </div>
       )}
 
