@@ -17,7 +17,7 @@ export default function StudyHub() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {/* 📖 Study Log */}
+        {/* Row 1 */}
         <Link href="/studylog" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <span className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center mb-4">
             <BookOpen size={18} strokeWidth={2.2} />
@@ -26,7 +26,6 @@ export default function StudyHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Sessions, streaks & reminders</p>
         </Link>
 
-        {/* ⏱️ Focus Timer */}
         <Link href="/focus" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <span className="w-9 h-9 rounded-lg bg-red-500/10 text-red-400 flex items-center justify-center mb-4">
             <Timer size={18} strokeWidth={2.2} />
@@ -35,7 +34,7 @@ export default function StudyHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Pomodoro + growing plant</p>
         </Link>
 
-        {/* 🃏 Flashcards */}
+        {/* Row 2 */}
         <Link href="/flashcards" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <span className="w-9 h-9 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center mb-4">
             <Layers size={18} strokeWidth={2.2} />
@@ -44,16 +43,15 @@ export default function StudyHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Memorize anything</p>
         </Link>
 
-        {/* 🧠 AI Study Brain (merged Summarize) */}
-        <Link href="/summarize" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
+        <Link href="/review" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <span className="w-9 h-9 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center mb-4">
-            <Brain size={18} strokeWidth={2.2} />
+            <RefreshCw size={18} strokeWidth={2.2} />
           </span>
-          <p className="font-black text-sm text-white">AI Study Brain</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">Summarize → map + cards + quiz</p>
+          <p className="font-black text-sm text-white">Review (SRS)</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">Spaced repetition</p>
         </Link>
 
-        {/* 🤖 AI Quiz */}
+        {/* Row 3 */}
         <Link href="/quiz" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <span className="w-9 h-9 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-4">
             <Bot size={18} strokeWidth={2.2} />
@@ -62,13 +60,12 @@ export default function StudyHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Any topic → instant test</p>
         </Link>
 
-        {/* 🔄 Review (SRS) — wide */}
-        <Link href="/review" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors col-span-2">
-          <div className="w-11 h-11 rounded-xl bg-teal-500/10 text-teal-400 flex items-center justify-center mb-4">
-            <RefreshCw size={20} />
-          </div>
-          <p className="font-bold text-white text-sm leading-tight">Review (SRS)</p>
-          <p className="text-xs text-slate-400 mt-1">Spaced repetition — never forget again</p>
+        <Link href="/summarize" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
+          <span className="w-9 h-9 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center mb-4">
+            <Brain size={18} strokeWidth={2.2} />
+          </span>
+          <p className="font-black text-sm text-white">AI Study Brain</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">Summarize → map + cards + quiz</p>
         </Link>
       </div>
     </main>
