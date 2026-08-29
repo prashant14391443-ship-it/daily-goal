@@ -29,6 +29,7 @@ export default function SummarizePage() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renameVal, setRenameVal] = useState("");
   const [memo, setMemo] = useState<any>(null);
+  const [memoVisible, setMemoVisible] = useState(false);
   const [memoBusy, setMemoBusy] = useState(false);
 
   useEffect(() => { supabase.auth.getSession().then(({ data }) => setUid(data.session?.user.id || "guest")); }, []);
@@ -48,7 +49,7 @@ export default function SummarizePage() {
     const userId = data.session?.user.id;
     if (!userId) return notify("⚠️ Login first to save");
     const { error } = await supabase.from("summaries").insert({ user_id: userId, title: result.title || "Summary", points: result.points, map: result.map || null });
-    notify(error ? "⚠️ Save failed" : "💾 Saved! See 'Saved' below.");
+    notify(error ? "⚠️ Save failed — run the summaries SQL in Supabase" : "💾 Saved! See 'Saved' below.");
     await loadSaved(userId);
   };
   const deleteSummary = async (id: string) => {
@@ -64,7 +65,7 @@ export default function SummarizePage() {
   };
   const openSaved = (s: any) => {
     setResult({ title: s.title, points: s.points, map: s.map });
-    setQuiz([]); setQuizIdx(0); setQuizScore(0); setPicked(null); setMemo(null);
+    setQuiz([]); setQuizIdx(0); setQuizScore(0); setPicked(null); setMemo(null); setMemoVisible(false);
     if (s.map) setMapImg(drawMap(s.map, s.title, designPick ?? undefined));
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -77,7 +78,7 @@ export default function SummarizePage() {
     return {
       acronym,
       story: `Imagine a movie: ${pts.slice(0, 5).map((p) => p.split(" ").slice(0, 6).join(" ")).join("; then ")}; the end.`,
-      rhyme: `${acronym} — remember the chain: ${chain}.`,
+      rhyme: `Remember the chain: ${chain}.`,
       palace: `Place each point in a room of your house: ${pts.slice(0, 4).map((_, i) => `Room ${i + 1}`).join(", ")}. Walk the rooms to recall.`,
     };
   };
@@ -88,17 +89,19 @@ export default function SummarizePage() {
       const res = await fetch("/api/memorize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: result.title, points: result.points }) });
       if (!res.ok) throw 0;
       const d = await res.json();
-      if (d.story || d.acronym) { setMemo(d); setMemoBusy(false); return; }
+      if (d.story || d.acronym) { setMemo(d); setMemoVisible(true); setMemoBusy(false); return; }
       throw 0;
     } catch {
       setMemo(buildOfflineMemo(result.points));
+      setMemoVisible(true);
     }
     setMemoBusy(false);
   };
+  const toggleMemo = () => { if (memo) setMemoVisible((v) => !v); else memorize(); };
   const speakMemo = () => {
     if (!memo || typeof window === "undefined" || !window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(`Acronym ${memo.acronym}. Story: ${memo.story}`);
+    const u = new SpeechSynthesisUtterance(`Memory word ${memo.acronym}. Story: ${memo.story}`);
     u.lang = "en-US";
     window.speechSynthesis.speak(u);
   };
@@ -131,13 +134,13 @@ export default function SummarizePage() {
 
   const generate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError(""); setResult(null); setQuiz([]); setMemo(null);
+    setLoading(true); setError(""); setResult(null); setQuiz([]); setMemo(null); setMemoVisible(false);
     try {
       const res = await fetch("/api/summarize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: text || undefined, image: img || undefined }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "failed");
       setResult(data);
-      setQuiz([]); setQuizIdx(0); setQuizScore(0); setPicked(null); setMemo(null);
+      setQuiz([]); setQuizIdx(0); setQuizScore(0); setPicked(null); setMemo(null); setMemoVisible(false);
       if (data.map) setMapImg(drawMap(data.map, data.title || "Summary", designPick ?? undefined));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed. Try again.");
@@ -250,7 +253,7 @@ export default function SummarizePage() {
               <button onClick={startQuiz} className="press py-2.5 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 text-xs font-black flex items-center justify-center gap-1.5"><HelpCircle size={14} /> Quiz</button>
               <button onClick={copyPoints} className="press py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-black flex items-center justify-center gap-1.5"><Copy size={14} /> Copy</button>
               <button onClick={saveSummary} className="press py-2.5 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-xs font-black flex items-center justify-center gap-1.5"><Save size={14} /> Save</button>
-              <button onClick={memorize} disabled={memoBusy} className="press py-2.5 rounded-xl bg-fuchsia-600/20 border border-fuchsia-500/30 text-fuchsia-300 text-xs font-black flex items-center justify-center gap-1.5 disabled:opacity-50"><Lightbulb size={14} /> {memoBusy ? "Thinking…" : "Memorize"}</button>
+              <button onClick={toggleMemo} disabled={memoBusy} className="press py-2.5 rounded-xl bg-fuchsia-600/20 border border-fuchsia-500/30 text-fuchsia-300 text-xs font-black flex items-center justify-center gap-1.5 disabled:opacity-50"><Lightbulb size={14} /> {memoBusy ? "Thinking…" : memo && memoVisible ? "Hide" : "Memorize"}</button>
             </div>
             {confirm && <p className="text-center text-xs font-bold text-cyan-300 mt-3">{confirm}</p>}
 
@@ -271,15 +274,16 @@ export default function SummarizePage() {
             )}
           </div>
 
-          {/* MEMORIZE */}
-          {memo && (
+          {/* MEMORIZE (toggle) */}
+          {memo && memoVisible && (
             <div className="bg-slate-900 border border-fuchsia-500/30 rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <span className="w-8 h-8 rounded-lg bg-fuchsia-500/10 text-fuchsia-400 flex items-center justify-center"><Lightbulb size={15} /></span>
                 <h3 className="font-black text-base text-white flex-1">Memorize It</h3>
                 <button onClick={speakMemo} className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 flex items-center justify-center" title="Hear it"><Volume2 size={14} /></button>
               </div>
-              {memo.acronym && <p className="text-2xl font-black tracking-widest text-fuchsia-300 mb-2">{memo.acronym}</p>}
+              <p className="text-[10px] font-black text-slate-500 mb-1">✏️ YOUR MEMORY WORD (tap to type your own — like your watermelon trick)</p>
+              <input value={memo.acronym || ""} onChange={(e) => setMemo({ ...memo, acronym: e.target.value.toUpperCase() })} placeholder="Type a word YOU know" className="w-full bg-transparent text-2xl font-black tracking-widest text-fuchsia-300 outline-none border-b border-fuchsia-500/30 mb-3" />
               {memo.story && (<><p className="text-[10px] font-black text-slate-500">🎬 STORY</p><p className="text-sm text-slate-200 mb-2">{memo.story}</p></>)}
               {memo.rhyme && (<><p className="text-[10px] font-black text-slate-500">🎵 RHYME</p><p className="text-sm text-slate-200 mb-2">{memo.rhyme}</p></>)}
               {memo.palace && (<><p className="text-[10px] font-black text-slate-500">🏰 MEMORY PALACE</p><p className="text-sm text-slate-200">{memo.palace}</p></>)}
