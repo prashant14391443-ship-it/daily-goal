@@ -37,13 +37,14 @@ async function gemini(prompt: string) {
 
 export async function POST(req: Request) {
   try {
-    const { goal, days, level, equipment, perSession, calories, direction, diet } = await req.json();
+    const { goal, days, level, equipment, perSession, calories, direction, diet, weight, pf } = await req.json();
     const prompt = `Goal: ${goal}
 Days per week: ${days}
 Experience: ${level}
 Equipment: ${equipment}
 Exercises per session: ${perSession}
 Diet: ${diet}
+${weight ? `Bodyweight: ${weight} kg → protein target MUST be ${Math.round(weight * (pf || 1.5))} g (weight × ${pf || 1.5}). Do NOT use calorie-based protein.` : ""}
 ${calories ? `User's daily calorie target: ${calories} kcal (direction: ${direction})` : "No calorie data — estimate nutrition for the goal."}`;
     let content = "";
     try { content = await groq(prompt); } catch { content = await gemini(prompt); }

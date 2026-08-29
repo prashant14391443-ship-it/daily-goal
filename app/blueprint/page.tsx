@@ -52,6 +52,8 @@ export default function BlueprintPage() {
   const [diet, setDiet] = useState("Vegetarian");
   const [autoCal, setAutoCal] = useState<number | null>(null);
   const [direction, setDirection] = useState("maintain");
+  const [autoWeight, setAutoWeight] = useState(0);
+  const [autoActivity, setAutoActivity] = useState("1.375");
   const [bp, setBp] = useState<Blueprint | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -63,6 +65,8 @@ export default function BlueprintPage() {
     try {
       const p = JSON.parse(localStorage.getItem("dg-calc") || "null");
       if (p?.result) { setAutoCal(p.result.calories); setDirection(p.result.direction); }
+      if (p?.weight) setAutoWeight(Number(p.weight) || 0);
+      if (p?.activity) setAutoActivity(p.activity);
     } catch {}
     loadSaved();
   }, []);
@@ -77,6 +81,9 @@ export default function BlueprintPage() {
     setSaved(rows || []);
   };
 
+  const proteinFactor = Number(autoActivity) <= 1.2 ? 1 : Number(autoActivity) <= 1.55 ? 1.5 : 2;
+  const proteinTarget = autoWeight > 0 ? Math.round(autoWeight * proteinFactor) : Math.round(70 * proteinFactor);
+
   const buildOffline = (): Blueprint => {
     const home = equipment.startsWith("Home") || equipment.startsWith("Dumbbells");
     const focuses = GOAL_FOCUS[goal] || GOAL_FOCUS["Full physique"];
@@ -88,7 +95,7 @@ export default function BlueprintPage() {
       const pool = POOL[s.focus] || POOL.full;
       for (let k = 0; k < Number(perSession); k++) {
         const e = pool[k % pool.length];
-        exercises.push({ day: s.day, name: home ? e.h : e.g, sets: 3, reps: e.r, rest: "60-90s", cues: "Control the movement, full range, squeeze the muscle", mistakes: "Don't rush or use momentum" });
+        exercises.push({ day: s.day, name: home ? e.h : e.g, sets: 3, reps: e.r, rest: "60-90s", cues: "", mistakes: "" });
       }
     });
     const veg = diet !== "Non-vegetarian";
@@ -97,16 +104,16 @@ export default function BlueprintPage() {
       title: `${goal} Blueprint (${n} days)`,
       split, exercises,
       progression: "Progressive overload: add 1 rep or a little weight every week.",
-      nutrition: { calories: cal, protein: Math.round((cal * 0.3) / 4), foods: veg ? ["soya chunks","paneer","chana","moong","dal","curd","milk","peanuts"] : ["chicken","eggs","fish","paneer","dal","milk"], tip: "Hit protein daily + drink 3-4 L water." },
+      nutrition: { calories: cal, protein: proteinTarget, foods: veg ? ["soya chunks","paneer","chana","moong","dal","curd","milk","peanuts"] : ["chicken","eggs","fish","paneer","dal","milk"], tip: `Protein = ${autoWeight || 70}kg × ${proteinFactor} = ${proteinTarget}g. Drink 3-4 L water.` },
       recovery: { sleep: "7-9 hours", water: "3-4 litres", deload: "Every 4-6 weeks, halve volume" },
-      tips: ["Progressive overload every week","Protein with every meal","Slow eccentric (2-3s down)","Warm up before lifting","Stop 1-2 reps before failure on big lifts"],
+      tips: ["Progressive overload every week","Protein with every meal","Slow eccentric (2-3s down)","Warm up before lifting","Stop 1-2 reps before failure on big lifts","Watch tutorials or record yourself to check your form"],
     };
   };
 
   const generate = async () => {
     setBusy(true); setError(""); setBp(null); setEdit(false);
     try {
-      const res = await fetch("/api/blueprint", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal, days, level, equipment, perSession, calories: autoCal, direction, diet }) });
+      const res = await fetch("/api/blueprint", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal, days, level, equipment, perSession, calories: autoCal, direction, diet, weight: autoWeight, pf: proteinFactor }) });
       const d = await res.json();
       if (!res.ok || !d.split) throw 0;
       setBp(d);
@@ -195,7 +202,7 @@ export default function BlueprintPage() {
           <Sparkles size={15} /> {busy ? "Building…" : "Build Blueprint"}
         </button>
       </div>
-      {autoCal && <p className="text-[10px] text-slate-500 font-bold -mt-3 mb-4">🎯 Using your Goal Calculator target: {autoCal} kcal ({direction})</p>}
+      {autoCal && <p className="text-[10px] text-slate-500 font-bold -mt-3 mb-4">🎯 Goal Calculator: {autoCal} kcal • protein {proteinTarget}g ({direction})</p>}
       {error && <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-3 mb-4 text-center"><p className="text-sm font-bold text-red-300">❌ {error}</p></div>}
       {msg && <p className="text-center text-xs font-bold text-indigo-300 mb-3">{msg}</p>}
 
@@ -236,8 +243,8 @@ export default function BlueprintPage() {
                       ) : (
                         <p className="text-xs text-indigo-300 font-black mb-1">{e.sets} sets × {e.reps} • rest {e.rest}</p>
                       )}
-                      <p className="text-[11px] text-green-400">✔ {e.cues}</p>
-                      <p className="text-[11px] text-red-400">✖ Avoid: {e.mistakes}</p>
+                      {e.cues && <p className="text-[11px] text-green-400">✔ {e.cues}</p>}
+                      {e.mistakes && <p className="text-[11px] text-red-400">✖ Avoid: {e.mistakes}</p>}
                     </div>
                   );
                 })}
