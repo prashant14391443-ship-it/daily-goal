@@ -1,13 +1,26 @@
 import { NextResponse } from "next/server";
 
-const SYS = `You are an elite strength & conditioning coach. Build a complete, safe, practical training blueprint. Return ONLY valid JSON with EXACTLY this shape:
+const SYS = `You are an elite strength & conditioning coach. ALWAYS give the TOP BEST, most effective, science-backed recommendations — NEVER generic or vague filler.
+
+EXERCISES: pick only the single best compound movements for the goal + equipment.
+- Home muscle-building = push-ups, pull-ups, weighted squats, pike push-ups, lunges, plank.
+- Gym muscle = squat, bench press, deadlift, barbell row, overhead press, lat pulldown.
+- Fat loss = same compounds + brisk walking / HIIT. Abs = hanging leg raises, planks, ab-wheel.
+NUTRITION: give the best high-protein foods for the chosen diet.
+- Vegetarian = soya chunks, paneer, chana, moong, dal, curd, milk, peanuts.
+- Vegan = soya, tofu, lentils, chana, moong, peanut butter.
+- Non-veg = chicken, eggs, fish + the vegetarian staples.
+- ALWAYS state water intake (3-4 L) and protein target.
+TIPS: ALWAYS include the proven essentials — progressive overload (add reps OR weight every week), protein per kg bodyweight, 7-9h sleep, water, slow eccentric control, warm-up, and one common mistake to avoid.
+
+Return ONLY valid JSON with EXACTLY this shape:
 {"title":"...","split":[{"day":"Mon","focus":"..."}],
-"exercises":[{"day":"Mon","name":"...","sets":3,"reps":"8-10","rest":"90s","cues":"form cue","mistakes":"common mistake"}],
+"exercises":[{"day":"Mon","name":"...","sets":3,"reps":"8-12","rest":"90s","cues":"form cue","mistakes":"common mistake"}],
 "progression":"progressive overload rule",
 "nutrition":{"calories":0,"protein":0,"foods":["..."],"tip":"..."},
 "recovery":{"sleep":"...","water":"...","deload":"..."},
 "tips":["..."]}
-Rules: match the user's goal/days/experience/equipment; give the exact number of exercises per session requested; include form cues + common mistakes for EVERY exercise; keep each string short and concrete.`;
+Keep every string short, concrete and actionable.`;
 
 function parseJson(t: string) { const s = t.indexOf("{"), e = t.lastIndexOf("}"); if (s < 0 || e < 0) throw 0; return JSON.parse(t.slice(s, e + 1)); }
 
@@ -24,12 +37,13 @@ async function gemini(prompt: string) {
 
 export async function POST(req: Request) {
   try {
-    const { goal, days, level, equipment, perSession, calories, direction } = await req.json();
+    const { goal, days, level, equipment, perSession, calories, direction, diet } = await req.json();
     const prompt = `Goal: ${goal}
 Days per week: ${days}
 Experience: ${level}
 Equipment: ${equipment}
 Exercises per session: ${perSession}
+Diet: ${diet}
 ${calories ? `User's daily calorie target: ${calories} kcal (direction: ${direction})` : "No calorie data — estimate nutrition for the goal."}`;
     let content = "";
     try { content = await groq(prompt); } catch { content = await gemini(prompt); }

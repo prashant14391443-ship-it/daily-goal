@@ -21,6 +21,7 @@ export default function BlueprintPage() {
   const [level, setLevel] = useState("Beginner");
   const [equipment, setEquipment] = useState("Full gym");
   const [perSession, setPerSession] = useState("5");
+  const [diet, setDiet] = useState("Vegetarian");
   const [autoCal, setAutoCal] = useState<number | null>(null);
   const [direction, setDirection] = useState("maintain");
   const [bp, setBp] = useState<Blueprint | null>(null);
@@ -51,7 +52,7 @@ export default function BlueprintPage() {
   const generate = async () => {
     setBusy(true); setError(""); setBp(null); setEdit(false);
     try {
-      const res = await fetch("/api/blueprint", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal, days, level, equipment, perSession, calories: autoCal, direction }) });
+      const res = await fetch("/api/blueprint", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal, days, level, equipment, perSession, calories: autoCal, direction, diet }) });
       const d = await res.json();
       if (!res.ok || !d.split) throw new Error(d.error || "failed");
       setBp(d);
@@ -131,6 +132,9 @@ export default function BlueprintPage() {
         </select>
         <select value={perSession} onChange={(e) => setPerSession(e.target.value)} className={inputCls}>
           {["3", "4", "5", "6"].map((n) => <option key={n} value={n}>{n} exercises/session</option>)}
+        </select>
+        <select value={diet} onChange={(e) => setDiet(e.target.value)} className={inputCls}>
+          {["Vegetarian", "Non-vegetarian", "Vegan"].map((d) => <option key={d}>{d}</option>)}
         </select>
         <button onClick={generate} disabled={busy} className="press py-3 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-sm font-black text-indigo-300 disabled:opacity-50 flex items-center justify-center gap-1.5">
           <Sparkles size={15} /> {busy ? "Building…" : "Build Blueprint"}
