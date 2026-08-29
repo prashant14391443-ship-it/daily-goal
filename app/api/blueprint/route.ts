@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 const SYS = `You are an elite strength & conditioning coach. ALWAYS give the TOP BEST, science-backed recommendations — never vague filler.
 
+SPLIT: if the user requests a specific split style, follow it. If "Auto", choose by days: 2-3 days = Full body; 4 days = Upper/Lower; 5-6 days = Push/Pull/Legs.
 EXERCISES: only the single best compound movements for goal + equipment.
 - Home = push-ups, pull-ups, weighted squats, pike push-ups, lunges, plank.
 - Gym = squat, bench press, deadlift, barbell row, overhead press, lat pulldown.
@@ -34,9 +35,10 @@ async function gemini(prompt: string) {
 
 export async function POST(req: Request) {
   try {
-    const { goal, days, level, equipment, perSession, calories, direction, diet, weight, pf } = await req.json();
+    const { goal, days, level, equipment, perSession, calories, direction, diet, weight, pf, splitStyle } = await req.json();
     const prompt = `Goal: ${goal}
 Days per week: ${days}
+Split style: ${splitStyle}
 Experience: ${level}
 Equipment: ${equipment}
 Exercises per session: ${perSession}

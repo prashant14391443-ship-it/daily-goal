@@ -27,9 +27,20 @@ const POOL: Record<string, { h: string; g: string; r: string }[]> = {
   legs: [{h:"Weighted squats",g:"Back squat",r:"8-12"},{h:"Lunges",g:"Romanian deadlift",r:"10"},{h:"Step-ups",g:"Leg press",r:"10"},{h:"Calf raises",g:"Calf raises",r:"15-20"}],
   abs: [{h:"Hanging leg raises",g:"Hanging leg raises",r:"10-15"},{h:"Plank",g:"Ab-wheel",r:"45s"},{h:"Bicycle crunch",g:"Cable crunch",r:"15-20"},{h:"Leg raises",g:"Hanging knee raises",r:"12-15"}],
   arms: [{h:"Chin-ups",g:"Barbell curls",r:"8-12"},{h:"Bench dips",g:"Skull crushers",r:"10-12"},{h:"Hammer curls (bottles)",g:"Hammer curls",r:"10-12"},{h:"Diamond push-ups",g:"Rope pushdown",r:"8-12"}],
+  upper: [{h:"Push-ups",g:"Bench press",r:"8-12"},{h:"Pull-ups",g:"Barbell row",r:"6-10"},{h:"Pike push-ups",g:"Overhead press",r:"8-12"},{h:"Chin-ups",g:"Barbell curls",r:"8-12"},{h:"Bench dips",g:"Skull crushers",r:"10-12"},{h:"Weighted squats",g:"Back squat",r:"8-12"}],
+  push: [{h:"Push-ups",g:"Bench press",r:"8-12"},{h:"Pike push-ups",g:"Overhead press",r:"8-12"},{h:"Incline push-ups",g:"Incline bench",r:"8-12"},{h:"Diamond push-ups",g:"Cable fly",r:"10-12"},{h:"Bench dips",g:"Rope pushdown",r:"10-15"},{h:"Lateral raises (bottles)",g:"Lateral raises",r:"12-15"}],
+  pull: [{h:"Pull-ups",g:"Barbell row",r:"6-10"},{h:"Chin-ups",g:"Lat pulldown",r:"6-10"},{h:"Superman hold",g:"Deadlift",r:"6-8"},{h:"Hammer curls (bottles)",g:"Hammer curls",r:"10-12"},{h:"Towel curls",g:"Face pulls",r:"10-12"},{h:"Inverted rows",g:"Seated row",r:"10-12"}],
   full: [{h:"Push-ups",g:"Bench press",r:"8-12"},{h:"Pull-ups",g:"Barbell row",r:"6-10"},{h:"Weighted squats",g:"Back squat",r:"8-12"},{h:"Plank",g:"Ab-wheel",r:"45s"},{h:"Pike push-ups",g:"Overhead press",r:"8-12"},{h:"Lunges",g:"Romanian deadlift",r:"10"}],
   run: [{h:"Brisk run intervals",g:"Treadmill intervals",r:"20min"},{h:"Tempo run",g:"Tempo run",r:"15min"},{h:"Hill sprints",g:"Incline sprints",r:"6x"},{h:"Strides",g:"Strides",r:"4x"}],
 };
+const FOCUS_POOL: Record<string, string> = {
+  chest:"chest", back:"back", legs:"legs", full:"full", abs:"abs", shoulders:"shoulders",
+  arms:"arms", biceps:"biceps", triceps:"triceps", forearms:"forearms", run:"run",
+  "Chest":"chest","Back":"back","Legs":"legs","Shoulders":"shoulders","Arms":"arms","Abs":"abs",
+  "Upper body":"upper","Lower body":"legs",
+  "Push (chest/shoulders/triceps)":"push","Pull (back/biceps)":"pull","Full body":"full",
+};
+const FOCUS_OPTIONS = ["Chest","Back","Legs","Shoulders","Arms","Abs","Upper body","Lower body","Push (chest/shoulders/triceps)","Pull (back/biceps)","Full body"];
 const GOAL_FOCUS: Record<string, string[]> = {
   "Build muscle": ["chest","back","legs","full"],
   "Lose fat": ["full","legs","full","abs"],
@@ -54,6 +65,7 @@ export default function BlueprintPage() {
   const [equipment, setEquipment] = useState("Full gym");
   const [perSession, setPerSession] = useState("5");
   const [diet, setDiet] = useState("Vegetarian");
+  const [splitStyle, setSplitStyle] = useState("Auto (best for my days)");
   const [autoCal, setAutoCal] = useState<number | null>(null);
   const [direction, setDirection] = useState("maintain");
   const [autoWeight, setAutoWeight] = useState(0);
@@ -87,20 +99,37 @@ export default function BlueprintPage() {
     setSaved(rows || []);
   };
 
-  const buildOffline = (): Blueprint => {
-    const home = equipment.startsWith("Home") || equipment.startsWith("Dumbbells");
-    const focuses = GOAL_FOCUS[goal] || GOAL_FOCUS["Full physique"];
+  const buildSplit = (n: number): { day: string; focus: string }[] => {
     const dayNames = ["Mon","Tue","Wed","Thu","Fri","Sat"];
-    const n = Number(days);
-    const split = Array.from({ length: n }, (_, i) => ({ day: dayNames[i], focus: focuses[i % focuses.length] }));
-    const exercises: Ex[] = [];
-    split.forEach((s) => {
-      const pool = POOL[s.focus] || POOL.full;
-      for (let k = 0; k < Number(perSession); k++) {
-        const e = pool[k % pool.length];
-        exercises.push({ day: s.day, name: home ? e.h : e.g, sets: 3, reps: e.r, rest: "60-90s", cues: "", mistakes: "" });
-      }
+    const daysArr = dayNames.slice(0, n);
+    const pick = (arr: string[]) => daysArr.map((d, i) => ({ day: d, focus: arr[i % arr.length] }));
+    if (splitStyle === "Upper / Lower") return pick(["Upper body","Lower body"]);
+    if (splitStyle === "Push / Pull / Legs") return pick(["Push (chest/shoulders/triceps)","Pull (back/biceps)","Legs"]);
+    if (splitStyle === "Full body") return pick(["Full body"]);
+    if (splitStyle === "Body-part split") return pick(["Chest","Back","Legs","Shoulders","Arms","Abs"]);
+    const specific = !["Full physique","Build muscle","Lose fat"].includes(goal);
+    if (specific) return pick(GOAL_FOCUS[goal] || ["Chest","Back","Legs","Full body"]);
+    if (n <= 3) return pick(["Full body"]);
+    if (n === 4) return pick(["Upper body","Lower body"]);
+    if (n === 5) return pick(["Push (chest/shoulders/triceps)","Pull (back/biceps)","Legs","Upper body","Lower body"]);
+    return pick(["Push (chest/shoulders/triceps)","Pull (back/biceps)","Legs"]);
+  };
+
+  const makeDayExercises = (day: string, focus: string): Ex[] => {
+    const home = equipment.startsWith("Home") || equipment.startsWith("Dumbbells");
+    const pool = POOL[FOCUS_POOL[focus] || "full"] || POOL.full;
+    return Array.from({ length: Number(perSession) }, (_, k) => {
+      const e = pool[k % pool.length];
+      return { day, name: home ? e.h : e.g, sets: 3, reps: e.r, rest: "60-90s", cues: "", mistakes: "" };
     });
+  };
+
+  const buildOffline = (): Blueprint => {
+    const n = Number(days);
+    const split = buildSplit(n);
+    const exercises: Ex[] = [];
+    split.forEach((s) => exercises.push(...makeDayExercises(s.day, s.focus)));
+    const home = equipment.startsWith("Home") || equipment.startsWith("Dumbbells");
     const cal = autoCal || 2200;
     return {
       title: `${goal} Blueprint (${n} days)`,
@@ -117,7 +146,7 @@ export default function BlueprintPage() {
   const generate = async () => {
     setBusy(true); setError(""); setBp(null); setEdit(false);
     try {
-      const res = await fetch("/api/blueprint", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal, days, level, equipment, perSession, calories: autoCal, direction, diet, weight: autoWeight, pf: proteinFactor }) });
+      const res = await fetch("/api/blueprint", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal, days, level, equipment, perSession, calories: autoCal, direction, diet, weight: autoWeight, pf: proteinFactor, splitStyle }) });
       const d = await res.json();
       if (!res.ok || !d.split) throw 0;
       setBp(d);
@@ -130,6 +159,15 @@ export default function BlueprintPage() {
 
   const setEx = (i: number, patch: Partial<Ex>) => setBp((b) => (b ? { ...b, exercises: b.exercises.map((e, j) => (j === i ? { ...e, ...patch } : e)) } : b));
   const setNut = (patch: Partial<Blueprint["nutrition"]>) => setBp((b) => (b ? { ...b, nutrition: { ...b.nutrition, ...patch } } : b));
+  const setFocus = (i: number, focus: string) => {
+    setBp((b) => {
+      if (!b) return b;
+      const day = b.split[i].day;
+      const split = b.split.map((s, j) => (j === i ? { ...s, focus } : s));
+      const exercises = [...b.exercises.filter((e) => e.day !== day), ...makeDayExercises(day, focus)];
+      return { ...b, split, exercises };
+    });
+  };
 
   const save = async () => {
     if (!bp) return;
@@ -187,6 +225,9 @@ export default function BlueprintPage() {
         <select value={days} onChange={(e) => setDays(e.target.value)} className={inputCls}>
           {["3", "4", "5", "6"].map((d) => <option key={d} value={d}>{d} days/week</option>)}
         </select>
+        <select value={splitStyle} onChange={(e) => setSplitStyle(e.target.value)} className={`${inputCls} col-span-2`}>
+          {["Auto (best for my days)", "Upper / Lower", "Push / Pull / Legs", "Full body", "Body-part split"].map((s) => <option key={s}>{s}</option>)}
+        </select>
         <select value={level} onChange={(e) => setLevel(e.target.value)} className={inputCls}>
           {["Beginner", "Intermediate", "Advanced"].map((l) => <option key={l}>{l}</option>)}
         </select>
@@ -234,10 +275,19 @@ export default function BlueprintPage() {
           )}
 
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <p className="text-xs font-black text-slate-400 mb-3 flex items-center gap-1.5"><Dumbbell size={14} /> WEEKLY SPLIT</p>
+            <p className="text-xs font-black text-slate-400 mb-3 flex items-center gap-1.5"><Dumbbell size={14} /> WEEKLY SPLIT {edit && <span className="text-[9px] text-indigo-300">(change any day's focus)</span>}</p>
             <div className="grid grid-cols-2 gap-2">
               {bp.split.map((s, i) => (
-                <div key={i} className="bg-slate-800/60 rounded-xl p-3"><p className="font-black text-indigo-300 text-sm">{s.day}</p><p className="text-xs text-slate-300">{s.focus}</p></div>
+                <div key={i} className="bg-slate-800/60 rounded-xl p-3">
+                  <p className="font-black text-indigo-300 text-sm mb-1">{s.day}</p>
+                  {edit ? (
+                    <select value={s.focus} onChange={(ev) => setFocus(i, ev.target.value)} className="w-full p-2 rounded-lg bg-slate-900 border border-slate-700 text-xs outline-none">
+                      {FOCUS_OPTIONS.map((f) => <option key={f}>{f}</option>)}
+                    </select>
+                  ) : (
+                    <p className="text-xs text-slate-300">{s.focus}</p>
+                  )}
+                </div>
               ))}
             </div>
           </div>
