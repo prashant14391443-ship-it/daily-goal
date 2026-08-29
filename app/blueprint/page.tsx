@@ -2,13 +2,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { ScrollText, Sparkles, Save, Download, Copy, Pencil, Trash2, Dumbbell, Utensils, Moon, Lightbulb } from "lucide-react";
+import { ScrollText, Sparkles, Save, Download, Copy, Pencil, Trash2, Dumbbell, Utensils, Moon, Lightbulb, Trophy, AlertTriangle } from "lucide-react";
 
 type Ex = { day: string; name: string; sets: number; reps: string; rest: string; cues: string; mistakes: string };
 type Blueprint = {
   title: string;
   split: { day: string; focus: string }[];
   exercises: Ex[];
+  topExercises?: string[];
+  topMistakes?: string[];
   progression: string;
   nutrition: { calories: number; protein: number; foods: string[]; tip: string };
   recovery: { sleep: string; water: string; deload: string };
@@ -42,6 +44,8 @@ const GOAL_FOCUS: Record<string, string[]> = {
   "Improve running": ["run","legs","abs","run"],
   "Full physique": ["chest","back","legs","full"],
 };
+const VEG_FOODS = ["Soya chunks — 52g/100g","Paneer — 18g/100g","Chana — 19g/100g","Moong dal — 24g/100g","Toor dal — 22g/100g","Rajma — 24g/100g","Curd — 10g/100g","Milk — 3.4g/100ml","Peanuts — 26g/100g","Oats — 13g/100g","Tofu — 8g/100g","Sprouts — 9g/100g"];
+const NONVEG_FOODS = ["Chicken breast — 31g/100g","Eggs — 6g/egg","Fish — 22g/100g","Soya chunks — 52g/100g","Paneer — 18g/100g","Dal — 22g/100g","Curd — 10g/100g","Milk — 3.4g/100ml","Peanuts — 26g/100g","Oats — 13g/100g"];
 
 export default function BlueprintPage() {
   const [goal, setGoal] = useState("Build muscle");
@@ -72,6 +76,8 @@ export default function BlueprintPage() {
   }, []);
 
   const notify = (m: string) => { setMsg(m); setTimeout(() => setMsg(""), 2500); };
+  const proteinFactor = Number(autoActivity) <= 1.2 ? 1 : Number(autoActivity) <= 1.55 ? 1.5 : 2;
+  const proteinTarget = autoWeight > 0 ? Math.round(autoWeight * proteinFactor) : Math.round(70 * proteinFactor);
 
   const loadSaved = async () => {
     const { data } = await supabase.auth.getSession();
@@ -80,9 +86,6 @@ export default function BlueprintPage() {
     const { data: rows } = await supabase.from("blueprints").select("*").eq("user_id", uid).order("created_at", { ascending: false });
     setSaved(rows || []);
   };
-
-  const proteinFactor = Number(autoActivity) <= 1.2 ? 1 : Number(autoActivity) <= 1.55 ? 1.5 : 2;
-  const proteinTarget = autoWeight > 0 ? Math.round(autoWeight * proteinFactor) : Math.round(70 * proteinFactor);
 
   const buildOffline = (): Blueprint => {
     const home = equipment.startsWith("Home") || equipment.startsWith("Dumbbells");
@@ -98,15 +101,16 @@ export default function BlueprintPage() {
         exercises.push({ day: s.day, name: home ? e.h : e.g, sets: 3, reps: e.r, rest: "60-90s", cues: "", mistakes: "" });
       }
     });
-    const veg = diet !== "Non-vegetarian";
     const cal = autoCal || 2200;
     return {
       title: `${goal} Blueprint (${n} days)`,
       split, exercises,
+      topExercises: home ? ["Push-ups","Pull-ups","Weighted squats","Pike push-ups","Plank"] : ["Squat","Bench press","Deadlift","Barbell row","Overhead press"],
+      topMistakes: ["Bad form — lifting too heavy with wrong technique","Not consistent — skipping workouts or meals","No progressive overload — same weight forever"],
       progression: "Progressive overload: add 1 rep or a little weight every week.",
-      nutrition: { calories: cal, protein: proteinTarget, foods: veg ? ["soya chunks","paneer","chana","moong","dal","curd","milk","peanuts"] : ["chicken","eggs","fish","paneer","dal","milk"], tip: `Protein = ${autoWeight || 70}kg × ${proteinFactor} = ${proteinTarget}g. Drink 3-4 L water.` },
+      nutrition: { calories: cal, protein: proteinTarget, foods: diet !== "Non-vegetarian" ? VEG_FOODS : NONVEG_FOODS, tip: `Protein = ${autoWeight || 70}kg × ${proteinFactor} = ${proteinTarget}g. Drink 3-4 L water.` },
       recovery: { sleep: "7-9 hours", water: "3-4 litres", deload: "Every 4-6 weeks, halve volume" },
-      tips: ["Progressive overload every week","Protein with every meal","Slow eccentric (2-3s down)","Warm up before lifting","Stop 1-2 reps before failure on big lifts","Watch tutorials or record yourself to check your form"],
+      tips: ["Progressive overload every week","Protein with every meal","Slow eccentric (2-3s down)","Warm up before lifting","Watch tutorials or record yourself to check your form"],
     };
   };
 
@@ -136,26 +140,23 @@ export default function BlueprintPage() {
     notify(error ? "⚠️ Save failed" : "💾 Blueprint saved!");
     await loadSaved();
   };
-  const del = async (id: string) => {
-    await supabase.from("blueprints").delete().eq("id", id);
-    setSaved(saved.filter((s) => s.id !== id));
-    notify("🗑 Deleted");
-  };
+  const del = async (id: string) => { await supabase.from("blueprints").delete().eq("id", id); setSaved(saved.filter((s) => s.id !== id)); notify("🗑 Deleted"); };
   const open = (s: any) => { setBp(s.data); setEdit(false); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
   const download = () => {
     if (!bp) return;
-    let t = `🏋️ ${bp.title}\n${"=".repeat(40)}\n\nWEEKLY SPLIT\n`;
+    let t = `🏋️ ${bp.title}\n${"=".repeat(40)}\n\n🏆 TOP EXERCISES YOU NEED\n${(bp.topExercises||[]).map((x)=>`• ${x}`).join("\n")}\n\n⚠️ TOP 3 MISTAKES TO AVOID\n${(bp.topMistakes||[]).map((x)=>`• ${x}`).join("\n")}\n\nWEEKLY SPLIT\n`;
     bp.split.forEach((s) => (t += `• ${s.day} — ${s.focus}\n`));
     t += `\nWORKOUTS\n`;
     bp.split.forEach((s) => {
       t += `\n[${s.day} • ${s.focus}]\n`;
       bp.exercises.filter((e) => e.day === s.day).forEach((e) => {
-        t += `  ${e.name} — ${e.sets} sets × ${e.reps}, rest ${e.rest}\n    ✔ ${e.cues}\n    ✖ Avoid: ${e.mistakes}\n`;
+        t += `  ${e.name} — ${e.sets} sets × ${e.reps}, rest ${e.rest}\n`;
+        if (e.cues) t += `    ✔ ${e.cues}\n`;
+        if (e.mistakes) t += `    ✖ Avoid: ${e.mistakes}\n`;
       });
     });
-    t += `\nPROGRESSION\n${bp.progression}\n\nNUTRITION\nCalories: ${bp.nutrition.calories} • Protein: ${bp.nutrition.protein}g\nFoods: ${bp.nutrition.foods.join(", ")}\n${bp.nutrition.tip}\n\nRECOVERY\nSleep: ${bp.recovery.sleep}\nWater: ${bp.recovery.water}\nDeload: ${bp.recovery.deload}\n\nKEY TIPS\n`;
-    bp.tips.forEach((x) => (t += `• ${x}\n`));
+    t += `\nPROGRESSION\n${bp.progression}\n\nNUTRITION (${bp.nutrition.calories} kcal • ${bp.nutrition.protein}g protein)\n${bp.nutrition.foods.map((f)=>`• ${f}`).join("\n")}\n${bp.nutrition.tip}\n\nRECOVERY\nSleep: ${bp.recovery.sleep}\nWater: ${bp.recovery.water}\nDeload: ${bp.recovery.deload}\n\nKEY TIPS\n${bp.tips.map((x)=>`• ${x}`).join("\n")}\n`;
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([t], { type: "text/plain" }));
     a.download = "blueprint.txt";
@@ -216,6 +217,22 @@ export default function BlueprintPage() {
             <button onClick={copy} className="press px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-xs font-black text-slate-300 flex items-center gap-1"><Copy size={12} /></button>
           </div>
 
+          {(bp.topExercises || []).length > 0 && (
+            <div className="bg-slate-900 border border-amber-500/30 rounded-2xl p-4">
+              <p className="text-xs font-black text-amber-400 mb-2 flex items-center gap-1.5"><Trophy size={14} /> TOP EXERCISES YOU NEED</p>
+              <div className="flex flex-wrap gap-1.5">
+                {bp.topExercises!.map((x, i) => <span key={i} className="px-2.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-black">{x}</span>)}
+              </div>
+            </div>
+          )}
+
+          {(bp.topMistakes || []).length > 0 && (
+            <div className="bg-slate-900 border border-red-500/30 rounded-2xl p-4">
+              <p className="text-xs font-black text-red-400 mb-2 flex items-center gap-1.5"><AlertTriangle size={14} /> TOP 3 MISTAKES TO AVOID</p>
+              <ul className="space-y-1">{bp.topMistakes!.map((m, i) => <li key={i} className="text-xs text-slate-300">✖ {m}</li>)}</ul>
+            </div>
+          )}
+
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
             <p className="text-xs font-black text-slate-400 mb-3 flex items-center gap-1.5"><Dumbbell size={14} /> WEEKLY SPLIT</p>
             <div className="grid grid-cols-2 gap-2">
@@ -258,7 +275,7 @@ export default function BlueprintPage() {
           </div>
 
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <p className="text-xs font-black text-slate-400 mb-2 flex items-center gap-1.5"><Utensils size={14} /> NUTRITION</p>
+            <p className="text-xs font-black text-slate-400 mb-2 flex items-center gap-1.5"><Utensils size={14} /> NUTRITION — {bp.nutrition.calories} kcal • {bp.nutrition.protein}g protein</p>
             <div className="grid grid-cols-2 gap-2 mb-2">
               {edit ? (
                 <>
@@ -272,7 +289,8 @@ export default function BlueprintPage() {
                 </>
               )}
             </div>
-            <p className="text-xs text-slate-300 mb-1">Best foods: {bp.nutrition.foods.join(", ")}</p>
+            <p className="text-[10px] font-black text-slate-500 mb-1">BEST FOODS + PROTEIN</p>
+            <ul className="space-y-1 mb-2">{bp.nutrition.foods.map((f, i) => <li key={i} className="text-xs text-slate-300">• {f}</li>)}</ul>
             <p className="text-[11px] text-slate-400">{bp.nutrition.tip}</p>
           </div>
 
