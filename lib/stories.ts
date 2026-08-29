@@ -5,7 +5,6 @@ export type Question = {
   answer: string;
   explanation: string;
 };
-
 export type Story = {
   id: string; title: string; emoji: string;
   difficulty: "Easy" | "Medium" | "Hard";
@@ -17,15 +16,15 @@ export const STORIES: Story[] = [
   { id: "puppy", title: "The Lost Puppy", emoji: "🐶", difficulty: "Easy",
     sentences: ["One sunny morning, Maya was walking to school.", "She heard a small crying sound near the park.", "A tiny brown puppy was sitting alone under a tree.", "The puppy looked hungry and scared.", "Maya gave it some water from her bottle.", "She took the puppy home and named it Brownie.", "Now Brownie and Maya are best friends."],
     questions: [
-      { type: "mcq", question: "Where did Maya find the puppy?", options: ["Near school", "Under a tree in the park", "In her garden", "At the bus stop"], answer: "Under a tree in the park", explanation: "The puppy was sitting under a tree near the park." },
-      { type: "word", question: "What name did Maya give the puppy?", answer: "Brownie", explanation: "Maya named the puppy Brownie." },
+      { type: "mcq", question: "Where did Maya find the puppy?", options: ["Near school", "Under a tree in the park", "In her garden", "At the bus stop"], answer: "Under a tree in the park", explanation: "The puppy was under a tree near the park." },
+      { type: "word", question: "What name did Maya give the puppy?", answer: "Brownie", explanation: "Maya named it Brownie." },
       { type: "sentence", question: "Why did Maya give it water?", answer: "The puppy looked hungry and scared.", explanation: "It looked hungry and scared." },
       { type: "speak", question: "What happened at the end?", answer: "Now Brownie and Maya are best friends.", explanation: "They became best friends." },
     ]},
   { id: "school", title: "A Day at School", emoji: "🏫", difficulty: "Easy",
     sentences: ["Rohan wakes up at 6 AM every morning.", "He brushes his teeth and eats breakfast with his family.", "His father drops him to school at 7:30 AM.", "First period is always Mathematics.", "At 12 PM, all students have lunch together.", "After lunch, they play cricket for 30 minutes.", "School ends at 3 PM and Rohan goes home by bus."],
     questions: [
-      { type: "mcq", question: "What time does Rohan wake up?", options: ["5 AM", "6 AM", "7 AM", "7:30 AM"], answer: "6 AM", explanation: "Rohan wakes up at 6 AM." },
+      { type: "mcq", question: "What time does Rohan wake up?", options: ["5 AM", "6 AM", "7 AM", "7:30 AM"], answer: "6 AM", explanation: "Rohan wakes at 6 AM." },
       { type: "word", question: "What is Rohan's first subject?", answer: "Mathematics", explanation: "First period is Mathematics." },
       { type: "sentence", question: "What do students do after lunch?", answer: "After lunch, they play cricket for 30 minutes.", explanation: "They play cricket after lunch." },
       { type: "speak", question: "How does Rohan go home?", answer: "Rohan goes home by bus.", explanation: "He goes by bus." },
@@ -34,7 +33,7 @@ export const STORIES: Story[] = [
     sentences: ["Last Saturday was Priya's birthday.", "She invited 15 friends to her house.", "The party started at 5 PM in her garden.", "Her mother baked a chocolate cake with candles.", "We played musical chairs and danced to songs.", "Priya's favorite gift was a storybook from her grandmother.", "Everyone went home by 8 PM, tired but happy."],
     questions: [
       { type: "mcq", question: "How many friends did Priya invite?", options: ["10", "12", "15", "20"], answer: "15", explanation: "She invited 15 friends." },
-      { type: "word", question: "What flavor was the cake?", answer: "chocolate", explanation: "Her mother baked a chocolate cake." },
+      { type: "word", question: "What flavor was the cake?", answer: "chocolate", explanation: "A chocolate cake." },
       { type: "sentence", question: "What was her favorite gift?", answer: "Her favorite gift was a storybook from her grandmother.", explanation: "Storybook from grandmother." },
       { type: "speak", question: "When did everyone go home?", answer: "Everyone went home by 8 PM, tired but happy.", explanation: "By 8 PM." },
     ]},
@@ -55,12 +54,12 @@ export const STORIES: Story[] = [
       { type: "speak", question: "What does Ankit believe?", answer: "Good preparation leads to good results.", explanation: "Preparation leads to results." },
     ]},
 
-  // ── Class 5 ──
+  // ── Class 5 (Shanti Niketan) ──
   { id: "c5first", title: "Class 5 — First Day", emoji: "🎒", difficulty: "Easy",
-    sentences: ["Sujeet was nervous on his first day of Class 5.", "He walked into the classroom and saw many new faces.", "Surbhi smiled at him and said hello.", "Sneha showed him where to sit.", "Rita Mam entered and welcomed everyone warmly.", "She said mistakes are part of learning.", "By lunch, Sujeet felt like he belonged."],
+    sentences: ["Sujeet was nervous on his first day at Shanti Niketan Senior Secondary School.", "He walked into Class 5 and saw many new faces.", "Surbhi smiled at him and said hello.", "Sneha showed him where to sit.", "Rita Mam entered and welcomed everyone warmly.", "She said mistakes are part of learning.", "By lunch, Sujeet felt like he belonged."],
     questions: [
-      { type: "mcq", question: "Who welcomed Sujeet first?", options: ["Sneha", "Surbhi", "Rita Mam", "Principal"], answer: "Surbhi", explanation: "Surbhi smiled and said hello first." },
-      { type: "word", question: "Who was the teacher?", answer: "Rita", explanation: "Rita Mam was the teacher." },
+      { type: "mcq", question: "Which school did Sujeet join?", options: ["Shanti Niketan Senior Secondary School", "Ganga Institute", "City Public School", "Green Valley"], answer: "Shanti Niketan Senior Secondary School", explanation: "He joined Shanti Niketan." },
+      { type: "word", question: "Who welcomed Sujeet first?", answer: "Surbhi", explanation: "Surbhi smiled and said hello." },
       { type: "sentence", question: "What did Rita Mam say?", answer: "She said mistakes are part of learning.", explanation: "Mistakes are part of learning." },
       { type: "speak", question: "How did Sujeet feel by lunch?", answer: "By lunch, Sujeet felt like he belonged.", explanation: "He felt he belonged." },
     ]},
@@ -68,7 +67,7 @@ export const STORIES: Story[] = [
     sentences: ["During break, Prince realized his tiffin was missing.", "He looked under his desk but found nothing.", "Alishan and Sohail came to help him search.", "They checked the corridor and the playground.", "Finally, Sohail spotted it near the water tap.", "Someone had left it there by mistake.", "Prince shared his parathas with both friends."],
     questions: [
       { type: "mcq", question: "Who lost the tiffin?", options: ["Sohail", "Alishan", "Prince", "Sujeet"], answer: "Prince", explanation: "Prince's tiffin was missing." },
-      { type: "word", question: "Where was the tiffin found?", options: undefined, answer: "water tap", explanation: "Found near the water tap." },
+      { type: "word", question: "Where was the tiffin found?", answer: "water tap", explanation: "Found near the water tap." },
       { type: "sentence", question: "What did Prince do after finding it?", answer: "Prince shared his parathas with both friends.", explanation: "Shared with Alishan and Sohail." },
       { type: "speak", question: "Who helped Prince search?", answer: "Alishan and Sohail came to help him search.", explanation: "Alishan and Sohail helped." },
     ]},
@@ -99,15 +98,15 @@ export const STORIES: Story[] = [
       { type: "speak", question: "What place did they get?", answer: "First place.", explanation: "Abjal Sir gave first place." },
     ]},
   { id: "c7cricket", title: "Class 7 — The Cricket Match", emoji: "🏏", difficulty: "Medium",
-    sentences: ["Class 7 challenged Class 8 to a cricket match.", "Sujeet was chosen captain by his classmates.", "Swati bowled the first over and took two wickets.", "At the end, Class 7 needed 10 runs from the last over.", "Sujeet hit a six and a four to win the match.", "The whole class lifted him on their shoulders.", "It was the best day of Class 7."],
+    sentences: ["Class 7 challenged Class 8 to a cricket match.", "Swati was chosen captain by her classmates.", "Prince bowled the first over and took two wickets.", "At the end, Class 7 needed 10 runs from the last over.", "Sohail hit a six and a four to win the match.", "The whole class lifted him on their shoulders.", "It was the best day of Class 7."],
     questions: [
-      { type: "mcq", question: "Who was captain?", options: ["Swati", "Sujeet", "Prince", "Alishan"], answer: "Sujeet", explanation: "Sujeet was captain." },
-      { type: "word", question: "How many wickets did Swati take?", answer: "2", explanation: "Two wickets." },
-      { type: "sentence", question: "What did Sujeet hit in the last over?", answer: "Sujeet hit a six and a four.", explanation: "A six and a four." },
+      { type: "mcq", question: "Who was captain?", options: ["Swati", "Sujeet", "Prince", "Alishan"], answer: "Swati", explanation: "Swati was captain." },
+      { type: "word", question: "How many wickets did Prince take?", answer: "2", explanation: "Two wickets." },
+      { type: "sentence", question: "What did Sohail hit in the last over?", answer: "Sohail hit a six and a four.", explanation: "A six and a four." },
       { type: "speak", question: "What did the class do after winning?", answer: "The whole class lifted him on their shoulders.", explanation: "Lifted on shoulders." },
     ]},
   { id: "c7library", title: "Class 7 — The Library Mystery", emoji: "📚", difficulty: "Medium",
-    sentences: ["Swati found a dusty old book in the library corner.", "It had no title and a locked metal clasp.", "She showed it to Sujeet during lunch break.", "Together they carefully pried the clasp open.", "Inside was a handwritten note from a student in 1975.", "It thanked the librarian for changing their life.", "Swati and Sujeet left the note inside for the next finder."],
+    sentences: ["Swati found a dusty old book in the library corner.", "It had no title and a locked metal clasp.", "She showed it to Alishan during lunch break.", "Together they carefully pried the clasp open.", "Inside was a handwritten note from a student in 1975.", "It thanked the librarian for changing their life.", "Swati and Alishan left the note inside for the next finder."],
     questions: [
       { type: "mcq", question: "Where did Swati find the book?", options: ["Her bag", "The library", "Playground", "Classroom"], answer: "The library", explanation: "In the library corner." },
       { type: "word", question: "What year was the note from?", answer: "1975", explanation: "The note was from 1975." },
@@ -117,23 +116,23 @@ export const STORIES: Story[] = [
 
   // ── Class 10 ──
   { id: "c10boards", title: "Class 10 — Board Exams", emoji: "📖", difficulty: "Hard",
-    sentences: ["Board exams were just two months away.", "Sujeet, Swati, and Sneha formed a study group.", "Every evening they met at Sujeet's house.", "Sneha was best at Science, Swati at English, Sujeet at Math.", "They taught each other their weak subjects.", "On result day, all three scored above 90 percent.", "They hugged and promised to stay friends forever."],
+    sentences: ["Board exams were just two months away.", "Sujeet, Swati, Sneha, and Vidhi formed a study group.", "Every evening they met at Sujeet's house.", "Sneha was best at Science, Swati at English, Sujeet at Math, Vidhi at Hindi.", "They taught each other their weak subjects.", "On result day, all four scored above 90 percent.", "They hugged and promised to stay friends forever."],
     questions: [
-      { type: "mcq", question: "Who was best at Science?", options: ["Sujeet", "Swati", "Sneha", "Surbhi"], answer: "Sneha", explanation: "Sneha was best at Science." },
+      { type: "mcq", question: "Who was best at Science?", options: ["Sujeet", "Swati", "Sneha", "Vidhi"], answer: "Sneha", explanation: "Sneha was best at Science." },
       { type: "word", question: "What score did they all get above?", answer: "90", explanation: "All scored above 90 percent." },
       { type: "sentence", question: "How did they prepare?", answer: "They taught each other their weak subjects.", explanation: "Taught each other." },
       { type: "speak", question: "What did they promise?", answer: "They promised to stay friends forever.", explanation: "Stay friends forever." },
     ]},
   { id: "c10farewell", title: "Class 10 — Farewell Day", emoji: "🎓", difficulty: "Medium",
-    sentences: ["It was the last day of school forever.", "Class 9 had decorated the hall with streamers and balloons.", "Sujeet gave a speech and made everyone cry.", "Sneha danced and Surbhi sang a farewell song.", "Principal Sir gave each student a handwritten card.", "Sujeet and his friends took a hundred photos together.", "They walked out of the school gates as seniors one last time."],
+    sentences: ["It was the last day of school forever.", "Class 9 had decorated the hall with streamers and balloons.", "Sneha gave a speech and made everyone cry.", "Surbhi sang a farewell song while Nisha danced.", "Principal Sir gave each student a handwritten card.", "The friends took a hundred photos together.", "They walked out of the school gates as seniors one last time."],
     questions: [
-      { type: "mcq", question: "Who gave the speech?", options: ["Sneha", "Surbhi", "Sujeet", "Principal Sir"], answer: "Sujeet", explanation: "Sujeet gave the speech." },
-      { type: "word", question: "What did Principal Sir give?", options: undefined, answer: "card", explanation: "Handwritten card." },
-      { type: "sentence", question: "What did Sneha and Surbhi do?", answer: "Sneha danced and Surbhi sang a farewell song.", explanation: "Sneha danced, Surbhi sang." },
+      { type: "mcq", question: "Who gave the speech?", options: ["Sneha", "Surbhi", "Nisha", "Principal Sir"], answer: "Sneha", explanation: "Sneha gave the speech." },
+      { type: "word", question: "What did Principal Sir give?", answer: "card", explanation: "Handwritten card." },
+      { type: "sentence", question: "What did Surbhi and Nisha do?", answer: "Surbhi sang a farewell song while Nisha danced.", explanation: "Surbhi sang, Nisha danced." },
       { type: "speak", question: "How did they leave school?", answer: "They walked out as seniors one last time.", explanation: "As seniors one last time." },
     ]},
   { id: "c10trip", title: "Class 10 — School Trip", emoji: "🚌", difficulty: "Easy",
-    sentences: ["The school organized a trip to the Taj Mahal.", "Sujeet sat next to Swati on the bus.", "They sang songs and played antakshari the whole way.", "At the monument, the guide told them its love story.", "Sneha took the best group photo at the fountain.", "On the way back, everyone was tired but happy.", "It was a trip no one would ever forget."],
+    sentences: ["The school organized a trip to the Taj Mahal.", "Swati sat next to Sneha on the bus.", "They sang songs and played antakshari the whole way.", "At the monument, the guide told them its love story.", "Sneha took the best group photo at the fountain.", "On the way back, everyone was tired but happy.", "It was a trip no one would ever forget."],
     questions: [
       { type: "mcq", question: "Where did they go?", options: ["Red Fort", "Taj Mahal", "Gateway of India", "Qutub Minar"], answer: "Taj Mahal", explanation: "Trip to the Taj Mahal." },
       { type: "word", question: "Who took the best photo?", answer: "Sneha", explanation: "Sneha took the best photo." },
@@ -141,41 +140,41 @@ export const STORIES: Story[] = [
       { type: "speak", question: "How did everyone feel on the way back?", answer: "Everyone was tired but happy.", explanation: "Tired but happy." },
     ]},
 
-  // ── College BTech ──
+  // ── College (Ganga Institute) ──
   { id: "bt1", title: "BTech — First Day of College", emoji: "🎓", difficulty: "Medium",
-    sentences: ["Sujeet walked into the BTech campus with a heavy bag.", "In the hostel, he met Amit, Baibhav, and Rajan.", "Rohit from the next room offered him tea.", "Vikash and Sarovar showed him around the campus.", "That evening, they all went to the canteen together.", "Sagar and Satyam joined them with stories of seniors.", "Sujeet smiled — he had found a new family."],
+    sentences: ["Sujeet walked into Ganga Institute of Technology and Management with a heavy bag.", "In the hostel, he met Rajan, Amit, and Baibhav.", "Rohit from the next room offered him tea.", "Vikash and Sarovar showed him around the campus.", "That evening, Rahul, Jay, and Vishal joined them at the canteen.", "They all laughed and shared stories till late.", "Sujeet smiled — he had found a new family."],
     questions: [
-      { type: "mcq", question: "Who offered Sujeet tea?", options: ["Amit", "Baibhav", "Rohit", "Rajan"], answer: "Rohit", explanation: "Rohit offered tea." },
-      { type: "word", question: "Who showed him around campus?", answer: "Vikash", explanation: "Vikash and Sarovar showed around." },
-      { type: "sentence", question: "How did Sujeet feel at the end?", answer: "Sujeet smiled — he had found a new family.", explanation: "Found a new family." },
-      { type: "speak", question: "Who joined them with senior stories?", answer: "Sagar and Satyam joined them.", explanation: "Sagar and Satyam." },
+      { type: "mcq", question: "Which college did Sujeet join?", options: ["Ganga Institute of Technology and Management", "Shanti Niketan", "City College", "Green Valley"], answer: "Ganga Institute of Technology and Management", explanation: "He joined Ganga Institute." },
+      { type: "word", question: "Who offered Sujeet tea?", answer: "Rohit", explanation: "Rohit offered tea." },
+      { type: "sentence", question: "Who joined them at the canteen?", answer: "Rahul, Jay, and Vishal joined them at the canteen.", explanation: "Rahul, Jay, Vishal joined." },
+      { type: "speak", question: "How did Sujeet feel at the end?", answer: "Sujeet smiled — he had found a new family.", explanation: "Found a new family." },
     ]},
   { id: "bt2", title: "BTech — The Hackathon", emoji: "💻", difficulty: "Hard",
-    sentences: ["The college announced a 24-hour hackathon.", "Sujeet, Amit, and Baibhav formed a team.", "Parmod Sir was their mentor and guided them.", "They built an app to help farmers sell crops directly.", "At 3 AM they were exhausted but kept coding.", "Rahul Sir brought them coffee at midnight.", "They won first prize and celebrated with pizza."],
+    sentences: ["The college announced a 24-hour hackathon.", "Amit, Baibhav, and Rajan formed a team.", "Parmod Sir was their mentor and guided them.", "They built an app to help farmers sell crops directly.", "At 3 AM they were exhausted but kept coding.", "Rahul Sir brought them coffee at midnight.", "They won first prize and celebrated with pizza."],
     questions: [
-      { type: "mcq", question: "Who was their mentor?", options: ["Rahul Sir", "Parmod Sir", "Sujeet", "Amit"], answer: "Parmod Sir", explanation: "Parmod Sir was mentor." },
+      { type: "mcq", question: "Who was their mentor?", options: ["Rahul Sir", "Parmod Sir", "Amit", "Rajan"], answer: "Parmod Sir", explanation: "Parmod Sir was mentor." },
       { type: "word", question: "What did the app help?", answer: "farmers", explanation: "Helped farmers." },
       { type: "sentence", question: "Who brought them coffee?", answer: "Rahul Sir brought them coffee at midnight.", explanation: "Rahul Sir brought coffee." },
       { type: "speak", question: "How did they celebrate?", answer: "They celebrated with pizza.", explanation: "Celebrated with pizza." },
     ]},
   { id: "bt3", title: "BTech — Farewell Party", emoji: "🎉", difficulty: "Medium",
-    sentences: ["It was farewell night for the final-year seniors.", "Ankita Mam gave an emotional speech that made everyone cry.", "Gunja and Khushi performed a beautiful duet.", "Harshita and Nandani hosted the whole event.", "Nisha Mam presented certificates to every student.", "Sujeet danced with his friends till midnight.", "It was a night none of them would ever forget."],
+    sentences: ["It was farewell night for the final-year seniors.", "Ankita Mam gave an emotional speech that made everyone cry.", "Gunja and Khushi performed a beautiful duet.", "Harshita, Nandani, and Vidhi hosted the whole event.", "Nisha Mam presented certificates to every student.", "Rajan danced with his friends till midnight.", "It was a night none of them would ever forget."],
     questions: [
       { type: "mcq", question: "Who gave the emotional speech?", options: ["Nisha Mam", "Ankita Mam", "Akansha Mam", "Gunja"], answer: "Ankita Mam", explanation: "Ankita Mam gave the speech." },
-      { type: "word", question: "Who performed a duet?", options: undefined, answer: "Gunja", explanation: "Gunja and Khushi." },
-      { type: "sentence", question: "Who hosted the event?", answer: "Harshita and Nandani hosted the whole event.", explanation: "Harshita and Nandani." },
-      { type: "speak", question: "Who danced till midnight?", answer: "Sujeet danced with his friends till midnight.", explanation: "Sujeet danced till midnight." },
+      { type: "word", question: "Who performed a duet?", answer: "Gunja", explanation: "Gunja and Khushi." },
+      { type: "sentence", question: "Who hosted the event?", answer: "Harshita, Nandani, and Vidhi hosted the whole event.", explanation: "Harshita, Nandani, Vidhi." },
+      { type: "speak", question: "Who danced till midnight?", answer: "Rajan danced with his friends till midnight.", explanation: "Rajan danced till midnight." },
     ]},
   { id: "bt4", title: "BTech — Cricket Final", emoji: "🏏", difficulty: "Hard",
-    sentences: ["The inter-college cricket final was here.", "Sujeet's college needed 15 runs from the last over.", "Vikash was bowling to the opposition's best batsman.", "Rahul Sir watched nervously from the pavilion.", "On the final ball, Sujeet hit a massive six.", "The whole team ran onto the field to celebrate.", "They lifted the trophy and took a team photo."],
+    sentences: ["The inter-college cricket final was here.", "Sujeet's college needed 15 runs from the last over.", "Rajan was bowling to the opposition's best batsman.", "Rahul Sir watched nervously from the pavilion.", "On the final ball, Sujeet hit a massive six.", "The whole team ran onto the field to celebrate.", "They lifted the trophy and took a team photo."],
     questions: [
       { type: "mcq", question: "How many runs were needed?", options: ["10", "12", "15", "20"], answer: "15", explanation: "Needed 15 runs." },
-      { type: "word", question: "Who bowled the last over?", answer: "Vikash", explanation: "Vikash was bowling." },
+      { type: "word", question: "Who bowled the last over?", answer: "Rajan", explanation: "Rajan was bowling." },
       { type: "sentence", question: "What did Sujeet hit on the final ball?", answer: "Sujeet hit a massive six.", explanation: "A massive six." },
       { type: "speak", question: "What did the team do after winning?", answer: "They lifted the trophy and took a team photo.", explanation: "Lifted trophy, took photo." },
     ]},
 
-  // ── Genre stories ──
+  // ── Genres ──
   { id: "horror1", title: "The Old Hostel", emoji: "👻", difficulty: "Hard",
     sentences: ["It was past midnight in the old hostel wing.", "Sujeet heard footsteps in the empty corridor.", "He called Amit and Baibhav from the next room.", "Together they walked with a torch to investigate.", "An old door creaked open by itself.", "Inside was just a dusty mirror reflecting them back.", "They laughed nervously and ran back to their room."],
     questions: [
@@ -185,15 +184,15 @@ export const STORIES: Story[] = [
       { type: "speak", question: "What did they do at the end?", answer: "They laughed nervously and ran back to their room.", explanation: "Laughed and ran back." },
     ]},
   { id: "adv1", title: "The Mountain Trek", emoji: "🏔️", difficulty: "Hard",
-    sentences: ["Sujeet and five friends planned a trek to the mountains.", "On the second day they lost the trail.", "Rain began to fall and they had no shelter.", "Baibhav spotted a cave and they ran inside.", "They shared their last biscuits and waited.", "By morning the rain stopped and the sun rose golden.", "They reached the peak and saw the most beautiful view of their lives."],
+    sentences: ["Baibhav and five friends planned a trek to the mountains.", "On the second day they lost the trail.", "Rain began to fall and they had no shelter.", "Rajan spotted a cave and they ran inside.", "They shared their last biscuits and waited.", "By morning the rain stopped and the sun rose golden.", "They reached the peak and saw the most beautiful view of their lives."],
     questions: [
-      { type: "mcq", question: "What happened on day two?", options: ["They found a village", "They lost the trail", "They gave up", "They found gold"], answer: "They lost the trail", explanation: "Lost the trail." },
-      { type: "word", question: "Who spotted the cave?", answer: "Baibhav", explanation: "Baibhav spotted the cave." },
+      { type: "mcq", question: "Who planned the trek?", options: ["Sujeet", "Baibhav", "Amit", "Rajan"], answer: "Baibhav", explanation: "Baibhav planned it." },
+      { type: "word", question: "Who spotted the cave?", answer: "Rajan", explanation: "Rajan spotted the cave." },
       { type: "sentence", question: "What did they share?", answer: "They shared their last biscuits.", explanation: "Shared last biscuits." },
       { type: "speak", question: "What did they see at the peak?", answer: "The most beautiful view of their lives.", explanation: "Most beautiful view." },
     ]},
   { id: "kabb1", title: "The Kabaddi Championship", emoji: "🤼", difficulty: "Hard",
-    sentences: ["The district kabaddi championship was finally here.", "Baibhav was the star raider of Sujeet's team.", "In the final, they were tied at 30 points each.", "Baibhav raided and touched three defenders in one go.", "Sujeet caught an opponent near the line and saved the point.", "The final whistle blew and they had won by two points.", "The whole village celebrated their victory."],
+    sentences: ["The district kabaddi championship was finally here.", "Baibhav was the star raider of Rajan's team.", "In the final, they were tied at 30 points each.", "Baibhav raided and touched three defenders in one go.", "Rajan caught an opponent near the line and saved the point.", "The final whistle blew and they had won by two points.", "The whole village celebrated their victory."],
     questions: [
       { type: "mcq", question: "Who was the star raider?", options: ["Sujeet", "Baibhav", "Amit", "Rajan"], answer: "Baibhav", explanation: "Baibhav was star raider." },
       { type: "word", question: "How many points did they win by?", answer: "2", explanation: "Won by two points." },
@@ -201,7 +200,7 @@ export const STORIES: Story[] = [
       { type: "speak", question: "How did the village react?", answer: "The whole village celebrated their victory.", explanation: "Village celebrated." },
     ]},
   { id: "movie1", title: "The Love Letter", emoji: "💌", difficulty: "Medium",
-    sentences: ["Sujeet had been in love with Nandani since first year.", "He finally wrote her a letter and slipped it in her book.", "But Gunja picked up the wrong book by mistake.", "She read it thinking it was for her and smiled.", "Sujeet panicked and ran to explain the mix-up.", "Nandani found out and laughed loudly.", "They all became better friends than before."],
+    sentences: ["Rajan had been in love with Nandani since first year.", "He finally wrote her a letter and slipped it in her book.", "But Gunja picked up the wrong book by mistake.", "She read it thinking it was for her and smiled.", "Rajan panicked and ran to explain the mix-up.", "Nandani found out and laughed loudly.", "They all became better friends than before."],
     questions: [
       { type: "mcq", question: "Who was the letter for?", options: ["Gunja", "Khushi", "Nandani", "Harshita"], answer: "Nandani", explanation: "Letter was for Nandani." },
       { type: "word", question: "Who picked up the wrong book?", answer: "Gunja", explanation: "Gunja picked up the wrong book." },
@@ -209,11 +208,11 @@ export const STORIES: Story[] = [
       { type: "speak", question: "What happened at the end?", answer: "They all became better friends than before.", explanation: "Better friends than before." },
     ]},
   { id: "horror2", title: "The Night Shift", emoji: "🌙", difficulty: "Hard",
-    sentences: ["Sujeet stayed back in the library to finish his project.", "At 11 PM the lights flickered and went off.", "He heard pages turning on their own.", "A cold breeze blew through the closed windows.", "His phone showed a message from an unknown number.", "It said: 'Close the book and go home now.'", "Sujeet packed up and ran all the way back to the hostel."],
+    sentences: ["Amit stayed back in the library to finish his project.", "At 11 PM the lights flickered and went off.", "He heard pages turning on their own.", "A cold breeze blew through the closed windows.", "His phone showed a message from an unknown number.", "It said: 'Close the book and go home now.'", "Amit packed up and ran all the way back to the hostel."],
     questions: [
       { type: "mcq", question: "What time did lights go off?", options: ["9 PM", "10 PM", "11 PM", "Midnight"], answer: "11 PM", explanation: "11 PM." },
       { type: "word", question: "What blew through windows?", answer: "breeze", explanation: "Cold breeze." },
       { type: "sentence", question: "What did the message say?", answer: "Close the book and go home now.", explanation: "Close the book and go home." },
-      { type: "speak", question: "What did Sujeet do?", answer: "Sujeet packed up and ran all the way back to the hostel.", explanation: "Ran back to hostel." },
+      { type: "speak", question: "What did Amit do?", answer: "Amit packed up and ran all the way back to the hostel.", explanation: "Ran back to hostel." },
     ]},
 ];
