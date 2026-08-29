@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Brain, Sparkles, Pin, Camera, Download, Share2, Image as ImageIcon } from "lucide-react";
+import { Brain, Sparkles, Pin, Camera, Download, Share2, Layers, RefreshCw, Copy, Image as ImageIcon } from "lucide-react";
 import { EmptyState } from "@/app/components/ui";
+import { supabase } from "@/lib/supabase";
+import { addTopic } from "@/lib/srs";
+import { useRouter } from "next/navigation";
 
 type MapData = {
   center: string;
@@ -345,6 +348,10 @@ export default function SummarizePage() {
   const [result, setResult] = useState<Result | null>(null);
   const [mapImg, setMapImg] = useState("");
   const [designPick, setDesignPick] = useState<number | null>(null);
+  const [uid, setUid] = useState("guest");
+  const [flash, setFlash] = useState("");
+  const router = useRouter();
+  useEffect(() => { supabase.auth.getSession().then(({ data }) => setUid(data.session?.user.id || "guest")); }, []);
 
   const compressImage = (file: File): Promise<string> =>
     new Promise((resolve) => {
@@ -411,6 +418,12 @@ export default function SummarizePage() {
       setMapImg(drawMap(result.map, result.title || "Summary", d));
     }
   };
+
+  const notify = (m: string) => { setFlash(m); setTimeout(() => setFlash(""), 2000); };
+  const toFlashcards = () => { if (!result) return; const cards = result.points.map((p) => ({ front: p.split(" ").slice(0, 4).join(" ") + "…?", back: p })); const old = JSON.parse(localStorage.getItem("dg-ai-flashcards") || "[]"); localStorage.setItem("dg-ai-flashcards", JSON.stringify([...cards, ...old])); notify("🃏 Flashcards created!"); };
+  const toReview = () => { if (!result) return; result.points.slice(0, 5).forEach((p) => addTopic(uid, p.slice(0, 80))); notify("🔄 Added to Review!"); };
+  const copyPoints = () => { if (!result) return; navigator.clipboard.writeText(result.points.map((p, i) => `${i + 1}. ${p}`).join("\n")); notify("📋 Copied!"); };
+  const openBrain = () => { localStorage.setItem("dg-brain-input", text || result?.title || ""); router.push("/ai-summary"); };
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
@@ -498,6 +511,13 @@ export default function SummarizePage() {
                 </div>
               ))}
             </div>
+            <div className="grid grid-cols-2 gap-2 mt-3">
+              <button onClick={toFlashcards} className="press py-2.5 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-300 text-xs font-black flex items-center justify-center gap-1.5"><Layers size={14} /> Flashcards</button>
+              <button onClick={toReview} className="press py-2.5 rounded-xl bg-teal-600/20 border border-teal-500/30 text-teal-300 text-xs font-black flex items-center justify-center gap-1.5"><RefreshCw size={14} /> Review</button>
+              <button onClick={copyPoints} className="press py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-black flex items-center justify-center gap-1.5"><Copy size={14} /> Copy</button>
+              <button onClick={openBrain} className="press py-2.5 rounded-xl bg-cyan-600/20 border border-cyan-500/30 text-cyan-300 text-xs font-black flex items-center justify-center gap-1.5"><Brain size={14} /> Study Brain</button>
+            </div>
+            {flash && <p className="text-center text-xs font-bold text-cyan-300 mt-2">{flash}</p>}
           </div>
 
           {/* MAP */}
