@@ -1,11 +1,11 @@
 import type { Story, Question } from "./stories";
 
 // Your real-life character pools by era
-const CLASS5 = ["Sujeet", "Surbhi", "Sneha", "Nisha", "Alishan", "Sohail", "Prince"];
-const CLASS5_TEACHERS = ["Rita Mam", "Abjal Sir", "Principal Sir"];
+const CLASS5 = ["Sujeet", "Surbhi", "Sneha", "Nisha", "Alishan", "Sohail", "Prince", "Simpi", "Sahil", "Swati"];
+const CLASS5_TEACHERS = ["Rita Mam", "Abjal Sir", "Principal Sir", "Rinku Mam", "Pratima Mam"];
 const CLASS7 = ["Swati", "Sujeet", "Prince", "Sohail", "Sneha", "Alishan"];
 const CLASS10 = ["Sujeet", "Swati", "Sneha", "Surbhi", "Prince", "Alishan", "Sohail"];
-const BTECH_BOYS = ["Sujeet", "Amit", "Baibhav", "Rajan", "Rohit", "Vikash", "Sarovar", "Sagar", "Satyam", "Rahul", "Jai", "Vishal"];
+const BTECH_BOYS = ["Sujeet", "Amit", "Baibhav", "Rajan", "Rohit", "Vikash", "Sarovar", "Sagar", "Satyam", "Rahul", "Jai", "Vishal", "Sonu", "Suraj", "Sumit", "Anish"];
 const BTECH_GIRLS = ["Gunja", "Khushi", "Harshita", "Nandani"];
 const BTEACH_TEACHERS = ["Parmod Sir", "Akansha Mam", "Ankita Mam", "Rahul Sir", "Nisha Mam"];
 const PLACES = ["the park", "the market", "the river", "the school gate", "the beach", "the garden", "the village fair"];

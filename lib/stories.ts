@@ -54,7 +54,7 @@ export const STORIES: Story[] = [
       { type: "speak", question: "What does Ankit believe?", answer: "Good preparation leads to good results.", explanation: "Preparation leads to results." },
     ]},
 
-  // ── Class 5 (Shanti Niketan) ──
+  // ── Class 5 (Shanti Niketan Senior Secondary School) ──
   { id: "c5first", title: "Class 5 — First Day", emoji: "🎒", difficulty: "Easy",
     sentences: ["Sujeet was nervous on his first day at Shanti Niketan Senior Secondary School.", "He walked into Class 5 and saw many new faces.", "Surbhi smiled at him and said hello.", "Sneha showed him where to sit.", "Rita Mam entered and welcomed everyone warmly.", "She said mistakes are part of learning.", "By lunch, Sujeet felt like he belonged."],
     questions: [
@@ -72,12 +72,12 @@ export const STORIES: Story[] = [
       { type: "speak", question: "Who helped Prince search?", answer: "Alishan and Sohail came to help him search.", explanation: "Alishan and Sohail helped." },
     ]},
   { id: "c5dance", title: "Class 5 — Annual Day", emoji: "💃", difficulty: "Medium",
-    sentences: ["It was Annual Day and Class 5 had a dance performance.", "Nisha was the group leader and taught everyone the steps.", "On stage, Sneha forgot her steps and froze.", "Surbhi whispered the next move from beside her.", "Sneha smiled and continued dancing confidently.", "The audience clapped loudly when they finished.", "Rita Mam gave them a standing ovation."],
+    sentences: ["It was Annual Day and Class 5 had a dance performance.", "Nisha was the group leader and taught everyone the steps.", "On stage, Sneha forgot her steps and froze.", "Surbhi whispered the next move from beside her.", "Sneha smiled and continued dancing confidently.", "The audience clapped loudly when they finished.", "Pratima Mam gave them a standing ovation."],
     questions: [
       { type: "mcq", question: "Who forgot her steps?", options: ["Nisha", "Surbhi", "Sneha", "Sujeet"], answer: "Sneha", explanation: "Sneha forgot and froze." },
       { type: "word", question: "Who was the group leader?", answer: "Nisha", explanation: "Nisha was the leader." },
       { type: "sentence", question: "How did Surbhi help Sneha?", answer: "Surbhi whispered the next move from beside her.", explanation: "Whispered the next move." },
-      { type: "speak", question: "What did Rita Mam do?", answer: "Rita Mam gave them a standing ovation.", explanation: "Standing ovation." },
+      { type: "speak", question: "What did Pratima Mam do?", answer: "Pratima Mam gave them a standing ovation.", explanation: "Standing ovation." },
     ]},
   { id: "c5test", title: "Class 5 — The Big Test", emoji: "📝", difficulty: "Medium",
     sentences: ["Abjal Sir announced a surprise math test.", "Sujeet panicked because he had not revised.", "He looked around and saw everyone writing calmly.", "Principal Sir walked in and said breathe first, think later.", "Sujeet took a deep breath and started solving.", "He finished just before the bell rang.", "He learned that calm minds solve hard problems."],
@@ -86,6 +86,14 @@ export const STORIES: Story[] = [
       { type: "word", question: "What subject was the test?", answer: "math", explanation: "It was a math test." },
       { type: "sentence", question: "What did Principal Sir say?", answer: "Breathe first, think later.", explanation: "Breathe first, think later." },
       { type: "speak", question: "What did Sujeet learn?", answer: "Calm minds solve hard problems.", explanation: "Calm minds solve hard problems." },
+    ]},
+  { id: "c5rinku", title: "Class 5 — Rinku Mam's Story Time", emoji: "📖", difficulty: "Easy",
+    sentences: ["Rinku Mam told the class a story every Friday.", "This week, Simpi was chosen to read aloud.", "She read slowly and clearly.", "Sahil asked a funny question and everyone laughed.", "Rinku Mam smiled and explained the moral.", "The whole class clapped for Simpi.", "Everyone looked forward to next Friday."],
+    questions: [
+      { type: "mcq", question: "Who read the story aloud?", options: ["Simpi", "Sahil", "Sujeet", "Swati"], answer: "Simpi", explanation: "Simpi was chosen to read." },
+      { type: "word", question: "Which teacher tells the story?", answer: "Rinku", explanation: "Rinku Mam tells the story." },
+      { type: "sentence", question: "What did Sahil do?", answer: "Sahil asked a funny question and everyone laughed.", explanation: "Asked a funny question." },
+      { type: "speak", question: "What did the class do for Simpi?", answer: "The whole class clapped for Simpi.", explanation: "Clapped for Simpi." },
     ]},
 
   // ── Class 7 ──
@@ -140,9 +148,9 @@ export const STORIES: Story[] = [
       { type: "speak", question: "How did everyone feel on the way back?", answer: "Everyone was tired but happy.", explanation: "Tired but happy." },
     ]},
 
-  // ── College (Ganga Institute) ──
+  // ── College (Ganga Institute of Technology and Management) ──
   { id: "bt1", title: "BTech — First Day of College", emoji: "🎓", difficulty: "Medium",
-    sentences: ["Sujeet walked into Ganga Institute of Technology and Management with a heavy bag.", "In the hostel, he met Rajan, Amit, and Baibhav.", "Rohit from the next room offered him tea.", "Vikash and Sarovar showed him around the campus.", "That evening, Rahul, Jay, and Vishal joined them at the canteen.", "They all laughed and shared stories till late.", "Sujeet smiled — he had found a new family."],
+    sentences: ["Sujeet walked into Ganga Institute of Technology and Management with a heavy bag.", "In the hostel, he met Rajan, Amit, and Baibhav.", "Rohit from the next room offered him tea.", "Vikash and Sarovar showed him around the campus.", "That evening, Rahul, Jay, and Vishal joined them at the canteen.", "Sonu and Suraj shared stories of seniors.", "Sujeet smiled — he had found a new family."],
     questions: [
       { type: "mcq", question: "Which college did Sujeet join?", options: ["Ganga Institute of Technology and Management", "Shanti Niketan", "City College", "Green Valley"], answer: "Ganga Institute of Technology and Management", explanation: "He joined Ganga Institute." },
       { type: "word", question: "Who offered Sujeet tea?", answer: "Rohit", explanation: "Rohit offered tea." },
@@ -158,12 +166,12 @@ export const STORIES: Story[] = [
       { type: "speak", question: "How did they celebrate?", answer: "They celebrated with pizza.", explanation: "Celebrated with pizza." },
     ]},
   { id: "bt3", title: "BTech — Farewell Party", emoji: "🎉", difficulty: "Medium",
-    sentences: ["It was farewell night for the final-year seniors.", "Ankita Mam gave an emotional speech that made everyone cry.", "Gunja and Khushi performed a beautiful duet.", "Harshita, Nandani, and Vidhi hosted the whole event.", "Nisha Mam presented certificates to every student.", "Rajan danced with his friends till midnight.", "It was a night none of them would ever forget."],
+    sentences: ["It was farewell night for the final-year seniors.", "Ankita Mam gave an emotional speech that made everyone cry.", "Gunja and Khushi performed a beautiful duet.", "Harshita, Nandani, and Vidhi hosted the whole event.", "Nisha Mam presented certificates to every student.", "Sumit and Anish danced with their friends till midnight.", "It was a night none of them would ever forget."],
     questions: [
       { type: "mcq", question: "Who gave the emotional speech?", options: ["Nisha Mam", "Ankita Mam", "Akansha Mam", "Gunja"], answer: "Ankita Mam", explanation: "Ankita Mam gave the speech." },
       { type: "word", question: "Who performed a duet?", answer: "Gunja", explanation: "Gunja and Khushi." },
       { type: "sentence", question: "Who hosted the event?", answer: "Harshita, Nandani, and Vidhi hosted the whole event.", explanation: "Harshita, Nandani, Vidhi." },
-      { type: "speak", question: "Who danced till midnight?", answer: "Rajan danced with his friends till midnight.", explanation: "Rajan danced till midnight." },
+      { type: "speak", question: "Who danced till midnight?", answer: "Sumit and Anish danced with their friends till midnight.", explanation: "Sumit and Anish danced till midnight." },
     ]},
   { id: "bt4", title: "BTech — Cricket Final", emoji: "🏏", difficulty: "Hard",
     sentences: ["The inter-college cricket final was here.", "Sujeet's college needed 15 runs from the last over.", "Rajan was bowling to the opposition's best batsman.", "Rahul Sir watched nervously from the pavilion.", "On the final ball, Sujeet hit a massive six.", "The whole team ran onto the field to celebrate.", "They lifted the trophy and took a team photo."],
