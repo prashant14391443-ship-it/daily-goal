@@ -26,12 +26,12 @@ function parseJson(t: string) { const s = t.indexOf("{"), e = t.lastIndexOf("}")
 
 async function groq(prompt: string) {
   const key = process.env.GROQ_API_KEY; if (!key) throw 0;
-  const r = await fetch("https://api.groq.com/openai/v1/chat/completions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: "llama-3.1-8b-instant", temperature: 0.7, messages: [{ role: "system", content: SYS }, { role: "user", content: prompt }] }) });
+  const r = await fetch("https://api.groq.com/openai/v1/chat/completions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: "llama-3.1-8b-instant", temperature: 0.7, max_tokens: 2000, messages: [{ role: "system", content: SYS }, { role: "user", content: prompt }] }) });
   const d = await r.json(); return d.choices?.[0]?.message?.content || "";
 }
 async function gemini(prompt: string) {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY; if (!key) throw 0;
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: SYS + "\n\n" + prompt }] }] }) });
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ text: SYS + "\n\n" + prompt }] }], generationConfig: { maxOutputTokens: 2048 } }) });
   const d = await r.json(); return d.candidates?.[0]?.content?.parts?.[0]?.text || "";
 }
 

@@ -15,6 +15,34 @@ type Blueprint = {
   tips: string[];
 };
 
+const POOL: Record<string, { h: string; g: string; r: string }[]> = {
+  chest: [{h:"Push-ups",g:"Bench press",r:"8-12"},{h:"Incline push-ups",g:"Incline bench",r:"8-12"},{h:"Diamond push-ups",g:"Cable fly",r:"10-12"},{h:"Pike push-ups",g:"Dips",r:"8-12"}],
+  back: [{h:"Pull-ups",g:"Barbell row",r:"6-10"},{h:"Chin-ups",g:"Lat pulldown",r:"6-10"},{h:"Superman hold",g:"Deadlift",r:"6-8"},{h:"Inverted rows",g:"Seated row",r:"10-12"}],
+  shoulders: [{h:"Pike push-ups",g:"Overhead press",r:"8-12"},{h:"Lateral raises (bottles)",g:"Lateral raises",r:"12-15"},{h:"Handstand hold",g:"Face pulls",r:"30s"},{h:"Wall slides",g:"Rear-delt fly",r:"12-15"}],
+  biceps: [{h:"Chin-ups",g:"Barbell curls",r:"8-12"},{h:"Hammer curls (bottles)",g:"Hammer curls",r:"10-12"},{h:"Towel curls",g:"Incline curls",r:"10-12"},{h:"Chin-up hold",g:"Preacher curls",r:"20s"}],
+  triceps: [{h:"Diamond push-ups",g:"Skull crushers",r:"8-12"},{h:"Bench dips",g:"Rope pushdown",r:"10-15"},{h:"Close-grip push-ups",g:"Close-grip bench",r:"8-12"},{h:"Overhead extension (bottle)",g:"Overhead extension",r:"10-12"}],
+  forearms: [{h:"Dead hang",g:"Dead hang",r:"30s"},{h:"Farmer carry (bottles)",g:"Farmer carry",r:"40m"},{h:"Wrist curls (bottles)",g:"Wrist curls",r:"15-20"},{h:"Towel hang",g:"Reverse curls",r:"20s"}],
+  legs: [{h:"Weighted squats",g:"Back squat",r:"8-12"},{h:"Lunges",g:"Romanian deadlift",r:"10"},{h:"Step-ups",g:"Leg press",r:"10"},{h:"Calf raises",g:"Calf raises",r:"15-20"}],
+  abs: [{h:"Hanging leg raises",g:"Hanging leg raises",r:"10-15"},{h:"Plank",g:"Ab-wheel",r:"45s"},{h:"Bicycle crunch",g:"Cable crunch",r:"15-20"},{h:"Leg raises",g:"Hanging knee raises",r:"12-15"}],
+  arms: [{h:"Chin-ups",g:"Barbell curls",r:"8-12"},{h:"Bench dips",g:"Skull crushers",r:"10-12"},{h:"Hammer curls (bottles)",g:"Hammer curls",r:"10-12"},{h:"Diamond push-ups",g:"Rope pushdown",r:"8-12"}],
+  full: [{h:"Push-ups",g:"Bench press",r:"8-12"},{h:"Pull-ups",g:"Barbell row",r:"6-10"},{h:"Weighted squats",g:"Back squat",r:"8-12"},{h:"Plank",g:"Ab-wheel",r:"45s"},{h:"Pike push-ups",g:"Overhead press",r:"8-12"},{h:"Lunges",g:"Romanian deadlift",r:"10"}],
+  run: [{h:"Brisk run intervals",g:"Treadmill intervals",r:"20min"},{h:"Tempo run",g:"Tempo run",r:"15min"},{h:"Hill sprints",g:"Incline sprints",r:"6x"},{h:"Strides",g:"Strides",r:"4x"}],
+};
+const GOAL_FOCUS: Record<string, string[]> = {
+  "Build muscle": ["chest","back","legs","full"],
+  "Lose fat": ["full","legs","full","abs"],
+  "Build abs": ["abs","abs","full","abs"],
+  "Build chest": ["chest","chest","shoulders","chest"],
+  "Build back": ["back","back","biceps","back"],
+  "Biceps": ["biceps","back","arms","biceps"],
+  "Triceps": ["triceps","chest","arms","triceps"],
+  "Forearms": ["forearms","back","arms","forearms"],
+  "Upper body": ["chest","back","shoulders","arms"],
+  "Lower body": ["legs","legs","abs","legs"],
+  "Improve running": ["run","legs","abs","run"],
+  "Full physique": ["chest","back","legs","full"],
+};
+
 export default function BlueprintPage() {
   const [goal, setGoal] = useState("Build muscle");
   const [days, setDays] = useState("4");
@@ -49,15 +77,42 @@ export default function BlueprintPage() {
     setSaved(rows || []);
   };
 
+  const buildOffline = (): Blueprint => {
+    const home = equipment.startsWith("Home") || equipment.startsWith("Dumbbells");
+    const focuses = GOAL_FOCUS[goal] || GOAL_FOCUS["Full physique"];
+    const dayNames = ["Mon","Tue","Wed","Thu","Fri","Sat"];
+    const n = Number(days);
+    const split = Array.from({ length: n }, (_, i) => ({ day: dayNames[i], focus: focuses[i % focuses.length] }));
+    const exercises: Ex[] = [];
+    split.forEach((s) => {
+      const pool = POOL[s.focus] || POOL.full;
+      for (let k = 0; k < Number(perSession); k++) {
+        const e = pool[k % pool.length];
+        exercises.push({ day: s.day, name: home ? e.h : e.g, sets: 3, reps: e.r, rest: "60-90s", cues: "Control the movement, full range, squeeze the muscle", mistakes: "Don't rush or use momentum" });
+      }
+    });
+    const veg = diet !== "Non-vegetarian";
+    const cal = autoCal || 2200;
+    return {
+      title: `${goal} Blueprint (${n} days)`,
+      split, exercises,
+      progression: "Progressive overload: add 1 rep or a little weight every week.",
+      nutrition: { calories: cal, protein: Math.round((cal * 0.3) / 4), foods: veg ? ["soya chunks","paneer","chana","moong","dal","curd","milk","peanuts"] : ["chicken","eggs","fish","paneer","dal","milk"], tip: "Hit protein daily + drink 3-4 L water." },
+      recovery: { sleep: "7-9 hours", water: "3-4 litres", deload: "Every 4-6 weeks, halve volume" },
+      tips: ["Progressive overload every week","Protein with every meal","Slow eccentric (2-3s down)","Warm up before lifting","Stop 1-2 reps before failure on big lifts"],
+    };
+  };
+
   const generate = async () => {
     setBusy(true); setError(""); setBp(null); setEdit(false);
     try {
       const res = await fetch("/api/blueprint", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal, days, level, equipment, perSession, calories: autoCal, direction, diet }) });
       const d = await res.json();
-      if (!res.ok || !d.split) throw new Error(d.error || "failed");
+      if (!res.ok || !d.split) throw 0;
       setBp(d);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed. Try again.");
+    } catch {
+      setBp(buildOffline());
+      notify("🌐 AI busy — using built-in best plan");
     }
     setBusy(false);
   };
@@ -119,7 +174,7 @@ export default function BlueprintPage() {
 
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5 grid gap-3 grid-cols-2">
         <select value={goal} onChange={(e) => setGoal(e.target.value)} className={inputCls}>
-          {["Build muscle", "Lose fat", "Build abs", "Build chest", "Build back", "Improve running", "Full physique"].map((g) => <option key={g}>{g}</option>)}
+          {["Build muscle", "Lose fat", "Build abs", "Build chest", "Build back", "Biceps", "Triceps", "Forearms", "Upper body", "Lower body", "Improve running", "Full physique"].map((g) => <option key={g}>{g}</option>)}
         </select>
         <select value={days} onChange={(e) => setDays(e.target.value)} className={inputCls}>
           {["3", "4", "5", "6"].map((d) => <option key={d} value={d}>{d} days/week</option>)}
@@ -136,7 +191,7 @@ export default function BlueprintPage() {
         <select value={diet} onChange={(e) => setDiet(e.target.value)} className={inputCls}>
           {["Vegetarian", "Non-vegetarian", "Vegan"].map((d) => <option key={d}>{d}</option>)}
         </select>
-        <button onClick={generate} disabled={busy} className="press py-3 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-sm font-black text-indigo-300 disabled:opacity-50 flex items-center justify-center gap-1.5">
+        <button onClick={generate} disabled={busy} className="press col-span-2 py-3 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-sm font-black text-indigo-300 disabled:opacity-50 flex items-center justify-center gap-1.5">
           <Sparkles size={15} /> {busy ? "Building…" : "Build Blueprint"}
         </button>
       </div>
@@ -146,8 +201,8 @@ export default function BlueprintPage() {
 
       {bp && (
         <div className="grid gap-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center gap-2">
-            <h3 className="font-black text-base text-white flex-1">{bp.title}</h3>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center gap-2 flex-wrap">
+            <h3 className="font-black text-base text-white flex-1 min-w-0">{bp.title}</h3>
             <button onClick={() => setEdit(!edit)} className="press px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-xs font-black text-slate-300 flex items-center gap-1"><Pencil size={12} /> {edit ? "Done" : "Edit"}</button>
             <button onClick={save} className="press px-3 py-2 rounded-lg bg-amber-600/20 border border-amber-500/30 text-xs font-black text-amber-300 flex items-center gap-1"><Save size={12} /> Save</button>
             <button onClick={download} className="press px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-xs font-black text-slate-300 flex items-center gap-1"><Download size={12} /></button>
