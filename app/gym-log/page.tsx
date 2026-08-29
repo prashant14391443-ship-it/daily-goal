@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { Dumbbell, Camera, Target, Footprints, Satellite, ScrollText } from "lucide-react";
+import { Dumbbell, Camera, Target, Footprints, Satellite, ScrollText, LineChart } from "lucide-react";
 
 export default function GymHub() {
   return (
@@ -56,6 +56,13 @@ export default function GymHub() {
           </span>
           <p className="font-black text-sm text-white">Master Blueprint</p>
           <p className="text-[10px] text-slate-500 mt-0.5">Full personalized plan + tips</p>
+        </Link>
+                <Link href="/progress" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <span className="w-9 h-9 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center mb-4">
+            <LineChart size={18} strokeWidth={2.2} />
+          </span>
+          <p className="font-black text-sm text-white">Progress Tracker</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">Photos + weight + PRs</p>
         </Link>
 
              <Link href="/move" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors col-span-2">
