@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { STORIES, Story } from "@/lib/stories";
+import { STORIES } from "@/lib/stories";
+import type { Story } from "@/lib/stories";
 import { generateStory } from "@/lib/storyGen";
 import { playCorrect, playWrong, playWin } from "@/lib/sounds";
 import { Play, Pause, SkipForward, Volume2, Check, X, Trophy, BookOpen, Sparkles } from "lucide-react";
