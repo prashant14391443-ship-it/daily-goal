@@ -1,8 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 
-export default function BackBtn({ to = "/study" }: { to?: string }) {
+export default function BackText({ to = "/study", label = "Back to Study" }: { to?: string; label?: string }) {
   const router = useRouter();
   return (
     <button
@@ -10,9 +9,9 @@ export default function BackBtn({ to = "/study" }: { to?: string }) {
         if (typeof window !== "undefined" && window.history.length > 1) router.back();
         else router.push(to);
       }}
-      className="w-10 h-10 shrink-0 rounded-xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-slate-300 hover:bg-slate-700 hover:text-white active:scale-95 transition-all shadow-sm"
+      className="mt-10 mx-auto flex items-center gap-1.5 text-sm font-bold text-slate-400 hover:text-white transition-colors"
     >
-      <ArrowLeft size={18} />
+      ← {label}
     </button>
   );
 }

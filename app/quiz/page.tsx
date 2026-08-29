@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { Bot, Sparkles, Zap, BookOpen, Check, X, Lightbulb, Play } from "lucide-react";
 import { ProgressRing } from "@/app/components/ui";
-import BackBtn from "@/app/components/BackBtn";
+import BackText from "@/app/components/BackBtn";
+
 type Question = {
   q: string;
   options: string[];
@@ -317,7 +318,7 @@ export default function QuizPage() {
         </div>
       )}
 
-      <BackBtn />
+      <BackText />
     </main>
   );
 }

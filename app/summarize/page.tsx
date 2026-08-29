@@ -7,7 +7,8 @@ import { supabase } from "@/lib/supabase";
 import { addTopic } from "@/lib/srs";
 import { drawMap, dataUrlToBlob, DESIGN_NAMES } from "@/lib/mindmap";
 import type { MapData } from "@/lib/mindmap";
-import BackBtn from "@/app/components/BackBtn";
+import BackText from "@/app/components/BackBtn";
+
 type Result = { title: string; points: string[]; map: MapData };
 type QuizQ = { q: string; options: string[]; answer: string };
 
@@ -357,7 +358,7 @@ export default function SummarizePage() {
         </div>
       )}
 
-      <BackBtn />
+      <BackText />
     </main>
   );
 }
