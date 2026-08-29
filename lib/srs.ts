@@ -23,21 +23,21 @@ export function saveSrs(uid: string, items: SrsItem[]) {
   try { localStorage.setItem("dg-srs-" + uid, JSON.stringify(items)); } catch {}
 }
 
-export function addTopic(uid: string, topic: string) {
+export function addTopic(uid: string, topic: string, dueToday = false) {
   const t = topic.trim();
   if (!t) return;
   const items = loadSrs(uid);
   if (items.some((i) => i.type === "topic" && i.front.toLowerCase() === t.toLowerCase())) return;
-  items.push({ id: Date.now() + "-" + Math.random().toString(16).slice(2), type: "topic", front: t, interval: 0, due: addDaysISO(1), created: Date.now(), reviews: 0 });
+  items.push({ id: Date.now() + "-" + Math.random().toString(16).slice(2), type: "topic", front: t, interval: 0, due: dueToday ? todayISO() : addDaysISO(1), created: Date.now(), reviews: 0 });
   saveSrs(uid, items);
 }
 
-export function addCard(uid: string, front: string, back?: string) {
+export function addCard(uid: string, front: string, back?: string, dueToday = false) {
   const f = front.trim();
   if (!f) return;
   const items = loadSrs(uid);
   if (items.some((i) => i.type === "card" && i.front.toLowerCase() === f.toLowerCase())) return;
-  items.push({ id: Date.now() + "-" + Math.random().toString(16).slice(2), type: "card", front: f, back, interval: 0, due: addDaysISO(1), created: Date.now(), reviews: 0 });
+  items.push({ id: Date.now() + "-" + Math.random().toString(16).slice(2), type: "card", front: f, back, interval: 0, due: dueToday ? todayISO() : addDaysISO(1), created: Date.now(), reviews: 0 });
   saveSrs(uid, items);
 }
 

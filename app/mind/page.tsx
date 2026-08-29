@@ -56,8 +56,20 @@ export default function MindPage() {
       const id = data.session?.user.id || "guest";
       setUid(id);
       refresh(id);
+      loadInsight(id);
     };
     load();
+  }, []);
+
+  // Deep-link to breathing when user arrives from dashboard 😞
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#breathing") {
+      setTimeout(() => {
+        document.getElementById("breathing")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        setRunning(true);
+        setTick(0);
+      }, 400);
+    }
   }, []);
 
   useEffect(() => {
@@ -72,6 +84,34 @@ export default function MindPage() {
   const cycles = Math.floor(tick / 16);
 
   const pickMood = (m: number) => { logMood(uid, m); setTodayMood(m); refresh(uid); };
+
+  // Correlate mood with task completion
+  const loadInsight = async (id: string) => {
+    const logs = getMoodLogs(id);
+    if (logs.length < 3) { setInsight(null); return; }
+    const today = isoOf(new Date());
+    const weekStart = addDays(today, -30);
+    const { data } = await supabase
+      .from("tasks")
+      .select("task_date, completed")
+      .eq("user_id", id)
+      .eq("completed", true)
+      .gte("task_date", weekStart);
+    if (!data || data.length === 0) { setInsight(null); return; }
+    const byDate: Record<string, number> = {};
+    data.forEach((r) => { byDate[r.task_date] = (byDate[r.task_date] || 0) + 1; });
+    let posSum = 0, posN = 0, lowSum = 0, lowN = 0;
+    logs.forEach((l) => {
+      const done = byDate[l.date] || 0;
+      if (l.mood >= 2) { posSum += done; posN++; }
+      else { lowSum += done; lowN++; }
+    });
+    if (posN === 0 || lowN === 0) { setInsight(null); return; }
+    const pos = +(posSum / posN).toFixed(1);
+    const low = +(lowSum / lowN).toFixed(1);
+    const pct = low === 0 ? 0 : Math.round(((pos - low) / Math.max(low, 1)) * 100);
+    setInsight({ pos, low, pct });
+  };
   const saveNote = (e: React.FormEvent) => { e.preventDefault(); if (!note.trim()) return; addJournal(uid, note.trim()); setNote(""); setJournals(getJournals(uid)); };
 
   const toggleBreathing = () => {
@@ -128,8 +168,32 @@ export default function MindPage() {
         </div>
       </div>
 
+      {/* Insight: mood ↔ productivity */}
+      {insight && (
+        <div className="bg-gradient-to-br from-indigo-500/10 to-violet-500/10 border border-indigo-500/20 rounded-2xl p-5 mb-4">
+          <p className="text-xs font-black text-indigo-400 mb-1">💡 YOUR DATA SAYS</p>
+          <p className="text-sm font-bold text-white leading-snug mb-3">
+            {insight.pct > 0
+              ? `You complete ${insight.pct}% more tasks on positive-mood days.`
+              : `Your mood and tasks are closely linked. Keep logging!`}
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-slate-900/60 rounded-xl p-3">
+              <p className="text-[10px] text-slate-500 font-semibold">🙂😄 days</p>
+              <p className="text-xl font-black text-emerald-400">{insight.pos}</p>
+              <p className="text-[10px] text-slate-500">tasks / day</p>
+            </div>
+            <div className="bg-slate-900/60 rounded-xl p-3">
+              <p className="text-[10px] text-slate-500 font-semibold">😞😐 days</p>
+              <p className="text-xl font-black text-rose-400">{insight.low}</p>
+              <p className="text-[10px] text-slate-500">tasks / day</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Breathing */}
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4 flex flex-col items-center">
+      <div id="breathing" className="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-4 flex flex-col items-center">
         <p className="text-xs font-black text-slate-400 mb-4 flex items-center gap-1.5 self-start">
           <Wind size={14} className="text-indigo-400" /> BOX BREATHING
         </p>
