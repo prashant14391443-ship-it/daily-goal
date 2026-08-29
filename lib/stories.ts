@@ -150,7 +150,7 @@ export const STORIES: Story[] = [
 
   // ── College (Ganga Institute of Technology and Management) ──
   { id: "bt1", title: "BTech — First Day of College", emoji: "🎓", difficulty: "Medium",
-    sentences: ["Sujeet walked into Ganga Institute of Technology and Management with a heavy bag.", "In the hostel, he met Rajan, Amit, and Baibhav.", "Rohit from the next room offered him tea.", "Vikash and Sarovar showed him around the campus.", "That evening, Rahul, Jay, and Vishal joined them at the canteen.", "Sonu and Suraj shared stories of seniors.", "Sujeet smiled — he had found a new family."],
+    sentences: ["Sujeet walked into Ganga Institute of Technology and Management with a heavy bag.", "In the hostel, he met Rajan, Amit, and Baibhav.", "Rohit from the next room offered him tea.", "Vikash and Sarovar showed him around the campus.", "That evening, Rahul, Jay, and Vishal joined them at the canteen.", "Sonu, Suraj, Piyush, and Dipak shared stories of seniors.", "Sujeet smiled — he had found a new family."],
     questions: [
       { type: "mcq", question: "Which college did Sujeet join?", options: ["Ganga Institute of Technology and Management", "Shanti Niketan", "City College", "Green Valley"], answer: "Ganga Institute of Technology and Management", explanation: "He joined Ganga Institute." },
       { type: "word", question: "Who offered Sujeet tea?", answer: "Rohit", explanation: "Rohit offered tea." },
@@ -158,7 +158,7 @@ export const STORIES: Story[] = [
       { type: "speak", question: "How did Sujeet feel at the end?", answer: "Sujeet smiled — he had found a new family.", explanation: "Found a new family." },
     ]},
   { id: "bt2", title: "BTech — The Hackathon", emoji: "💻", difficulty: "Hard",
-    sentences: ["The college announced a 24-hour hackathon.", "Amit, Baibhav, and Rajan formed a team.", "Parmod Sir was their mentor and guided them.", "They built an app to help farmers sell crops directly.", "At 3 AM they were exhausted but kept coding.", "Rahul Sir brought them coffee at midnight.", "They won first prize and celebrated with pizza."],
+    sentences: ["The college announced a 24-hour hackathon.", "Amit, Baibhav, and Rajan formed a team.", "Piyush and Dipak formed a rival team from the next branch.", "Parmod Sir was their mentor and guided them.", "They built an app to help farmers sell crops directly.", "At 3 AM they were exhausted but kept coding.", "Rahul Sir brought them coffee at midnight.", "They won first prize and celebrated with pizza."],
     questions: [
       { type: "mcq", question: "Who was their mentor?", options: ["Rahul Sir", "Parmod Sir", "Amit", "Rajan"], answer: "Parmod Sir", explanation: "Parmod Sir was mentor." },
       { type: "word", question: "What did the app help?", answer: "farmers", explanation: "Helped farmers." },
