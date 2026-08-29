@@ -70,7 +70,7 @@ export default function FlashcardsPage() {
   const accuracy = totalAnswered > 0 ? Math.round((stats.knew / totalAnswered) * 100) : 0;
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
+    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto overflow-x-hidden">
       {/* 🌆 CALM HERO */}
       {!reviewing && (
         <>
@@ -153,7 +153,7 @@ export default function FlashcardsPage() {
           </div>
           <div className="grid gap-2">
             {cards.map((c) => (
-              <div key={c.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex justify-between gap-3">
+              <div key={c.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex justify-between gap-3 max-w-full overflow-hidden">
                 <div className="min-w-0 flex-1">
                   <span className="inline-block px-2 py-0.5 rounded-md bg-violet-500/15 text-violet-300 text-[9px] font-black mb-1">
                     {c.subject}

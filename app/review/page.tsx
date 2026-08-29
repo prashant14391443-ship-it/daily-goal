@@ -48,7 +48,7 @@ export default function ReviewPage() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 pb-24 max-w-2xl mx-auto">
+    <main className="min-h-screen bg-slate-950 text-white p-4 pb-24 max-w-2xl mx-auto overflow-x-hidden">
       <div className="flex items-center gap-3 mb-6">
         <Link href="/study" className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center hover:bg-slate-800 transition-colors">
           <ArrowLeft size={18} className="text-slate-300" />
@@ -125,12 +125,10 @@ export default function ReviewPage() {
           <p className="text-xs font-black text-slate-400 mt-6 mb-3">COMING UP</p>
           <div className="grid gap-2">
             {upcoming.map((it) => (
-              <div key={it.id} className="flex items-center justify-between bg-slate-900/60 border border-slate-800 rounded-xl p-3">
-                <p className="text-xs text-slate-300 truncate">{it.type === "topic" ? "📓 " : "🃏 "}{it.front}</p>
-                <div className="flex items-center gap-2 shrink-0 ml-2">
-                  <span className="text-[10px] text-slate-500">{it.due}</span>
-                  <button onClick={() => onDelete(it.id)} className="text-slate-600 hover:text-rose-400 transition-colors" title="Delete"><Trash2 size={13} /></button>
-                </div>
+              <div key={it.id} className="flex items-center gap-2 bg-slate-900/60 border border-slate-800 rounded-xl p-3 max-w-full">
+                <p className="text-xs text-slate-300 truncate flex-1 min-w-0">{it.type === "topic" ? "📓 " : "🃏 "}{it.front}</p>
+                <span className="text-[10px] text-slate-500 shrink-0">{it.due}</span>
+                <button onClick={() => onDelete(it.id)} className="w-7 h-7 shrink-0 rounded-lg bg-slate-800 border border-slate-700 text-slate-500 hover:text-rose-400 flex items-center justify-center" title="Delete"><Trash2 size={13} /></button>
               </div>
             ))}
           </div>
