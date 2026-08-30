@@ -63,7 +63,8 @@ export default function HabitLogPage() {
     setLogs(all);
     setDoneToday(all.filter((l) => l.log_date === today).map((l) => l.habit_id));
     setDoneYesterday(all.filter((l) => l.log_date === yesterday).map((l) => l.habit_id));
-    if (ref) { setReflWent(ref.went_well || ""); setReflImprove(ref.improve || ""); setReflGrateful(ref.grateful || ""); setReflSaved(true); }
+    const refData = ref.data as { went_well?: string; improve?: string; grateful?: string } | null;
+    if (refData) { setReflWent(refData.went_well || ""); setReflImprove(refData.improve || ""); setReflGrateful(refData.grateful || ""); setReflSaved(true); }
     const st: Record<string, number> = {};
     (h.data as Habit[] || []).forEach((hb) => {
       let s = 0; let cursor = new Date();
