@@ -1,279 +1,460 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { TrendingUp, TrendingDown, Camera, Trophy, Scale, Plus, Trash2, LineChart, Lightbulb } from "lucide-react";
+import { TrendingUp, TrendingDown, Camera, Trophy, Plus, Trash2, LineChart, Lightbulb, Loader2, Download } from "lucide-react";
 
-type W = { id: string; weight: number; log_date: string };
-type P = { id: string; view: string; photo_url: string; created_at: string };
-type PR = { id: string; exercise: string; weight: number; reps: number };
+// --- Types ---
+interface WeightRecord { id: string; weight: number; log_date: string; }
+interface ProgressPhoto { id: string; view: string; photo_url: string; created_at: string; }
+interface PRLog { id: string; exercise: string; weight: number; reps: number; }
 
-const e1rm = (w: number, r: number) => Math.round(w * (1 + r / 30));
+// --- Utilities ---
+const calculate1RM = (weight: number, reps: number) => Math.round(weight * (1 + reps / 30));
 
-function compress(file: File): Promise<string> {
-  return new Promise((res) => {
-    const rd = new FileReader();
-    rd.onload = (e) => {
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        const c = document.createElement("canvas");
-        const max = 600;
+        const canvas = document.createElement("canvas");
+        const MAX_SIZE = 800;
         let { width, height } = img;
-        if (width > height) { if (width > max) { height *= max / width; width = max; } }
-        else { if (height > max) { width *= max / height; height = max; } }
-        c.width = width; c.height = height;
-        c.getContext("2d")?.drawImage(img, 0, 0, width, height);
-        res(c.toDataURL("image/jpeg", 0.6));
+
+        if (width > height && width > MAX_SIZE) {
+          height *= MAX_SIZE / width;
+          width = MAX_SIZE;
+        } else if (height > MAX_SIZE) {
+          width *= MAX_SIZE / height;
+          height = MAX_SIZE;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.7));
       };
       img.src = e.target?.result as string;
     };
-    rd.readAsDataURL(file);
+    reader.readAsDataURL(file);
   });
-}
+};
 
-const Chart = ({ data }: { data: W[] }) => {
-  if (data.length < 2) return <p className="text-xs text-slate-500 text-center py-4">Log at least 2 weights to see your trend.</p>;
-  const ws = data.map((d) => d.weight);
-  const min = Math.min(...ws), max = Math.max(...ws);
-  const Wd = 320, H = 140, P = 14;
-  const x = (i: number) => P + (i * (Wd - 2 * P)) / (data.length - 1);
-  const y = (w: number) => H - P - ((w - min) / (max - min || 1)) * (H - 2 * P);
-  const pts = data.map((d, i) => `${x(i)},${y(d.weight)}`).join(" ");
+// --- Sub-components ---
+const WeightChart = ({ data }: { data: WeightRecord[] }) => {
+  if (data.length < 2) {
+    return <p className="text-xs text-slate-500 text-center py-8">Log at least 2 weights to see your trend.</p>;
+  }
+  
+  const weights = data.map((d) => d.weight);
+  const min = Math.min(...weights);
+  const max = Math.max(...weights);
+  const padding = 16;
+  const width = 320;
+  const height = 140;
+
+  const getX = (index: number) => padding + (index * (width - 2 * padding)) / (data.length - 1);
+  const getY = (w: number) => height - padding - ((w - min) / (max - min || 1)) * (height - 2 * padding);
+  const points = data.map((d, i) => `${getX(i)},${getY(d.weight)}`).join(" ");
+
   return (
-    <svg viewBox={`0 0 ${Wd} ${H}`} className="w-full">
-      <polyline points={pts} fill="none" stroke="#38bdf8" strokeWidth="2.5" />
-      {data.map((d, i) => <circle key={i} cx={x(i)} cy={y(d.weight)} r="3.5" fill="#38bdf8" />)}
-      <text x={P} y={y(max) - 4} fill="#64748b" fontSize="9">{max}kg</text>
-      <text x={P} y={y(min) + 10} fill="#64748b" fontSize="9">{min}kg</text>
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full overflow-visible">
+      <polyline points={points} fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      {data.map((d, i) => (
+        <circle key={i} cx={getX(i)} cy={getY(d.weight)} r="4" fill="#22c55e" className="shadow-sm" />
+      ))}
+      <text x={padding} y={getY(max) - 8} fill="#94a3b8" fontSize="10" fontWeight="bold">{max}kg</text>
+      <text x={padding} y={getY(min) + 14} fill="#94a3b8" fontSize="10" fontWeight="bold">{min}kg</text>
     </svg>
   );
 };
 
+// --- Main Component ---
 export default function ProgressPage() {
-  const [tab, setTab] = useState<"weight" | "photos" | "prs">("weight");
-  const [uid, setUid] = useState("");
-  const [weights, setWeights] = useState<W[]>([]);
+  const [activeTab, setActiveTab] = useState<"weight" | "photos" | "prs">("weight");
+  const [userId, setUserId] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [msg, setMsg] = useState({ text: "", type: "success" });
+
+  // State
+  const [weights, setWeights] = useState<WeightRecord[]>([]);
+  const [photos, setPhotos] = useState<ProgressPhoto[]>([]);
+  const [prs, setPrs] = useState<PRLog[]>([]);
+  
+  // Inputs
   const [newWeight, setNewWeight] = useState("");
-  const [photos, setPhotos] = useState<P[]>([]);
   const [photoView, setPhotoView] = useState("front");
   const [photoImg, setPhotoImg] = useState<string | null>(null);
-  const [prs, setPrs] = useState<PR[]>([]);
-  const [prEx, setPrEx] = useState("");
-  const [prW, setPrW] = useState("");
-  const [prR, setPrR] = useState("");
-  const [height, setHeight] = useState(0);
-  const [direction, setDirection] = useState("maintain");
-  const [msg, setMsg] = useState("");
+  const [prForm, setPrForm] = useState({ exercise: "", weight: "", reps: "" });
 
-  const notify = (m: string) => { setMsg(m); setTimeout(() => setMsg(""), 2500); };
+  const [userSettings, setUserSettings] = useState({ height: 0, direction: "maintain" });
+
+  const notify = (text: string, type: "success" | "error" = "success") => {
+    setMsg({ text, type });
+    setTimeout(() => setMsg({ text: "", type: "success" }), 3000);
+  };
 
   useEffect(() => {
-    const load = async () => {
-      const { data } = await supabase.auth.getSession();
-      const id = data.session?.user.id;
-      if (!id) return;
-      setUid(id);
-      try { const c = JSON.parse(localStorage.getItem("dg-calc") || "null"); if (c) { setHeight(Number(c.height) || 0); setDirection(c.result?.direction || "maintain"); } } catch {}
-      const w = await supabase.from("progress_weights").select("*").eq("user_id", id).order("log_date");
-      setWeights((w.data as W[]) || []);
-      const p = await supabase.from("progress_photos").select("*").eq("user_id", id).order("created_at");
-      setPhotos((p.data as P[]) || []);
-      const r = await supabase.from("progress_prs").select("*").eq("user_id", id).order("created_at", { ascending: false });
-      setPrs((r.data as PR[]) || []);
+    const fetchUserData = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) return;
+        setUserId(session.user.id);
+
+        try {
+          const cached = JSON.parse(localStorage.getItem("dg-calc") || "null");
+          if (cached) setUserSettings({ height: Number(cached.height) || 0, direction: cached.result?.direction || "maintain" });
+        } catch (e) { console.error("Cache error", e); }
+
+        const [weightRes, photoRes, prRes] = await Promise.all([
+          supabase.from("progress_weights").select("*").eq("user_id", session.user.id).order("log_date"),
+          supabase.from("progress_photos").select("*").eq("user_id", session.user.id).order("created_at"),
+          supabase.from("progress_prs").select("*").eq("user_id", session.user.id).order("created_at", { ascending: false })
+        ]);
+
+        if (weightRes.data) setWeights(weightRes.data as WeightRecord[]);
+        if (photoRes.data) setPhotos(photoRes.data as ProgressPhoto[]);
+        if (prRes.data) setPrs(prRes.data as PRLog[]);
+      } catch (error) {
+        notify("Failed to load data", "error");
+      } finally {
+        setIsLoading(false);
+      }
     };
-    load();
+    fetchUserData();
   }, []);
 
-  const addWeight = async () => {
-    if (!uid || !newWeight) return;
-    const { data, error } = await supabase.from("progress_weights").insert({ user_id: uid, weight: Number(newWeight) }).select().single();
-    if (!error && data) setWeights([...weights, data as W].sort((a, b) => a.log_date.localeCompare(b.log_date)));
-    setNewWeight("");
-    notify("⚖️ Weight logged!");
+  // --- Handlers ---
+  const handleAddWeight = async () => {
+    if (!userId || !newWeight) return;
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await supabase.from("progress_weights").insert({ user_id: userId, weight: Number(newWeight) }).select().single();
+      if (error) throw error;
+      setWeights((prev) => [...prev, data as WeightRecord].sort((a, b) => a.log_date.localeCompare(b.log_date)));
+      setNewWeight("");
+      notify("⚖️ Weight logged successfully!");
+    } catch (e) {
+      notify("Failed to log weight", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-  const delWeight = async (id: string) => { await supabase.from("progress_weights").delete().eq("id", id); setWeights(weights.filter((w) => w.id !== id)); };
 
-  const onPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    setPhotoImg(await compress(f));
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoImg(await compressImage(file));
   };
-  const savePhoto = async () => {
-    if (!uid || !photoImg) return;
-    const { data, error } = await supabase.from("progress_photos").insert({ user_id: uid, view: photoView, photo_url: photoImg }).select().single();
-    if (!error && data) setPhotos([...photos, data as P]);
-    setPhotoImg(null);
-    notify("📸 Progress photo saved!");
+
+  const handleSavePhoto = async () => {
+    if (!userId || !photoImg) return;
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await supabase.from("progress_photos").insert({ user_id: userId, view: photoView, photo_url: photoImg }).select().single();
+      if (error) throw error;
+      setPhotos((prev) => [...prev, data as ProgressPhoto]);
+      setPhotoImg(null);
+      notify("📸 Progress photo saved!");
+    } catch (e) {
+      notify("Failed to save photo", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-  const delPhoto = async (id: string) => { await supabase.from("progress_photos").delete().eq("id", id); setPhotos(photos.filter((p) => p.id !== id)); };
 
-  const addPR = async () => {
-    if (!uid || !prEx || !prW) return;
-    const newE = e1rm(Number(prW), Number(prR) || 1);
-    const old = prs.filter((p) => p.exercise.toLowerCase() === prEx.toLowerCase()).map((p) => e1rm(p.weight, p.reps));
-    const isPR = old.length === 0 || newE > Math.max(...old);
-    const { data, error } = await supabase.from("progress_prs").insert({ user_id: uid, exercise: prEx, weight: Number(prW), reps: Number(prR) || 1 }).select().single();
-    if (!error && data) setPrs([data as PR, ...prs]);
-    setPrEx(""); setPrW(""); setPrR("");
-    notify(isPR ? `🏆 NEW PR! est 1RM ${newE}kg` : "💪 Logged!");
+  const handleAddPR = async () => {
+    if (!userId || !prForm.exercise || !prForm.weight) return;
+    setIsSubmitting(true);
+    
+    try {
+      const new1RM = calculate1RM(Number(prForm.weight), Number(prForm.reps) || 1);
+      const previousLifts = prs.filter((p) => p.exercise.toLowerCase() === prForm.exercise.toLowerCase());
+      const previousMax = previousLifts.length ? Math.max(...previousLifts.map(p => calculate1RM(p.weight, p.reps))) : 0;
+      const isNewPR = previousLifts.length === 0 || new1RM > previousMax;
+
+      const { data, error } = await supabase.from("progress_prs").insert({ 
+        user_id: userId, 
+        exercise: prForm.exercise, 
+        weight: Number(prForm.weight), 
+        reps: Number(prForm.reps) || 1 
+      }).select().single();
+      
+      if (error) throw error;
+      
+      setPrs((prev) => [data as PRLog, ...prev]);
+      setPrForm({ exercise: "", weight: "", reps: "" });
+      notify(isNewPR ? `🏆 NEW PR! Est. 1RM ${new1RM}kg` : "💪 Lift logged successfully!");
+    } catch (e) {
+      notify("Failed to log PR", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-  const delPR = async (id: string) => { await supabase.from("progress_prs").delete().eq("id", id); setPrs(prs.filter((p) => p.id !== id)); };
 
-  const sorted = [...weights].sort((a, b) => a.log_date.localeCompare(b.log_date));
-  const current = sorted.length ? sorted[sorted.length - 1].weight : 0;
-  const start = sorted.length ? sorted[0].weight : 0;
-  const change = Math.round((current - start) * 10) / 10;
-  const bmi = current && height ? Math.round((current / Math.pow(height / 100, 2)) * 10) / 10 : 0;
-  const insight = !sorted.length ? "Log your weight to start tracking." : direction === "loss" ? (change < 0 ? `Great — down ${Math.abs(change)}kg. Keep going! 🔥` : change > 0 ? `Up ${change}kg — tighten calories a little.` : "Holding steady — aim for a small deficit.") : direction === "gain" ? (change > 0 ? `Up ${change}kg — bulking well! 🏋️` : "Eat a bit more to gain.") : "Maintaining nicely.";
+  const deleteItem = async (table: string, id: string, stateSetter: Function) => {
+    await supabase.from(table).delete().eq("id", id);
+    stateSetter((prev: any[]) => prev.filter((item: any) => item.id !== id));
+  };
 
-  const viewPhotos = photos.filter((p) => p.view === photoView).sort((a, b) => a.created_at.localeCompare(b.created_at));
-  const first = viewPhotos[0], last = viewPhotos[viewPhotos.length - 1];
+  // --- Export Function ---
+  const handleExportCSV = (data: any[], filename: string) => {
+    if (!data || data.length === 0) {
+      notify("No data to export", "error");
+      return;
+    }
 
-  const inputCls = "w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-green-500";
+    const headers = Object.keys(data[0]).join(',');
+    const rows = data.map(row => 
+      Object.values(row).map(val => `"${val}"`).join(',')
+    );
+    const csvContent = [headers, ...rows].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${filename}-${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    notify(`💾 ${filename} exported successfully!`);
+  };
+
+  // --- Derived Data ---
+  const currentWeight = weights.length ? weights[weights.length - 1].weight : 0;
+  const startWeight = weights.length ? weights[0].weight : 0;
+  const weightChange = Math.round((currentWeight - startWeight) * 10) / 10;
+  const bmi = currentWeight && userSettings.height ? Math.round((currentWeight / Math.pow(userSettings.height / 100, 2)) * 10) / 10 : 0;
+  
+  const generateInsight = () => {
+    if (!weights.length) return "Log your weight to start tracking.";
+    if (userSettings.direction === "loss") return weightChange < 0 ? `Great work — down ${Math.abs(weightChange)}kg. Keep going! 🔥` : "Weight is steady or up — review your caloric deficit.";
+    if (userSettings.direction === "gain") return weightChange > 0 ? `Up ${weightChange}kg — solid bulking progress! 🏋️` : "Eat in a slight surplus to stimulate growth.";
+    return "Maintaining nicely.";
+  };
+
+  const filteredPhotos = photos.filter((p) => p.view === photoView).sort((a, b) => a.created_at.localeCompare(b.created_at));
+  const firstPhoto = filteredPhotos[0];
+  const lastPhoto = filteredPhotos[filteredPhotos.length - 1];
+  const inputBaseStyle = "w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm outline-none focus:border-green-500 transition-colors";
+
+  if (isLoading) {
+    return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><Loader2 className="animate-spin text-green-500" size={32} /></div>;
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-green-500 via-emerald-600 to-teal-600 p-5 shadow-xl shadow-emerald-900/20">
+      {/* Header */}
+      <div className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-green-500 via-emerald-600 to-teal-700 p-5 shadow-xl shadow-emerald-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative flex items-center gap-4">
-          <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center"><LineChart size={22} className="text-white" /></span>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Progress Tracker</h1>
-            <p className="text-[11px] text-white/75 font-semibold mt-0.5">Photos + weight trend + PRs — see your change</p>
+          <div className="w-12 h-12 shrink-0 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm"><LineChart size={24} className="text-white" /></div>
+          <div>
+            <h1 className="text-xl font-black text-white leading-tight">Progress Tracker</h1>
+            <p className="text-xs text-white/80 font-medium mt-1">Visualize your transformation</p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-center">
-          <p className="text-[10px] text-slate-500 font-black">CURRENT</p>
-          <p className="text-xl font-black text-white">{current || "—"}kg</p>
+      {/* Stats Dashboard */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-sm">
+          <p className="text-[10px] text-slate-400 font-bold tracking-wider mb-1">CURRENT</p>
+          <p className="text-2xl font-black text-white">{currentWeight || "—"}<span className="text-sm font-medium text-slate-500 ml-1">kg</span></p>
         </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-center">
-          <p className="text-[10px] text-slate-500 font-black">CHANGE</p>
-          <p className={`text-xl font-black flex items-center justify-center gap-1 ${change > 0 ? "text-red-400" : change < 0 ? "text-green-400" : "text-slate-300"}`}>
-            {change > 0 ? <TrendingUp size={16} /> : change < 0 ? <TrendingDown size={16} /> : null}{change || 0}kg
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-sm">
+          <p className="text-[10px] text-slate-400 font-bold tracking-wider mb-1">CHANGE</p>
+          <p className={`text-2xl font-black flex items-center justify-center gap-1 ${weightChange > 0 ? "text-red-400" : weightChange < 0 ? "text-green-400" : "text-slate-300"}`}>
+            {weightChange > 0 ? <TrendingUp size={18} /> : weightChange < 0 ? <TrendingDown size={18} /> : null}
+            {Math.abs(weightChange) || 0}
           </p>
         </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 text-center">
-          <p className="text-[10px] text-slate-500 font-black">BMI</p>
-          <p className="text-xl font-black text-blue-400">{bmi || "—"}</p>
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center shadow-sm">
+          <p className="text-[10px] text-slate-400 font-bold tracking-wider mb-1">BMI</p>
+          <p className="text-2xl font-black text-blue-400">{bmi || "—"}</p>
         </div>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 mb-5 flex items-center gap-2">
-        <Lightbulb size={14} className="text-amber-400 shrink-0" />
-        <p className="text-xs text-slate-300">{insight}</p>
+      {/* AI Insight */}
+      <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 mb-6 flex items-center gap-3">
+        <div className="bg-amber-500/20 p-2 rounded-lg shrink-0"><Lightbulb size={16} className="text-amber-400" /></div>
+        <p className="text-sm text-slate-300 font-medium">{generateInsight()}</p>
       </div>
 
-      <div className="flex gap-2 mb-5">
+      {/* Tab Navigation */}
+      <div className="flex gap-2 mb-6 p-1 bg-slate-900 rounded-xl border border-slate-800">
         {(["weight", "photos", "prs"] as const).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className={`press flex-1 py-2.5 rounded-xl text-xs font-black border capitalize ${tab === t ? "bg-green-500/15 border-green-500/30 text-green-300" : "bg-slate-900 border-slate-800 text-slate-400"}`}>
+          <button 
+            key={t} 
+            onClick={() => setActiveTab(t)} 
+            className={`flex-1 py-2.5 rounded-lg text-sm font-bold capitalize transition-all ${activeTab === t ? "bg-slate-800 text-green-400 shadow-sm" : "text-slate-500 hover:text-slate-300"}`}
+          >
             {t === "weight" ? "⚖️ Weight" : t === "photos" ? "📸 Photos" : "🏆 PRs"}
           </button>
         ))}
       </div>
-      {msg && <p className="text-center text-xs font-bold text-green-300 mb-3">{msg}</p>}
 
-      {tab === "weight" && (
-        <div className="grid gap-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <div className="flex gap-2 mb-4">
-              <input type="number" value={newWeight} onChange={(e) => setNewWeight(e.target.value)} placeholder="Today's weight (kg)" className={inputCls} />
-              <button onClick={addWeight} className="press px-4 rounded-xl bg-green-600 text-sm font-black shrink-0 flex items-center gap-1"><Plus size={14} /> Log</button>
-            </div>
-            <Chart data={sorted} />
-          </div>
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <p className="text-xs font-black text-slate-400 mb-2">HISTORY</p>
-            <div className="grid gap-1.5">
-              {[...sorted].reverse().map((w) => (
-                <div key={w.id} className="flex items-center justify-between bg-slate-800/60 rounded-lg p-2 text-sm">
-                  <span className="text-slate-400 text-xs">{w.log_date}</span>
-                  <span className="font-black text-white">{w.weight} kg</span>
-                  <button onClick={() => delWeight(w.id)} className="text-red-400"><Trash2 size={13} /></button>
-                </div>
-              ))}
-            </div>
-          </div>
+      {/* Toast Notification */}
+      {msg.text && (
+        <div className={`text-center text-sm font-bold p-3 rounded-lg mb-4 ${msg.type === "error" ? "bg-red-500/10 text-red-400" : "bg-green-500/10 text-green-400"}`}>
+          {msg.text}
         </div>
       )}
 
-      {tab === "photos" && (
-        <div className="grid gap-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <div className="flex gap-2 mb-3">
-              <select value={photoView} onChange={(e) => setPhotoView(e.target.value)} className={inputCls}>
-                <option value="front">Front</option>
-                <option value="side">Side</option>
-              </select>
+      {/* Content Tabs */}
+      <div className="space-y-4">
+        {activeTab === "weight" && (
+          <>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div className="flex gap-3 mb-6">
+                <input type="number" value={newWeight} onChange={(e) => setNewWeight(e.target.value)} placeholder="Today's weight (kg)" className={inputBaseStyle} disabled={isSubmitting} />
+                <button onClick={handleAddWeight} disabled={isSubmitting || !newWeight} className="px-5 rounded-xl bg-green-600 hover:bg-green-500 disabled:opacity-50 text-sm font-bold flex items-center gap-2 transition-colors">
+                  <Plus size={16} /> Log
+                </button>
+              </div>
+              <WeightChart data={weights} />
             </div>
-            <label className="press block bg-slate-800 border-2 border-dashed border-slate-700 rounded-xl p-4 text-center cursor-pointer">
-              <Camera size={22} className="mx-auto text-green-400 mb-1" />
-              <p className="text-xs font-black text-slate-300">Tap to add {photoView} photo</p>
-              <input type="file" accept="image/*" capture="environment" onChange={onPhoto} className="hidden" />
-            </label>
-            {photoImg && (
-              <div className="mt-3">
-                <img src={photoImg} alt="new" className="rounded-xl max-h-48 w-full object-cover mb-2" />
-                <button onClick={savePhoto} className="press w-full py-2.5 rounded-xl bg-green-600 text-sm font-black">Save Photo</button>
+            
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs font-bold text-slate-500 tracking-wider">WEIGHT HISTORY</p>
+                <button 
+                  onClick={() => handleExportCSV(weights, 'Weight-History')}
+                  className="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-green-400 transition-colors bg-slate-800/50 px-2 py-1 rounded-md"
+                >
+                  <Download size={12} />
+                  EXPORT CSV
+                </button>
+              </div>
+              <div className="space-y-2">
+                {[...weights].reverse().map((w) => (
+                  <div key={w.id} className="flex items-center justify-between bg-slate-950/50 rounded-xl p-3">
+                    <span className="text-slate-400 text-sm font-medium">{new Date(w.log_date).toLocaleDateString()}</span>
+                    <div className="flex items-center gap-4">
+                      <span className="font-bold text-white">{w.weight} kg</span>
+                      <button onClick={() => deleteItem("progress_weights", w.id, setWeights)} className="text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={16} /></button>
+                    </div>
+                  </div>
+                ))}
+                {!weights.length && <p className="text-center text-slate-500 text-sm py-4">No weight entries yet.</p>}
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === "photos" && (
+          <>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+              <select value={photoView} onChange={(e) => setPhotoView(e.target.value)} className={`${inputBaseStyle} mb-4`}>
+                <option value="front">Front View</option>
+                <option value="side">Side View</option>
+                <option value="back">Back View</option>
+              </select>
+              
+              {!photoImg ? (
+                <label className="block bg-slate-950/50 border-2 border-dashed border-slate-700 hover:border-green-500/50 rounded-xl p-8 text-center cursor-pointer transition-colors">
+                  <Camera size={32} className="mx-auto text-slate-400 mb-3" />
+                  <p className="text-sm font-bold text-slate-300">Tap to upload {photoView} photo</p>
+                  <input type="file" accept="image/*" capture="environment" onChange={handlePhotoUpload} className="hidden" />
+                </label>
+              ) : (
+                <div className="animate-in fade-in zoom-in duration-300">
+                  <img src={photoImg} alt="Preview" className="rounded-xl w-full max-h-64 object-cover mb-4 shadow-lg border border-slate-700" />
+                  <div className="flex gap-2">
+                    <button onClick={() => setPhotoImg(null)} className="flex-1 py-3 rounded-xl bg-slate-800 text-sm font-bold">Cancel</button>
+                    <button onClick={handleSavePhoto} disabled={isSubmitting} className="flex-1 py-3 rounded-xl bg-green-600 hover:bg-green-500 text-sm font-bold shadow-lg shadow-green-900/20 disabled:opacity-50">Save Photo</button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {firstPhoto && lastPhoto && firstPhoto.id !== lastPhoto.id && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+                <p className="text-xs font-bold text-slate-500 mb-4 tracking-wider">PROGRESS COMPARISON</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="relative group">
+                    <span className="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md text-[10px] font-bold">Before</span>
+                    <img src={firstPhoto.photo_url} alt="First" className="rounded-xl w-full h-48 object-cover" />
+                  </div>
+                  <div className="relative group">
+                    <span className="absolute top-2 left-2 bg-green-500/80 backdrop-blur-md px-2 py-1 rounded-md text-[10px] font-bold">Latest</span>
+                    <img src={lastPhoto.photo_url} alt="Last" className="rounded-xl w-full h-48 object-cover border-2 border-green-500/50" />
+                  </div>
+                </div>
               </div>
             )}
-          </div>
-          {first && last && first.id !== last.id && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-              <p className="text-xs font-black text-slate-400 mb-2">THEN vs NOW</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div><img src={first.photo_url} alt="then" className="rounded-xl w-full object-cover" /><p className="text-[10px] text-slate-500 text-center mt-1">{first.created_at.slice(0, 10)}</p></div>
-                <div><img src={last.photo_url} alt="now" className="rounded-xl w-full object-cover" /><p className="text-[10px] text-green-400 text-center mt-1">{last.created_at.slice(0, 10)}</p></div>
+            
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+              <p className="text-xs font-bold text-slate-500 mb-4 tracking-wider">GALLERY ({photoView.toUpperCase()})</p>
+              <div className="grid grid-cols-3 gap-2">
+                {filteredPhotos.map((p) => (
+                  <div key={p.id} className="relative group rounded-xl overflow-hidden aspect-square border border-slate-800">
+                    <img src={p.photo_url} alt={p.view} className="w-full h-full object-cover" />
+                    <button onClick={() => deleteItem("progress_photos", p.id, setPhotos)} className="absolute top-1 right-1 w-7 h-7 rounded-lg bg-black/70 text-slate-300 hover:text-red-400 flex items-center justify-center backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={14} /></button>
+                  </div>
+                ))}
+                {!filteredPhotos.length && <p className="col-span-3 text-center text-slate-500 text-sm py-4">No photos for this view.</p>}
               </div>
             </div>
-          )}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <p className="text-xs font-black text-slate-400 mb-2">ALL {photoView.toUpperCase()} PHOTOS</p>
-            <div className="grid grid-cols-3 gap-2">
-              {viewPhotos.map((p) => (
-                <div key={p.id} className="relative">
-                  <img src={p.photo_url} alt={p.view} className="rounded-lg w-full object-cover" />
-                  <button onClick={() => delPhoto(p.id)} className="absolute top-1 right-1 w-6 h-6 rounded bg-black/60 text-red-400 flex items-center justify-center"><Trash2 size={12} /></button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
 
-      {tab === "prs" && (
-        <div className="grid gap-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid gap-2">
-            <input value={prEx} onChange={(e) => setPrEx(e.target.value)} placeholder="Exercise (e.g. Bench press)" className={inputCls} />
-            <div className="grid grid-cols-2 gap-2">
-              <input type="number" value={prW} onChange={(e) => setPrW(e.target.value)} placeholder="Weight (kg)" className={inputCls} />
-              <input type="number" value={prR} onChange={(e) => setPrR(e.target.value)} placeholder="Reps" className={inputCls} />
+        {activeTab === "prs" && (
+          <>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+              <input value={prForm.exercise} onChange={(e) => setPrForm({...prForm, exercise: e.target.value})} placeholder="Exercise (e.g. Barbell Squat)" className={inputBaseStyle} disabled={isSubmitting} />
+              <div className="grid grid-cols-2 gap-3">
+                <input type="number" value={prForm.weight} onChange={(e) => setPrForm({...prForm, weight: e.target.value})} placeholder="Weight (kg)" className={inputBaseStyle} disabled={isSubmitting} />
+                <input type="number" value={prForm.reps} onChange={(e) => setPrForm({...prForm, reps: e.target.value})} placeholder="Reps" className={inputBaseStyle} disabled={isSubmitting} />
+              </div>
+              <button onClick={handleAddPR} disabled={isSubmitting || !prForm.exercise || !prForm.weight} className="w-full py-3 rounded-xl bg-green-600 hover:bg-green-500 disabled:opacity-50 text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-green-900/20 transition-all">
+                <Trophy size={18} /> Log Personal Record
+              </button>
             </div>
-            <button onClick={addPR} className="press py-2.5 rounded-xl bg-green-600 text-sm font-black flex items-center justify-center gap-1"><Trophy size={14} /> Log Lift</button>
-          </div>
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <p className="text-xs font-black text-slate-400 mb-2">PERSONAL RECORDS</p>
-            <div className="grid gap-1.5">
-              {prs.map((p) => (
-                <div key={p.id} className="flex items-center justify-between bg-slate-800/60 rounded-lg p-2.5 text-sm">
-                  <div>
-                    <p className="font-bold text-white">{p.exercise}</p>
-                    <p className="text-[10px] text-slate-500">{p.weight}kg × {p.reps}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black text-amber-400">1RM ~{e1rm(p.weight, p.reps)}kg</span>
-                    <button onClick={() => delPR(p.id)} className="text-red-400"><Trash2 size={13} /></button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
-      <Link href="/gym-log" className="inline-block mt-6 text-sm text-slate-500 hover:text-white press font-bold">← Back to Gym</Link>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-xs font-bold text-slate-500 tracking-wider">LIFTING HISTORY</p>
+                <button 
+                  onClick={() => handleExportCSV(prs, 'PR-History')}
+                  className="flex items-center gap-1 text-[10px] font-bold text-slate-400 hover:text-green-400 transition-colors bg-slate-800/50 px-2 py-1 rounded-md"
+                >
+                  <Download size={12} />
+                  EXPORT CSV
+                </button>
+              </div>
+              <div className="space-y-2">
+                {prs.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between bg-slate-950/50 rounded-xl p-3 border border-slate-800/50">
+                    <div>
+                      <p className="font-bold text-white text-sm">{p.exercise}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{p.weight}kg × {p.reps} reps</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <span className="block text-[10px] text-slate-500 font-bold uppercase">Est. 1RM</span>
+                        <span className="text-sm font-black text-amber-400">{calculate1RM(p.weight, p.reps)}kg</span>
+                      </div>
+                      <button onClick={() => deleteItem("progress_prs", p.id, setPrs)} className="text-slate-600 hover:text-red-400 transition-colors"><Trash2 size={16} /></button>
+                    </div>
+                  </div>
+                ))}
+                {!prs.length && <p className="text-center text-slate-500 text-sm py-4">No PRs logged yet.</p>}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <Link href="/gym-log" className="inline-flex items-center gap-2 mt-8 text-sm text-slate-500 hover:text-white font-bold transition-colors">
+        ← Back to Gym Log
+      </Link>
     </main>
   );
 }
