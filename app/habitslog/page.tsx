@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
-import { ListChecks, Plus, Trash2, Flame, Anchor, PartyPopper, Sparkles, X, Landmark, Clock, MapPin } from "lucide-react";
+import { ListChecks, Plus, Trash2, Flame, Anchor, PartyPopper, X, Landmark } from "lucide-react";
 
 type Habit = { id: string; habit_name: string; emoji: string; anchor: string; target_minutes: number; created_at: string; identity: string; cue_time: string; cue_place: string };
 
@@ -24,6 +24,7 @@ const TEMPLATES = [
 ];
 
 export default function HabitLogPage() {
+  const [view, setView] = useState<"today" | "add" | "review">("today");
   const [uid, setUid] = useState("");
   const [habits, setHabits] = useState<Habit[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
@@ -32,12 +33,8 @@ export default function HabitLogPage() {
   const [streaks, setStreaks] = useState<Record<string, number>>({});
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
-  const [emoji, setEmoji] = useState("✅");
   const [anchor, setAnchor] = useState(ANCHORS[0]);
   const [target, setTarget] = useState("10");
-  const [identity, setIdentity] = useState("");
-  const [cueTime, setCueTime] = useState("");
-  const [cuePlace, setCuePlace] = useState("");
   const [celebrate, setCelebrate] = useState<{ name: string; coins: number } | null>(null);
   const [reflWent, setReflWent] = useState("");
   const [reflImprove, setReflImprove] = useState("");
@@ -61,13 +58,7 @@ export default function HabitLogPage() {
     setLogs(all);
     setDoneToday(all.filter((l) => l.log_date === today).map((l) => l.habit_id));
     setDoneYesterday(all.filter((l) => l.log_date === yesterday).map((l) => l.habit_id));
-    if (ref.data) {
-      const reflection = ref.data as { went_well?: string; improve?: string; grateful?: string };
-      setReflWent(reflection.went_well || "");
-      setReflImprove(reflection.improve || "");
-      setReflGrateful(reflection.grateful || "");
-      setReflSaved(true);
-    }
+    if (ref) { setReflWent(ref.went_well || ""); setReflImprove(ref.improve || ""); setReflGrateful(ref.grateful || ""); setReflSaved(true); }
     const st: Record<string, number> = {};
     (h.data as Habit[] || []).forEach((hb) => {
       let s = 0; let cursor = new Date();
@@ -116,12 +107,11 @@ export default function HabitLogPage() {
   const addHabit = async (t?: { emoji: string; name: string; anchor: string; target: number; identity?: string }) => {
     const n = (t?.name || name).trim(); if (!n) return;
     const { data, error } = await supabase.from("habits").insert({
-      user_id: uid, habit_name: n, emoji: t?.emoji || emoji, anchor: t?.anchor || anchor,
-      target_minutes: t?.target || Number(target) || 10, identity: t?.identity || identity,
-      cue_time: cueTime, cue_place: cuePlace,
+      user_id: uid, habit_name: n, emoji: t?.emoji || "✅", anchor: t?.anchor || anchor,
+      target_minutes: t?.target || Number(target) || 10, identity: t?.identity || "", cue_time: "", cue_place: "",
     }).select().single();
-    if (!error && data) setHabits([...habits, data as Habit]);
-    setName(""); setIdentity(""); setCueTime(""); setCuePlace(""); setAdding(false);
+    if (!error && data) { setHabits([...habits, data as Habit]); setView("today"); }
+    setName(""); setAdding(false);
   };
   const del = async (id: string) => { await supabase.from("habits").delete().eq("id", id); setHabits(habits.filter((h) => h.id !== id)); };
 
@@ -135,137 +125,154 @@ export default function HabitLogPage() {
   const atRisk = habits.filter((h) => (h.created_at || "").slice(0, 10) <= yesterday && !doneYesterday.includes(h.id) && !doneToday.includes(h.id));
   const last7 = Array.from({ length: 7 }, (_, i) => toLocalISO(new Date(Date.now() - (6 - i) * 86400000)));
   const isDone = (hid: string, d: string) => logs.some((l) => l.habit_id === hid && l.log_date === d);
+  const doneCount = doneToday.length;
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
       <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 via-purple-600 to-fuchsia-600 p-5 shadow-xl shadow-purple-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
-        <div className="relative flex items-center gap-4">
-          <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center"><ListChecks size={22} className="text-white" /></span>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Habit Log</h1>
-            <p className="text-[11px] text-white/75 font-semibold mt-0.5">Start tiny • stack it • become it • review nightly</p>
-          </div>
+        <div className="relative">
+          <h1 className="text-lg font-black text-white leading-tight">Habit Log</h1>
+          <p className="text-[11px] text-white/75 font-semibold mt-0.5">Tiny habits → big life. Just tap ✓ each day.</p>
         </div>
       </div>
 
-      {atRisk.length > 0 && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 mb-4">
-          <p className="text-sm font-black text-amber-300 mb-1">⚠️ Don't miss twice!</p>
-          <p className="text-xs text-amber-200/90">You missed {atRisk.map((h) => h.emoji + " " + h.habit_name).join(", ")} yesterday. One miss is an accident — two is a new habit. Do the 2-min version now!</p>
-        </div>
+      {/* Simple 3-tab switcher */}
+      <div className="grid grid-cols-3 gap-2 mb-5">
+        {(["today", "add", "review"] as const).map((v) => (
+          <button key={v} onClick={() => setView(v)} className={`press py-2.5 rounded-xl text-xs font-black border ${view === v ? "bg-violet-500/15 border-violet-500/30 text-violet-300" : "bg-slate-900 border-slate-800 text-slate-400"}`}>
+            {v === "today" ? "✅ Today" : v === "add" ? "➕ Add" : "🏛️ Review"}
+          </button>
+        ))}
+      </div>
+
+      {/* ============ TODAY ============ */}
+      {view === "today" && (
+        <>
+          {habits.length > 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
+              <div className="flex justify-between text-xs font-black mb-2">
+                <span className="text-slate-400">TODAY</span>
+                <span className="text-emerald-400">{doneCount}/{habits.length} done</span>
+              </div>
+              <div className="h-2 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${habits.length ? (doneCount / habits.length) * 100 : 0}%` }} /></div>
+            </div>
+          )}
+
+          {atRisk.length > 0 && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 mb-4">
+              <p className="text-sm font-black text-amber-300 mb-1">⚠️ Don't miss twice!</p>
+              <p className="text-xs text-amber-200/90">You missed {atRisk.map((h) => h.emoji).join(" ")} yesterday. Do the 2-min version now!</p>
+            </div>
+          )}
+
+          <div className="grid gap-3">
+            {habits.map((h) => {
+              const done = doneToday.includes(h.id);
+              return (
+                <div key={h.id} className={`rounded-2xl p-4 border flex items-center gap-3 ${done ? "bg-emerald-500/10 border-emerald-500/40" : "bg-slate-900 border-slate-800"}`}>
+                  <button onClick={() => toggle(h)} className={`w-14 h-14 shrink-0 rounded-2xl border-2 flex items-center justify-center text-2xl press ${done ? "bg-emerald-600 border-emerald-500" : "bg-slate-800 border-slate-700"}`}>{done ? "✓" : h.emoji}</button>
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-black text-sm ${done ? "text-emerald-300 line-through" : "text-white"}`}>{h.habit_name}</p>
+                    <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5"><Anchor size={10} /> After {h.anchor} • {currentMin(h)} min</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    {streaks[h.id] > 0 && <span className="flex items-center gap-0.5 text-[10px] font-black text-orange-400"><Flame size={11} />{streaks[h.id]}</span>}
+                    <button onClick={() => del(h.id)} className="text-slate-700 hover:text-red-400"><Trash2 size={13} /></button>
+                  </div>
+                </div>
+              );
+            })}
+            {habits.length === 0 && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
+                <p className="text-3xl mb-2">🌱</p>
+                <p className="text-sm font-bold text-white mb-1">Start with ONE tiny habit</p>
+                <p className="text-xs text-slate-400 mb-4">2 minutes, after something you already do. That's it.</p>
+                <button onClick={() => setView("add")} className="press px-5 py-3 rounded-xl bg-violet-600 text-sm font-black">➕ Pick my first habit</button>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
-      <div className="grid gap-3 mb-5">
-        {habits.map((h) => {
-          const done = doneToday.includes(h.id);
-          return (
-            <div key={h.id} className={`rounded-2xl p-4 border transition-all ${done ? "bg-emerald-500/10 border-emerald-500/40" : "bg-slate-900 border-slate-800"}`}>
-              <div className="flex items-center gap-3">
-                <button onClick={() => toggle(h)} className={`w-12 h-12 shrink-0 rounded-xl border-2 flex items-center justify-center text-2xl press ${done ? "bg-emerald-600 border-emerald-500" : "bg-slate-800 border-slate-700"}`}>{done ? "✓" : h.emoji}</button>
-                <div className="flex-1 min-w-0">
-                  <p className={`font-black text-sm ${done ? "text-emerald-300 line-through" : "text-white"}`}>{h.habit_name}</p>
-                  {h.identity && <p className="text-[10px] text-fuchsia-300 font-bold mt-0.5">🪪 I am someone who {h.identity}</p>}
-                  {h.anchor && <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5"><Anchor size={10} /> After {h.anchor}</p>}
-                  {(h.cue_time || h.cue_place) && (
-                    <p className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
-                      {h.cue_time && <span className="flex items-center gap-0.5"><Clock size={10} />{h.cue_time}</span>}
-                      {h.cue_place && <span className="flex items-center gap-0.5"><MapPin size={10} />{h.cue_place}</span>}
-                    </p>
-                  )}
-                  <p className="text-[10px] text-violet-300 font-bold mt-0.5">📈 Week {weeksSince(h.created_at) + 1} goal: {currentMin(h)} min (started at 2)</p>
-                </div>
-                <div className="flex flex-col items-end gap-1">
-                  {streaks[h.id] > 0 && <span className="flex items-center gap-0.5 text-[10px] font-black text-orange-400"><Flame size={11} />{streaks[h.id]}</span>}
-                  <button onClick={() => del(h.id)} className="text-slate-600 hover:text-red-400"><Trash2 size={13} /></button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        {habits.length === 0 && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center"><p className="text-3xl mb-2">🌱</p><p className="text-sm text-slate-400">No habits yet — tap a template below to start tiny!</p></div>
-        )}
-      </div>
-
-      {/* Franklin virtue grid */}
-      {habits.length > 0 && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4 overflow-x-auto">
-          <p className="text-xs font-black text-slate-400 mb-2">📜 Franklin Grid — last 7 days</p>
-          <div className="min-w-[420px]">
-            <div className="grid" style={{ gridTemplateColumns: "1fr repeat(7, 28px)" }}>
-              <div />
-              {last7.map((d) => (<div key={d} className="text-[9px] text-slate-500 font-black text-center">{d.slice(8)}</div>))}
-              {habits.map((h) => (
-                <div key={h.id} className="contents">
-                  <div className="text-[10px] text-slate-300 font-bold truncate pr-2 py-1">{h.emoji} {h.habit_name}</div>
-                  {last7.map((d) => (
-                    <div key={d} className="flex items-center justify-center py-1">
-                      <span className={`w-3.5 h-3.5 rounded-full ${isDone(h.id, d) ? "bg-emerald-500" : "bg-slate-800"}`} />
-                    </div>
-                  ))}
-                </div>
+      {/* ============ ADD ============ */}
+      {view === "add" && (
+        <>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
+            <p className="text-xs font-black text-slate-400 mb-2">TAP ONE TO START (2-min version)</p>
+            <div className="grid grid-cols-2 gap-2">
+              {TEMPLATES.map((t, i) => (
+                <button key={i} onClick={() => addHabit(t)} className="press text-left bg-slate-800/60 border border-slate-700 rounded-xl p-2.5 hover:border-violet-500/40">
+                  <p className="text-xs font-bold text-white">{t.emoji} {t.name}</p>
+                  <p className="text-[9px] text-slate-500 mt-0.5">After {t.anchor}</p>
+                </button>
               ))}
             </div>
           </div>
-        </div>
+          {!adding ? (
+            <button onClick={() => setAdding(true)} className="press w-full py-3.5 rounded-xl bg-violet-500/15 border border-violet-500/30 text-sm font-black text-violet-300 flex items-center justify-center gap-1.5"><Plus size={15} /> Create my own</button>
+          ) : (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid gap-2">
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Habit (e.g. Read 1 page)" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
+              <div className="grid grid-cols-2 gap-2">
+                <select value={anchor} onChange={(e) => setAnchor(e.target.value)} className="p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none">
+                  {ANCHORS.map((a) => (<option key={a}>After: {a}</option>))}
+                </select>
+                <input type="number" min="2" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Goal min" className="p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none" />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => addHabit()} className="press flex-1 py-2.5 rounded-xl bg-violet-600 text-sm font-black">Add</button>
+                <button onClick={() => setAdding(false)} className="press px-4 rounded-xl bg-slate-800 text-slate-400"><X size={15} /></button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
-        <p className="text-xs font-black text-slate-400 mb-2 flex items-center gap-1.5"><Sparkles size={13} className="text-violet-400" /> ONE-TAP START (2-min version)</p>
-        <div className="grid grid-cols-2 gap-2">
-          {TEMPLATES.map((t, i) => (
-            <button key={i} onClick={() => addHabit(t)} className="press text-left bg-slate-800/60 border border-slate-700 rounded-xl p-2.5 hover:border-violet-500/40">
-              <p className="text-xs font-bold text-white">{t.emoji} {t.name}</p>
-              <p className="text-[9px] text-slate-500 mt-0.5">After {t.anchor} • 🪪 {t.identity}</p>
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* ============ REVIEW ============ */}
+      {view === "review" && (
+        <>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
+            <p className="text-xs font-black text-slate-400 mb-2 flex items-center gap-1.5"><Landmark size={13} className="text-amber-400" /> EVENING REVIEW (1 min)</p>
+            {reflSaved ? (
+              <div className="bg-slate-800/60 rounded-xl p-3 text-xs text-slate-300 grid gap-1">
+                <p>✅ Went well: {reflWent || "—"}</p>
+                <p>🔧 Improve: {reflImprove || "—"}</p>
+                <p>🙏 Grateful: {reflGrateful || "—"}</p>
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                <input value={reflWent} onChange={(e) => setReflWent(e.target.value)} placeholder="What went well today?" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-emerald-500" />
+                <input value={reflImprove} onChange={(e) => setReflImprove(e.target.value)} placeholder="What to improve tomorrow?" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-amber-500" />
+                <input value={reflGrateful} onChange={(e) => setReflGrateful(e.target.value)} placeholder="One thing you're grateful for" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-fuchsia-500" />
+                <button onClick={saveReflection} className="press py-2.5 rounded-xl bg-amber-600 text-sm font-black">Save review</button>
+              </div>
+            )}
+          </div>
 
-      {!adding ? (
-        <button onClick={() => setAdding(true)} className="press w-full py-3.5 rounded-xl bg-violet-500/15 border border-violet-500/30 text-sm font-black text-violet-300 flex items-center justify-center gap-1.5 mb-4">
-          <Plus size={15} /> Create my own habit
-        </button>
-      ) : (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid gap-2 mb-4">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Habit (e.g. Read 1 page)" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
-          <input value={identity} onChange={(e) => setIdentity(e.target.value)} placeholder="Identity: I am someone who... (e.g. reads daily)" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-fuchsia-500" />
-          <div className="grid grid-cols-2 gap-2">
-            <select value={anchor} onChange={(e) => setAnchor(e.target.value)} className="p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none">
-              {ANCHORS.map((a) => (<option key={a}>After: {a}</option>))}
-            </select>
-            <input type="number" min="2" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Goal min" className="p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none" />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <input type="time" value={cueTime} onChange={(e) => setCueTime(e.target.value)} className="p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none" />
-            <input value={cuePlace} onChange={(e) => setCuePlace(e.target.value)} placeholder="Place (e.g. desk)" className="p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none" />
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => addHabit()} className="press flex-1 py-2.5 rounded-xl bg-violet-600 text-sm font-black">Add habit</button>
-            <button onClick={() => setAdding(false)} className="press px-4 rounded-xl bg-slate-800 text-slate-400"><X size={15} /></button>
-          </div>
-        </div>
+          {habits.length > 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 overflow-x-auto">
+              <p className="text-xs font-black text-slate-400 mb-2">📜 LAST 7 DAYS</p>
+              <div className="min-w-[420px]">
+                <div className="grid" style={{ gridTemplateColumns: "1fr repeat(7, 28px)" }}>
+                  <div />
+                  {last7.map((d) => (<div key={d} className="text-[9px] text-slate-500 font-black text-center">{d.slice(8)}</div>))}
+                  {habits.map((h) => (
+                    <div key={h.id} className="contents">
+                      <div className="text-[10px] text-slate-300 font-bold truncate pr-2 py-1">{h.emoji} {h.habit_name}</div>
+                      {last7.map((d) => (
+                        <div key={d} className="flex items-center justify-center py-1">
+                          <span className={`w-3.5 h-3.5 rounded-full ${isDone(h.id, d) ? "bg-emerald-500" : "bg-slate-800"}`} />
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
-
-      {/* Stoic evening review */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-        <p className="text-xs font-black text-slate-400 mb-2 flex items-center gap-1.5"><Landmark size={13} className="text-amber-400" /> 🏛️ EVENING REVIEW (1 min — like your learning method's Review + Brain Dump)</p>
-        {reflSaved ? (
-          <div className="bg-slate-800/60 rounded-xl p-3 text-xs text-slate-300 grid gap-1">
-            <p>✅ Went well: {reflWent || "—"}</p>
-            <p>🔧 Improve: {reflImprove || "—"}</p>
-            <p>🙏 Grateful: {reflGrateful || "—"}</p>
-          </div>
-        ) : (
-          <div className="grid gap-2">
-            <input value={reflWent} onChange={(e) => setReflWent(e.target.value)} placeholder="What went well today?" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-emerald-500" />
-            <input value={reflImprove} onChange={(e) => setReflImprove(e.target.value)} placeholder="What to improve tomorrow?" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-amber-500" />
-            <input value={reflGrateful} onChange={(e) => setReflGrateful(e.target.value)} placeholder="One thing you're grateful for" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-fuchsia-500" />
-            <button onClick={saveReflection} className="press py-2.5 rounded-xl bg-amber-600 text-sm font-black">Save review</button>
-          </div>
-        )}
-      </div>
 
       {celebrate && (
         <div className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center pointer-events-none">
