@@ -3,22 +3,26 @@ import { NextResponse } from "next/server";
 const GROQ_MODELS = ["openai/gpt-oss-20b","openai/gpt-oss-120b","meta-llama/llama-4-scout-17b-16e-instruct","meta-llama/llama-4-maverick-17b-128e-instruct"];
 const GEMINI_MODELS = ["gemini-3-flash-preview","gemini-3.7-flash"];
 
-const SYS = `You are an evidence-based strength & nutrition coach. Build a plan SPECIFIC to the goal — NEVER a generic template:
-- Abs → core-focused + slight deficit.
-- Running → running volume + intervals, light lifting.
-- Gain/bulk → surplus + heavy compounds.
-- Lose/cut → deficit + compound lifts to keep muscle.
-- A muscle (chest/back/biceps/...) → target that muscle with its best exercises.
-Use current scientific consensus (protein 1.6-2.2 g/kg, progressive overload, ~10-20 hard sets/muscle/week, 7-9h sleep).
-Return ONLY valid JSON, EXACTLY this shape (keep strings short):
+const SYS = `You are a friendly, practical strength & nutrition coach. Build a plan SPECIFIC to the goal — never a generic template:
+- Abs → core work + slight deficit. Running → running volume + intervals. Gain → surplus + heavy compounds. Lose → deficit + compounds. A muscle → target it with its best exercises.
+
+EXERCISES: only the best compound movements for goal + equipment. Home = push-ups, pull-ups, weighted squats, pike push-ups, plank. Gym = squat, bench, deadlift, row, overhead press.
+
+NUTRITION: list 10+ high-protein foods using NATURAL serving sizes people actually eat, each with protein (and C/F if useful). Examples: "1 egg = 6g", "1 glass milk = 8g", "1 bowl soya chunks = 26g", "2 tbsp sattu = 6g", "paneer 50g = 9g".
+- Vegetarian = NO eggs, NO meat, NO fish. MUST include: soya chunks, sattu, paneer, chana, moong dal, rajma, curd, milk, peanuts, oats.
+- Non-veg adds: eggs (as pieces), chicken, fish.
+
+TIPS: write 5-7 tips in SIMPLE everyday language a total beginner understands. NO scientific jargon (never use VO2max, lactate, MPS, glycogen). Examples: "Warm up 5 minutes before lifting", "Sleep 7-9 hours", "Drink 3-4 litres water", "Add 1 rep or a little weight every week", "Eat protein in every meal", "Stop 1-2 reps before you fail".
+
+Return ONLY valid JSON, EXACTLY:
 {"title":"...","split":[{"day":"Mon","focus":"..."}],
 "exercises":[{"day":"Mon","name":"...","sets":3,"reps":"8-12","rest":"90s"}],
 "topExercises":["3-5 best for THIS goal"],
-"progression":"overload rule",
-"nutrition":{"calories":0,"protein":0,"carbs":0,"fat":0,"foods":["10+ foods, each as 'Name — P..g C..g F..g /100g'"],"tip":"..."},
+"progression":"simple overload rule",
+"nutrition":{"calories":0,"protein":0,"carbs":0,"fat":0,"foods":["10+ foods with natural servings + protein"],"tip":"..."},
 "recovery":{"sleep":"...","water":"...","deload":"..."},
-"tips":["5-7 scientific, goal-specific tips"]}
-Use the EXACT calories/protein/carbs/fat numbers provided. Do NOT add per-exercise right/wrong lines.`;
+"tips":["5-7 simple tips"]}
+Use the EXACT calories/protein/carbs/fat numbers provided.`;
 
 function parseJson(t: string) { const s = t.indexOf("{"), e = t.lastIndexOf("}"); if (s < 0 || e < 0) throw 0; return JSON.parse(t.slice(s, e + 1)); }
 async function groq(p: string, m: string) {
@@ -35,7 +39,7 @@ async function gemini(p: string, m: string) {
 export async function POST(req: Request) {
   const b = await req.json();
   const prompt = `Goal:${b.goal} Days:${b.days} Split:${b.splitStyle} Level:${b.level} Equipment:${b.equipment} Exercises/session:${b.perSession} Diet:${b.diet}
-EXACT macros to use → calories:${b.calories} protein:${b.protein}g carbs:${b.carbs}g fat:${b.fat}g ${b.weight ? `(weight ${b.weight}kg)` : ""}`;
+EXACT macros → calories:${b.calories} protein:${b.protein}g carbs:${b.carbs}g fat:${b.fat}g ${b.weight ? `(weight ${b.weight}kg)` : ""}`;
   let last = "";
   for (const m of GROQ_MODELS) { try { return NextResponse.json(parseJson(await groq(prompt, m))); } catch (e) { last = String(e); } }
   for (const m of GEMINI_MODELS) { try { return NextResponse.json(parseJson(await gemini(prompt, m))); } catch (e) { last = String(e); } }

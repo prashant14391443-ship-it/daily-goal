@@ -31,8 +31,8 @@ const POOL: Record<string, { h: string; g: string; sets: number; reps: string; r
 const FOCUS_POOL: Record<string, string> = { chest:"chest",back:"back",legs:"legs",full:"full",abs:"abs",shoulders:"shoulders",arms:"arms",biceps:"biceps",triceps:"triceps",forearms:"forearms",run:"run","Chest":"chest","Back":"back","Legs":"legs","Shoulders":"shoulders","Arms":"arms","Abs":"abs","Upper body":"upper","Lower body":"legs","Push (chest/shoulders/triceps)":"push","Pull (back/biceps)":"pull","Full body":"full" };
 const FOCUS_OPTIONS = ["Chest","Back","Legs","Shoulders","Arms","Abs","Upper body","Lower body","Push (chest/shoulders/triceps)","Pull (back/biceps)","Full body"];
 const GOAL_FOCUS: Record<string, string[]> = { "Build muscle":["chest","back","legs","full"],"Lose fat":["full","legs","full","abs"],"Build abs":["abs","abs","full","abs"],"Build chest":["chest","chest","shoulders","chest"],"Build back":["back","back","biceps","back"],"Biceps":["biceps","back","arms","biceps"],"Triceps":["triceps","chest","arms","triceps"],"Forearms":["forearms","back","arms","forearms"],"Upper body":["chest","back","shoulders","arms"],"Lower body":["legs","legs","abs","legs"],"Improve running":["run","legs","abs","run"],"Full physique":["chest","back","legs","full"] };
-const VEG_FOODS = ["Soya chunks — P52 C33 F13 /100g","Paneer — P18 C4 F20 /100g","Chana — P19 C61 F6 /100g","Moong dal — P24 C60 F1 /100g","Toor dal — P22 C60 F1 /100g","Rajma — P24 C60 F1 /100g","Curd — P10 C4 F5 /100g","Milk — P3.4 C5 F3.5 /100ml","Peanuts — P26 C16 F49 /100g","Oats — P13 C66 F7 /100g","Tofu — P8 C2 F5 /100g","Sprouts — P9 C15 F0.5 /100g"];
-const NONVEG_FOODS = ["Chicken breast — P31 C0 F3.6 /100g","Eggs — P13 C1 F11 /100g","Fish — P22 C0 F5 /100g","Soya chunks — P52 C33 F13 /100g","Paneer — P18 C4 F20 /100g","Dal — P22 C60 F1 /100g","Curd — P10 C4 F5 /100g","Milk — P3.4 C5 F3.5 /100ml","Peanuts — P26 C16 F49 /100g","Oats — P13 C66 F7 /100g"];
+const VEG_FOODS = ["Soya chunks (1 bowl/50g) — 26g protein","Sattu (2 tbsp/30g) — 6g protein","Paneer (50g) — 9g protein","Chana (1 bowl) — 12g protein","Moong dal (1 bowl) — 14g protein","Rajma (1 bowl) — 15g protein","Curd (1 bowl/100g) — 10g protein","Milk (1 glass/250ml) — 8g protein","Peanuts (1 handful/30g) — 8g protein","Oats (1 bowl) — 6g protein","Sprouts (1 bowl) — 9g protein","Tofu (50g) — 4g protein"];
+const NONVEG_FOODS = ["Eggs (1 whole) — 6g protein","Eggs (2 whole) — 12g protein","Chicken breast (100g) — 31g protein","Fish (100g) — 22g protein","Soya chunks (1 bowl/50g) — 26g protein","Sattu (2 tbsp/30g) — 6g protein","Paneer (50g) — 9g protein","Dal (1 bowl) — 14g protein","Curd (1 bowl) — 10g protein","Milk (1 glass) — 8g protein","Peanuts (1 handful) — 8g protein"];
 
 export default function BlueprintPage() {
   const [goal, setGoal] = useState("Build muscle");
@@ -295,7 +295,7 @@ export default function BlueprintPage() {
           </div>
 
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-            <p className="text-xs font-black text-slate-400 mb-2">🔑 SCIENTIFIC TIPS</p>
+            <p className="text-xs font-black text-slate-400 mb-2">🔑 IMPORTANT TIPS (simple)</p>
             {edit ? (
               <textarea value={bp.tips.join("\n")} onChange={(e) => setBp({ ...bp, tips: e.target.value.split("\n") })} rows={5} className="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-sm" />
             ) : (<ul className="space-y-1">{bp.tips.map((t, i) => <li key={i} className="text-xs text-slate-300">• {t}</li>)}</ul>)}
