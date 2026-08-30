@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { IconTile, GradButton, Chip } from "@/app/components/ui";
-import { X, Lightbulb } from "lucide-react";
+import { X, Lightbulb, Sparkles } from "lucide-react";
 
 function toLocalISO(d: Date) { const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, "0"); const day = String(d.getDate()).padStart(2, "0"); return `${y}-${m}-${day}`; }
 function addDays(dateStr: string, days: number) { const d = new Date(dateStr + "T00:00:00"); d.setDate(d.getDate() + days); return toLocalISO(d); }
@@ -27,22 +27,31 @@ export default function ReportPage() {
   const [sharing, setSharing] = useState(false);
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [calTarget, setCalTarget] = useState(0);
+  const [direction, setDirection] = useState("maintain");
+  const [reports, setReports] = useState<any[]>([]);
+  const [reportLoading, setReportLoading] = useState(false);
   const router = useRouter();
 
-  useEffect(() => { try { const c = JSON.parse(localStorage.getItem("dg-calc") || "null"); if (c?.result) setCalTarget(c.result.calories); } catch {} }, []);
+  useEffect(() => {
+    try {
+      const c = JSON.parse(localStorage.getItem("dg-calc") || "null");
+      if (c?.result) { setCalTarget(c.result.calories); setDirection(c.result.direction); }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase.auth.getSession();
       const userId = data.session?.user.id;
       if (!userId) { router.push("/login"); return; }
-      const [s, g, hl, t, habits, nutrition] = await Promise.all([
+      const [s, g, hl, t, habits, nutrition, rep] = await Promise.all([
         supabase.from("study_sessions").select("session_date, subject, duration_minutes").eq("user_id", userId).gte("session_date", weekStart),
         supabase.from("gym_logs").select("session_date, workout_type, duration_minutes, activity_type, distance_km").eq("user_id", userId).eq("completed", true).gte("session_date", weekStart),
         supabase.from("habit_logs").select("log_date, habit_id").eq("user_id", userId).eq("completed", true).gte("log_date", weekStart),
         supabase.from("tasks").select("task_date, title").eq("user_id", userId).eq("completed", true).gte("task_date", weekStart),
         supabase.from("habits").select("id, habit_name").eq("user_id", userId),
         supabase.from("nutrition_logs").select("log_date, calories").eq("user_id", userId).gte("log_date", weekStart),
+        supabase.from("nutrition_reports").select("*").eq("user_id", userId).order("created_at", { ascending: false }).limit(3),
       ]);
       const habitMap: Record<string, string> = {};
       (habits.data || []).forEach((h: any) => { habitMap[h.id] = h.habit_name; });
@@ -78,6 +87,7 @@ export default function ReportPage() {
       (hl.data || []).forEach((r: any) => activeDates.add(r.log_date));
       (t.data || []).forEach((r: any) => activeDates.add(r.task_date));
       setStreak(calcStreak(activeDates, today));
+      setReports(Array.isArray(rep?.data) ? rep.data : []);
       setLoading(false);
     };
     load();
@@ -95,6 +105,7 @@ export default function ReportPage() {
   const activeStudyDays = days.filter((d) => d.study > 0).length;
   const gymDays = days.filter((d) => d.gym > 0).length;
   const runDays = days.filter((d) => d.runDist > 0).length;
+  const calDaysCount = days.filter((d) => d.calTotal > 0).length;
 
   const tips: string[] = [];
   if (activeStudyDays === 0) tips.push("No study this week — start today with one 25-min session. Momentum beats motivation.");
@@ -105,6 +116,22 @@ export default function ReportPage() {
   if (calTarget && avgCal > 0 && avgCal < calTarget - 300) tips.push(`Calories ~${calTarget - avgCal} below target — add protein (soya, paneer, eggs, sattu) to hit it.`);
   if (calTarget && avgCal > calTarget + 300) tips.push("Calories above target — watch portions and sugary drinks.");
   tips.push("Try one 8-phase session: 10 min prep → 45 min learn + mimic → 10 min blurting → 10 min rest → 60 min real project.");
+
+  const generateReport = async () => {
+    const history = days.filter((d) => d.calTotal > 0).map((d) => ({ date: d.date, calories: d.calTotal }));
+    if (history.length < 3 || !calTarget) return;
+    setReportLoading(true);
+    try {
+      const res = await fetch("/api/coach", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ goal: direction, target: calTarget, history }) });
+      const d = await res.json();
+      if (!res.ok) throw 0;
+      const { data } = await supabase.auth.getSession();
+      const uid = data.session?.user.id;
+      const { data: ins } = await supabase.from("nutrition_reports").insert({ user_id: uid, good: d.good, improve: d.improve, tips: d.tips, verdict: d.verdict }).select().single();
+      if (ins) setReports([ins, ...reports]);
+    } catch {}
+    setReportLoading(false);
+  };
 
   const renderDetail = (type: string) => {
     if (type === "Study") {
@@ -235,7 +262,6 @@ export default function ReportPage() {
       ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.font = "26px sans-serif";
       ctx.fillText(`${bestDay.date} — ${Math.floor(bestDay.study / 60)}h${bestDay.study % 60}m study, ${bestDay.gym} gym, ${bestDay.habits} habits, ${bestDay.todo} tasks`, 110, 908);
 
-      // running + calories
       ctx.fillStyle = "rgba(255,255,255,0.08)"; ctx.beginPath(); ctx.roundRect(110, 950, 420, 120, 24); ctx.fill();
       ctx.beginPath(); ctx.roundRect(550, 950, 420, 120, 24); ctx.fill();
       ctx.fillStyle = "#4ade80"; ctx.font = "bold 34px sans-serif"; ctx.fillText(`🏃 ${runDistWeek} km`, 140, 1000);
@@ -243,7 +269,6 @@ export default function ReportPage() {
       ctx.fillStyle = "#fbbf24"; ctx.font = "bold 34px sans-serif"; ctx.fillText(`🔥 ${avgCal} kcal`, 580, 1000);
       ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.font = "24px sans-serif"; ctx.fillText(`avg/day${calTarget ? ` / ${calTarget}` : ""}`, 580, 1040);
 
-      // day by day
       ctx.fillStyle = "#fff"; ctx.font = "bold 34px sans-serif"; ctx.fillText("📅 DAY BY DAY", 110, 1140);
       days.forEach((d, i) => {
         const y = 1180 + i * 56;
@@ -260,7 +285,6 @@ export default function ReportPage() {
         ctx.fillText(parts.length ? parts.join("  ") : "— rest day", 300, y + 31);
       });
 
-      // tips
       let ty = 1180 + 7 * 56 + 60;
       ctx.fillStyle = "#fbbf24"; ctx.font = "bold 34px sans-serif"; ctx.fillText("💡 TIPS TO IMPROVE", 110, ty);
       ty += 44;
@@ -312,7 +336,6 @@ export default function ReportPage() {
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center"><p className="text-4xl mb-2 animate-bounce">📊</p><p className="text-slate-400 text-sm">Crunching your week...</p></div>
       ) : (
         <>
-          {/* Compact equal cards */}
           <div className="grid grid-cols-2 gap-3 mb-3">
             {stats.map((s) => (
               <button key={s.key} onClick={() => setOpenSection(openSection === s.key ? null : s.key)} className={`press text-left rounded-2xl p-4 border transition-all ${openSection === s.key ? "bg-slate-800 border-violet-500/40" : "bg-slate-900 border-slate-800 hover:border-slate-700"}`}>
@@ -326,7 +349,6 @@ export default function ReportPage() {
             ))}
           </div>
 
-          {/* ONE full-width detail panel */}
           {openSection && (
             <div className="bg-slate-900 border border-violet-500/30 rounded-2xl p-4 mb-5">
               <div className="flex items-center justify-between mb-3">
@@ -337,7 +359,6 @@ export default function ReportPage() {
             </div>
           )}
 
-          {/* STREAK + BEST DAY */}
           <div className="grid grid-cols-2 gap-3 mb-5">
             <div className="bg-gradient-to-br from-orange-600/20 to-red-600/20 border-2 border-orange-500/40 rounded-2xl p-4 shadow-lg">
               <p className="text-[10px] font-black text-orange-300 mb-1">🔥 CURRENT STREAK</p>
@@ -351,7 +372,6 @@ export default function ReportPage() {
             </div>
           </div>
 
-          {/* DAY BY DAY */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5 shadow-lg shadow-black/30">
             <div className="flex items-center gap-2 mb-3">
               <IconTile emoji="📅" gradient="bg-gradient-to-br from-slate-500 to-slate-700" size="sm" />
@@ -382,13 +402,33 @@ export default function ReportPage() {
             </div>
           </div>
 
-          {/* TIPS */}
           <div className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/30 rounded-2xl p-5 mb-5 shadow-lg">
             <div className="flex items-center gap-2 mb-3"><Lightbulb size={20} className="text-amber-400" /><h2 className="text-base font-black text-white">Tips to improve next week</h2></div>
             <div className="grid gap-2">{tips.map((t, i) => (<p key={i} className="text-sm text-slate-200 flex gap-2 leading-snug"><span className="text-amber-400 shrink-0">→</span><span>{t}</span></p>))}</div>
           </div>
 
-          {/* SHARE / DOWNLOAD */}
+          {/* AI COACH REPORT */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-5">
+            <h2 className="text-base font-semibold text-white mb-3">🧠 AI Coach Report</h2>
+            <button onClick={generateReport} disabled={reportLoading || calDaysCount < 3} className="press w-full py-3 rounded-xl bg-violet-500/15 border border-violet-500/30 text-sm font-black text-violet-300 disabled:opacity-50 mb-4 flex items-center justify-center gap-2">
+              <Sparkles size={15} />
+              {reportLoading ? "Analyzing..." : calDaysCount < 3 ? "Need 3+ days of calorie data" : "Generate Report"}
+            </button>
+            <div className="grid gap-3">
+              {reports.map((r) => (
+                <div key={r.id} className="bg-slate-800/60 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-slate-500">{new Date(r.created_at).toLocaleDateString()}</p>
+                    <span className={`text-[10px] font-black px-2 py-1 rounded-md ${r.verdict === "on track" ? "bg-green-500/20 text-green-300" : r.verdict === "gaining too fast" ? "bg-red-500/20 text-red-300" : r.verdict === "losing too fast" ? "bg-yellow-500/20 text-yellow-300" : "bg-slate-700 text-slate-300"}`}>{r.verdict}</span>
+                  </div>
+                  <p className="text-xs text-slate-300 mb-1"><b className="text-green-400">✅</b> {r.good}</p>
+                  <p className="text-xs text-slate-300 mb-1"><b className="text-yellow-400">⚠️</b> {r.improve}</p>
+                  <ul className="text-xs text-slate-300 list-disc list-inside">{(r.tips || []).map((t: string, i: number) => <li key={i}>{t}</li>)}</ul>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             <GradButton onClick={() => makeImage(true)} gradient="from-violet-600 to-fuchsia-600" disabled={sharing} className="py-3.5 text-sm">{sharing ? "..." : "📸 Share"}</GradButton>
             <button onClick={() => makeImage(false)} disabled={sharing} className="press py-3.5 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-sm font-black disabled:opacity-50">{sharing ? "..." : "📥 Download"}</button>
