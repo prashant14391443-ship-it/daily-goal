@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { BookOpen, Timer, Layers, Brain, Bot, RefreshCw } from "lucide-react";
+import { BookOpen, Timer, Layers, Brain, Bot, RefreshCw, GraduationCap } from "lucide-react";
 
 export default function StudyHub() {
   return (
@@ -66,6 +66,13 @@ export default function StudyHub() {
           </span>
           <p className="font-black text-sm text-white">AI Study Brain</p>
           <p className="text-[10px] text-slate-500 mt-0.5">Summarize → map + cards + quiz</p>
+        </Link>
+                <Link href="/learn" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
+          <span className="w-9 h-9 rounded-lg bg-fuchsia-500/10 text-fuchsia-400 flex items-center justify-center mb-4">
+            <GraduationCap size={18} strokeWidth={2.2} />
+          </span>
+          <p className="font-black text-sm text-white">Learn Anything</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">Full blueprint to master any skill</p>
         </Link>
       </div>
     </main>
