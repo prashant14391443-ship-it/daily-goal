@@ -8,6 +8,8 @@ import { GraduationCap, Sparkles, Save, Download, Layers, Map as MapIcon, Hammer
 type LearnBP = {
   title: string;
   goal: { meaning: string; time: string; skip: string[] };
+  stages?: string[];
+  physical?: { events: string[]; plan: string[] };
   roadmap: { m: string; topics: string; project: string; checkpoint: string }[];
   projects: { name: string; difficulty: string; time: string; learn: string }[];
   resources: { free: string[]; search: string[]; paid: string[]; book: string };
@@ -87,8 +89,18 @@ export default function LearnPage() {
   const buildOffline = (): LearnBP => {
     const isCode = CODING.includes(category);
     const R = RESOURCES[category] || RESOURCES["Python"];
+    const low = (topic + " " + category).toLowerCase();
+    const isPhysical = ["police","army","navy","air force","airforce","defence","defense","constable","fire","gd"].some((k) => low.includes(k));
     return {
       title: `Learn ${topic || category}`,
+      stages: isCode
+        ? ["Learn basics","Build small projects","Build a real project","Portfolio + apply"]
+        : isPhysical
+          ? ["Written exam (GK, math, reasoning, Hindi, science, current affairs)","Physical test (run, long jump, high jump)","Document verification + medical"]
+          : ["Learn base (NCERT/core)","Practice questions","Mock tests","Revision"],
+      physical: isPhysical
+        ? { events: ["1.6 km run (beat the cutoff time)","Long jump","High jump","Basic strength (push-ups, squats, core)"], plan: ["Run 3x/week: start easy 800m, add 200m weekly till 1.6km, then train speed","Long jump practice 2x/week (5 attempts, focus technique)","High jump + strength 2x/week","Rest 1-2 days; stretch daily"] }
+        : undefined,
       goal: { meaning: isCode ? "Being able to build real things without a tutorial." : "Being able to recall and apply it in an exam without notes.", time: isCode ? "3-6 months at 1hr/day" : "2-4 months at 1hr/day", skip: ["memorizing everything", "watching tutorials all day", "buying 5 courses"] },
       roadmap: isCode ? CODE_MILESTONES : STUDY_MILESTONES,
       projects: isCode
@@ -210,6 +222,20 @@ export default function LearnPage() {
               </>
             )}
           </Card>
+
+          {(bp.stages || []).length > 0 && (
+            <Card icon={ListOrdered} color="text-purple-400" title="🧾 FULL SYLLABUS / SELECTION STAGES">
+              <ol className="list-decimal list-inside">{bp.stages!.map((s, i) => <li key={i} className="text-xs text-slate-300 mb-1">{s}</li>)}</ol>
+            </Card>
+          )}
+          {bp.physical && (
+            <Card icon={Dumbbell} color="text-red-400" title="🏃 PHYSICAL TEST PREP">
+              <p className="text-[10px] font-black text-slate-500">EVENTS</p>
+              <ul className="mb-2">{bp.physical.events.map((e, i) => <li key={i} className="text-xs text-slate-300">• {e}</li>)}</ul>
+              <p className="text-[10px] font-black text-slate-500">WEEKLY PLAN</p>
+              <ul>{bp.physical.plan.map((p, i) => <li key={i} className="text-xs text-slate-300">• {p}</li>)}</ul>
+            </Card>
+          )}
 
           <Card icon={Timer} color="text-emerald-400" title="🧠 THE 8-PHASE METHOD (your daily session)">
             <div className="grid gap-2">
