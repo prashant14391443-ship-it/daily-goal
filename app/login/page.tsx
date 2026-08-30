@@ -35,7 +35,14 @@ export default function LoginPage() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
-    if (error) setError(error.message);
+    if (error) {
+      const msg = error.message.toLowerCase();
+      if (msg.includes("email not confirmed") || msg.includes("unconfirmed")) {
+        setError("📬 Please check your email and click the confirmation link first, then log in again.");
+      } else {
+        setError(error.message);
+      }
+    }
     else router.replace("/dashboard");
   };
 
@@ -129,6 +136,22 @@ export default function LoginPage() {
               <AlertCircle size={14} className="text-red-400 mt-0.5 flex-shrink-0" />
               <p className="text-sm text-red-300 font-medium flex-1">{error}</p>
             </div>
+          )}
+          {error && error.includes("confirmation link") && (
+            <button
+              type="button"
+              onClick={async () => {
+                setLoading(true);
+                const { error } = await supabase.auth.resend({ type: "signup", email });
+                setLoading(false);
+                if (!error) setMsg("✅ Confirmation email resent! Check your inbox.");
+                else setError(error.message);
+              }}
+              disabled={loading}
+              className="w-full py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold hover:bg-amber-500/20 transition-colors mb-4 disabled:opacity-50"
+            >
+              {loading ? "Sending..." : "Resend confirmation email"}
+            </button>
           )}
 
           {/* LOGIN MODE */}
