@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, Calendar, Trophy, Flame, Check } from "lucide-react";
+import { BarChart3, Calendar, Trophy, Flame, Check, Ban } from "lucide-react";
 import { ProgressRing, EmptyState } from "@/app/components/ui";
 
 function toLocalISO(d: Date) {
@@ -178,9 +178,20 @@ export default function HabitStatsPage() {
         </>
       )}
 
-      <Link href="/routine-habits" className="inline-block mt-6 text-sm text-slate-500 hover:text-white press font-bold">
-        ← Back to Habits
-      </Link>
+      {/* FOOTER NAVIGATION */}
+      <div className="mt-8 flex flex-col gap-4">
+        {/* NEW: Link to Bad Habits Page */}
+        <Link 
+          href="/quit" 
+          className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-sm font-black text-rose-400 hover:bg-rose-500/20 transition-all press"
+        >
+          <Ban size={16} /> Break a Bad Habit
+        </Link>
+
+        <Link href="/routine-habits" className="inline-block text-center text-sm text-slate-500 hover:text-white press font-bold">
+          ← Back to Habits
+        </Link>
+      </div>
     </main>
   );
 }
