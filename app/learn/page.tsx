@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { addTopic } from "@/lib/srs";
-import { GraduationCap, Sparkles, Save, Download, Layers, Map as MapIcon, Hammer, BookOpen, Dumbbell, AlertTriangle, ListOrdered, Calendar, Lightbulb, Timer, Trash2 } from "lucide-react";
+import { GraduationCap, Sparkles, Save, Download, Layers, Map as MapIcon, Hammer, BookOpen, Dumbbell, AlertTriangle, ListOrdered, Calendar, Lightbulb, Timer, Trash2, Pencil } from "lucide-react";
 
 type LearnBP = {
   title: string;
@@ -69,6 +69,7 @@ export default function LearnPage() {
   const [saved, setSaved] = useState<any[]>([]);
   const [msg, setMsg] = useState("");
   const [uid, setUid] = useState("");
+  const [edit, setEdit] = useState(false);
 
   useEffect(() => { load(); }, []);
   const notify = (m: string) => { setMsg(m); setTimeout(() => setMsg(""), 2500); };
@@ -78,6 +79,10 @@ export default function LearnPage() {
     const { data: rows } = await supabase.from("learn_blueprints").select("*").eq("user_id", id).order("created_at", { ascending: false });
     setSaved(rows || []);
   };
+
+  const setGoalP = (patch: Partial<LearnBP["goal"]>) => setBp((b) => (b ? { ...b, goal: { ...b.goal, ...patch } } : b));
+  const setRoad = (i: number, patch: Partial<LearnBP["roadmap"][number]>) => setBp((b) => (b ? { ...b, roadmap: b.roadmap.map((r, j) => (j === i ? { ...r, ...patch } : r)) } : b));
+  const setSched = (patch: Partial<LearnBP["schedule"]>) => setBp((b) => (b ? { ...b, schedule: { ...b.schedule, ...patch } } : b));
 
   const buildOffline = (): LearnBP => {
     const isCode = CODING.includes(category);
@@ -99,7 +104,7 @@ export default function LearnPage() {
   };
 
   const generate = async () => {
-    setBusy(true); setBp(null);
+    setBusy(true); setBp(null); setEdit(false);
     try {
       const res = await fetch("/api/learn", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic: topic || category, category, level, hours, goal }) });
       const d = await res.json().catch(() => null);
@@ -115,7 +120,7 @@ export default function LearnPage() {
     await load();
   };
   const del = async (id: string) => { await supabase.from("learn_blueprints").delete().eq("id", id); setSaved(saved.filter((s) => s.id !== id)); };
-  const open = (s: any) => { setBp(s.data); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const open = (s: any) => { setBp(s.data); setEdit(false); window.scrollTo({ top: 0, behavior: "smooth" }); };
 
   const makeFlashcards = async () => {
     if (!bp || !uid) return notify("⚠️ Login first");
@@ -184,6 +189,7 @@ export default function LearnPage() {
         <div className="grid gap-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center gap-2 flex-wrap">
             <h3 className="font-black text-base text-white flex-1 min-w-0">{bp.title}</h3>
+            <button onClick={() => setEdit(!edit)} className="press px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-xs font-black text-slate-300 flex items-center gap-1"><Pencil size={12} /> {edit ? "Done" : "Edit"}</button>
             <button onClick={save} className="press px-3 py-2 rounded-lg bg-amber-600/20 border border-amber-500/30 text-xs font-black text-amber-300 flex items-center gap-1"><Save size={12} /> Save</button>
             <button onClick={makeFlashcards} className="press px-3 py-2 rounded-lg bg-violet-600/20 border border-violet-500/30 text-xs font-black text-violet-300 flex items-center gap-1"><Layers size={12} /> Cards</button>
             <button onClick={toReview} className="press px-3 py-2 rounded-lg bg-teal-600/20 border border-teal-500/30 text-xs font-black text-teal-300 flex items-center gap-1"><Timer size={12} /> Review</button>
@@ -191,9 +197,18 @@ export default function LearnPage() {
           </div>
 
           <Card icon={MapIcon} color="text-blue-400" title="🎯 GOAL DECODED">
-            <p className="text-sm text-slate-200 mb-1">{bp.goal.meaning}</p>
-            <p className="text-xs text-slate-400 mb-1">⏱ {bp.goal.time}</p>
-            <p className="text-xs text-slate-400">Skip: {bp.goal.skip.join(", ")}</p>
+            {edit ? (
+              <div className="grid gap-2">
+                <textarea value={bp.goal.meaning} onChange={(e) => setGoalP({ meaning: e.target.value })} rows={2} className="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-sm" />
+                <input value={bp.goal.time} onChange={(e) => setGoalP({ time: e.target.value })} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-xs" />
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-slate-200 mb-1">{bp.goal.meaning}</p>
+                <p className="text-xs text-slate-400 mb-1">⏱ {bp.goal.time}</p>
+                <p className="text-xs text-slate-400">Skip: {bp.goal.skip.join(", ")}</p>
+              </>
+            )}
           </Card>
 
           <Card icon={Timer} color="text-emerald-400" title="🧠 THE 8-PHASE METHOD (your daily session)">
@@ -210,10 +225,21 @@ export default function LearnPage() {
           <Card icon={ListOrdered} color="text-indigo-400" title="🗺️ ROADMAP (milestones)">
             <div className="grid gap-2">{bp.roadmap.map((r, i) => (
               <div key={i} className="bg-slate-800/60 rounded-xl p-3">
-                <p className="text-sm font-bold text-white">{i + 1}. {r.m}</p>
-                <p className="text-[11px] text-slate-400">Learn: {r.topics}</p>
-                <p className="text-[11px] text-indigo-300">Build/Do: {r.project}</p>
-                <p className="text-[11px] text-green-400">Check: {r.checkpoint}</p>
+                {edit ? (
+                  <div className="grid gap-2">
+                    <input value={r.m} onChange={(e) => setRoad(i, { m: e.target.value })} className="p-2 rounded-lg bg-slate-900 border border-slate-700 text-xs" />
+                    <input value={r.topics} onChange={(e) => setRoad(i, { topics: e.target.value })} className="p-2 rounded-lg bg-slate-900 border border-slate-700 text-xs" />
+                    <input value={r.project} onChange={(e) => setRoad(i, { project: e.target.value })} className="p-2 rounded-lg bg-slate-900 border border-slate-700 text-xs" />
+                    <input value={r.checkpoint} onChange={(e) => setRoad(i, { checkpoint: e.target.value })} className="p-2 rounded-lg bg-slate-900 border border-slate-700 text-xs" />
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm font-bold text-white">{i + 1}. {r.m}</p>
+                    <p className="text-[11px] text-slate-400">Learn: {r.topics}</p>
+                    <p className="text-[11px] text-indigo-300">Build/Do: {r.project}</p>
+                    <p className="text-[11px] text-green-400">Check: {r.checkpoint}</p>
+                  </>
+                )}
               </div>
             ))}</div>
           </Card>
@@ -249,13 +275,27 @@ export default function LearnPage() {
           </Card>
 
           <Card icon={Calendar} color="text-blue-400" title="📅 SCHEDULE (pick yours)">
-            <p className="text-xs text-slate-300 mb-1">1h/day: {bp.schedule.oneHour}</p>
-            <p className="text-xs text-slate-300 mb-1">2h/day: {bp.schedule.twoHour}</p>
-            <p className="text-xs text-slate-300">Weekend: {bp.schedule.weekend}</p>
+            {edit ? (
+              <div className="grid gap-2">
+                <input value={bp.schedule.oneHour} onChange={(e) => setSched({ oneHour: e.target.value })} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-xs" />
+                <input value={bp.schedule.twoHour} onChange={(e) => setSched({ twoHour: e.target.value })} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-xs" />
+                <input value={bp.schedule.weekend} onChange={(e) => setSched({ weekend: e.target.value })} className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-xs" />
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-slate-300 mb-1">1h/day: {bp.schedule.oneHour}</p>
+                <p className="text-xs text-slate-300 mb-1">2h/day: {bp.schedule.twoHour}</p>
+                <p className="text-xs text-slate-300">Weekend: {bp.schedule.weekend}</p>
+              </>
+            )}
           </Card>
 
           <Card icon={Lightbulb} color="text-yellow-400" title="🔑 TIPS">
-            <ul>{bp.tips.map((t, i) => <li key={i} className="text-xs text-slate-300 mb-1">• {t}</li>)}</ul>
+            {edit ? (
+              <textarea value={bp.tips.join("\n")} onChange={(e) => setBp({ ...bp, tips: e.target.value.split("\n") })} rows={5} className="w-full p-2 rounded-lg bg-slate-800 border border-slate-700 text-sm" />
+            ) : (
+              <ul>{bp.tips.map((t, i) => <li key={i} className="text-xs text-slate-300 mb-1">• {t}</li>)}</ul>
+            )}
           </Card>
         </div>
       )}
