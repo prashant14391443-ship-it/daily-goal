@@ -5,7 +5,17 @@ import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
 import { ListChecks, Plus, Trash2, Flame, Anchor, PartyPopper, Sparkles, X, Landmark, Clock, MapPin, Pencil, Bell, BellOff, ChevronLeft, ChevronRight } from "lucide-react";
 
-type Habit = { id: string; habit_name: string; emoji: string; anchor: string; target_minutes: number; created_at: string; identity: string; cue_time: string; cue_place: string };
+type Habit = {
+  id: string;
+  habit_name: string;
+  emoji: string;
+  anchor: string;
+  target_minutes: number;
+  created_at: string;
+  identity: string | null;
+  cue_time: string | null;
+  cue_place: string | null;
+};
 
 function toLocalISO(d: Date) { const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, "0"); const day = String(d.getDate()).padStart(2, "0"); return `${y}-${m}-${day}`; }
 function shiftDate(dateStr: string, days: number) { const d = new Date(dateStr + "T00:00:00"); d.setDate(d.getDate() + days); return toLocalISO(d); }
