@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
 import Link from "next/link";
-import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass, Sparkle, Lightbulb, Volume2, Check, RefreshCw } from "lucide-react";
+import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass, Sparkle, Lightbulb, Volume2, Check, RefreshCw, Footprints, GraduationCap, ArrowRight } from "lucide-react";
 import { TIPS, categoryIcons, categoryColors, localISO, dayNum } from "@/app/components/tipsData";
 import CoinPill from "@/app/CoinPill";
 import DraggableAIBubble from "@/app/components/DraggableAIBubble";
@@ -32,7 +32,6 @@ function writeDashScroll() {
   if (typeof window === "undefined") return;
   sessionStorage.setItem("dg-dash-scroll", JSON.stringify({ y: window.scrollY, t: Date.now() }));
 }
-// ⚡ INSTANT BACK: read cached dashboard so first paint has real data + full height
 function readCache(): any {
   if (typeof window === "undefined") return null;
   try { return JSON.parse(sessionStorage.getItem("dg-dash-cache") || "null"); } catch { return null; }
@@ -78,7 +77,6 @@ function ProgressBar({ label, value, target, unit, color }: { label: string; val
 
 export default function Dashboard() {
   const today = toLocalISO(new Date());
-  // ⚡ Boot from cache so first paint is instant + full height
   const [boot] = useState(readCache);
 
   const [userName, setUserName] = useState(boot?.userName ?? "friend");
@@ -121,6 +119,11 @@ export default function Dashboard() {
   const [tipDone, setTipDone] = useState(false);
   const [tipStreak, setTipStreak] = useState(0);
   const [tipWeek, setTipWeek] = useState<{ done: boolean }[]>([]);
+
+  // Weekly summary badges
+  const [weekRunKm, setWeekRunKm] = useState(0);
+  const [weekAvgCal, setWeekAvgCal] = useState(0);
+  const [weekLearnItems, setWeekLearnItems] = useState(0);
 
   const saveAndGo = (href: string) => { writeDashScroll(); router.push(href); };
 
@@ -191,7 +194,7 @@ export default function Dashboard() {
     const name = (meta.display_name || (data.session?.user.email || "friend").split("@")[0]);
     const nameCap = name.charAt(0).toUpperCase() + name.slice(1);
     const weekStart = addDays(today, -6);
-    const [study, studyW, gym, gymW, habits, habitLogs, tasksRes, goalsRes, cdRes, todoRes, studyDoneRes, gymDoneRes, todoDoneRes, todoWeekRes] = await Promise.all([
+    const [study, studyW, gym, gymW, habits, habitLogs, tasksRes, goalsRes, cdRes, todoRes, studyDoneRes, gymDoneRes, todoDoneRes, todoWeekRes, runRes, nutritionRes, summariesRes, cardsRes] = await Promise.all([
       supabase.from("study_sessions").select("duration_minutes").eq("user_id", userId).eq("session_date", today).eq("completed", true),
       supabase.from("study_sessions").select("duration_minutes, session_date").eq("user_id", userId).gte("session_date", weekStart),
       supabase.from("gym_logs").select("id").eq("user_id", userId).eq("session_date", today).eq("completed", true),
@@ -206,6 +209,10 @@ export default function Dashboard() {
       supabase.from("gym_logs").select("session_date").eq("user_id", userId).eq("completed", true),
       supabase.from("tasks").select("task_date").eq("user_id", userId).eq("category", "todo").eq("completed", true),
       supabase.from("tasks").select("task_date, completed").eq("user_id", userId).eq("category", "todo").gte("task_date", weekStart),
+      supabase.from("gym_logs").select("distance_km").eq("user_id", userId).gte("session_date", weekStart).not("activity_type", "is", null),
+      supabase.from("nutrition_logs").select("log_date, calories").eq("user_id", userId).gte("log_date", weekStart),
+      supabase.from("summaries").select("created_at").eq("user_id", userId).gte("created_at", weekStart),
+      supabase.from("flashcards").select("created_at").eq("user_id", userId).gte("created_at", weekStart),
     ]);
 
     const studyMin = (study.data || []).reduce((s, r) => s + r.duration_minutes, 0);
@@ -228,6 +235,17 @@ export default function Dashboard() {
     for (let i = 6; i >= 0; i--) { const d = addDays(today, -i); const rows = (todoWeekRes.data || []).filter((t) => t.task_date === d); twt[d] = rows.length; tw.push({ date: d, value: rows.filter((t) => t.completed).length }); }
     const taskList = tasksRes.data || []; const cdList = cdRes.data || [];
 
+    // Weekly summary badges
+    const totalRunKm = (runRes.data || []).reduce((s, r) => s + (r.distance_km || 0), 0);
+    setWeekRunKm(Math.round(totalRunKm * 10) / 10);
+    
+    const calByDay: Record<string, number> = {};
+    (nutritionRes.data || []).forEach((n) => { calByDay[n.log_date] = (calByDay[n.log_date] || 0) + (n.calories || 0); });
+    const calDays = Object.values(calByDay).filter((v) => v > 0);
+    setWeekAvgCal(calDays.length ? Math.round(calDays.reduce((s, v) => s + v, 0) / calDays.length) : 0);
+    
+    setWeekLearnItems((summariesRes.data || []).length + (cardsRes.data || []).length);
+
     setUserName(nameCap); setStudyMinutes(studyMin); setWorkouts(wk); setGoals(gObj);
     setGoalStudy(String(gObj.study_target)); setGoalWorkout(String(gObj.workout_target)); setGoalHabits(String(gObj.habits_target));
     setHabitsDone(hd); setTodoTotal(tt); setTodoDone(td);
@@ -238,7 +256,6 @@ export default function Dashboard() {
     setTodoWeekData(tw); setTodoWeekTotals(twt); setTasks(taskList); setCountdowns(cdList);
     setLoading(false);
 
-    // ⚡ Write cache so the NEXT back-navigation is instant
     try {
       sessionStorage.setItem("dg-dash-cache", JSON.stringify({
         userName: nameCap, studyMinutes: studyMin, workouts: wk, habitsDone: hd, todoDone: td, todoTotal: tt,
@@ -350,16 +367,41 @@ export default function Dashboard() {
         </div>
 
         <div className="press bg-slate-900 p-5 rounded-2xl border border-slate-800 cursor-pointer hover:border-emerald-500/40 transition-colors" onPointerDown={writeDashScroll} onClick={() => saveAndGo("/weekly")}>
-          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-            <h3 className="text-sm font-black flex items-center gap-2"><IconTile icon={BarChart3} tint="bg-emerald-500/10 text-emerald-400" />Last 7 days</h3>
-            <div className="flex gap-1.5 flex-wrap">
-              {(["study", "gym", "habits", "todo"] as const).map((m) => {
-                const active = chartMode === m;
-                const tint = m === "study" ? "bg-blue-500/15 border-blue-500/30 text-blue-300" : m === "gym" ? "bg-green-500/15 border-green-500/30 text-green-300" : m === "habits" ? "bg-violet-500/15 border-violet-500/30 text-violet-300" : "bg-amber-500/15 border-amber-500/30 text-amber-300";
-                const lbl = m === "study" ? "Study" : m === "gym" ? "Gym" : m === "habits" ? "Habits" : "To-do";
-                return <button key={m} onClick={(e) => { e.stopPropagation(); setChartMode(m); }} className={`px-2.5 py-1 rounded-lg text-[10px] font-black press border transition-colors ${active ? tint : "bg-slate-800 border-slate-700 text-slate-500"}`}>{lbl}</button>;
-              })}
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h3 className="text-sm font-black flex items-center gap-2"><IconTile icon={BarChart3} tint="bg-emerald-500/10 text-emerald-400" />Last 7 Days</h3>
+            <Link href="/weekly" onClick={(e) => { e.stopPropagation(); writeDashScroll(); }} className="text-[10px] font-bold text-slate-400 hover:text-emerald-300 flex items-center gap-1 transition-colors">
+              Full report <ArrowRight size={10} />
+            </Link>
+          </div>
+          
+          {/* Weekly Summary Badges */}
+          {(weekRunKm > 0 || weekAvgCal > 0 || weekLearnItems > 0) && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {weekRunKm > 0 && (
+                <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-green-500/10 border border-green-500/20 text-[10px] font-black text-green-300">
+                  <Footprints size={11} /> {weekRunKm} km
+                </span>
+              )}
+              {weekAvgCal > 0 && (
+                <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[10px] font-black text-amber-300">
+                  <Flame size={11} /> {weekAvgCal}/day
+                </span>
+              )}
+              {weekLearnItems > 0 && (
+                <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-violet-500/10 border border-violet-500/20 text-[10px] font-black text-violet-300">
+                  <GraduationCap size={11} /> {weekLearnItems} learned
+                </span>
+              )}
             </div>
+          )}
+
+          <div className="flex gap-1.5 flex-wrap mb-3">
+            {(["study", "gym", "habits", "todo"] as const).map((m) => {
+              const active = chartMode === m;
+              const tint = m === "study" ? "bg-blue-500/15 border-blue-500/30 text-blue-300" : m === "gym" ? "bg-green-500/15 border-green-500/30 text-green-300" : m === "habits" ? "bg-violet-500/15 border-violet-500/30 text-violet-300" : "bg-amber-500/15 border-amber-500/30 text-amber-300";
+              const lbl = m === "study" ? "Study" : m === "gym" ? "Gym" : m === "habits" ? "Habits" : "To-do";
+              return <button key={m} onClick={(e) => { e.stopPropagation(); setChartMode(m); }} className={`px-2.5 py-1 rounded-lg text-[10px] font-black press border transition-colors ${active ? tint : "bg-slate-800 border-slate-700 text-slate-500"}`}>{lbl}</button>;
+            })}
           </div>
           <div className="flex gap-2 h-32 items-end">
             {weekData.map((w) => {
