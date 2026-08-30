@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
 import { ListChecks, Plus, Trash2, Flame, Anchor, PartyPopper, Sparkles, X, Landmark, Clock, MapPin, Pencil, Bell, BellOff, ChevronLeft, ChevronRight } from "lucide-react";
 
-type Habit = { id: string; habit_name: string; emoji: string; anchor: string; target_minutes: number; created_at: string; identity: string | null; cue_time: string | null; cue_place: string | null };
+type Habit = { id: string; habit_name: string; emoji: string; anchor: string; target_minutes: number; created_at: string; identity: string; cue_time: string; cue_place: string };
 
 function toLocalISO(d: Date) { const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, "0"); const day = String(d.getDate()).padStart(2, "0"); return `${y}-${m}-${day}`; }
 function shiftDate(dateStr: string, days: number) { const d = new Date(dateStr + "T00:00:00"); d.setDate(d.getDate() + days); return toLocalISO(d); }
@@ -85,7 +85,6 @@ export default function HabitLogPage() {
     setStreaks(st);
   };
 
-  // Reminders checker
   useEffect(() => {
     if (!remindersOn) return;
     const check = () => {
@@ -105,7 +104,6 @@ export default function HabitLogPage() {
   }, [remindersOn, remindTime, habits, logs, today]);
 
   const toggleReminders = () => { const v = !remindersOn; setRemindersOn(v); localStorage.setItem("dg-habit-rem", v ? "1" : "0"); };
-  const changeRemindTime = (t: string) => { setRemindTime(t); localStorage.setItem("dg-habit-rem-time", t); };
 
   const doneToday = logs.filter((l) => l.log_date === today).map((l) => l.habit_id);
   const doneYesterday = logs.filter((l) => l.log_date === yesterday).map((l) => l.habit_id);
@@ -214,11 +212,7 @@ export default function HabitLogPage() {
         <button onClick={toggleReminders} className={`press flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border ${remindersOn ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-slate-900 border-slate-800 text-slate-500"}`}>
           {remindersOn ? <Bell size={13} /> : <BellOff size={13} />} {remindersOn ? "Reminders ON" : "Reminders OFF"}
         </button>
-        {remindersOn && (
-          <select value={remindTime} onChange={(e) => changeRemindTime(e.target.value)} className="bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-xs font-bold text-slate-300 outline-none">
-            {REMIND_TIMES.map((t) => (<option key={t} value={t}>{t}</option>))}
-          </select>
-        )}
+        {/* Removed time dropdown here */}
         <div className="flex-1" />
         <button onClick={() => setViewDate(shiftDate(viewDate, -1))} className="press w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 flex items-center justify-center"><ChevronLeft size={15} /></button>
         <input type="date" value={viewDate} onChange={(e) => setViewDate(e.target.value || today)} className="bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-xs font-bold text-slate-300 outline-none" />
