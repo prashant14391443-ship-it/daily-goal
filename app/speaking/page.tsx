@@ -502,7 +502,7 @@ export default function SpeakingPage() {
       </div>
 
       {/* CONTROLS — docked at bottom, always visible */}
-      <div className="shrink-0 p-4 bg-slate-950 border-t border-slate-800">
+      <div className="shrink-0 px-4 pt-4 pb-24 bg-slate-950 border-t border-slate-800">
         <div className="max-w-4xl mx-auto">
           {mode === "drill" ? (
             <div className="flex items-center justify-center gap-3">
