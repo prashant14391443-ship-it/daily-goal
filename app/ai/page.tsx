@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { ArrowLeft, Sparkles, Send } from "lucide-react";
-import { useJarvisVoice } from "@/app/hooks/jarvisVoice";
-import { executeVoiceAction, isLikelyCommand } from "@/app/hooks/jarvisActions";
-import { JarvisOrb } from "@/app/components/JarvisOrb";
-import { ActionToast } from "@/app/components/ActionToast";
+import { ArrowLeft, Sparkles, Send, Volume2, VolumeX } from "lucide-react";
+import { useJarvisVoice } from "../hooks/jarvisVoice";
+import { executeVoiceAction, isLikelyCommand } from "../hooks/jarvisActions";
+import { JarvisOrb } from "../components/JarvisOrb";
+import { ActionToast } from "../components/ActionToast";
+
 type Msg = { role: "user" | "assistant"; content: string };
 
 function toLocalISO(d: Date) {
@@ -30,7 +31,7 @@ export default function AIPage() {
   const [loading, setLoading] = useState(false);
   const [left, setLeft] = useState(15);
   const [uid, setUid] = useState("guest");
-  const [continuousMode, setContinuousMode] = useState(true); // ✅ ON by default
+  const [continuousMode, setContinuousMode] = useState(true);
   const [ctx, setCtx] = useState<{ name: string; studyMin: number; workouts: number; habits: string; todo: string; cal: number } | null>(null);
   const [actionToast, setActionToast] = useState<{ action: any; message: string } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -114,13 +115,12 @@ export default function AIPage() {
     setLeft(Math.max(0, 15 - count));
   };
 
-  // Send message (text or voice)
   const sendMessage = async (text?: string) => {
     const msg = (text || input).trim();
     if (!msg || loading) return;
     if (left <= 0) {
       alert("🆓 Free daily limit reached (15 messages). Come back tomorrow!");
-      interrupt(); // reset voice loop
+      interrupt();
       return;
     }
 
@@ -140,7 +140,7 @@ export default function AIPage() {
           const withReply = [...next, { role: "assistant" as const, content: actionResult.reply }];
           setMsgs(withReply);
           localStorage.setItem("dg-ai-chat-" + uid, JSON.stringify(withReply.slice(-50)));
-          speak(actionResult.reply); // 🔄 loop continues automatically after speaking
+          speak(actionResult.reply);
           updateMessageCount();
           setLoading(false);
           return;
@@ -170,39 +170,36 @@ export default function AIPage() {
       setMsgs(withReply);
       localStorage.setItem("dg-ai-chat-" + uid, JSON.stringify(withReply.slice(-50)));
 
-      speak(reply); // 🔄 mic reopens automatically after AI speaks
+      speak(reply);
       updateMessageCount();
     } catch {
       setMsgs([...next, { role: "assistant" as const, content: "📡 Network issue. Try again!" }]);
-      interrupt(); // reset voice loop on error
+      interrupt();
     }
     setLoading(false);
   };
 
-  // 🎙️ Voice transcript handler
   const handleTranscript = async (text: string) => {
     if (!text) return;
     if (loading) {
-      interrupt(); // ignore speech while busy, then re-listen
+      interrupt();
       return;
     }
     await sendMessage(text);
   };
 
-  // Keep the hook's callback always fresh (no stale closures)
   useEffect(() => {
     setOnTranscript(handleTranscript);
   });
 
-  // 🔁 Continuous mode toggle (saved forever)
   const toggleContinuous = () => {
     const next = !continuousMode;
     setContinuousMode(next);
     try {
       localStorage.setItem("dg-ai-continuous", next ? "1" : "0");
     } catch {}
-    if (next) startListening(); // start the endless loop right now
-    else stopListening();       // fully stop the loop
+    if (next) startListening();
+    else stopListening();
   };
 
   const handleOrbClick = () => {
@@ -213,16 +210,29 @@ export default function AIPage() {
     }
   };
 
+  // Tiny one-line status (only visible when active)
+  const statusLine =
+    voiceState === "listening"
+      ? transcript
+        ? `"${transcript}"`
+        : "Listening..."
+      : voiceState === "thinking"
+      ? "Thinking..."
+      : voiceState === "speaking"
+      ? "Speaking..."
+      : voiceState === "error"
+      ? "Mic error — check permissions"
+      : "";
+
   return (
-    <main className="h-screen bg-slate-950 text-white flex flex-col px-4 pt-6 pb-4 max-w-4xl mx-auto relative overflow-hidden">
-      {/* Ambient Background Glow */}
-      <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full blur-[120px] transition-colors duration-700 pointer-events-none ${
-        voiceState === "listening" ? "bg-red-500/15" :
-        voiceState === "speaking" ? "bg-emerald-500/15" :
-        voiceState === "thinking" ? "bg-violet-500/15" : "bg-slate-800/10"
+    <main className="h-screen bg-slate-950 text-white flex flex-col px-4 pt-4 pb-3 max-w-4xl mx-auto relative overflow-hidden">
+      {/* Ambient glow */}
+      <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full blur-[110px] transition-colors duration-700 pointer-events-none ${
+        voiceState === "listening" ? "bg-red-500/10" :
+        voiceState === "speaking" ? "bg-emerald-500/10" :
+        voiceState === "thinking" ? "bg-violet-500/10" : "bg-slate-800/10"
       }`} />
 
-      {/* Action Toast */}
       {actionToast && (
         <ActionToast
           action={actionToast.action}
@@ -231,72 +241,72 @@ export default function AIPage() {
         />
       )}
 
-      {/* Header */}
-      <div className="relative mb-4 flex items-center justify-between shrink-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-lg shadow-violet-900/30">
-            <Sparkles className="w-5 h-5 text-white" />
+      {/* 🌆 Compact header */}
+      <div className="relative mb-3 flex items-center justify-between shrink-0 z-10">
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-lg shadow-violet-900/30">
+            <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h1 className="text-base font-black text-white leading-tight">Personal AI</h1>
-            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-              {ctx ? `Hey ${ctx.name}!` : "Your daily assistant"}
+            <h1 className="text-sm font-black text-white leading-tight">Personal AI</h1>
+            <p className="text-[9px] text-slate-400 font-semibold">
+              {left}/15 left {ctx ? `· Hey ${ctx.name}!` : ""}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="px-3 py-1.5 rounded-full bg-slate-800/50 border border-slate-700 text-[10px] font-bold text-slate-300">
-            {left}/15 left
-          </div>
-          <Link href="/dashboard" className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 transition-all">
+        <div className="flex items-center gap-2">
+          {/* Continuous toggle (tiny icon) */}
+          <button
+            onClick={toggleContinuous}
+            className={`p-2 rounded-lg border transition-all ${
+              continuousMode
+                ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
+                : "bg-slate-800 border-slate-700 text-slate-500"
+            }`}
+            title={continuousMode ? "Continuous mode ON" : "Continuous mode OFF"}
+          >
+            {continuousMode ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          </button>
+          <Link href="/dashboard" className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-all">
             <ArrowLeft className="w-4 h-4" />
           </Link>
         </div>
       </div>
 
-      {/* Message Stream */}
-      <div className="flex-1 overflow-y-auto min-h-0 grid gap-4 content-start pb-2 z-10">
+      {/* 💬 Message stream (now gets maximum space) */}
+      <div className="flex-1 overflow-y-auto min-h-0 grid gap-3 content-start pb-2 z-10">
         {msgs.length === 0 && ctx && (
-          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-lg backdrop-blur-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center text-base shadow-lg">🤖</span>
-              <p className="font-black text-sm text-white">Hey {ctx.name}! I&apos;m your coach 👋</p>
-            </div>
-            <p className="text-xs text-slate-300 leading-relaxed mb-3">
-              I&apos;ve got a full picture of your day — here&apos;s what I see:
-            </p>
-            <div className="grid grid-cols-2 gap-1.5">
-              <div className="bg-slate-800/60 rounded-lg p-2">
-                <p className="text-[9px] font-black text-slate-500">📚 STUDY</p>
-                <p className="text-xs font-black text-blue-400">{ctx.studyMin} min</p>
+          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-sm">
+            <p className="font-black text-sm text-white mb-2">Hey {ctx.name}! I&apos;m your coach 👋</p>
+            <div className="grid grid-cols-4 gap-1.5">
+              <div className="bg-slate-800/60 rounded-lg p-1.5 text-center">
+                <p className="text-[8px] font-black text-slate-500">📚</p>
+                <p className="text-[11px] font-black text-blue-400">{ctx.studyMin}m</p>
               </div>
-              <div className="bg-slate-800/60 rounded-lg p-2">
-                <p className="text-[9px] font-black text-slate-500">🏋️ WORKOUTS</p>
-                <p className="text-xs font-black text-green-400">{ctx.workouts}</p>
+              <div className="bg-slate-800/60 rounded-lg p-1.5 text-center">
+                <p className="text-[8px] font-black text-slate-500">🏋️</p>
+                <p className="text-[11px] font-black text-green-400">{ctx.workouts}</p>
               </div>
-              <div className="bg-slate-800/60 rounded-lg p-2">
-                <p className="text-[9px] font-black text-slate-500">✅ HABITS</p>
-                <p className="text-xs font-black text-violet-400">{ctx.habits}</p>
+              <div className="bg-slate-800/60 rounded-lg p-1.5 text-center">
+                <p className="text-[8px] font-black text-slate-500">✅</p>
+                <p className="text-[11px] font-black text-violet-400">{ctx.habits}</p>
               </div>
-              <div className="bg-slate-800/60 rounded-lg p-2">
-                <p className="text-[9px] font-black text-slate-500">📝 TODO</p>
-                <p className="text-xs font-black text-amber-400">{ctx.todo}</p>
+              <div className="bg-slate-800/60 rounded-lg p-1.5 text-center">
+                <p className="text-[8px] font-black text-slate-500">📝</p>
+                <p className="text-[11px] font-black text-amber-400">{ctx.todo}</p>
               </div>
             </div>
-            <p className="text-[10px] text-slate-400 mt-3 font-semibold">
-              Tap the orb ONCE and just keep talking! ⬇️
-            </p>
           </div>
         )}
 
         {msgs.map((m, i) => (
-          <div key={i} className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+          <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             {m.role === "assistant" && (
-              <div className="shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg">
-                <Sparkles className="w-4 h-4 text-white" />
+              <div className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg self-end">
+                <Sparkles className="w-3.5 h-3.5 text-white" />
               </div>
             )}
-            <div className={`max-w-[80%] p-3.5 rounded-2xl text-sm whitespace-pre-wrap shadow-md leading-relaxed ${
+            <div className={`max-w-[80%] p-3 rounded-2xl text-sm whitespace-pre-wrap shadow-md leading-relaxed ${
               m.role === "user"
                 ? "bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white rounded-br-sm"
                 : "bg-slate-800/80 backdrop-blur text-slate-100 rounded-bl-sm border border-slate-700/50"
@@ -307,11 +317,11 @@ export default function AIPage() {
         ))}
 
         {loading && voiceState !== "speaking" && (
-          <div className="flex gap-3 justify-start">
-            <div className="shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg">
-              <Sparkles className="w-4 h-4 text-white animate-pulse" />
+          <div className="flex gap-2 justify-start">
+            <div className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg">
+              <Sparkles className="w-3.5 h-3.5 text-white animate-pulse" />
             </div>
-            <div className="bg-slate-800/80 border border-slate-700/50 p-4 rounded-2xl rounded-bl-sm shadow-md flex items-center gap-1">
+            <div className="bg-slate-800/80 border border-slate-700/50 p-3 rounded-2xl rounded-bl-sm shadow-md flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "0ms" }} />
               <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "150ms" }} />
               <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "300ms" }} />
@@ -321,14 +331,14 @@ export default function AIPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Quick Chips */}
-      <div className="shrink-0 flex gap-2 overflow-x-auto py-2 -mx-1 px-1 z-10">
+      {/* ⚡ Chips */}
+      <div className="shrink-0 flex gap-2 overflow-x-auto py-1.5 -mx-1 px-1 z-10">
         {CHIPS.map((c) => (
           <button
             key={c.label}
             onClick={() => sendMessage(c.label)}
             disabled={loading}
-            className="shrink-0 flex items-center gap-1.5 text-xs font-black bg-slate-900/80 border border-slate-800 hover:border-violet-500/40 hover:bg-slate-800 px-3 py-2 rounded-full shadow-md disabled:opacity-50 transition-all backdrop-blur-sm"
+            className="shrink-0 flex items-center gap-1.5 text-xs font-black bg-slate-900/80 border border-slate-800 hover:border-violet-500/40 px-3 py-1.5 rounded-full shadow-md disabled:opacity-50 transition-all"
           >
             <span className={`w-5 h-5 rounded-md bg-gradient-to-br ${c.grad} flex items-center justify-center text-[10px]`}>
               {c.label.split(" ")[0]}
@@ -338,33 +348,39 @@ export default function AIPage() {
         ))}
       </div>
 
-      {/* Jarvis Orb & Input */}
-      <div className="shrink-0 flex flex-col items-center gap-3 pt-3 z-10">
-        <JarvisOrb
-          state={voiceState}
-          transcript={transcript}
-          onClick={handleOrbClick}
-          continuousMode={continuousMode}
-          onToggleContinuous={toggleContinuous}
-        />
-
-        <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="w-full flex gap-2">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={isSupported ? "Tap the orb to speak, or type here..." : "Type your message..."}
-            disabled={loading}
-            className="flex-1 p-3.5 rounded-xl bg-slate-900/80 backdrop-blur border border-slate-800 text-sm outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 disabled:opacity-50 transition-all placeholder:text-slate-600"
-          />
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="shrink-0 px-5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-black disabled:opacity-40 shadow-lg shadow-violet-900/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center"
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </form>
+      {/* 🎙️ Tiny status line (takes space ONLY when active) */}
+      <div className="h-4 shrink-0 z-10 flex items-center justify-center">
+        {statusLine && (
+          <p className="text-[10px] font-semibold text-slate-400 truncate max-w-full px-2">
+            {statusLine}
+          </p>
+        )}
       </div>
+
+      {/* 📝 Compact input row: [mic orb] [input] [send] */}
+      <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="shrink-0 flex items-center gap-2 z-10">
+        {isSupported ? (
+          <JarvisOrb state={voiceState} onClick={handleOrbClick} />
+        ) : (
+          <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-slate-500" />
+          </div>
+        )}
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={voiceState === "listening" && transcript ? transcript : "Tap mic to speak, or type..."}
+          disabled={loading}
+          className="flex-1 min-w-0 p-3 rounded-xl bg-slate-900/80 backdrop-blur border border-slate-800 text-sm outline-none focus:border-violet-500 disabled:opacity-50 transition-all placeholder:text-slate-600"
+        />
+        <button
+          type="submit"
+          disabled={loading || !input.trim()}
+          className="shrink-0 w-12 h-12 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white disabled:opacity-40 shadow-lg shadow-violet-900/30 transition-all active:scale-95 flex items-center justify-center"
+        >
+          <Send className="w-4 h-4" />
+        </button>
+      </form>
     </main>
   );
 }
