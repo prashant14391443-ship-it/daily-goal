@@ -4,19 +4,35 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 export type VoiceState = "idle" | "listening" | "thinking" | "speaking" | "error";
 
+const normalize = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
+
+// How much of the heard text matches what the AI is currently saying (echo check)
+function echoScore(transcript: string, spoken: string): number {
+  const t = normalize(transcript);
+  if (t.length === 0) return 1;
+  const s = new Set(normalize(spoken));
+  const hits = t.filter((w) => s.has(w)).length;
+  return hits / t.length;
+}
+
 export function useJarvisVoice(continuousMode: boolean = true) {
   const [state, setState] = useState<VoiceState>("idle");
   const [isSupported, setIsSupported] = useState(false);
   const [transcript, setTranscript] = useState("");
 
-  const recognitionRef = useRef<any>(null);
+  const recRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
-  const onTranscriptRef = useRef<((text: string) => void) | null>(null);
+  const onTranscriptRef = useRef<((t: string) => void) | null>(null);
 
-  const continuousRef = useRef(continuousMode);
   const stateRef = useRef<VoiceState>("idle");
+  const continuousRef = useRef(continuousMode);
   const deniedRef = useRef(false);
-  const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wantMicRef = useRef(false);
+  const spokenRef = useRef("");       // what the AI is saying right now
+  const utteranceRef = useRef("");    // user's accumulating speech
+  const silenceTimer = useRef<any>(null);
+  const restartTimer = useRef<any>(null);
 
   const setVoiceState = useCallback((s: VoiceState) => {
     stateRef.current = s;
@@ -25,189 +41,208 @@ export function useJarvisVoice(continuousMode: boolean = true) {
 
   useEffect(() => {
     continuousRef.current = continuousMode;
+    if (continuousMode) wantMicRef.current = true;
+    else if (stateRef.current === "idle") wantMicRef.current = false;
   }, [continuousMode]);
 
-  const clearRestart = useCallback(() => {
-    if (restartTimer.current) {
-      clearTimeout(restartTimer.current);
-      restartTimer.current = null;
-    }
+  const startMic = useCallback(() => {
+    if (!recRef.current || deniedRef.current) return;
+    wantMicRef.current = true;
+    try { recRef.current.start(); } catch {}
   }, []);
 
-  // 🔄 THE MAGIC: auto-reopen the mic in continuous mode
-  const scheduleRestart = useCallback(
-    (delay: number) => {
-      if (!continuousRef.current || deniedRef.current) return;
-      clearRestart();
-      restartTimer.current = setTimeout(() => {
-        if (typeof document !== "undefined" && document.hidden) return;
-        if (stateRef.current !== "idle") return;
-        try {
-          recognitionRef.current?.start();
-          setVoiceState("listening");
-        } catch {
-          /* already running */
-        }
-      }, delay);
-    },
-    [clearRestart, setVoiceState]
-  );
+  const stopMic = useCallback(() => {
+    wantMicRef.current = false;
+    try { recRef.current?.stop(); } catch {}
+  }, []);
 
-  const startListening = useCallback(() => {
-    if (!recognitionRef.current || deniedRef.current) return;
-    clearRestart();
-    synthRef.current?.cancel();
-    if (stateRef.current === "listening") return;
-    try {
-      recognitionRef.current.start();
-      setVoiceState("listening");
-    } catch {
-      /* ignore */
+  // User paused → send the full sentence
+  const flushUtterance = useCallback(() => {
+    clearTimeout(silenceTimer.current);
+    const text = utteranceRef.current.trim();
+    utteranceRef.current = "";
+    setTranscript("");
+    if (text) {
+      setVoiceState("thinking");
+      onTranscriptRef.current?.(text);
+      if (!continuousRef.current) stopMic();
     }
-  }, [clearRestart, setVoiceState]);
+  }, [setVoiceState, stopMic]);
 
-  const stopListening = useCallback(() => {
-    clearRestart();
-    try {
-      recognitionRef.current?.stop();
-    } catch {}
-    setVoiceState("idle");
-  }, [clearRestart, setVoiceState]);
+  // 🛑 BARGE-IN: user spoke while AI was talking → AI shuts up instantly
+  const bargeIn = useCallback(() => {
+    synthRef.current?.cancel();
+    spokenRef.current = "";
+    utteranceRef.current = "";
+    try { recRef.current?.stop(); } catch {}
+    setVoiceState("listening");
+    setTimeout(() => {
+      wantMicRef.current = true;
+      try { recRef.current?.start(); } catch {}
+    }, 250);
+  }, [setVoiceState]);
 
-  const speak = useCallback(
-    (text: string) => {
-      const synth = synthRef.current;
-      if (!synth) return;
+  const speak = useCallback((text: string) => {
+    const synth = synthRef.current;
+    if (!synth) return;
+    const clean = text
+      .replace(/[*#_`~]/g, "")
+      .replace(/[🤖✅❌💪📚🍽️🏋️⚡⭐🌟🚀🌱💧👋]/g, "")
+      .replace(/\n+/g, ". ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!clean) return;
 
-      const clean = text
-        .replace(/[*#_`~]/g, "")
-        .replace(/🤖|✅|❌|💪|📚|🍽️|📅|🏋️|📝||⚡|⭐|🌟||🚀||💧|/g, "")
-        .replace(/\n+/g, ". ")
-        .replace(/\s+/g, " ")
-        .trim();
-      if (!clean) return;
+    spokenRef.current = clean; // remember for echo filtering
+    const u = new SpeechSynthesisUtterance(clean);
+    u.rate = 1.05;
+    const voices = synth.getVoices();
+    const v =
+      voices.find((x) => x.name.includes("Google US English")) ||
+      voices.find((x) => x.name.includes("Samantha")) ||
+      voices.find((x) => x.lang.startsWith("en"));
+    if (v) u.voice = v;
 
-      clearRestart();
-      const u = new SpeechSynthesisUtterance(clean);
-      u.rate = 1.05;
-      u.pitch = 1;
-      u.volume = 1;
-
-      const voices = synth.getVoices();
-      const voice =
-        voices.find((v) => v.name.includes("Google US English")) ||
-        voices.find((v) => v.name.includes("Samantha")) ||
-        voices.find((v) => v.name.includes("Microsoft Zira")) ||
-        voices.find((v) => v.lang.startsWith("en"));
-      if (voice) u.voice = voice;
-
-      u.onstart = () => setVoiceState("speaking");
-      u.onend = () => {
+    u.onstart = () => setVoiceState("speaking");
+    const done = () => {
+      spokenRef.current = "";
+      if (continuousRef.current) {
+        setVoiceState("listening");
+        startMic();
+      } else {
         setVoiceState("idle");
-        scheduleRestart(500); // 🔄 AI finished speaking → mic reopens automatically
-      };
-      u.onerror = () => {
-        setVoiceState("idle");
-        scheduleRestart(500);
-      };
-
-      synth.speak(u);
-    },
-    [clearRestart, scheduleRestart, setVoiceState]
-  );
+      }
+    };
+    u.onend = done;
+    u.onerror = done;
+    synth.speak(u);
+  }, [startMic, setVoiceState]);
 
   const interrupt = useCallback(() => {
-    clearRestart();
     synthRef.current?.cancel();
-    try {
-      recognitionRef.current?.stop();
-    } catch {}
+    spokenRef.current = "";
+    clearTimeout(silenceTimer.current);
+    utteranceRef.current = "";
+    setTranscript("");
+    if (continuousRef.current) {
+      setVoiceState("listening");
+      startMic();
+    } else {
+      stopMic();
+      setVoiceState("idle");
+    }
+  }, [startMic, stopMic, setVoiceState]);
+
+  const startListening = useCallback(() => {
+    synthRef.current?.cancel();
+    spokenRef.current = "";
+    setVoiceState("listening");
+    startMic();
+  }, [startMic, setVoiceState]);
+
+  const stopListening = useCallback(() => {
+    clearTimeout(silenceTimer.current);
+    utteranceRef.current = "";
+    setTranscript("");
+    stopMic();
     setVoiceState("idle");
-    scheduleRestart(400);
-  }, [clearRestart, scheduleRestart, setVoiceState]);
+  }, [stopMic, setVoiceState]);
 
   const clearTranscript = useCallback(() => setTranscript(""), []);
-  const setOnTranscript = useCallback((fn: (text: string) => void) => {
+  const setOnTranscript = useCallback((fn: (t: string) => void) => {
     onTranscriptRef.current = fn;
   }, []);
 
-  // 🎙️ Engine setup (runs once)
+  // 🎙️ Engine (runs once)
   useEffect(() => {
     if (typeof window === "undefined") return;
-
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     setIsSupported(!!SR);
     synthRef.current = window.speechSynthesis || null;
-    if (synthRef.current) {
-      synthRef.current.getVoices();
-      synthRef.current.onvoiceschanged = () => synthRef.current?.getVoices();
-    }
+    if (synthRef.current) synthRef.current.getVoices();
 
     if (SR) {
       const rec = new SR();
-      rec.continuous = false;
+      rec.continuous = true;      // mic stays alive → enables barge-in
       rec.interimResults = true;
       rec.lang = "en-US";
 
-      rec.onstart = () => setVoiceState("listening");
+      rec.onstart = () => {
+        if (stateRef.current === "idle") setVoiceState("listening");
+      };
 
+      // keep-alive loop
       rec.onend = () => {
-        // Don't disturb while AI is thinking/speaking
-        if (stateRef.current === "thinking" || stateRef.current === "speaking") return;
-        setVoiceState("idle");
-        scheduleRestart(700); // 🔄 silence detected → re-listen automatically
+        if (
+          wantMicRef.current &&
+          !deniedRef.current &&
+          !(typeof document !== "undefined" && document.hidden)
+        ) {
+          clearTimeout(restartTimer.current);
+          restartTimer.current = setTimeout(() => {
+            try { rec.start(); } catch {}
+          }, 300);
+        }
       };
 
       rec.onerror = (e: any) => {
         const err = e?.error;
         if (err === "not-allowed" || err === "service-not-allowed") {
-          deniedRef.current = true; // mic permission denied → stop looping
+          deniedRef.current = true;
+          wantMicRef.current = false;
           setVoiceState("error");
-          return;
         }
-        if (err === "no-speech" || err === "aborted") return; // onend handles restart
-        setVoiceState("error");
-        setTimeout(() => setVoiceState("idle"), 1500);
       };
 
       rec.onresult = (event: any) => {
-        let finalText = "";
         let interim = "";
+        let final = "";
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const r = event.results[i];
-          if (r.isFinal) finalText += r[0].transcript;
+          if (r.isFinal) final += r[0].transcript;
           else interim += r[0].transcript;
         }
-        setTranscript(interim || finalText);
-        if (finalText.trim()) {
-          clearRestart();
-          setTranscript("");
-          setVoiceState("thinking");
-          onTranscriptRef.current?.(finalText.trim());
+
+        // 🗣️ AI IS SPEAKING → echo filter / barge-in detector
+        if (stateRef.current === "speaking") {
+          const cand = (final || interim).trim();
+          if (
+            cand &&
+            normalize(cand).length >= 2 &&
+            echoScore(cand, spokenRef.current) < 0.5
+          ) {
+            bargeIn(); // 👈 USER INTERRUPTED → AI stops instantly
+          }
+          return; // swallow its own echo
         }
+
+        // 🎧 LISTENING / THINKING path
+        if (interim) setTranscript((utteranceRef.current + " " + interim).trim());
+        if (final) {
+          utteranceRef.current = (utteranceRef.current + " " + final).trim();
+          setTranscript(utteranceRef.current);
+        }
+        if (stateRef.current === "idle") setVoiceState("listening");
+
+        clearTimeout(silenceTimer.current);
+        silenceTimer.current = setTimeout(flushUtterance, 1000);
       };
 
-      recognitionRef.current = rec;
+      recRef.current = rec;
     }
 
     return () => {
-      clearRestart();
-      try {
-        recognitionRef.current?.stop();
-      } catch {}
+      wantMicRef.current = false;
+      clearTimeout(silenceTimer.current);
+      clearTimeout(restartTimer.current);
+      try { recRef.current?.stop(); } catch {}
       synthRef.current?.cancel();
     };
-  }, [clearRestart, scheduleRestart, setVoiceState]);
+  }, [bargeIn, flushUtterance, setVoiceState]);
 
   return {
-    state,
-    isSupported,
-    transcript,
-    startListening,
-    stopListening,
-    speak,
-    interrupt,
-    clearTranscript,
-    setOnTranscript,
+    state, isSupported, transcript,
+    startListening, stopListening, speak, interrupt,
+    clearTranscript, setOnTranscript,
   };
 }
