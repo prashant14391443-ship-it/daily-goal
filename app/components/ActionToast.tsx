@@ -1,15 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { XCircle } from "lucide-react";
-
-type ActionType =
-  | "chat"
-  | "log_study"
-  | "log_workout"
-  | "log_habit"
-  | "log_calories"
-  | "add_task";
+import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import type { ActionType } from "@/app/hooks/jarvisActions";
 
 interface ActionToastProps {
   action: ActionType | null;

@@ -1,143 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { ArrowLeft, Sparkles, Send } from "lucide-react";
-
-type VoiceState = "idle" | "listening" | "thinking" | "speaking";
-
-type BrowserSpeechRecognition = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onstart: (() => void) | null;
-  onresult: ((event: any) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  abort: () => void;
-};
-
-function useJarvisVoice(continuousMode: boolean) {
-  const [state, setState] = useState<VoiceState>("idle");
-  const [transcript, setTranscript] = useState("");
-  const [isSupported, setIsSupported] = useState(false);
-  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
-  const callbackRef = useRef<(text: string) => void>(() => {});
-
-  useEffect(() => {
-    const speechWindow = window as typeof window & {
-      SpeechRecognition?: new () => BrowserSpeechRecognition;
-      webkitSpeechRecognition?: new () => BrowserSpeechRecognition;
-    };
-    const SpeechRecognitionAPI = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
-    setIsSupported(Boolean(SpeechRecognitionAPI) && "speechSynthesis" in window);
-    if (!SpeechRecognitionAPI) return;
-
-    const recognition = new SpeechRecognitionAPI();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-    recognition.onstart = () => setState("listening");
-    recognition.onresult = (event) => {
-      const text = Array.from(event.results as ArrayLike<{ 0: { transcript: string } }>).map((result) => result[0].transcript).join("");
-      setTranscript(text);
-      if (event.results[event.results.length - 1].isFinal) {
-        setState("thinking");
-        callbackRef.current(text);
-      }
-    };
-    recognition.onerror = () => setState("idle");
-    recognition.onend = () => setState((current) => current === "listening" ? "idle" : current);
-    recognitionRef.current = recognition;
-    return () => recognition.abort();
-  }, []);
-
-  const startListening = useCallback(() => {
-    try { recognitionRef.current?.start(); } catch { /* already listening */ }
-  }, []);
-
-  const interrupt = useCallback(() => {
-    recognitionRef.current?.abort();
-    window.speechSynthesis?.cancel();
-    setState("idle");
-  }, []);
-
-  const speak = useCallback((text: string) => {
-    if (!("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.onstart = () => setState("speaking");
-    utterance.onend = () => {
-      setState("idle");
-      if (continuousMode) startListening();
-    };
-    utterance.onerror = () => setState("idle");
-    window.speechSynthesis.speak(utterance);
-  }, [continuousMode, startListening]);
-
-  return {
-    state,
-    isSupported,
-    transcript,
-    startListening,
-    interrupt,
-    speak,
-    setOnTranscript: (callback: (text: string) => void) => { callbackRef.current = callback; },
-    clearTranscript: () => setTranscript(""),
-  };
-}
-
+import { useJarvisVoice } from "@/app/hooks/JarvisVoice";
+import { executeVoiceAction, isLikelyCommand } from "@/app/hooks/jarvisActions";
+import { JarvisOrb } from "@/app/components/JarvisOrb";
+import { ActionToast } from "@/app/components/ActionToast";
 type Msg = { role: "user" | "assistant"; content: string };
-
-type JarvisOrbProps = {
-  state: string;
-  transcript: string;
-  onClick: () => void;
-  continuousMode: boolean;
-  onToggleContinuous: () => void;
-};
-
-function JarvisOrb({ state, transcript, onClick, continuousMode, onToggleContinuous }: JarvisOrbProps) {
-  const active = state === "listening" || state === "speaking";
-
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <button
-        type="button"
-        onClick={onClick}
-        aria-label={active ? "Stop voice assistant" : "Start voice assistant"}
-        className={`relative h-20 w-20 rounded-full border-4 transition-all ${
-          state === "listening"
-            ? "border-red-400 bg-red-500/20 shadow-lg shadow-red-500/40"
-            : state === "speaking"
-              ? "border-emerald-400 bg-emerald-500/20 shadow-lg shadow-emerald-500/40"
-              : state === "thinking"
-                ? "border-violet-400 bg-violet-500/20 shadow-lg shadow-violet-500/40"
-                : "border-slate-700 bg-slate-800 shadow-lg shadow-violet-900/20"
-        }`}
-      >
-        <span className="text-2xl" aria-hidden="true">✦</span>
-      </button>
-      {transcript && <p className="max-w-xs text-center text-xs text-slate-400">{transcript}</p>}
-      <button type="button" onClick={onToggleContinuous} className="text-[10px] font-semibold text-slate-500 hover:text-slate-300">
-        {continuousMode ? "Continuous mode on" : "Continuous mode off"}
-      </button>
-    </div>
-  );
-}
-
-function ActionToast({ action, message, onClose }: { action: any; message: string; onClose: () => void }) {
-  return (
-    <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-slate-900 px-4 py-3 text-sm text-white shadow-xl">
-      <span>{message}</span>
-      <button type="button" onClick={onClose} aria-label="Close notification" className="text-slate-400 hover:text-white">
-        ×
-      </button>
-    </div>
-  );
-}
 
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -159,13 +30,30 @@ export default function AIPage() {
   const [loading, setLoading] = useState(false);
   const [left, setLeft] = useState(15);
   const [uid, setUid] = useState("guest");
-  const [continuousMode, setContinuousMode] = useState(false);
+  const [continuousMode, setContinuousMode] = useState(true); // ✅ ON by default
   const [ctx, setCtx] = useState<{ name: string; studyMin: number; workouts: number; habits: string; todo: string; cal: number } | null>(null);
   const [actionToast, setActionToast] = useState<{ action: any; message: string } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Initialize voice engine
-  const { state: voiceState, isSupported, transcript, startListening, interrupt, speak, setOnTranscript, clearTranscript } = useJarvisVoice(continuousMode);
+  const {
+    state: voiceState,
+    isSupported,
+    transcript,
+    startListening,
+    stopListening,
+    interrupt,
+    speak,
+    setOnTranscript,
+    clearTranscript,
+  } = useJarvisVoice(continuousMode);
+
+  // 💾 Restore saved continuous mode preference
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("dg-ai-continuous");
+      if (saved !== null) setContinuousMode(saved === "1");
+    } catch {}
+  }, []);
 
   // Load user data and context
   useEffect(() => {
@@ -173,7 +61,7 @@ export default function AIPage() {
       const { data } = await supabase.auth.getSession();
       const id = data.session?.user.id || "guest";
       setUid(id);
-      
+
       try {
         setMsgs(JSON.parse(localStorage.getItem("dg-ai-chat-" + id) || "[]"));
         const c = JSON.parse(localStorage.getItem("dg-ai-count-" + id) || "null");
@@ -184,7 +72,7 @@ export default function AIPage() {
         const today = toLocalISO(new Date());
         const meta = (data.session?.user.user_metadata || {}) as { display_name?: string };
         const name = meta.display_name || data.session?.user.email?.split("@")[0] || "friend";
-        
+
         const [s, g, h, hl, t, n] = await Promise.all([
           supabase.from("study_sessions").select("duration_minutes").eq("user_id", id).eq("session_date", today),
           supabase.from("gym_logs").select("id").eq("user_id", id).eq("session_date", today),
@@ -193,7 +81,7 @@ export default function AIPage() {
           supabase.from("tasks").select("id, completed").eq("user_id", id).eq("category", "todo").eq("task_date", today),
           supabase.from("nutrition_logs").select("calories").eq("user_id", id).eq("log_date", today),
         ]);
-        
+
         const studyMin = (s.data || []).reduce((a, r) => a + r.duration_minutes, 0);
         const workouts = (g.data || []).length;
         const habitsTotal = (h.data || []).length;
@@ -201,7 +89,7 @@ export default function AIPage() {
         const todoTotal = (t.data || []).length;
         const todoDone = (t.data || []).filter((r) => r.completed).length;
         const cal = (n.data || []).reduce((a, r) => a + r.calories, 0);
-        
+
         setCtx({
           name, studyMin, workouts,
           habits: `${habitsDone}/${habitsTotal}`,
@@ -218,71 +106,103 @@ export default function AIPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, loading]);
 
-  // Handle voice transcript
-  const handleTranscript = useCallback(async (text: string) => {
-    if (!text || loading) return;
-    await sendMessage(text);
-  }, [loading]);
-
-  useEffect(() => {
-    setOnTranscript(handleTranscript);
-  }, [handleTranscript, setOnTranscript]);
-
-  // Send message (text or voice)
-  const sendMessage = async (text?: string) => {
-    const msg = (text || input).trim();
-    if (!msg || loading) return;
-    if (left <= 0) { 
-      alert("🆓 Free daily limit reached (15 messages). Come back tomorrow!"); 
-      return; 
-    }
-    
-    setInput("");
-    clearTranscript();
-    
-    const next = [...msgs, { role: "user" as const, content: msg }];
-    setMsgs(next);
-    setLoading(true);
-
-    try {
-      // Build context for AI
-      const context = ctx 
-        ? `Name: ${ctx.name} | Study: ${ctx.studyMin}min | Workouts: ${ctx.workouts} | Habits: ${ctx.habits} | Todo: ${ctx.todo} | Calories: ${ctx.cal}`
-        : "New user, no data yet";
-
-      const res = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          message: msg, 
-          history: msgs.slice(-8), 
-          context, 
-          mode: "action",
-          userId: uid 
-        }),
-      });
-      
-      const d = await res.json();
-      const reply = d.reply || "😴 AI sleeping.";
-      
-      const withReply = [...next, { role: "assistant" as const, content: reply }];
-      setMsgs(withReply);
-      localStorage.setItem("dg-ai-chat-" + uid, JSON.stringify(withReply.slice(-50)));
-      
-      speak(reply);
-      updateMessageCount();
-    } catch {
-      setMsgs([...next, { role: "assistant" as const, content: "📡 Network issue. Try again!" }]);
-    }
-    setLoading(false);
-  };
-
   const updateMessageCount = () => {
     const c = JSON.parse(localStorage.getItem("dg-ai-count-" + uid) || "null");
     const today = toLocalISO(new Date());
     const count = c && c.date === today ? c.n + 1 : 1;
     localStorage.setItem("dg-ai-count-" + uid, JSON.stringify({ date: today, n: count }));
     setLeft(Math.max(0, 15 - count));
+  };
+
+  // Send message (text or voice)
+  const sendMessage = async (text?: string) => {
+    const msg = (text || input).trim();
+    if (!msg || loading) return;
+    if (left <= 0) {
+      alert("🆓 Free daily limit reached (15 messages). Come back tomorrow!");
+      interrupt(); // reset voice loop
+      return;
+    }
+
+    setInput("");
+    clearTranscript();
+
+    const next = [...msgs, { role: "user" as const, content: msg }];
+    setMsgs(next);
+    setLoading(true);
+
+    try {
+      // 🛠️ Voice command → update app database directly
+      if (isLikelyCommand(msg) && uid !== "guest") {
+        const actionResult = await executeVoiceAction(msg, uid);
+        if (actionResult.action !== "chat") {
+          setActionToast({ action: actionResult.action, message: actionResult.reply });
+          const withReply = [...next, { role: "assistant" as const, content: actionResult.reply }];
+          setMsgs(withReply);
+          localStorage.setItem("dg-ai-chat-" + uid, JSON.stringify(withReply.slice(-50)));
+          speak(actionResult.reply); // 🔄 loop continues automatically after speaking
+          updateMessageCount();
+          setLoading(false);
+          return;
+        }
+      }
+
+      const context = ctx
+        ? `Name: ${ctx.name} | Study: ${ctx.studyMin}min | Workouts: ${ctx.workouts} | Habits: ${ctx.habits} | Todo: ${ctx.todo} | Calories: ${ctx.cal}`
+        : "New user, no data yet";
+
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: msg,
+          history: msgs.slice(-8),
+          context,
+          mode: "action",
+          userId: uid,
+        }),
+      });
+
+      const d = await res.json();
+      const reply = d.reply || "😴 AI sleeping.";
+
+      const withReply = [...next, { role: "assistant" as const, content: reply }];
+      setMsgs(withReply);
+      localStorage.setItem("dg-ai-chat-" + uid, JSON.stringify(withReply.slice(-50)));
+
+      speak(reply); // 🔄 mic reopens automatically after AI speaks
+      updateMessageCount();
+    } catch {
+      setMsgs([...next, { role: "assistant" as const, content: "📡 Network issue. Try again!" }]);
+      interrupt(); // reset voice loop on error
+    }
+    setLoading(false);
+  };
+
+  // 🎙️ Voice transcript handler
+  const handleTranscript = async (text: string) => {
+    if (!text) return;
+    if (loading) {
+      interrupt(); // ignore speech while busy, then re-listen
+      return;
+    }
+    await sendMessage(text);
+  };
+
+  // Keep the hook's callback always fresh (no stale closures)
+  useEffect(() => {
+    setOnTranscript(handleTranscript);
+  });
+
+  // 🔁 Continuous mode toggle (saved forever)
+  const toggleContinuous = () => {
+    const next = !continuousMode;
+    setContinuousMode(next);
+    try {
+      localStorage.setItem("dg-ai-continuous", next ? "1" : "0");
+    } catch {}
+    if (next) startListening(); // start the endless loop right now
+    else stopListening();       // fully stop the loop
   };
 
   const handleOrbClick = () => {
@@ -297,8 +217,8 @@ export default function AIPage() {
     <main className="h-screen bg-slate-950 text-white flex flex-col px-4 pt-6 pb-4 max-w-4xl mx-auto relative overflow-hidden">
       {/* Ambient Background Glow */}
       <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full blur-[120px] transition-colors duration-700 pointer-events-none ${
-        voiceState === "listening" ? "bg-red-500/15" : 
-        voiceState === "speaking" ? "bg-emerald-500/15" : 
+        voiceState === "listening" ? "bg-red-500/15" :
+        voiceState === "speaking" ? "bg-emerald-500/15" :
         voiceState === "thinking" ? "bg-violet-500/15" : "bg-slate-800/10"
       }`} />
 
@@ -335,8 +255,7 @@ export default function AIPage() {
       </div>
 
       {/* Message Stream */}
-      <div className="flex-1 overflow-y-auto min-h-0 grid gap-4 content-start pb-2 z-10 scrollbar-thin scrollbar-thumb-slate-800">
-        {/* Empty State with Context */}
+      <div className="flex-1 overflow-y-auto min-h-0 grid gap-4 content-start pb-2 z-10">
         {msgs.length === 0 && ctx && (
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-lg backdrop-blur-sm">
             <div className="flex items-center gap-2 mb-3">
@@ -348,7 +267,7 @@ export default function AIPage() {
             </p>
             <div className="grid grid-cols-2 gap-1.5">
               <div className="bg-slate-800/60 rounded-lg p-2">
-                <p className="text-[9px] font-black text-slate-500"> STUDY</p>
+                <p className="text-[9px] font-black text-slate-500">📚 STUDY</p>
                 <p className="text-xs font-black text-blue-400">{ctx.studyMin} min</p>
               </div>
               <div className="bg-slate-800/60 rounded-lg p-2">
@@ -365,12 +284,11 @@ export default function AIPage() {
               </div>
             </div>
             <p className="text-[10px] text-slate-400 mt-3 font-semibold">
-              Tap the orb below to speak, or try a chip! ⬇️
+              Tap the orb ONCE and just keep talking! ⬇️
             </p>
           </div>
         )}
 
-        {/* Messages */}
         {msgs.map((m, i) => (
           <div key={i} className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             {m.role === "assistant" && (
@@ -379,16 +297,15 @@ export default function AIPage() {
               </div>
             )}
             <div className={`max-w-[80%] p-3.5 rounded-2xl text-sm whitespace-pre-wrap shadow-md leading-relaxed ${
-              m.role === "user" 
-                ? "bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white rounded-br-sm" 
+              m.role === "user"
+                ? "bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white rounded-br-sm"
                 : "bg-slate-800/80 backdrop-blur text-slate-100 rounded-bl-sm border border-slate-700/50"
             }`}>
               {m.content}
             </div>
           </div>
         ))}
-        
-        {/* Loading Indicator */}
+
         {loading && voiceState !== "speaking" && (
           <div className="flex gap-3 justify-start">
             <div className="shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg">
@@ -405,13 +322,13 @@ export default function AIPage() {
       </div>
 
       {/* Quick Chips */}
-      <div className="shrink-0 flex gap-2 overflow-x-auto py-2 -mx-1 px-1 z-10 scrollbar-none">
+      <div className="shrink-0 flex gap-2 overflow-x-auto py-2 -mx-1 px-1 z-10">
         {CHIPS.map((c) => (
           <button
             key={c.label}
             onClick={() => sendMessage(c.label)}
             disabled={loading}
-            className={`shrink-0 flex items-center gap-1.5 text-xs font-black bg-slate-900/80 border border-slate-800 hover:border-violet-500/40 hover:bg-slate-800 px-3 py-2 rounded-full shadow-md disabled:opacity-50 transition-all backdrop-blur-sm`}
+            className="shrink-0 flex items-center gap-1.5 text-xs font-black bg-slate-900/80 border border-slate-800 hover:border-violet-500/40 hover:bg-slate-800 px-3 py-2 rounded-full shadow-md disabled:opacity-50 transition-all backdrop-blur-sm"
           >
             <span className={`w-5 h-5 rounded-md bg-gradient-to-br ${c.grad} flex items-center justify-center text-[10px]`}>
               {c.label.split(" ")[0]}
@@ -428,10 +345,9 @@ export default function AIPage() {
           transcript={transcript}
           onClick={handleOrbClick}
           continuousMode={continuousMode}
-          onToggleContinuous={() => setContinuousMode(!continuousMode)}
+          onToggleContinuous={toggleContinuous}
         />
 
-        {/* Text Input Fallback */}
         <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="w-full flex gap-2">
           <input
             value={input}

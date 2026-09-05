@@ -1,7 +1,7 @@
 "use client";
 
 import { Mic, MicOff, Loader2, Volume2, AlertCircle } from "lucide-react";
-type VoiceState = "idle" | "listening" | "thinking" | "speaking" | "error";
+import type { VoiceState } from "@/app/hooks/JarvisVoice";
 
 interface JarvisOrbProps {
   state: VoiceState;
