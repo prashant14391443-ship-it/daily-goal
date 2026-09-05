@@ -4,6 +4,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 
 export type VoiceState = "idle" | "listening" | "thinking" | "speaking" | "error";
 
+// ⏱️ HOW LONG TO WAIT after the user's last word before answering.
+// 1500 = snappy | 2000 = balanced (recommended) | 2500-3000 = for slow/paused speakers
+const SILENCE_THRESHOLD_MS = 2000;
+
 const normalize = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
 
@@ -29,7 +33,9 @@ export function useJarvisVoice(continuousMode: boolean = true) {
   const deniedRef = useRef(false);
   const wantMicRef = useRef(false);
   const spokenRef = useRef("");
-  const utteranceRef = useRef("");
+  const bufferRef = useRef("");       // finished segments waiting in the patience window
+  const sessionTextRef = useRef("");  // live text of the current mic session
+  const flushTimer = useRef<any>(null);
   const restartTimer = useRef<any>(null);
 
   const setVoiceState = useCallback((s: VoiceState) => {
@@ -54,6 +60,20 @@ export function useJarvisVoice(continuousMode: boolean = true) {
     try { recRef.current?.stop(); } catch {}
   }, []);
 
+  // 📨 Patience window expired → send the FULL merged sentence
+  const flushNow = useCallback(() => {
+    clearTimeout(flushTimer.current);
+    const text = bufferRef.current.trim();
+    bufferRef.current = "";
+    sessionTextRef.current = "";
+    setTranscript("");
+    if (text) {
+      setVoiceState("thinking");
+      onTranscriptRef.current?.(text);
+      if (!continuousRef.current) wantMicRef.current = false;
+    }
+  }, [setVoiceState]);
+
   const speak = useCallback((text: string) => {
     const synth = synthRef.current;
     if (!synth) return;
@@ -64,6 +84,10 @@ export function useJarvisVoice(continuousMode: boolean = true) {
       .replace(/\s+/g, " ")
       .trim();
     if (!clean) return;
+
+    clearTimeout(flushTimer.current);
+    bufferRef.current = "";
+    sessionTextRef.current = "";
 
     spokenRef.current = clean;
     const u = new SpeechSynthesisUtterance(clean);
@@ -77,7 +101,7 @@ export function useJarvisVoice(continuousMode: boolean = true) {
 
     u.onstart = () => {
       setVoiceState("speaking");
-      if (continuousRef.current) startMic(); 
+      if (continuousRef.current) startMic();
     };
     const done = () => {
       spokenRef.current = "";
@@ -96,7 +120,9 @@ export function useJarvisVoice(continuousMode: boolean = true) {
   const interrupt = useCallback(() => {
     synthRef.current?.cancel();
     spokenRef.current = "";
-    utteranceRef.current = "";
+    clearTimeout(flushTimer.current);
+    bufferRef.current = "";
+    sessionTextRef.current = "";
     setTranscript("");
     if (continuousRef.current) {
       setVoiceState("listening");
@@ -110,14 +136,18 @@ export function useJarvisVoice(continuousMode: boolean = true) {
   const startListening = useCallback(() => {
     synthRef.current?.cancel();
     spokenRef.current = "";
-    utteranceRef.current = "";
+    clearTimeout(flushTimer.current);
+    bufferRef.current = "";
+    sessionTextRef.current = "";
     setTranscript("");
     setVoiceState("listening");
     startMic();
   }, [startMic, setVoiceState]);
 
   const stopListening = useCallback(() => {
-    utteranceRef.current = "";
+    clearTimeout(flushTimer.current);
+    bufferRef.current = "";
+    sessionTextRef.current = "";
     setTranscript("");
     stopMic();
     setVoiceState("idle");
@@ -128,6 +158,7 @@ export function useJarvisVoice(continuousMode: boolean = true) {
     onTranscriptRef.current = fn;
   }, []);
 
+  // 🎙️ Engine
   useEffect(() => {
     if (typeof window === "undefined") return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -137,7 +168,7 @@ export function useJarvisVoice(continuousMode: boolean = true) {
 
     if (SR) {
       const rec = new SR();
-      rec.continuous = false; 
+      rec.continuous = false;
       rec.interimResults = true;
       rec.lang = "en-US";
 
@@ -146,55 +177,54 @@ export function useJarvisVoice(continuousMode: boolean = true) {
       };
 
       rec.onresult = (event: any) => {
+        // rebuild from scratch (kills the repeat bug)
         let sessionText = "";
         for (let i = 0; i < event.results.length; i++) {
           sessionText += event.results[i][0].transcript + " ";
         }
         sessionText = sessionText.trim();
 
-        // 🗣️ AI is speaking → check if THIS is the user interrupting (not echo)
+        // 🗣️ AI is speaking → barge-in check (seamless handoff, mic stays open)
         if (stateRef.current === "speaking") {
           if (
             sessionText &&
             normalize(sessionText).length >= 2 &&
             echoScore(sessionText, spokenRef.current) < 0.5
           ) {
-            // 🛑 BARGE-IN DETECTED!
-            synthRef.current?.cancel(); // Shut up AI instantly
+            synthRef.current?.cancel();
             spokenRef.current = "";
-            setVoiceState("listening"); // Switch to listening mode
-            
-            // 🎯 CRITICAL FIX: Keep the words the user already said!
-            // DO NOT stop the mic. Let the browser finish capturing the full sentence.
-            utteranceRef.current = sessionText; 
-            setTranscript(sessionText);
+            clearTimeout(flushTimer.current);
+            bufferRef.current = "";
+            sessionTextRef.current = "";
+            setTranscript("");
+            setVoiceState("listening");
           }
-          return; 
+          return;
         }
 
-        // 🎧 Normal listening state
-        setTranscript(sessionText);
-        const last = event.results[event.results.length - 1];
-        if (last && last.isFinal) {
-          utteranceRef.current = sessionText;
-        }
+        // 🎧 User resumed talking → CANCEL the pending answer, keep collecting
+        clearTimeout(flushTimer.current);
+        sessionTextRef.current = sessionText;
+        setTranscript((bufferRef.current + " " + sessionText).trim());
       };
 
       rec.onend = () => {
         if (stateRef.current === "listening") {
-          const text = utteranceRef.current.trim();
-          utteranceRef.current = "";
-          setTranscript("");
-          if (text) {
-            setVoiceState("thinking");
-            onTranscriptRef.current?.(text);
-            if (!continuousRef.current) {
-              wantMicRef.current = false;
-              return;
-            }
+          const sessionText = sessionTextRef.current.trim();
+          sessionTextRef.current = "";
+          if (sessionText) {
+            bufferRef.current = (bufferRef.current + " " + sessionText).trim();
+          }
+          if (bufferRef.current) {
+            // ⏱️ PATIENCE WINDOW: wait SILENCE_THRESHOLD_MS before answering.
+            // If the user continues speaking, onresult cancels this timer.
+            setTranscript(bufferRef.current);
+            clearTimeout(flushTimer.current);
+            flushTimer.current = setTimeout(flushNow, SILENCE_THRESHOLD_MS);
           }
         }
-        
+
+        // keep-alive: reopen mic so resumed speech is captured
         if (
           wantMicRef.current &&
           !deniedRef.current &&
@@ -204,7 +234,7 @@ export function useJarvisVoice(continuousMode: boolean = true) {
           clearTimeout(restartTimer.current);
           restartTimer.current = setTimeout(() => {
             try { rec.start(); } catch {}
-          }, 300);
+          }, 250);
         }
       };
 
@@ -222,11 +252,12 @@ export function useJarvisVoice(continuousMode: boolean = true) {
 
     return () => {
       wantMicRef.current = false;
+      clearTimeout(flushTimer.current);
       clearTimeout(restartTimer.current);
       try { recRef.current?.stop(); } catch {}
       synthRef.current?.cancel();
     };
-  }, [setVoiceState]);
+  }, [flushNow, setVoiceState]);
 
   return {
     state, isSupported, transcript,
