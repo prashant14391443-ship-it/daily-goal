@@ -1,11 +1,143 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-import { IconTile, Chip } from "@/app/components/ui";
+import { ArrowLeft, Sparkles, Send } from "lucide-react";
+
+type VoiceState = "idle" | "listening" | "thinking" | "speaking";
+
+type BrowserSpeechRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onresult: ((event: any) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  abort: () => void;
+};
+
+function useJarvisVoice(continuousMode: boolean) {
+  const [state, setState] = useState<VoiceState>("idle");
+  const [transcript, setTranscript] = useState("");
+  const [isSupported, setIsSupported] = useState(false);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const callbackRef = useRef<(text: string) => void>(() => {});
+
+  useEffect(() => {
+    const speechWindow = window as typeof window & {
+      SpeechRecognition?: new () => BrowserSpeechRecognition;
+      webkitSpeechRecognition?: new () => BrowserSpeechRecognition;
+    };
+    const SpeechRecognitionAPI = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+    setIsSupported(Boolean(SpeechRecognitionAPI) && "speechSynthesis" in window);
+    if (!SpeechRecognitionAPI) return;
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = "en-US";
+    recognition.onstart = () => setState("listening");
+    recognition.onresult = (event) => {
+      const text = Array.from(event.results as ArrayLike<{ 0: { transcript: string } }>).map((result) => result[0].transcript).join("");
+      setTranscript(text);
+      if (event.results[event.results.length - 1].isFinal) {
+        setState("thinking");
+        callbackRef.current(text);
+      }
+    };
+    recognition.onerror = () => setState("idle");
+    recognition.onend = () => setState((current) => current === "listening" ? "idle" : current);
+    recognitionRef.current = recognition;
+    return () => recognition.abort();
+  }, []);
+
+  const startListening = useCallback(() => {
+    try { recognitionRef.current?.start(); } catch { /* already listening */ }
+  }, []);
+
+  const interrupt = useCallback(() => {
+    recognitionRef.current?.abort();
+    window.speechSynthesis?.cancel();
+    setState("idle");
+  }, []);
+
+  const speak = useCallback((text: string) => {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onstart = () => setState("speaking");
+    utterance.onend = () => {
+      setState("idle");
+      if (continuousMode) startListening();
+    };
+    utterance.onerror = () => setState("idle");
+    window.speechSynthesis.speak(utterance);
+  }, [continuousMode, startListening]);
+
+  return {
+    state,
+    isSupported,
+    transcript,
+    startListening,
+    interrupt,
+    speak,
+    setOnTranscript: (callback: (text: string) => void) => { callbackRef.current = callback; },
+    clearTranscript: () => setTranscript(""),
+  };
+}
 
 type Msg = { role: "user" | "assistant"; content: string };
+
+type JarvisOrbProps = {
+  state: string;
+  transcript: string;
+  onClick: () => void;
+  continuousMode: boolean;
+  onToggleContinuous: () => void;
+};
+
+function JarvisOrb({ state, transcript, onClick, continuousMode, onToggleContinuous }: JarvisOrbProps) {
+  const active = state === "listening" || state === "speaking";
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={active ? "Stop voice assistant" : "Start voice assistant"}
+        className={`relative h-20 w-20 rounded-full border-4 transition-all ${
+          state === "listening"
+            ? "border-red-400 bg-red-500/20 shadow-lg shadow-red-500/40"
+            : state === "speaking"
+              ? "border-emerald-400 bg-emerald-500/20 shadow-lg shadow-emerald-500/40"
+              : state === "thinking"
+                ? "border-violet-400 bg-violet-500/20 shadow-lg shadow-violet-500/40"
+                : "border-slate-700 bg-slate-800 shadow-lg shadow-violet-900/20"
+        }`}
+      >
+        <span className="text-2xl" aria-hidden="true">✦</span>
+      </button>
+      {transcript && <p className="max-w-xs text-center text-xs text-slate-400">{transcript}</p>}
+      <button type="button" onClick={onToggleContinuous} className="text-[10px] font-semibold text-slate-500 hover:text-slate-300">
+        {continuousMode ? "Continuous mode on" : "Continuous mode off"}
+      </button>
+    </div>
+  );
+}
+
+function ActionToast({ action, message, onClose }: { action: any; message: string; onClose: () => void }) {
+  return (
+    <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl border border-emerald-500/30 bg-slate-900 px-4 py-3 text-sm text-white shadow-xl">
+      <span>{message}</span>
+      <button type="button" onClick={onClose} aria-label="Close notification" className="text-slate-400 hover:text-white">
+        ×
+      </button>
+    </div>
+  );
+}
 
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -17,8 +149,8 @@ function toLocalISO(d: Date) {
 const CHIPS = [
   { label: "📅 Plan my day", grad: "from-blue-500 to-indigo-600" },
   { label: "💪 Motivate me", grad: "from-orange-500 to-red-600" },
-  { label: "🍽️ What should I eat next?", grad: "from-green-500 to-emerald-600" },
-  { label: "📚 Give me a study tip", grad: "from-violet-500 to-fuchsia-600" },
+  { label: "🍽️ What should I eat?", grad: "from-green-500 to-emerald-600" },
+  { label: "📚 Study tip", grad: "from-violet-500 to-fuchsia-600" },
 ];
 
 export default function AIPage() {
@@ -26,27 +158,33 @@ export default function AIPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [left, setLeft] = useState(15);
-  const [failedMsg, setFailedMsg] = useState("");
   const [uid, setUid] = useState("guest");
+  const [continuousMode, setContinuousMode] = useState(false);
   const [ctx, setCtx] = useState<{ name: string; studyMin: number; workouts: number; habits: string; todo: string; cal: number } | null>(null);
+  const [actionToast, setActionToast] = useState<{ action: any; message: string } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Initialize voice engine
+  const { state: voiceState, isSupported, transcript, startListening, interrupt, speak, setOnTranscript, clearTranscript } = useJarvisVoice(continuousMode);
+
+  // Load user data and context
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase.auth.getSession();
       const id = data.session?.user.id || "guest";
       setUid(id);
+      
       try {
         setMsgs(JSON.parse(localStorage.getItem("dg-ai-chat-" + id) || "[]"));
         const c = JSON.parse(localStorage.getItem("dg-ai-count-" + id) || "null");
         if (c && c.date === toLocalISO(new Date())) setLeft(Math.max(0, 15 - c.n));
       } catch {}
 
-      // Build context preview for empty state
       if (id !== "guest") {
         const today = toLocalISO(new Date());
         const meta = (data.session?.user.user_metadata || {}) as { display_name?: string };
         const name = meta.display_name || data.session?.user.email?.split("@")[0] || "friend";
+        
         const [s, g, h, hl, t, n] = await Promise.all([
           supabase.from("study_sessions").select("duration_minutes").eq("user_id", id).eq("session_date", today),
           supabase.from("gym_logs").select("id").eq("user_id", id).eq("session_date", today),
@@ -55,6 +193,7 @@ export default function AIPage() {
           supabase.from("tasks").select("id, completed").eq("user_id", id).eq("category", "todo").eq("task_date", today),
           supabase.from("nutrition_logs").select("calories").eq("user_id", id).eq("log_date", today),
         ]);
+        
         const studyMin = (s.data || []).reduce((a, r) => a + r.duration_minutes, 0);
         const workouts = (g.data || []).length;
         const habitsTotal = (h.data || []).length;
@@ -62,6 +201,7 @@ export default function AIPage() {
         const todoTotal = (t.data || []).length;
         const todoDone = (t.data || []).filter((r) => r.completed).length;
         const cal = (n.data || []).reduce((a, r) => a + r.calories, 0);
+        
         setCtx({
           name, studyMin, workouts,
           habits: `${habitsDone}/${habitsTotal}`,
@@ -73,103 +213,132 @@ export default function AIPage() {
     load();
   }, []);
 
+  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, loading]);
 
-  const buildContext = async () => {
-    const { data } = await supabase.auth.getSession();
-    const uid = data.session?.user.id;
-    if (!uid) return "User not logged in.";
-    const today = toLocalISO(new Date());
-    const meta = (data.session?.user.user_metadata || {}) as { display_name?: string };
-    const name = meta.display_name || data.session?.user.email?.split("@")[0] || "friend";
-    const [s, g, h, hl, t, n, gl] = await Promise.all([
-      supabase.from("study_sessions").select("duration_minutes").eq("user_id", uid).eq("session_date", today),
-      supabase.from("gym_logs").select("id").eq("user_id", uid).eq("session_date", today),
-      supabase.from("habits").select("id").eq("user_id", uid),
-      supabase.from("habit_logs").select("habit_id").eq("user_id", uid).eq("log_date", today).eq("completed", true),
-      supabase.from("tasks").select("id, completed").eq("user_id", uid).eq("category", "todo").eq("task_date", today),
-      supabase.from("nutrition_logs").select("calories, protein").eq("user_id", uid).eq("log_date", today),
-      supabase.from("user_goals").select("*").eq("user_id", uid).maybeSingle(),
-    ]);
-    const studyMin = (s.data || []).reduce((a, r) => a + r.duration_minutes, 0);
-    const workouts = (g.data || []).length;
-    const habitsTotal = (h.data || []).length;
-    const habitsDone = (hl.data || []).length;
-    const todoTotal = (t.data || []).length;
-    const todoDone = (t.data || []).filter((r) => r.completed).length;
-    const eaten = (n.data || []).reduce((a, r) => a + r.calories, 0);
-    const protein = (n.data || []).reduce((a, r) => a + r.protein, 0);
-    const goals = gl.data;
-    return `Name: ${name} | Date: ${today}
-Study: ${studyMin}/${goals?.study_target ?? 60} min
-Workouts: ${workouts}/${goals?.workout_target ?? 1}
-Habits: ${habitsDone}/${habitsTotal}
-ToDo: ${todoDone}/${todoTotal}
-Food eaten: ${eaten} cal (protein ${protein}g) of target ${goals?.calorie_target ?? 2000} cal`;
-  };
+  // Handle voice transcript
+  const handleTranscript = useCallback(async (text: string) => {
+    if (!text || loading) return;
+    await sendMessage(text);
+  }, [loading]);
 
-  const send = async (text?: string) => {
+  useEffect(() => {
+    setOnTranscript(handleTranscript);
+  }, [handleTranscript, setOnTranscript]);
+
+  // Send message (text or voice)
+  const sendMessage = async (text?: string) => {
     const msg = (text || input).trim();
     if (!msg || loading) return;
-    if (left <= 0) { alert("🆓 Free daily limit reached (15 messages). Come back tomorrow!"); return; }
+    if (left <= 0) { 
+      alert("🆓 Free daily limit reached (15 messages). Come back tomorrow!"); 
+      return; 
+    }
+    
     setInput("");
+    clearTranscript();
+    
     const next = [...msgs, { role: "user" as const, content: msg }];
     setMsgs(next);
     setLoading(true);
-    const context = await buildContext();
+
     try {
+      // Build context for AI
+      const context = ctx 
+        ? `Name: ${ctx.name} | Study: ${ctx.studyMin}min | Workouts: ${ctx.workouts} | Habits: ${ctx.habits} | Todo: ${ctx.todo} | Calories: ${ctx.cal}`
+        : "New user, no data yet";
+
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msg, history: msgs.slice(-8), context, mode: "coach" }),
+        body: JSON.stringify({ 
+          message: msg, 
+          history: msgs.slice(-8), 
+          context, 
+          mode: "action",
+          userId: uid 
+        }),
       });
+      
       const d = await res.json();
-      const reply = d.reply || "😴 " + (d.error || "AI sleeping.");
-      if (d.reply) setFailedMsg("");
-      else setFailedMsg(msg);
+      const reply = d.reply || "😴 AI sleeping.";
+      
       const withReply = [...next, { role: "assistant" as const, content: reply }];
       setMsgs(withReply);
       localStorage.setItem("dg-ai-chat-" + uid, JSON.stringify(withReply.slice(-50)));
-      const c = JSON.parse(localStorage.getItem("dg-ai-count-" + uid) || "null");
-      const today = toLocalISO(new Date());
-      const count = c && c.date === today ? c.n + 1 : 1;
-      localStorage.setItem("dg-ai-count-" + uid, JSON.stringify({ date: today, n: count }));
-      setLeft(Math.max(0, 15 - count));
+      
+      speak(reply);
+      updateMessageCount();
     } catch {
-      setFailedMsg(msg);
       setMsgs([...next, { role: "assistant" as const, content: "📡 Network issue. Try again!" }]);
     }
     setLoading(false);
   };
 
+  const updateMessageCount = () => {
+    const c = JSON.parse(localStorage.getItem("dg-ai-count-" + uid) || "null");
+    const today = toLocalISO(new Date());
+    const count = c && c.date === today ? c.n + 1 : 1;
+    localStorage.setItem("dg-ai-count-" + uid, JSON.stringify({ date: today, n: count }));
+    setLeft(Math.max(0, 15 - count));
+  };
+
+  const handleOrbClick = () => {
+    if (voiceState === "speaking" || voiceState === "listening") {
+      interrupt();
+    } else {
+      startListening();
+    }
+  };
+
   return (
-    <main className="h-screen bg-slate-950 text-white flex flex-col px-4 pt-6 pb-4 max-w-4xl mx-auto">
-      {/* 🌆 HERO */}
-      <div className="relative mb-4 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-pink-600 p-4 shadow-2xl shadow-fuchsia-900/30 shrink-0">
-        <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
-        <div className="relative flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <span className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center text-2xl shadow-lg shrink-0">🤖</span>
-            <div className="min-w-0">
-              <h1 className="text-base font-black text-white leading-tight">Personal AI</h1>
-              <p className="text-[10px] text-white/80 font-semibold">
-                I know your day — ask me anything
-              </p>
-            </div>
+    <main className="h-screen bg-slate-950 text-white flex flex-col px-4 pt-6 pb-4 max-w-4xl mx-auto relative overflow-hidden">
+      {/* Ambient Background Glow */}
+      <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full blur-[120px] transition-colors duration-700 pointer-events-none ${
+        voiceState === "listening" ? "bg-red-500/15" : 
+        voiceState === "speaking" ? "bg-emerald-500/15" : 
+        voiceState === "thinking" ? "bg-violet-500/15" : "bg-slate-800/10"
+      }`} />
+
+      {/* Action Toast */}
+      {actionToast && (
+        <ActionToast
+          action={actionToast.action}
+          message={actionToast.message}
+          onClose={() => setActionToast(null)}
+        />
+      )}
+
+      {/* Header */}
+      <div className="relative mb-4 flex items-center justify-between shrink-0 z-10">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-lg shadow-violet-900/30">
+            <Sparkles className="w-5 h-5 text-white" />
           </div>
-          <div className="flex flex-col items-end gap-1 shrink-0">
-            <Chip color="violet">{left}/15 free</Chip>
-            <Link href="/dashboard" className="text-[10px] text-white/70 font-bold hover:text-white">← Back</Link>
+          <div>
+            <h1 className="text-base font-black text-white leading-tight">Personal AI</h1>
+            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+              {ctx ? `Hey ${ctx.name}!` : "Your daily assistant"}
+            </p>
           </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="px-3 py-1.5 rounded-full bg-slate-800/50 border border-slate-700 text-[10px] font-bold text-slate-300">
+            {left}/15 left
+          </div>
+          <Link href="/dashboard" className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 transition-all">
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
         </div>
       </div>
 
-      {/* 💬 MESSAGE STREAM */}
-      <div className="flex-1 overflow-y-auto min-h-0 grid gap-3 content-start pb-2">
+      {/* Message Stream */}
+      <div className="flex-1 overflow-y-auto min-h-0 grid gap-4 content-start pb-2 z-10 scrollbar-thin scrollbar-thumb-slate-800">
+        {/* Empty State with Context */}
         {msgs.length === 0 && ctx && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg shadow-black/30">
+          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-lg backdrop-blur-sm">
             <div className="flex items-center gap-2 mb-3">
               <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center text-base shadow-lg">🤖</span>
               <p className="font-black text-sm text-white">Hey {ctx.name}! I&apos;m your coach 👋</p>
@@ -179,7 +348,7 @@ Food eaten: ${eaten} cal (protein ${protein}g) of target ${goals?.calorie_target
             </p>
             <div className="grid grid-cols-2 gap-1.5">
               <div className="bg-slate-800/60 rounded-lg p-2">
-                <p className="text-[9px] font-black text-slate-500">📚 STUDY</p>
+                <p className="text-[9px] font-black text-slate-500"> STUDY</p>
                 <p className="text-xs font-black text-blue-400">{ctx.studyMin} min</p>
               </div>
               <div className="bg-slate-800/60 rounded-lg p-2">
@@ -196,60 +365,53 @@ Food eaten: ${eaten} cal (protein ${protein}g) of target ${goals?.calorie_target
               </div>
             </div>
             <p className="text-[10px] text-slate-400 mt-3 font-semibold">
-              Try one of the chips below or ask anything! ⬇️
+              Tap the orb below to speak, or try a chip! ⬇️
             </p>
           </div>
         )}
 
+        {/* Messages */}
         {msgs.map((m, i) => (
-          <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+          <div key={i} className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             {m.role === "assistant" && (
-              <span className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center text-xs shadow-lg self-end">
-                🤖
-              </span>
+              <div className="shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg">
+                <Sparkles className="w-4 h-4 text-white" />
+              </div>
             )}
-            <div
-              className={`max-w-[80%] p-3 rounded-2xl text-sm whitespace-pre-wrap shadow-md ${
-                m.role === "user"
-                  ? "bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white rounded-br-sm"
-                  : "bg-slate-800 text-slate-100 rounded-bl-sm border border-slate-700"
-              }`}
-            >
+            <div className={`max-w-[80%] p-3.5 rounded-2xl text-sm whitespace-pre-wrap shadow-md leading-relaxed ${
+              m.role === "user" 
+                ? "bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white rounded-br-sm" 
+                : "bg-slate-800/80 backdrop-blur text-slate-100 rounded-bl-sm border border-slate-700/50"
+            }`}>
               {m.content}
             </div>
-            {m.role === "user" && (
-              <span className="shrink-0 w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-xs border border-slate-700 self-end">
-                👤
-              </span>
-            )}
           </div>
         ))}
-
-        {loading && (
-          <div className="flex gap-2 justify-start">
-            <span className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center text-xs shadow-lg">
-              🤖
-            </span>
-            <div className="bg-slate-800 border border-slate-700 p-3 rounded-2xl rounded-bl-sm shadow-md">
-              <div className="flex gap-1">
-                <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-                <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-                <span className="w-2 h-2 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "300ms" }} />
-              </div>
+        
+        {/* Loading Indicator */}
+        {loading && voiceState !== "speaking" && (
+          <div className="flex gap-3 justify-start">
+            <div className="shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg">
+              <Sparkles className="w-4 h-4 text-white animate-pulse" />
+            </div>
+            <div className="bg-slate-800/80 border border-slate-700/50 p-4 rounded-2xl rounded-bl-sm shadow-md flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+              <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce" style={{ animationDelay: "300ms" }} />
             </div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
 
-      {/* ⚡ QUICK SUGGESTIONS */}
-      <div className="shrink-0 flex gap-2 overflow-x-auto py-2 -mx-1 px-1">
+      {/* Quick Chips */}
+      <div className="shrink-0 flex gap-2 overflow-x-auto py-2 -mx-1 px-1 z-10 scrollbar-none">
         {CHIPS.map((c) => (
           <button
             key={c.label}
-            onClick={() => send(c.label)}
+            onClick={() => sendMessage(c.label)}
             disabled={loading}
-            className={`press shrink-0 flex items-center gap-1.5 text-xs font-black bg-slate-900 border border-slate-800 hover:border-violet-500/40 hover:bg-slate-800 px-3 py-2 rounded-full shadow-md disabled:opacity-50 transition-all`}
+            className={`shrink-0 flex items-center gap-1.5 text-xs font-black bg-slate-900/80 border border-slate-800 hover:border-violet-500/40 hover:bg-slate-800 px-3 py-2 rounded-full shadow-md disabled:opacity-50 transition-all backdrop-blur-sm`}
           >
             <span className={`w-5 h-5 rounded-md bg-gradient-to-br ${c.grad} flex items-center justify-center text-[10px]`}>
               {c.label.split(" ")[0]}
@@ -259,37 +421,34 @@ Food eaten: ${eaten} cal (protein ${protein}g) of target ${goals?.calorie_target
         ))}
       </div>
 
-      {/* ⚠️ FAILED RETRY */}
-      {failedMsg && !loading && (
-        <button
-          onClick={() => {
-            const m = failedMsg;
-            setFailedMsg("");
-            send(m);
-          }}
-          className="shrink-0 w-full py-2.5 mb-2 rounded-xl bg-amber-500/15 border-2 border-amber-500/40 text-amber-300 text-xs font-black press"
-        >
-          😴 AI didn&apos;t respond — 🔄 Tap to try again
-        </button>
-      )}
-
-      {/* 📝 INPUT */}
-      <form onSubmit={(e) => { e.preventDefault(); send(); }} className="shrink-0 flex gap-2 pt-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Ask anything about your day or life..."
-          disabled={loading}
-          className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-800 text-sm outline-none focus:border-violet-500 disabled:opacity-50"
+      {/* Jarvis Orb & Input */}
+      <div className="shrink-0 flex flex-col items-center gap-3 pt-3 z-10">
+        <JarvisOrb
+          state={voiceState}
+          transcript={transcript}
+          onClick={handleOrbClick}
+          continuousMode={continuousMode}
+          onToggleContinuous={() => setContinuousMode(!continuousMode)}
         />
-        <button
-          type="submit"
-          disabled={loading || !input.trim()}
-          className="press shrink-0 px-5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-lg font-black disabled:opacity-40 shadow-lg shadow-violet-900/30"
-        >
-          ➤
-        </button>
-      </form>
+
+        {/* Text Input Fallback */}
+        <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="w-full flex gap-2">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={isSupported ? "Tap the orb to speak, or type here..." : "Type your message..."}
+            disabled={loading}
+            className="flex-1 p-3.5 rounded-xl bg-slate-900/80 backdrop-blur border border-slate-800 text-sm outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 disabled:opacity-50 transition-all placeholder:text-slate-600"
+          />
+          <button
+            type="submit"
+            disabled={loading || !input.trim()}
+            className="shrink-0 px-5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white font-black disabled:opacity-40 shadow-lg shadow-violet-900/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </form>
+      </div>
     </main>
   );
 }

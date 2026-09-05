@@ -83,7 +83,6 @@ function parseEvalText(txt: string): any {
   }
 }
 
-// 📦 AI PACK helpers (line format = never breaks)
 function parsePackLines(txt: string, prefix: string): string[][] {
   return txt
     .split("\n")
@@ -133,7 +132,7 @@ async function genPackLines(prompt: string, prefix: string, groqKey?: string, gK
 
 export async function POST(req: Request) {
   try {
-    const { message, history = [], context = "", mode = "coach", audio, mimeType, topic, target } = await req.json();
+    const { message, history = [], context = "", mode = "coach", audio, mimeType, topic, target, userId } = await req.json();
 
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
     const allowed = await rateLimit(`rl:${ip}`, 20, 60);
@@ -145,7 +144,7 @@ export async function POST(req: Request) {
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
     // 🧠 CACHE CHECK (text modes only)
-    if (!audio && message) {
+    if (!audio && message && mode !== "action") {
       const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
       const cached = await getCached(cacheKey);
       if (cached) {
@@ -153,7 +152,7 @@ export async function POST(req: Request) {
       }
     }
 
-    // 📚 AI VOCAB PACK (any topic, 8 words)
+    // 📚 AI VOCAB PACK
     if (mode === "vocabpack" && topic) {
       const items = await genPackLines(
         `You are an English teacher for Indian students. Create 8 useful vocabulary words about "${topic}". Reply with EXACTLY 8 lines, no extra text, format:
@@ -166,7 +165,7 @@ WORD: <word> | <type> | <simple english meaning> | <hindi meaning> | <short exam
       return NextResponse.json({ error: "Could not generate pack — try again!" }, { status: 503 });
     }
 
-    // 🎯 AI SENTENCE PACK (any topic, 8 pairs)
+    //  AI SENTENCE PACK
     if (mode === "sentencepack" && topic) {
       const items = await genPackLines(
         `You are an English teacher for Indian students. Create 8 common-mistake sentence pairs about "${topic}" situations. Reply with EXACTLY 8 lines, no extra text, format:
@@ -179,7 +178,7 @@ SENT: <wrong sentence> | <correct sentence> | <brief reason> | <hindi meaning of
       return NextResponse.json({ error: "Could not generate pack — try again!" }, { status: 503 });
     }
 
-    // 🎙️ AUDIO MODE
+    // 🎙️ AUDIO MODE (Whisper + LLM)
     if (audio && (mode === "english" || mode === "call" || mode === "drill" || mode === "evaluate")) {
       let transcription = "";
 
@@ -204,7 +203,6 @@ SENT: <wrong sentence> | <correct sentence> | <brief reason> | <hindi meaning of
       }
 
       if (transcription && transcription.trim().length > 0) {
-        // 🎯 DRILL: free scoring, no LLM
         if (mode === "drill" && target) {
           const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9'\s]/g, "").split(/\s+/).filter(Boolean);
           const tWords = norm(target);
@@ -220,7 +218,6 @@ SENT: <wrong sentence> | <correct sentence> | <brief reason> | <hindi meaning of
           return NextResponse.json({ reply, heard: transcription, score });
         }
 
-        // 📊 SPEAKING TEST
         if (mode === "evaluate") {
           const errs: string[] = [];
 
@@ -284,45 +281,9 @@ SENT: <wrong sentence> | <correct sentence> | <brief reason> | <hindi meaning of
             }
           } else errs.push("gemini: NO KEY");
 
-          if (groqKey) {
-            try {
-              const fr = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
-                body: JSON.stringify({
-                  model: GROQ_CHAT[0],
-                  messages: [
-                    { role: "system", content: `You are an English tutor. The user said: "${transcription}". Give corrections numbered like 1) ❌ wrong -> ✅ right, then one encouraging question. Max 120 words.` },
-                  ],
-                  max_tokens: 300,
-                  temperature: 0.7,
-                }),
-              });
-              if (fr.ok) {
-                const fd = await fr.json();
-                const fReply = fd.choices?.[0]?.message?.content;
-                if (fReply) {
-                  return NextResponse.json({
-                    reply: fReply,
-                    heard: transcription,
-                    structured: {
-                      scores: { accuracy: 18, pronunciation: 12, expression: 15, fluency: 15, total: 60 },
-                      corrected_version: "",
-                      grammar_corrections: [],
-                      vocabulary_upgrades: [],
-                      ai_spoken_reply: "Good try! Read the written feedback below and try again.",
-                    },
-                    engine: "fallback",
-                  });
-                }
-              }
-            } catch {}
-          }
-
           return NextResponse.json({ error: "Evaluation failed", debug: errs }, { status: 503 });
         }
 
-        // 💬 CALL / ENGLISH
         const systemPrompt = mode === "call"
           ? Swati_PROMPT(topic || "daily life")
           : `You are an expert English language tutor helping a student practice speaking.
@@ -409,7 +370,7 @@ Rules:
       return NextResponse.json({ error: "Could not hear clearly — speak louder for 2+ seconds." }, { status: 503 });
     }
 
-    // 📝 TEXT MODE
+    // 📝 TEXT MODE (including action mode)
     if (!message) return NextResponse.json({ error: "No message" }, { status: 400 });
 
     let system = "";
@@ -422,6 +383,17 @@ Rules:
 3. If no mistakes: "✅ Perfect sentence!"
 4. Add ONE short friendly reply + ONE simple question.
 5. Keep whole answer under 150 words.`;
+    } else if (mode === "action") {
+      system = `You are "Jarvis", the personal AI assistant inside a daily goal tracking app. 
+You help users with study, workouts, habits, nutrition, and tasks.
+Be SHORT, friendly, and motivating (max 80 words for voice).
+Use emojis sparingly. Speak naturally like a real assistant.
+
+USER'S TODAY CONTEXT:
+${context}
+
+If the user asks about their progress, use the context above to answer accurately.
+If they want motivation, be encouraging and specific to their data.`;
     } else {
       system = `You are "Personal AI", a friendly assistant inside a productivity app. Be SHORT (max 120 words), motivating.
 USER DATA: ${context}`;
@@ -440,14 +412,16 @@ USER DATA: ${context}`;
           const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
-            body: JSON.stringify({ model, messages: chatMessages, max_tokens: 400, temperature: 0.7 }),
+            body: JSON.stringify({ model, messages: chatMessages, max_tokens: mode === "action" ? 200 : 400, temperature: 0.7 }),
           });
           if (r.ok) {
             const d = await r.json();
             const reply = d.choices?.[0]?.message?.content;
             if (reply) {
-              const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
-              await setCached(cacheKey, reply, 3600);
+              if (mode !== "action") {
+                const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
+                await setCached(cacheKey, reply, 3600);
+              }
               return NextResponse.json({ reply, engine: model });
             }
             errs.push(`${model}: empty`);
@@ -478,7 +452,7 @@ USER DATA: ${context}`;
                   })),
                   { role: "user", parts: [{ text: message }] },
                 ],
-                generationConfig: { maxOutputTokens: 400, temperature: 0.7 },
+                generationConfig: { maxOutputTokens: mode === "action" ? 200 : 400, temperature: 0.7 },
               }),
             }
           );
@@ -486,8 +460,10 @@ USER DATA: ${context}`;
             const d = await r.json();
             const reply = d.candidates?.[0]?.content?.parts?.[0]?.text;
             if (reply) {
-              const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
-              await setCached(cacheKey, reply, 3600);
+              if (mode !== "action") {
+                const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
+                await setCached(cacheKey, reply, 3600);
+              }
               return NextResponse.json({ reply, engine: model });
             }
             errs.push(`${model}: empty`);
