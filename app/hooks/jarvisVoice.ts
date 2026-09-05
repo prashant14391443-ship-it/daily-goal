@@ -7,7 +7,6 @@ export type VoiceState = "idle" | "listening" | "thinking" | "speaking" | "error
 const normalize = (s: string) =>
   s.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter(Boolean);
 
-// How much of the heard text matches what the AI is currently saying (echo check)
 function echoScore(transcript: string, spoken: string): number {
   const t = normalize(transcript);
   if (t.length === 0) return 1;
@@ -29,9 +28,8 @@ export function useJarvisVoice(continuousMode: boolean = true) {
   const continuousRef = useRef(continuousMode);
   const deniedRef = useRef(false);
   const wantMicRef = useRef(false);
-  const spokenRef = useRef("");       // what the AI is saying right now
-  const utteranceRef = useRef("");    // user's accumulating speech
-  const silenceTimer = useRef<any>(null);
+  const spokenRef = useRef("");
+  const utteranceRef = useRef("");
   const restartTimer = useRef<any>(null);
 
   const setVoiceState = useCallback((s: VoiceState) => {
@@ -56,24 +54,12 @@ export function useJarvisVoice(continuousMode: boolean = true) {
     try { recRef.current?.stop(); } catch {}
   }, []);
 
-  // User paused → send the full sentence
-  const flushUtterance = useCallback(() => {
-    clearTimeout(silenceTimer.current);
-    const text = utteranceRef.current.trim();
-    utteranceRef.current = "";
-    setTranscript("");
-    if (text) {
-      setVoiceState("thinking");
-      onTranscriptRef.current?.(text);
-      if (!continuousRef.current) stopMic();
-    }
-  }, [setVoiceState, stopMic]);
-
-  // 🛑 BARGE-IN: user spoke while AI was talking → AI shuts up instantly
+  // 🛑 User spoke while AI talking → AI shuts up instantly
   const bargeIn = useCallback(() => {
     synthRef.current?.cancel();
     spokenRef.current = "";
     utteranceRef.current = "";
+    setTranscript("");
     try { recRef.current?.stop(); } catch {}
     setVoiceState("listening");
     setTimeout(() => {
@@ -87,13 +73,13 @@ export function useJarvisVoice(continuousMode: boolean = true) {
     if (!synth) return;
     const clean = text
       .replace(/[*#_`~]/g, "")
-      .replace(/[🤖✅❌💪📚🍽️🏋️⚡⭐🌟🚀🌱💧👋]/g, "")
+      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{2190}-\u{21FF}]/gu, "")
       .replace(/\n+/g, ". ")
       .replace(/\s+/g, " ")
       .trim();
     if (!clean) return;
 
-    spokenRef.current = clean; // remember for echo filtering
+    spokenRef.current = clean;
     const u = new SpeechSynthesisUtterance(clean);
     u.rate = 1.05;
     const voices = synth.getVoices();
@@ -103,7 +89,10 @@ export function useJarvisVoice(continuousMode: boolean = true) {
       voices.find((x) => x.lang.startsWith("en"));
     if (v) u.voice = v;
 
-    u.onstart = () => setVoiceState("speaking");
+    u.onstart = () => {
+      setVoiceState("speaking");
+      if (continuousRef.current) startMic(); // mic lives during speech → barge-in works
+    };
     const done = () => {
       spokenRef.current = "";
       if (continuousRef.current) {
@@ -121,7 +110,6 @@ export function useJarvisVoice(continuousMode: boolean = true) {
   const interrupt = useCallback(() => {
     synthRef.current?.cancel();
     spokenRef.current = "";
-    clearTimeout(silenceTimer.current);
     utteranceRef.current = "";
     setTranscript("");
     if (continuousRef.current) {
@@ -136,12 +124,13 @@ export function useJarvisVoice(continuousMode: boolean = true) {
   const startListening = useCallback(() => {
     synthRef.current?.cancel();
     spokenRef.current = "";
+    utteranceRef.current = "";
+    setTranscript("");
     setVoiceState("listening");
     startMic();
   }, [startMic, setVoiceState]);
 
   const stopListening = useCallback(() => {
-    clearTimeout(silenceTimer.current);
     utteranceRef.current = "";
     setTranscript("");
     stopMic();
@@ -153,7 +142,7 @@ export function useJarvisVoice(continuousMode: boolean = true) {
     onTranscriptRef.current = fn;
   }, []);
 
-  // 🎙️ Engine (runs once)
+  // 🎙️ Engine
   useEffect(() => {
     if (typeof window === "undefined") return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -163,7 +152,7 @@ export function useJarvisVoice(continuousMode: boolean = true) {
 
     if (SR) {
       const rec = new SR();
-      rec.continuous = true;      // mic stays alive → enables barge-in
+      rec.continuous = false; // ✅ short sessions = NO duplicate-repeat bug + built-in pause detection
       rec.interimResults = true;
       rec.lang = "en-US";
 
@@ -171,11 +160,53 @@ export function useJarvisVoice(continuousMode: boolean = true) {
         if (stateRef.current === "idle") setVoiceState("listening");
       };
 
-      // keep-alive loop
+      rec.onresult = (event: any) => {
+        // ✅ REBUILD FROM SCRATCH every event — never accumulate → kills the repeat bug
+        let sessionText = "";
+        for (let i = 0; i < event.results.length; i++) {
+          sessionText += event.results[i][0].transcript + " ";
+        }
+        sessionText = sessionText.trim();
+
+        // 🗣️ AI is speaking → check if THIS is the user interrupting (not echo)
+        if (stateRef.current === "speaking") {
+          if (
+            sessionText &&
+            normalize(sessionText).length >= 2 &&
+            echoScore(sessionText, spokenRef.current) < 0.5
+          ) {
+            bargeIn();
+          }
+          return;
+        }
+
+        setTranscript(sessionText); // live clean text
+        const last = event.results[event.results.length - 1];
+        if (last && last.isFinal) {
+          utteranceRef.current = sessionText;
+        }
+      };
+
       rec.onend = () => {
+        // 🎯 User paused → send exactly what they said (once!)
+        if (stateRef.current === "listening") {
+          const text = utteranceRef.current.trim();
+          utteranceRef.current = "";
+          setTranscript("");
+          if (text) {
+            setVoiceState("thinking");
+            onTranscriptRef.current?.(text);
+            if (!continuousRef.current) {
+              wantMicRef.current = false;
+              return;
+            }
+          }
+        }
+        // 🔁 keep-alive: reopen mic for barge-in + next sentence
         if (
           wantMicRef.current &&
           !deniedRef.current &&
+          stateRef.current !== "thinking" &&
           !(typeof document !== "undefined" && document.hidden)
         ) {
           clearTimeout(restartTimer.current);
@@ -194,51 +225,16 @@ export function useJarvisVoice(continuousMode: boolean = true) {
         }
       };
 
-      rec.onresult = (event: any) => {
-        let interim = "";
-        let final = "";
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const r = event.results[i];
-          if (r.isFinal) final += r[0].transcript;
-          else interim += r[0].transcript;
-        }
-
-        // 🗣️ AI IS SPEAKING → echo filter / barge-in detector
-        if (stateRef.current === "speaking") {
-          const cand = (final || interim).trim();
-          if (
-            cand &&
-            normalize(cand).length >= 2 &&
-            echoScore(cand, spokenRef.current) < 0.5
-          ) {
-            bargeIn(); // 👈 USER INTERRUPTED → AI stops instantly
-          }
-          return; // swallow its own echo
-        }
-
-        // 🎧 LISTENING / THINKING path
-        if (interim) setTranscript((utteranceRef.current + " " + interim).trim());
-        if (final) {
-          utteranceRef.current = (utteranceRef.current + " " + final).trim();
-          setTranscript(utteranceRef.current);
-        }
-        if (stateRef.current === "idle") setVoiceState("listening");
-
-        clearTimeout(silenceTimer.current);
-        silenceTimer.current = setTimeout(flushUtterance, 1000);
-      };
-
       recRef.current = rec;
     }
 
     return () => {
       wantMicRef.current = false;
-      clearTimeout(silenceTimer.current);
       clearTimeout(restartTimer.current);
       try { recRef.current?.stop(); } catch {}
       synthRef.current?.cancel();
     };
-  }, [bargeIn, flushUtterance, setVoiceState]);
+  }, [bargeIn, setVoiceState]);
 
   return {
     state, isSupported, transcript,
