@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { ArrowLeft, Sparkles, Send } from "lucide-react";
-import { useJarvisVoice } from "@/app/hooks/JarvisVoice";
+import { useJarvisVoice } from "@/app/hooks/jarvisVoice";
 import { executeVoiceAction, isLikelyCommand } from "@/app/hooks/jarvisActions";
 import { JarvisOrb } from "@/app/components/JarvisOrb";
 import { ActionToast } from "@/app/components/ActionToast";
