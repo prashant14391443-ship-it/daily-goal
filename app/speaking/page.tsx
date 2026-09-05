@@ -2,7 +2,9 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { Mic, Send, PhoneOff, Volume2, MessageCircle, ArrowLeft, Bot, User, Shuffle, Loader2 } from "lucide-react";
+import { Mic, Send, PhoneOff, Volume2, MessageCircle, ArrowLeft, Bot, User, Shuffle, Loader2, VolumeX } from "lucide-react";
+import { useJarvisVoice } from "@/app/hooks/jarvisVoice";
+import { JarvisOrb } from "@/app/components/JarvisOrb";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -45,13 +47,26 @@ export default function SpeakingPage() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recSec, setRecSec] = useState(0);
   const [left, setLeft] = useState(16);
   const [uid, setUid] = useState("guest");
   const [drillIdx, setDrillIdx] = useState(0);
   const [view, setView] = useState<"home" | "topics">("home");
+  const [continuousMode, setContinuousMode] = useState(true);
+
+  // 🎙️ Jarvis Voice Engine
+  const {
+    state: voiceState,
+    isSupported,
+    transcript,
+    startListening,
+    stopListening,
+    interrupt,
+    speak,
+    setOnTranscript,
+    clearTranscript,
+  } = useJarvisVoice(continuousMode);
 
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -59,6 +74,12 @@ export default function SpeakingPage() {
   const recSecRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
+  
+  // Refs to prevent stale closures in async functions
+  const msgsRef = useRef<Msg[]>([]);
+  const loadingRef = useRef(false);
+  useEffect(() => { msgsRef.current = msgs; }, [msgs]);
+  useEffect(() => { loadingRef.current = loading; }, [loading]);
 
   useEffect(() => {
     const load = async () => {
@@ -82,29 +103,14 @@ export default function SpeakingPage() {
     initMic();
   }, []);
 
-  // 🔒 SCROLL ONLY THE MESSAGES CONTAINER (not the whole page)
   useEffect(() => {
     if (messagesRef.current) {
       messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
     }
-  }, [msgs, loading, speaking]);
-
-  const speak = (text: string) => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const clean = text.replace(/❌|✅|Quick fix:/g, "");
-    const u = new SpeechSynthesisUtterance(clean);
-    u.lang = "en-US";
-    u.rate = 1;
-    u.onstart = () => setSpeaking(true);
-    u.onend = () => setSpeaking(false);
-    u.onerror = () => setSpeaking(false);
-    window.speechSynthesis.speak(u);
-  };
+  }, [msgs, loading, voiceState]);
 
   const stopAll = () => {
-    window.speechSynthesis?.cancel();
-    setSpeaking(false);
+    interrupt(); // Stops Jarvis voice
     mediaRef.current?.stop();
     setRecording(false);
     if (recTimerRef.current) clearInterval(recTimerRef.current);
@@ -191,30 +197,54 @@ export default function SpeakingPage() {
 
   const send = async (text?: string) => {
     const msg = (text || input).trim();
-    if (!msg || loading) return;
+    if (!msg || loadingRef.current) return;
     if (!useLimit()) return;
     setInput("");
-    const next = [...msgs, { role: "user" as const, content: msg }];
+    clearTranscript();
+    
+    const base = msgsRef.current;
+    const next = [...base, { role: "user" as const, content: msg }];
     setMsgs(next);
     setLoading(true);
     try {
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: mode === "call" ? "call" : "english", topic: topic || "", message: msg, history: msgs.slice(-6) }),
+        body: JSON.stringify({ 
+          mode: mode === "call" ? "call" : "english", 
+          topic: topic || "", 
+          message: msg, 
+          history: base.slice(-6) 
+        }),
       });
       const d = await res.json();
       const reply = d.reply || "😴 " + (d.error || "AI sleeping.");
       setMsgs([...next, { role: "assistant" as const, content: reply }]);
       if (d.reply) {
         bumpLimit();
-        if (mode === "call") speak(d.reply);
+        if (mode === "call") speak(reply);
       }
     } catch {
       setMsgs([...next, { role: "assistant" as const, content: "📡 Network issue!" }]);
+      if (mode === "call") interrupt();
     }
     setLoading(false);
   };
+
+  // 🎙️ Voice transcript handler for continuous conversation
+  const handleTranscript = async (text: string) => {
+    if (!text) return;
+    let waited = 0;
+    while (loadingRef.current && waited < 6000) {
+      await new Promise((r) => setTimeout(r, 200));
+      waited += 200;
+    }
+    await send(text);
+  };
+
+  useEffect(() => {
+    setOnTranscript(handleTranscript);
+  });
 
   const toggleRecord = async () => {
     if (recording) {
@@ -228,8 +258,7 @@ export default function SpeakingPage() {
       return;
     }
     if (!useLimit()) return;
-    window.speechSynthesis?.cancel();
-    setSpeaking(false);
+    interrupt(); // Stop Jarvis if active
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream);
@@ -380,7 +409,7 @@ export default function SpeakingPage() {
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className={`shrink-0 w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center ${speaking ? "animate-pulse ring-2 ring-white/30" : ""}`}>
+            <div className={`shrink-0 w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center ${voiceState === "speaking" ? "animate-pulse ring-2 ring-white/30" : ""}`}>
               <Bot size={22} className="text-white" />
             </div>
             <div className="min-w-0">
@@ -388,7 +417,7 @@ export default function SpeakingPage() {
                 Swati • {mode === "drill" ? "Sentence Practice" : topic}
               </p>
               <p className="text-xs text-white/75 font-semibold">
-                {speaking ? "🔊 Swati is speaking..." : mode === "chat" ? "💬 chat mode" : "🎤 Your turn — tap mic & speak"}
+                {voiceState === "speaking" ? "🔊 Swati is speaking..." : mode === "chat" ? "💬 chat mode" : "🎤 Your turn — tap mic & speak"}
               </p>
             </div>
           </div>
@@ -456,13 +485,15 @@ export default function SpeakingPage() {
               )}
             </div>
           ))}
-          {loading && (
+          {loading && voiceState !== "speaking" && (
             <div className="flex gap-2 justify-start">
               <div className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xs">
                 <Bot size={14} className="text-white" />
               </div>
-              <div className="bg-slate-800 border border-slate-700 p-3 rounded-2xl rounded-bl-sm">
-                <Loader2 size={16} className="text-emerald-400 animate-spin" />
+              <div className="bg-slate-800 border border-slate-700 p-3 rounded-2xl rounded-bl-sm flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "300ms" }} />
               </div>
             </div>
           )}
@@ -477,7 +508,7 @@ export default function SpeakingPage() {
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={toggleRecord}
-                disabled={loading || speaking}
+                disabled={loading || voiceState === "speaking"}
                 className={`w-16 h-16 rounded-full flex items-center justify-center disabled:opacity-40 transition-all ${
                   recording
                     ? "bg-red-600 animate-pulse"
@@ -499,25 +530,67 @@ export default function SpeakingPage() {
               </button>
             </div>
           ) : mode === "call" ? (
-            <div className="flex flex-col items-center gap-2">
-              <button
-                onClick={toggleRecord}
-                disabled={loading || speaking}
-                className={`w-20 h-20 rounded-full flex items-center justify-center transition-all disabled:opacity-40 ${
-                  recording
-                    ? "bg-red-600 animate-pulse"
-                    : "bg-gradient-to-br from-emerald-500 to-teal-600"
-                }`}
-              >
-                {recording ? (
-                  <span className="text-base font-bold text-white">⏹️ {recSec}s</span>
-                ) : (
-                  <Mic size={28} className="text-white" />
+            // 🎙️ JARVIS VOICE BAR FOR CALL MODE
+            <div className="shrink-0 z-10 pt-1 pb-1">
+              <div className="h-4 flex items-center justify-center mb-1">
+                {voiceState === "listening" && transcript && (
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 truncate max-w-full px-2">
+                    &quot;{transcript}&quot;
+                  </p>
                 )}
-              </button>
-              <p className="text-xs text-slate-400 font-semibold">
-                {speaking ? "Listen to Swati first..." : "Tap & speak your answer"}
-              </p>
+                {voiceState === "listening" && !transcript && <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">Listening...</p>}
+                {voiceState === "thinking" && <p className="text-[9px] font-bold uppercase tracking-wider text-violet-400">Thinking...</p>}
+                {voiceState === "speaking" && <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">Speaking — talk to interrupt</p>}
+              </div>
+
+              <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-center gap-1.5">
+                {isSupported ? (
+                  <JarvisOrb 
+                    state={voiceState} 
+                    onClick={() => {
+                      if (voiceState === "speaking" || voiceState === "listening") interrupt();
+                      else startListening();
+                    }} 
+                  />
+                ) : (
+                  <div className="w-11 h-11 shrink-0 rounded-full bg-slate-800 flex items-center justify-center">
+                    <Mic className="w-4 h-4 text-slate-500" />
+                  </div>
+                )}
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder={voiceState === "listening" && transcript ? transcript : "Type or speak..."}
+                  disabled={loading}
+                  className="flex-1 min-w-0 h-11 px-4 rounded-full bg-slate-900/80 backdrop-blur border border-slate-800 text-sm outline-none focus:border-emerald-500 disabled:opacity-50 transition-all placeholder:text-slate-600"
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !input.trim()}
+                  className="shrink-0 w-11 h-11 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white disabled:opacity-40 shadow-lg shadow-emerald-900/30 transition-all active:scale-95 flex items-center justify-center"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
+
+              <div className="flex justify-center mt-1.5">
+                <button
+                  onClick={() => {
+                    const next = !continuousMode;
+                    setContinuousMode(next);
+                    if (next) startListening();
+                    else stopListening();
+                  }}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black border transition-all ${
+                    continuousMode
+                      ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
+                      : "bg-slate-800/60 border-slate-700 text-slate-500"
+                  }`}
+                >
+                  {continuousMode ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
+                  {continuousMode ? "CONTINUOUS ON" : "CONTINUOUS OFF"}
+                </button>
+              </div>
             </div>
           ) : (
             <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
