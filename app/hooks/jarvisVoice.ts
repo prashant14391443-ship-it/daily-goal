@@ -54,20 +54,6 @@ export function useJarvisVoice(continuousMode: boolean = true) {
     try { recRef.current?.stop(); } catch {}
   }, []);
 
-  // 🛑 User spoke while AI talking → AI shuts up instantly
-  const bargeIn = useCallback(() => {
-    synthRef.current?.cancel();
-    spokenRef.current = "";
-    utteranceRef.current = "";
-    setTranscript("");
-    try { recRef.current?.stop(); } catch {}
-    setVoiceState("listening");
-    setTimeout(() => {
-      wantMicRef.current = true;
-      try { recRef.current?.start(); } catch {}
-    }, 250);
-  }, [setVoiceState]);
-
   const speak = useCallback((text: string) => {
     const synth = synthRef.current;
     if (!synth) return;
@@ -91,7 +77,7 @@ export function useJarvisVoice(continuousMode: boolean = true) {
 
     u.onstart = () => {
       setVoiceState("speaking");
-      if (continuousRef.current) startMic(); // mic lives during speech → barge-in works
+      if (continuousRef.current) startMic(); 
     };
     const done = () => {
       spokenRef.current = "";
@@ -142,7 +128,6 @@ export function useJarvisVoice(continuousMode: boolean = true) {
     onTranscriptRef.current = fn;
   }, []);
 
-  // 🎙️ Engine
   useEffect(() => {
     if (typeof window === "undefined") return;
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -152,7 +137,7 @@ export function useJarvisVoice(continuousMode: boolean = true) {
 
     if (SR) {
       const rec = new SR();
-      rec.continuous = false; // ✅ short sessions = NO duplicate-repeat bug + built-in pause detection
+      rec.continuous = false; 
       rec.interimResults = true;
       rec.lang = "en-US";
 
@@ -161,7 +146,6 @@ export function useJarvisVoice(continuousMode: boolean = true) {
       };
 
       rec.onresult = (event: any) => {
-        // ✅ REBUILD FROM SCRATCH every event — never accumulate → kills the repeat bug
         let sessionText = "";
         for (let i = 0; i < event.results.length; i++) {
           sessionText += event.results[i][0].transcript + " ";
@@ -175,12 +159,21 @@ export function useJarvisVoice(continuousMode: boolean = true) {
             normalize(sessionText).length >= 2 &&
             echoScore(sessionText, spokenRef.current) < 0.5
           ) {
-            bargeIn();
+            // 🛑 BARGE-IN DETECTED!
+            synthRef.current?.cancel(); // Shut up AI instantly
+            spokenRef.current = "";
+            setVoiceState("listening"); // Switch to listening mode
+            
+            // 🎯 CRITICAL FIX: Keep the words the user already said!
+            // DO NOT stop the mic. Let the browser finish capturing the full sentence.
+            utteranceRef.current = sessionText; 
+            setTranscript(sessionText);
           }
-          return;
+          return; 
         }
 
-        setTranscript(sessionText); // live clean text
+        // 🎧 Normal listening state
+        setTranscript(sessionText);
         const last = event.results[event.results.length - 1];
         if (last && last.isFinal) {
           utteranceRef.current = sessionText;
@@ -188,7 +181,6 @@ export function useJarvisVoice(continuousMode: boolean = true) {
       };
 
       rec.onend = () => {
-        // 🎯 User paused → send exactly what they said (once!)
         if (stateRef.current === "listening") {
           const text = utteranceRef.current.trim();
           utteranceRef.current = "";
@@ -202,7 +194,7 @@ export function useJarvisVoice(continuousMode: boolean = true) {
             }
           }
         }
-        // 🔁 keep-alive: reopen mic for barge-in + next sentence
+        
         if (
           wantMicRef.current &&
           !deniedRef.current &&
@@ -234,7 +226,7 @@ export function useJarvisVoice(continuousMode: boolean = true) {
       try { recRef.current?.stop(); } catch {}
       synthRef.current?.cancel();
     };
-  }, [bargeIn, setVoiceState]);
+  }, [setVoiceState]);
 
   return {
     state, isSupported, transcript,
