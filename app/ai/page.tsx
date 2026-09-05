@@ -36,7 +36,6 @@ export default function AIPage() {
   const [actionToast, setActionToast] = useState<{ action: any; message: string } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // 🔄 Refs so interrupted speech never uses stale data
   const msgsRef = useRef<Msg[]>([]);
   const loadingRef = useRef(false);
   useEffect(() => { msgsRef.current = msgs; }, [msgs]);
@@ -129,7 +128,7 @@ export default function AIPage() {
     setInput("");
     clearTranscript();
 
-    const base = msgsRef.current; // ✅ always fresh history
+    const base = msgsRef.current;
     const next = [...base, { role: "user" as const, content: msg }];
     setMsgs(next);
     setLoading(true);
@@ -176,12 +175,11 @@ export default function AIPage() {
       updateMessageCount();
     } catch {
       setMsgs([...next, { role: "assistant" as const, content: "Network issue, can you say that again?" }]);
+      interrupt();
     }
     setLoading(false);
   };
 
-  // 🎙️ Voice transcript — with INTERRUPT support:
-  // if AI request is still loading, wait for it (max 6s) then send user's new words
   const handleTranscript = async (text: string) => {
     if (!text) return;
     let waited = 0;
@@ -221,7 +219,7 @@ export default function AIPage() {
       : "";
 
   return (
-    <main className="h-screen bg-slate-950 text-white flex flex-col px-4 pt-4 pb-3 max-w-4xl mx-auto relative overflow-hidden">
+    <main className="h-screen bg-slate-950 text-white flex flex-col px-4 pt-4 pb-2 max-w-4xl mx-auto relative overflow-hidden">
       <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full blur-[110px] transition-colors duration-700 pointer-events-none ${
         voiceState === "listening" ? "bg-red-500/10" :
         voiceState === "speaking" ? "bg-emerald-500/10" :
@@ -232,6 +230,7 @@ export default function AIPage() {
         <ActionToast action={actionToast.action} message={actionToast.message} onClose={() => setActionToast(null)} />
       )}
 
+      {/* Header */}
       <div className="relative mb-3 flex items-center justify-between shrink-0 z-10">
         <div className="flex items-center gap-2.5">
           <div className="p-1.5 rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-lg shadow-violet-900/30">
@@ -244,23 +243,12 @@ export default function AIPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleContinuous}
-            className={`p-2 rounded-lg border transition-all ${
-              continuousMode
-                ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400"
-                : "bg-slate-800 border-slate-700 text-slate-500"
-            }`}
-          >
-            {continuousMode ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-          </button>
-          <Link href="/dashboard" className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-all">
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-        </div>
+        <Link href="/dashboard" className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-all">
+          <ArrowLeft className="w-4 h-4" />
+        </Link>
       </div>
 
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto min-h-0 grid gap-3 content-start pb-2 z-10">
         {msgs.length === 0 && ctx && (
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 shadow-lg backdrop-blur-sm">
@@ -318,6 +306,7 @@ export default function AIPage() {
         <div ref={bottomRef} />
       </div>
 
+      {/* Chips */}
       <div className="shrink-0 flex gap-2 overflow-x-auto py-1.5 -mx-1 px-1 z-10">
         {CHIPS.map((c) => (
           <button
@@ -334,41 +323,57 @@ export default function AIPage() {
         ))}
       </div>
 
-      <div className="h-4 shrink-0 z-10 flex items-center justify-center">
-        {statusLine && (
-          <p className="text-[10px] font-semibold text-slate-400 truncate max-w-full px-2">{statusLine}</p>
-        )}
-      </div>
+      {/* 🎙️ COMPACT PROFESSIONAL VOICE BAR */}
+      <div className="shrink-0 z-10 pt-1 pb-1">
+        {/* tiny status line */}
+        <div className="h-4 flex items-center justify-center mb-1">
+          {statusLine && (
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 truncate max-w-full px-2">
+              {statusLine}
+            </p>
+          )}
+        </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="shrink-0 flex items-center gap-2 z-10">
-        {isSupported ? (
-          <JarvisOrb
-            state={voiceState}
-            transcript={transcript}
-            continuousMode={continuousMode}
-            onToggleContinuous={toggleContinuous}
-            onClick={handleOrbClick}
+        {/* one clean row: [mic] [input] [send] */}
+        <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="flex items-center gap-1.5">
+          {isSupported ? (
+            <JarvisOrb state={voiceState} onClick={handleOrbClick} />
+          ) : (
+            <div className="w-11 h-11 shrink-0 rounded-full bg-slate-800 flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-slate-500" />
+            </div>
+          )}
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={voiceState === "listening" && transcript ? transcript : "Type a message..."}
+            disabled={loading}
+            className="flex-1 min-w-0 h-11 px-4 rounded-full bg-slate-900/80 backdrop-blur border border-slate-800 text-sm outline-none focus:border-violet-500 disabled:opacity-50 transition-all placeholder:text-slate-600"
           />
-        ) : (
-          <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-slate-500" />
-          </div>
-        )}
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={voiceState === "listening" && transcript ? transcript : "Tap mic to speak, or type..."}
-          disabled={loading}
-          className="flex-1 min-w-0 p-3 rounded-xl bg-slate-900/80 backdrop-blur border border-slate-800 text-sm outline-none focus:border-violet-500 disabled:opacity-50 transition-all placeholder:text-slate-600"
-        />
-        <button
-          type="submit"
-          disabled={loading || !input.trim()}
-          className="shrink-0 w-12 h-12 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white disabled:opacity-40 shadow-lg shadow-violet-900/30 transition-all active:scale-95 flex items-center justify-center"
-        >
-          <Send className="w-4 h-4" />
-        </button>
-      </form>
+          <button
+            type="submit"
+            disabled={loading || !input.trim()}
+            className="shrink-0 w-11 h-11 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white disabled:opacity-40 shadow-lg shadow-violet-900/30 transition-all active:scale-95 flex items-center justify-center"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </form>
+
+        {/* continuous toggle — small but clearly visible */}
+        <div className="flex justify-center mt-1.5">
+          <button
+            onClick={toggleContinuous}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black border transition-all ${
+              continuousMode
+                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
+                : "bg-slate-800/60 border-slate-700 text-slate-500"
+            }`}
+          >
+            {continuousMode ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
+            {continuousMode ? "CONTINUOUS ON" : "CONTINUOUS OFF"}
+          </button>
+        </div>
+      </div>
     </main>
   );
 }
