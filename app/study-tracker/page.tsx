@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { BookOpen, Timer, Layers, Brain, Bot, RefreshCw, GraduationCap } from "lucide-react";
+import { BookOpen, Timer, Layers, Brain, Bot, RefreshCw, GraduationCap, Target } from "lucide-react";
 
 export default function StudyHub() {
   return (
@@ -67,7 +67,18 @@ export default function StudyHub() {
           <p className="font-black text-sm text-white">AI Study Brain</p>
           <p className="text-[10px] text-slate-500 mt-0.5">Summarize → map + cards + quiz</p>
         </Link>
-                <Link href="/learn" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
+
+        {/* Row 4 — ⭐ PYQ (matches grid style, keeps violet identity) */}
+        <Link href="/pyq" className="press relative bg-slate-900 border border-violet-500/30 rounded-2xl p-4 hover:border-violet-500/60 transition-colors overflow-hidden">
+          <span className="absolute top-3 right-3 text-[8px] font-black text-violet-300 bg-violet-500/15 border border-violet-500/30 px-1.5 py-0.5 rounded-md">NEW</span>
+          <span className="w-9 h-9 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 text-white flex items-center justify-center mb-4 shadow-lg shadow-violet-900/40">
+            <Target size={18} strokeWidth={2.2} />
+          </span>
+          <p className="font-black text-sm text-white">PYQ Practice</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">Exam questions + AI explanations</p>
+        </Link>
+
+        <Link href="/learn" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <span className="w-9 h-9 rounded-lg bg-fuchsia-500/10 text-fuchsia-400 flex items-center justify-center mb-4">
             <GraduationCap size={18} strokeWidth={2.2} />
           </span>
