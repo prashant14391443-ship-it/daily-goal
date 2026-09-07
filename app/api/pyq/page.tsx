@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { BookOpen, Zap, Trophy, Target, ArrowLeft, Play, Sparkles, Brain, Flame, Clock, Award, Lightbulb, ChevronRight, RotateCcw } from "lucide-react";
+import { BookOpen, Zap, Trophy, Target, ArrowLeft, Play, Sparkles, Brain, Flame, Lightbulb, ChevronRight, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { EXAMS, DIFFICULTIES, type TopicTree } from "@/lib/subjectTree";
 import BackText from "@/app/components/BackBtn";
@@ -42,7 +42,6 @@ export default function PYQPage() {
   const [uid, setUid] = useState("guest");
   const [startTime, setStartTime] = useState(0);
 
-  // Load user + stats
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase.auth.getSession();
@@ -56,7 +55,6 @@ export default function PYQPage() {
     load();
   }, []);
 
-  // Reset subject/topic when exam changes
   useEffect(() => {
     setSubject(exam.subjects[0].name);
     setTopic(exam.subjects[0].topics[0]);
@@ -65,7 +63,6 @@ export default function PYQPage() {
     setUserAnswer(null);
   }, [exam]);
 
-  // Reset topic when subject changes
   useEffect(() => {
     const s = exam.subjects.find((x) => x.name === subject);
     if (s && s.topics.length > 0) setTopic(s.topics[0]);
@@ -105,14 +102,12 @@ export default function PYQPage() {
     const timeTaken = Math.round((Date.now() - startTime) / 1000);
     const isCorrect = idx === question.correct;
 
-    // Update local stats
     setStats((s) => ({
       total: s.total + 1,
       correct: s.correct + (isCorrect ? 1 : 0),
       streak: isCorrect ? s.streak + 1 : 0,
     }));
 
-    // Save attempt & update stats in DB
     if (uid !== "guest" && question.id) {
       supabase.from("pyq_attempts").insert({
         user_id: uid,
@@ -129,7 +124,6 @@ export default function PYQPage() {
       });
     }
 
-    // Get AI explanation
     setExplaining(true);
     try {
       const res = await fetch("/api/pyq/explain", {
@@ -157,7 +151,6 @@ export default function PYQPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-4 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 HERO */}
       <div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${exam.color} p-5 shadow-xl`}>
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
@@ -165,14 +158,13 @@ export default function PYQPage() {
             <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
               <BookOpen size={22} className="text-white" />
             </span>
-            <Link href="/dashboard" className="flex items-center gap-1 text-xs text-white/80 hover:text-white font-bold">
-              <ArrowLeft size={12} /> Home
+            <Link href="/study" className="flex items-center gap-1 text-xs text-white/80 hover:text-white font-bold">
+              <ArrowLeft size={12} /> Back
             </Link>
           </div>
           <h1 className="text-lg font-black text-white leading-tight">PYQ Practice</h1>
           <p className="text-[11px] text-white/80 font-semibold mt-0.5">AI-generated exam questions + smart explanations</p>
 
-          {/* STATS BAR */}
           <div className="grid grid-cols-3 gap-2 mt-4">
             <div className="bg-white/10 backdrop-blur rounded-lg p-2 text-center">
               <p className="text-[9px] font-bold text-white/70">ATTEMPTED</p>
@@ -192,10 +184,8 @@ export default function PYQPage() {
         </div>
       </div>
 
-      {/* ── SETUP PANEL (shown when no question) ── */}
       {!question && !loading && (
         <>
-          {/* EXAM SELECTOR */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
             <div className="flex items-center gap-2 mb-3">
               <Target size={15} className="text-violet-400" />
@@ -221,7 +211,6 @@ export default function PYQPage() {
             </div>
           </div>
 
-          {/* SUBJECT SELECTOR */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
             <div className="flex items-center gap-2 mb-3">
               <BookOpen size={15} className="text-blue-400" />
@@ -244,7 +233,6 @@ export default function PYQPage() {
             </div>
           </div>
 
-          {/* TOPIC SELECTOR */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
             <div className="flex items-center gap-2 mb-3">
               <Brain size={15} className="text-emerald-400" />
@@ -267,7 +255,6 @@ export default function PYQPage() {
             </div>
           </div>
 
-          {/* DIFFICULTY */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
             <div className="flex items-center gap-2 mb-3">
               <Zap size={15} className="text-amber-400" />
@@ -288,7 +275,6 @@ export default function PYQPage() {
             </div>
           </div>
 
-          {/* GENERATE BUTTON */}
           <button
             onClick={generateQuestion}
             className="press w-full py-4 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 font-black text-base shadow-xl shadow-violet-900/30 flex items-center justify-center gap-2"
@@ -298,7 +284,6 @@ export default function PYQPage() {
         </>
       )}
 
-      {/* ── LOADING STATE ── */}
       {loading && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-violet-500/20 flex items-center justify-center">
@@ -309,10 +294,8 @@ export default function PYQPage() {
         </div>
       )}
 
-      {/* ── QUESTION PANEL ── */}
       {question && !loading && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
-          {/* Question header */}
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <span className={`px-2 py-1 rounded-md text-[9px] font-black border ${diff.color}`}>
               {diff.label.toUpperCase()}
@@ -329,10 +312,8 @@ export default function PYQPage() {
             )}
           </div>
 
-          {/* Question text */}
           <p className="text-base font-bold leading-relaxed mb-5">{question.question}</p>
 
-          {/* Options */}
           <div className="grid gap-2 mb-4">
             {question.options.map((opt, idx) => {
               const isPicked = userAnswer === idx;
@@ -364,7 +345,6 @@ export default function PYQPage() {
             })}
           </div>
 
-          {/* Explanation loading */}
           {explaining && (
             <div className="bg-violet-500/10 border border-violet-500/30 rounded-xl p-3 flex items-center gap-2">
               <Sparkles size={14} className="text-violet-400 animate-pulse" />
@@ -372,10 +352,8 @@ export default function PYQPage() {
             </div>
           )}
 
-          {/* Explanation */}
           {explanation && (
             <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-4 mt-3">
-              {/* Verdict */}
               <div className="flex items-center gap-2 mb-3">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
                   explanation.verdict === "correct" ? "bg-emerald-500/20" : "bg-red-500/20"
@@ -396,7 +374,6 @@ export default function PYQPage() {
                 </div>
               </div>
 
-              {/* Steps */}
               <div className="mb-4">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Step-by-step solution</p>
                 <div className="grid gap-2">
@@ -411,7 +388,6 @@ export default function PYQPage() {
                 </div>
               </div>
 
-              {/* Wrong explanations */}
               {explanation.wrong_explanations && explanation.wrong_explanations.length > 0 && (
                 <div className="mb-4">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">Why others are wrong</p>
@@ -423,7 +399,6 @@ export default function PYQPage() {
                 </div>
               )}
 
-              {/* Memory trick */}
               {explanation.memory_trick && (
                 <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-lg p-3 mb-3">
                   <p className="text-[10px] font-black text-cyan-400 uppercase tracking-wider mb-1 flex items-center gap-1">
@@ -433,7 +408,6 @@ export default function PYQPage() {
                 </div>
               )}
 
-              {/* Similar question */}
               {explanation.similar && (
                 <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mb-3">
                   <p className="text-[10px] font-black text-amber-400 uppercase tracking-wider mb-1 flex items-center gap-1">
@@ -443,7 +417,6 @@ export default function PYQPage() {
                 </div>
               )}
 
-              {/* Next button */}
               <button
                 onClick={generateQuestion}
                 className="press w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 font-black flex items-center justify-center gap-2 mt-2"
@@ -455,7 +428,6 @@ export default function PYQPage() {
         </div>
       )}
 
-      {/* ── CHANGE TOPIC BUTTON (when in question view) ── */}
       {question && !loading && (
         <button
           onClick={() => { setQuestion(null); setExplanation(null); setUserAnswer(null); }}
@@ -463,34 +435,6 @@ export default function PYQPage() {
         >
           <RotateCcw size={14} /> Change Topic / Exam
         </button>
-      )}
-
-      {/* ── EMPTY STATE ── */}
-      {!question && !loading && stats.total === 0 && (
-        <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 text-center mt-5">
-          <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-violet-500/10 flex items-center justify-center">
-            <Sparkles size={28} className="text-violet-400" />
-          </div>
-          <p className="text-sm font-black text-white mb-1">Ready to practice?</p>
-          <p className="text-xs text-slate-400">Pick an exam, subject & topic above to start</p>
-        </div>
-      )}
-
-      {/* ── INFO CARD ── */}
-      {!question && !loading && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Award size={15} className="text-amber-400" />
-            <p className="text-xs font-black text-amber-400 uppercase tracking-wider">How it works</p>
-          </div>
-          <div className="grid gap-2 text-xs text-slate-400">
-            <p>🎯 <span className="text-slate-200 font-semibold">AI generates questions</span> in exact exam pattern</p>
-            <p>🧠 <span className="text-slate-200 font-semibold">Smart explanations</span> with step-by-step solutions</p>
-            <p>💡 <span className="text-slate-200 font-semibold">Memory tricks</span> to remember every concept</p>
-            <p>⚡ <span className="text-slate-200 font-semibold">Cached questions</span> load instantly (no wait!)</p>
-            <p>🔥 <span className="text-slate-200 font-semibold">Track streak</span> & build daily practice habit</p>
-          </div>
-        </div>
       )}
 
       <BackText />
