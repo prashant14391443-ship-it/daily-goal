@@ -12,13 +12,12 @@ const MODES = [
   { id: "hike", icon: Mountain, label: "Hike", met: 6.0 },
 ];
 
-// ✅ FIXED thresholds (old ones were too strict for real phones)
-const MIN_ACCURACY = 65;   // was 25 → rejected almost every GPS fix
-const NOISE_FLOOR = 1;     // ignore jitter under 1m
-const MIN_COMMIT = 5;      // commit distance every 5m of accumulated real movement
-const MAX_JUMP = 150;      // ignore GPS teleports
+const MIN_ACCURACY = 65;
+const NOISE_FLOOR = 1;
+const MIN_COMMIT = 5;
+const MAX_JUMP = 150;
 const MIN_SPEED = 0.8;
-const STEP_MAG = 12;       // was 13.5 → steps never counted
+const STEP_MAG = 12;
 const STEP_GAP = 300;
 
 const GEO_OPTS: PositionOptions = { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 };
@@ -43,6 +42,7 @@ export default function MoveTracker() {
   const [sec, setSec] = useState(0);
   const [speed, setSpeed] = useState(0);
   const [hint, setHint] = useState("");
+  const [warming, setWarming] = useState(true);
   const [weight, setWeight] = useState("");
   const [steps, setSteps] = useState(0);
   const [gpsMoving, setGpsMoving] = useState(false);
@@ -86,14 +86,12 @@ export default function MoveTracker() {
     load();
   }, []);
 
-  // ⏱️ Timer (stops when paused)
   useEffect(() => {
     if (!tracking || paused) return;
     const id = setInterval(() => { setSec((s) => s + 1); secRef.current += 1; }, 1000);
     return () => clearInterval(id);
   }, [tracking, paused]);
 
-  // 👟 Step counter (stops when paused)
   useEffect(() => {
     if (!tracking || paused) return;
     const handler = (e: DeviceMotionEvent) => {
@@ -112,11 +110,11 @@ export default function MoveTracker() {
 
   const setMoving = (v: boolean) => { movingRef.current = v; setGpsMoving(v); };
 
-  // 📡 GPS handler — ✅ FIXED accumulation logic
   const onPos = (pos: GeolocationPosition) => {
     const { latitude, longitude, accuracy, speed: gpsSpeed } = pos.coords;
     if (accuracy == null || accuracy > MIN_ACCURACY) return;
     const now = Date.now();
+    setWarming(false); // ✅ first good fix received
 
     if (prevRef.current) {
       const d = hav(prevRef.current.lat, prevRef.current.lon, latitude, longitude);
@@ -125,18 +123,18 @@ export default function MoveTracker() {
         if (pendingRef.current >= MIN_COMMIT) {
           distRef.current += pendingRef.current;
           pendingRef.current = 0;
-          setDist(distRef.current);
-          setMoving(true);
-          lastMoveRef.current = now;
         }
       }
     }
     prevRef.current = { lat: latitude, lon: longitude };
 
-    if (gpsSpeed != null && gpsSpeed >= 1) { setMoving(true); lastMoveRef.current = now; }
+    // ✅ LIVE distance on screen (committed + pending) — moves from first step
+    setDist(distRef.current + pendingRef.current);
+
+    // ✅ detect movement earlier
+    if (pendingRef.current > 2 || (gpsSpeed != null && gpsSpeed >= 1)) { setMoving(true); lastMoveRef.current = now; }
     if (now - lastMoveRef.current > 6000) setMoving(false);
 
-    // smoothed speed
     if (gpsSpeed != null && gpsSpeed >= 0) {
       const kmh = gpsSpeed * 3.6;
       speedRef.current = speedRef.current === 0 ? kmh : speedRef.current * 0.6 + kmh * 0.4;
@@ -144,7 +142,8 @@ export default function MoveTracker() {
     }
 
     const kmhNow = speedRef.current;
-    if (kmhNow >= MIN_SPEED) {
+    if (warming) setHint("🛰️ GPS warming up — few seconds, stay near sky/window...");
+    else if (kmhNow >= MIN_SPEED) {
       if (mode.id === "walk" && kmhNow > 14) setHint("🚴 That speed looks like RIDING — switch mode above?");
       else if (mode.id === "run" && kmhNow < 6) setHint("🚶 Easy pace — maybe WALK mode fits better?");
       else setHint("");
@@ -170,26 +169,24 @@ export default function MoveTracker() {
 
   const start = () => {
     if (!navigator.geolocation) { alert("GPS not supported on this device!"); return; }
-    // iOS motion permission
     const DME = DeviceMotionEvent as any;
     if (typeof DME !== "undefined" && typeof DME.requestPermission === "function") {
       DME.requestPermission().catch(() => {});
     }
     distRef.current = 0; secRef.current = 0; pendingRef.current = 0; speedRef.current = 0;
     setDist(0); setSec(0); setSteps(0); setSpeed(0); setMoving(false); setHint(""); setLast(null); setCoachTip("");
+    setWarming(true);
     prevRef.current = null; lastMoveRef.current = Date.now();
     setTracking(true); setPaused(false);
     startWatch();
   };
 
-  // ⏸️ PAUSE: stop GPS watch + timer, keep session data
   const pause = () => {
     if (watchRef.current != null) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null; }
     setPaused(true); setMoving(false); setSpeed(0); speedRef.current = 0;
     setHint("⏸️ Paused — timer & GPS stopped. Resume when ready!");
   };
 
-  // ▶️ RESUME: fresh watch, no fake jump from paused location
   const resume = () => {
     setPaused(false);
     prevRef.current = null; pendingRef.current = 0; lastMoveRef.current = Date.now();
@@ -258,9 +255,9 @@ export default function MoveTracker() {
   const ModeIcon = mode.icon;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 GREEN HERO (now the very first element — no duplicate title above) */}
-      <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 p-5 shadow-xl shadow-emerald-900/20">
+    <div className="min-h-screen bg-slate-950 text-white px-4 pt-4 pb-24 max-w-4xl mx-auto">
+      {/* 🌆 GREEN HERO — now the very first element, pulled up */}
+      <div className="relative mb-4 overflow-hidden rounded-3xl bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 p-5 shadow-xl shadow-emerald-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
           <div className="flex items-center justify-between mb-4">
@@ -359,7 +356,7 @@ export default function MoveTracker() {
 
       {hint && <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 mb-4 text-center"><p className="text-[11px] text-amber-300 font-bold">{hint}</p></div>}
 
-      {/* ▶️⏸️⏹ CONTROLS — START / PAUSE+RESUME / STOP */}
+      {/* CONTROLS */}
       {tracking ? (
         <div className="grid grid-cols-2 gap-2">
           <button onClick={paused ? resume : pause}
