@@ -12,7 +12,16 @@ const MODES = [
   { id: "hike", icon: Mountain, label: "Hike", met: 6.0 },
 ];
 
-const MIN_ACCURACY = 25; const MIN_JUMP = 7; const MAX_JUMP = 100; const MIN_SPEED = 1.0;
+// ✅ FIXED thresholds (old ones were too strict for real phones)
+const MIN_ACCURACY = 65;   // was 25 → rejected almost every GPS fix
+const NOISE_FLOOR = 1;     // ignore jitter under 1m
+const MIN_COMMIT = 5;      // commit distance every 5m of accumulated real movement
+const MAX_JUMP = 150;      // ignore GPS teleports
+const MIN_SPEED = 0.8;
+const STEP_MAG = 12;       // was 13.5 → steps never counted
+const STEP_GAP = 300;
+
+const GEO_OPTS: PositionOptions = { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 };
 
 function hav(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371000;
@@ -29,6 +38,7 @@ type WeekBar = { label: string; speed: number };
 export default function MoveTracker() {
   const [mode, setMode] = useState(MODES[0]);
   const [tracking, setTracking] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [dist, setDist] = useState(0);
   const [sec, setSec] = useState(0);
   const [speed, setSpeed] = useState(0);
@@ -44,10 +54,14 @@ export default function MoveTracker() {
 
   const uidRef = useRef("");
   const lastStepRef = useRef(0);
+  const lastMoveRef = useRef(0);
   const watchRef = useRef<number | null>(null);
   const prevRef = useRef<{ lat: number; lon: number } | null>(null);
+  const pendingRef = useRef(0);
   const distRef = useRef(0);
   const secRef = useRef(0);
+  const speedRef = useRef(0);
+  const movingRef = useRef(false);
 
   useEffect(() => {
     const load = async () => {
@@ -72,24 +86,76 @@ export default function MoveTracker() {
     load();
   }, []);
 
+  // ⏱️ Timer (stops when paused)
   useEffect(() => {
-    if (!tracking) return;
+    if (!tracking || paused) return;
     const id = setInterval(() => { setSec((s) => s + 1); secRef.current += 1; }, 1000);
     return () => clearInterval(id);
-  }, [tracking]);
+  }, [tracking, paused]);
 
+  // 👟 Step counter (stops when paused)
   useEffect(() => {
-    if (!tracking) return;
+    if (!tracking || paused) return;
     const handler = (e: DeviceMotionEvent) => {
       const a = e.accelerationIncludingGravity;
       if (!a || a.x == null || a.y == null || a.z == null) return;
       const mag = Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z);
       const now = Date.now();
-      if (mag > 13.5 && gpsMoving && now - lastStepRef.current > 350) { lastStepRef.current = now; setSteps((s) => s + 1); }
+      if (mag > STEP_MAG && movingRef.current && now - lastStepRef.current > STEP_GAP) {
+        lastStepRef.current = now;
+        setSteps((s) => s + 1);
+      }
     };
     window.addEventListener("devicemotion", handler);
     return () => window.removeEventListener("devicemotion", handler);
-  }, [tracking, gpsMoving]);
+  }, [tracking, paused]);
+
+  const setMoving = (v: boolean) => { movingRef.current = v; setGpsMoving(v); };
+
+  // 📡 GPS handler — ✅ FIXED accumulation logic
+  const onPos = (pos: GeolocationPosition) => {
+    const { latitude, longitude, accuracy, speed: gpsSpeed } = pos.coords;
+    if (accuracy == null || accuracy > MIN_ACCURACY) return;
+    const now = Date.now();
+
+    if (prevRef.current) {
+      const d = hav(prevRef.current.lat, prevRef.current.lon, latitude, longitude);
+      if (d > NOISE_FLOOR && d <= MAX_JUMP) {
+        pendingRef.current += d;
+        if (pendingRef.current >= MIN_COMMIT) {
+          distRef.current += pendingRef.current;
+          pendingRef.current = 0;
+          setDist(distRef.current);
+          setMoving(true);
+          lastMoveRef.current = now;
+        }
+      }
+    }
+    prevRef.current = { lat: latitude, lon: longitude };
+
+    if (gpsSpeed != null && gpsSpeed >= 1) { setMoving(true); lastMoveRef.current = now; }
+    if (now - lastMoveRef.current > 6000) setMoving(false);
+
+    // smoothed speed
+    if (gpsSpeed != null && gpsSpeed >= 0) {
+      const kmh = gpsSpeed * 3.6;
+      speedRef.current = speedRef.current === 0 ? kmh : speedRef.current * 0.6 + kmh * 0.4;
+      setSpeed(Math.round(speedRef.current * 10) / 10);
+    }
+
+    const kmhNow = speedRef.current;
+    if (kmhNow >= MIN_SPEED) {
+      if (mode.id === "walk" && kmhNow > 14) setHint("🚴 That speed looks like RIDING — switch mode above?");
+      else if (mode.id === "run" && kmhNow < 6) setHint("🚶 Easy pace — maybe WALK mode fits better?");
+      else setHint("");
+    } else setHint("");
+  };
+
+  const onErr = () => setHint("📡 GPS weak — move near a window or outside!");
+
+  const startWatch = () => {
+    watchRef.current = navigator.geolocation.watchPosition(onPos, onErr, GEO_OPTS);
+  };
 
   const awardPB = async (uid: string, key: string, label: string) => {
     const { error } = await supabase.from("coin_log").insert({ user_id: uid, action_key: key, coins: 50 });
@@ -104,37 +170,37 @@ export default function MoveTracker() {
 
   const start = () => {
     if (!navigator.geolocation) { alert("GPS not supported on this device!"); return; }
-    distRef.current = 0; secRef.current = 0;
-    setDist(0); setSec(0); setSteps(0); setSpeed(0); setGpsMoving(false); setHint(""); setLast(null); setCoachTip("");
-    prevRef.current = null; setTracking(true);
-    watchRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude, longitude, accuracy, speed: gpsSpeed } = pos.coords;
-        if (accuracy == null || accuracy > MIN_ACCURACY) return;
-        let realJump = 0;
-        if (prevRef.current) {
-          const d = hav(prevRef.current.lat, prevRef.current.lon, latitude, longitude);
-          if (d >= MIN_JUMP && d <= MAX_JUMP) { realJump = d; distRef.current += d; setDist(distRef.current); setGpsMoving(true); }
-          else if (d < MIN_JUMP) setGpsMoving(false);
-        }
-        prevRef.current = { lat: latitude, lon: longitude };
-        let kmh = 0;
-        if (gpsSpeed != null && gpsSpeed >= 0) { const s = gpsSpeed * 3.6; if (s >= MIN_SPEED && realJump >= MIN_JUMP) kmh = Math.round(s * 10) / 10; }
-        setSpeed(kmh);
-        if (kmh >= MIN_SPEED) {
-          if (mode.id === "walk" && kmh > 14) setHint("🚴 That speed looks like RIDING — switch mode above?");
-          else if (mode.id === "run" && kmh < 6) setHint("🚶 Easy pace — maybe WALK mode fits better?");
-          else setHint("");
-        } else setHint("");
-      },
-      () => setHint("📡 GPS weak — move near a window or outside!"),
-      { enableHighAccuracy: true, maximumAge: 1500, timeout: 10000 }
-    );
+    // iOS motion permission
+    const DME = DeviceMotionEvent as any;
+    if (typeof DME !== "undefined" && typeof DME.requestPermission === "function") {
+      DME.requestPermission().catch(() => {});
+    }
+    distRef.current = 0; secRef.current = 0; pendingRef.current = 0; speedRef.current = 0;
+    setDist(0); setSec(0); setSteps(0); setSpeed(0); setMoving(false); setHint(""); setLast(null); setCoachTip("");
+    prevRef.current = null; lastMoveRef.current = Date.now();
+    setTracking(true); setPaused(false);
+    startWatch();
+  };
+
+  // ⏸️ PAUSE: stop GPS watch + timer, keep session data
+  const pause = () => {
+    if (watchRef.current != null) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null; }
+    setPaused(true); setMoving(false); setSpeed(0); speedRef.current = 0;
+    setHint("⏸️ Paused — timer & GPS stopped. Resume when ready!");
+  };
+
+  // ▶️ RESUME: fresh watch, no fake jump from paused location
+  const resume = () => {
+    setPaused(false);
+    prevRef.current = null; pendingRef.current = 0; lastMoveRef.current = Date.now();
+    setHint("");
+    startWatch();
   };
 
   const stop = async () => {
     if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current);
-    setTracking(false); setGpsMoving(false);
+    watchRef.current = null;
+    setTracking(false); setPaused(false); setMoving(false);
     const km = distRef.current / 1000;
     const secs = secRef.current;
     const mins = Math.max(1, Math.round(secs / 60));
@@ -193,7 +259,7 @@ export default function MoveTracker() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 CALM HERO */}
+      {/* 🌆 GREEN HERO (now the very first element — no duplicate title above) */}
       <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 p-5 shadow-xl shadow-emerald-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
@@ -275,23 +341,44 @@ export default function MoveTracker() {
           </div>
         </div>
         {tracking && (
-          <div className={`text-center text-[10px] font-black py-2 rounded-lg flex items-center justify-center gap-1.5 ${gpsMoving ? "bg-green-500/15 text-green-400" : "bg-slate-800/50 text-slate-500"}`}>
-            {gpsMoving ? <><Radio size={11} /> GPS tracking movement</> : <><Pause size={11} /> Waiting for real movement...</>}
-          </div>
+          paused ? (
+            <div className="text-center text-[10px] font-black py-2 rounded-lg flex items-center justify-center gap-1.5 bg-amber-500/15 text-amber-300">
+              <Pause size={11} /> PAUSED — timer & GPS stopped
+            </div>
+          ) : gpsMoving ? (
+            <div className="text-center text-[10px] font-black py-2 rounded-lg flex items-center justify-center gap-1.5 bg-green-500/15 text-green-400">
+              <Radio size={11} /> GPS tracking movement
+            </div>
+          ) : (
+            <div className="text-center text-[10px] font-black py-2 rounded-lg flex items-center justify-center gap-1.5 bg-slate-800/50 text-slate-500">
+              <Pause size={11} /> Waiting for real movement...
+            </div>
+          )
         )}
       </div>
 
       {hint && <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 mb-4 text-center"><p className="text-[11px] text-amber-300 font-bold">{hint}</p></div>}
 
-      {/* START/STOP */}
-      <button onClick={tracking ? stop : start}
-        className={`press w-full py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 border transition-all ${
-          tracking
-            ? "bg-red-500/15 border-red-500/30 text-red-300"
-            : "bg-green-500/15 border-green-500/30 text-green-300"
-        }`}>
-        {tracking ? <><Square size={18} /> STOP & SAVE</> : <><Play size={18} fill="currentColor" /> START TRACKING</>}
-      </button>
+      {/* ▶️⏸️⏹ CONTROLS — START / PAUSE+RESUME / STOP */}
+      {tracking ? (
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={paused ? resume : pause}
+            className={`press w-full py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 border transition-all ${
+              paused ? "bg-green-500/15 border-green-500/30 text-green-300" : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+            }`}>
+            {paused ? <><Play size={18} fill="currentColor" /> RESUME</> : <><Pause size={18} /> PAUSE</>}
+          </button>
+          <button onClick={stop}
+            className="press w-full py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 border transition-all bg-red-500/15 border-red-500/30 text-red-300">
+            <Square size={18} /> STOP & SAVE
+          </button>
+        </div>
+      ) : (
+        <button onClick={start}
+          className="press w-full py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 border transition-all bg-green-500/15 border-green-500/30 text-green-300">
+          <Play size={18} fill="currentColor" /> START TRACKING
+        </button>
+      )}
 
       {/* WEEKLY CHART */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-5 mb-5">
