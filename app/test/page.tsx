@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Target, Clock, FileText, AlertTriangle, ArrowLeft, Loader2, TrendingUp, CheckCircle2, CalendarDays, Zap, Trash2 } from "lucide-react";
+import { Target, Clock, FileText, AlertTriangle, ArrowLeft, Loader2, TrendingUp, CheckCircle2, CalendarDays, Zap, Trash2, Upload } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { authHeaders } from "@/lib/testApi";
 import { SSC_CGL_T1 } from "@/lib/examPatterns";
@@ -28,6 +28,8 @@ export default function TestHub() {
   const [starting, setStarting] = useState<string | null>(null);
   const [pyqYear, setPyqYear] = useState(2025);
   const [err, setErr] = useState("");
+  const [realCounts, setRealCounts] = useState<Record<number, number>>({});
+  const [isAdminUser, setIsAdminUser] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -45,6 +47,34 @@ export default function TestHub() {
       }
     };
     load();
+  }, []);
+
+  // ✅ Real-question counts per year + admin detection
+  useEffect(() => {
+    const loadMeta = async () => {
+      const counts: Record<number, number> = {};
+      await Promise.all(
+        PYQ_YEARS.map(async (y) => {
+          const { count } = await supabase
+            .from("questions")
+            .select("id", { count: "exact", head: true })
+            .eq("source", "official")
+            .eq("year", y);
+          counts[y] = count || 0;
+        })
+      );
+      setRealCounts(counts);
+      try {
+        const res = await fetch("/api/seeder", {
+          method: "POST",
+          headers: await authHeaders(),
+          body: JSON.stringify({ action: "ping" }),
+        });
+        const d = await res.json();
+        setIsAdminUser(!!d.admin);
+      } catch {}
+    };
+    loadMeta();
   }, []);
 
   // 🔥 Background bank warming (max once per 10 min)
@@ -118,6 +148,8 @@ export default function TestHub() {
       if (res.ok) setAttempts((prev) => prev.filter((x) => x.status !== "completed"));
     } catch {}
   };
+
+  const realInYear = realCounts[pyqYear] || 0;
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
@@ -206,6 +238,10 @@ export default function TestHub() {
               }`}
             >
               {y}
+              {/* ✅ REAL badge when official questions exist for this year */}
+              {(realCounts[y] || 0) > 0 && (
+                <span className="block text-[8px] font-black text-emerald-400 mt-0.5">{realCounts[y]} REAL</span>
+              )}
             </button>
           ))}
         </div>
@@ -221,8 +257,19 @@ export default function TestHub() {
           )}
         </button>
         <p className="text-[10px] text-slate-500 mt-2 text-center font-semibold">
-          AI-recreated paper in the exact {pyqYear} exam pattern & difficulty • ~90% new questions every attempt
+          {realInYear > 0
+            ? `✅ Includes ${realInYear} REAL ${pyqYear} questions + AI pattern-matched fill`
+            : `AI-recreated paper in the exact ${pyqYear} exam pattern & difficulty • ~90% new questions every attempt`}
         </p>
+        {/* ✅ ADMIN-ONLY shortcut to the real-PYQ seeder */}
+        {isAdminUser && (
+          <Link
+            href="/seeder"
+            className="press mt-2 w-full py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-black flex items-center justify-center gap-1.5"
+          >
+            <Upload size={13} /> Upload Real PYQs (Admin Seeder)
+          </Link>
+        )}
       </div>
 
       {/* PATTERN */}
