@@ -6,7 +6,18 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+const TIME_BUDGET_MS = 40000; // never exceed Vercel limit
+
+function mapRow(q: any): LoadedQuestion {
+  return {
+    id: q.id, exam_id: q.exam_id, section_id: q.section_id, topic_id: q.topic_id,
+    question_text: q.question_text, options: q.options, correct_index: q.correct_index,
+    explanation: q.explanation,
+  };
+}
+
 export async function POST(req: Request) {
+  const startedAt = Date.now();
   try {
     const { exam_id, mode = "mock", section_id, year = null } = await req.json();
     const exam = getExamById(exam_id);
@@ -19,17 +30,14 @@ export async function POST(req: Request) {
 
     const admin = adminClient();
 
-    // ── Build plan: full exam OR single section ──
+    // ── Build plan ──
     let plan: { section: any; topic: any }[] = [];
     let totalQuestions = exam.totalQuestions;
-
     if (section_id) {
       const section = exam.sections.find((s) => s.id === section_id);
       if (!section) return NextResponse.json({ error: "Unknown section" }, { status: 400 });
       const dist = distributeByWeight(section.topics, section.questionCount);
-      for (const { topic, count } of dist) {
-        for (let i = 0; i < count; i++) plan.push({ section, topic });
-      }
+      for (const { topic, count } of dist) for (let i = 0; i < count; i++) plan.push({ section, topic });
       for (let i = plan.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [plan[i], plan[j]] = [plan[j], plan[i]];
@@ -39,134 +47,104 @@ export async function POST(req: Request) {
       plan = buildQuestionPlan(exam_id);
     }
 
-    // ══════════════════════════════════════════════════════
-    // SMART REPETITION: 90% unique + 5-10 revision repeats
-    // ══════════════════════════════════════════════════════
-
-    // Step 1: Find ALL question IDs this user has ever seen for this exam+year combo
-    let pastQuery = admin.from("test_attempts").select("id").eq("user_id", userId).eq("exam_id", exam_id);
-    if (year) pastQuery = pastQuery.eq("year", year);
-    else pastQuery = pastQuery.is("year", null);
-    if (section_id) {
-      // For sectional: also check total_questions to distinguish from full mocks
-      pastQuery = pastQuery.eq("total_questions", totalQuestions);
-    }
-    const { data: pastAttempts } = await pastQuery;
-    const pastAttemptIds = (pastAttempts || []).map((a: any) => a.id);
-
-    let seenQuestionIds: string[] = [];
-    if (pastAttemptIds.length > 0) {
-      const { data: pastLinks } = await admin
-        .from("test_attempt_questions")
-        .select("question_id")
-        .in("attempt_id", pastAttemptIds);
-      seenQuestionIds = [...new Set((pastLinks || []).map((l: any) => l.question_id))];
+    // ── Seen = questions from user's LAST attempt of this exam+year (avoid immediate repeat) ──
+    let lastQ = admin.from("test_attempts").select("id").eq("user_id", userId).eq("exam_id", exam_id);
+    lastQ = year ? lastQ.eq("year", year) : lastQ.is("year", null);
+    const { data: lastAtt } = await lastQ.order("created_at", { ascending: false }).limit(1);
+    let seenIds: string[] = [];
+    if (lastAtt && lastAtt[0]) {
+      const { data: links } = await admin.from("test_attempt_questions").select("question_id").eq("attempt_id", lastAtt[0].id);
+      seenIds = [...new Set((links || []).map((l: any) => l.question_id))];
     }
 
-    // Step 2: Pick 5-10 revision questions from seen pool (random)
-    const REVISION_MIN = 5;
-    const REVISION_MAX = 10;
-    const revisionCount = seenQuestionIds.length > 0
-      ? Math.min(
-          Math.max(REVISION_MIN, Math.floor(totalQuestions * 0.08)),
-          REVISION_MAX,
-          seenQuestionIds.length
-        )
-      : 0;
-
+    // ── Revision picks: 5-10 random from last paper (spaced repetition) ──
+    const revisionCount = Math.min(
+      seenIds.length,
+      Math.max(5, Math.floor(totalQuestions * 0.08)),
+      10,
+      Math.max(0, plan.length - 5)
+    );
     let revisionQuestions: LoadedQuestion[] = [];
     if (revisionCount > 0) {
-      // Shuffle seen IDs and pick first N
-      const shuffledSeen = [...seenQuestionIds].sort(() => Math.random() - 0.5);
-      const revisionIds = shuffledSeen.slice(0, revisionCount);
-      const { data: revQs } = await admin
-        .from("questions")
-        .select("*")
-        .in("id", revisionIds);
-      revisionQuestions = (revQs || []).map((q: any) => ({
-        id: q.id,
-        exam_id: q.exam_id,
-        section_id: q.section_id,
-        topic_id: q.topic_id,
-        question_text: q.question_text,
-        options: q.options,
-        correct_index: q.correct_index,
-        explanation: q.explanation,
-      }));
+      const picks = [...seenIds].sort(() => Math.random() - 0.5).slice(0, revisionCount);
+      const { data: revQs } = await admin.from("questions").select("*").in("id", picks);
+      revisionQuestions = (revQs || []).map(mapRow);
     }
 
-    // Step 3: Generate NEW questions for remaining slots (excluding ALL seen)
-    const newCount = totalQuestions - revisionQuestions.length;
-    const newPlan = plan.slice(0, newCount);
-    const excludeIds = new Set<string>(seenQuestionIds);
-    // Also add revision IDs to exclude (already picked)
-    revisionQuestions.forEach((q) => excludeIds.add(q.id));
-
-    let newQuestions = await generateQuestionBatch(admin, exam_id, newPlan, excludeIds, 25, year);
-
-    // Step 4: Fallback — if AI couldn't generate enough new ones, allow more repeats
-    if (newQuestions.length < newCount) {
-      const deficit = newCount - newQuestions.length;
-      const alreadyUsed = new Set([...revisionQuestions.map((q) => q.id), ...newQuestions.map((q) => q.id)]);
-      // Try generating with a fresh exclude set (only exclude what's already in this paper)
-      const fallbackPlan = plan.slice(0, deficit);
-      const fallback = await generateQuestionBatch(admin, exam_id, fallbackPlan, alreadyUsed, 25, year);
-      newQuestions = [...newQuestions, ...fallback];
+    // ── Generate NEW questions in safe rounds of 10 within time budget ──
+    const exclude = new Set<string>([...seenIds, ...revisionQuestions.map((q) => q.id)]);
+    const newSlots = plan.slice(revisionQuestions.length);
+    let newQuestions: LoadedQuestion[] = [];
+    while (newQuestions.length < newSlots.length && Date.now() - startedAt < TIME_BUDGET_MS) {
+      const slice = newSlots.slice(newQuestions.length, newQuestions.length + 10);
+      const batch = await generateQuestionBatch(admin, exam_id, slice, exclude, 10, year);
+      if (batch.length === 0) break; // AI fully down → stop looping
+      newQuestions.push(...batch);
     }
 
-    // Step 5: Combine revision + new, shuffle everything
-    let allQuestions = [...revisionQuestions, ...newQuestions];
-    for (let i = allQuestions.length - 1; i > 0; i--) {
+    // ── GUARANTEED TOP-UP from bank (older questions allowed) so paper is ALWAYS full ──
+    let all = [...revisionQuestions, ...newQuestions];
+    if (all.length < plan.length) {
+      const paperIds = new Set(all.map((q) => q.id));
+      let pq = admin.from("questions").select("*").eq("exam_id", exam_id);
+      pq = year ? pq.eq("year", year) : pq.is("year", null);
+      const idList = [...paperIds];
+      if (idList.length > 0) pq = pq.not("id", "in", `(${idList.map((i) => `"${i}"`).join(",")})`);
+      const { data: pool } = await pq.limit(400);
+
+      const byTopic = new Map<string, any[]>();
+      const globalQ: any[] = [];
+      (pool || []).forEach((q) => {
+        if (!byTopic.has(q.topic_id)) byTopic.set(q.topic_id, []);
+        byTopic.get(q.topic_id)!.push(q);
+        globalQ.push(q);
+      });
+      const takeFrom = (arr: any[]) => {
+        while (arr.length) {
+          const c = arr.shift()!;
+          if (!paperIds.has(c.id)) { paperIds.add(c.id); return c; }
+        }
+        return null;
+      };
+      for (let i = all.length; i < plan.length; i++) {
+        const slot = plan[i];
+        let pick = takeFrom(byTopic.get(slot.topic.id) || []);
+        if (!pick) pick = takeFrom(globalQ);
+        if (!pick) break;
+        all.push(mapRow(pick));
+      }
+    }
+
+    // ── Shuffle + dedupe ──
+    for (let i = all.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      [allQuestions[i], allQuestions[j]] = [allQuestions[j], allQuestions[i]];
+      [all[i], all[j]] = [all[j], all[i]];
     }
+    const dup = new Set<string>();
+    all = all.filter((q) => (dup.has(q.id) ? false : (dup.add(q.id), true)));
 
-    // Deduplicate (safety net)
-    const seen = new Set<string>();
-    allQuestions = allQuestions.filter((q) => {
-      if (seen.has(q.id)) return false;
-      seen.add(q.id);
-      return true;
-    });
-
-    if (allQuestions.length === 0) {
+    if (all.length === 0) {
       return NextResponse.json({ error: "Question engines are busy — please try again in a minute." }, { status: 503 });
     }
 
-    // ── Create attempt ──
+    // ── Create attempt + link questions ──
     const { data: attempt, error: attemptErr } = await admin
       .from("test_attempts")
-      .insert({
-        user_id: userId,
-        exam_id,
-        mode: year ? "pyq" : mode,
-        year,
-        status: "in_progress",
-        total_questions: allQuestions.length,
-      })
+      .insert({ user_id: userId, exam_id, mode: year ? "pyq" : mode, year, status: "in_progress", total_questions: all.length })
       .select()
       .single();
-
     if (attemptErr || !attempt) {
       return NextResponse.json({ error: "Could not create attempt", debug: attemptErr?.message }, { status: 500 });
     }
-
-    // ── Link questions to attempt ──
     await admin.from("test_attempt_questions").insert(
-      allQuestions.map((q, i) => ({ attempt_id: attempt.id, question_id: q.id, question_order: i }))
+      all.map((q, i) => ({ attempt_id: attempt.id, question_id: q.id, question_order: i }))
     );
-
-    // ── Return (never leak correct_index to client) ──
-    const safeQs = allQuestions.map((q, i) => ({
-      id: q.id, order: i, section_id: q.section_id, topic_id: q.topic_id,
-      question_text: q.question_text, options: q.options,
-    }));
 
     return NextResponse.json({
       attempt_id: attempt.id,
-      total_questions: allQuestions.length,
-      questions: safeQs,
-      total_generated: allQuestions.length,
+      total_questions: all.length,
+      questions: all.map((q, i) => ({ id: q.id, order: i, section_id: q.section_id, topic_id: q.topic_id, question_text: q.question_text, options: q.options })),
+      total_generated: all.length,
       revision_count: revisionQuestions.length,
       new_count: newQuestions.length,
     });
