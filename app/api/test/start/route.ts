@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 import { getExamById } from "@/lib/examPatterns";
-import { buildQuestionPlan, adminClient, userClientFromRequest, distributeByWeight, fillAttemptQuestions, type PlanSlot } from "@/lib/testEngine";
+import {
+  buildQuestionPlan,
+  adminClient,
+  userClientFromRequest,
+  distributeByWeight,
+  fillAttemptQuestions,
+  type PlanSlot,
+} from "@/lib/testEngine";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 60; // Vercel: allow up to 60s (default 10s kills generation)
 
 export async function POST(req: Request) {
   try {
@@ -12,6 +19,7 @@ export async function POST(req: Request) {
     const exam = getExamById(exam_id);
     if (!exam) return NextResponse.json({ error: "Unknown exam" }, { status: 400 });
 
+    // ── Auth via Bearer token sent by the client ──
     const userClient = userClientFromRequest(req);
     const { data: userData } = await userClient.auth.getUser();
     const userId = userData.user?.id;
@@ -19,13 +27,16 @@ export async function POST(req: Request) {
 
     const admin = adminClient();
 
-    // Build plan (full or sectional)
+    // ── Build plan: full exam OR single section (topic-weighted) ──
     let planObjs: { section: any; topic: any }[] = [];
     if (section_id) {
       const section = exam.sections.find((s) => s.id === section_id);
       if (!section) return NextResponse.json({ error: "Unknown section" }, { status: 400 });
       const dist = distributeByWeight(section.topics, section.questionCount);
-      for (const { topic, count } of dist) for (let i = 0; i < count; i++) planObjs.push({ section, topic });
+      for (const { topic, count } of dist) {
+        for (let i = 0; i < count; i++) planObjs.push({ section, topic });
+      }
+      // Shuffle sectional plan
       for (let i = planObjs.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [planObjs[i], planObjs[j]] = [planObjs[j], planObjs[i]];
@@ -35,29 +46,50 @@ export async function POST(req: Request) {
     }
     const planSlots: PlanSlot[] = planObjs.map((p) => ({ section_id: p.section.id, topic_id: p.topic.id }));
 
-    // Questions from user's LAST attempt of this exam+year (avoid immediate repeat)
+    // ── Seen = questions from user's LAST attempt of this exam+year (avoid immediate repeat) ──
     let lastQ = admin.from("test_attempts").select("id").eq("user_id", userId).eq("exam_id", exam_id);
     lastQ = year ? lastQ.eq("year", year) : lastQ.is("year", null);
     const { data: lastAtt } = await lastQ.order("created_at", { ascending: false }).limit(1);
     let seenIds: string[] = [];
     if (lastAtt && lastAtt[0]) {
-      const { data: links } = await admin.from("test_attempt_questions").select("question_id").eq("attempt_id", lastAtt[0].id);
+      const { data: links } = await admin
+        .from("test_attempt_questions")
+        .select("question_id")
+        .eq("attempt_id", lastAtt[0].id);
       seenIds = [...new Set((links || []).map((l: any) => l.question_id))];
     }
 
-    // Create attempt in "preparing" state with the full plan stored
+    // ── 🧹 Auto-cleanup: keep max 50 completed attempts per user ──
+    const { data: oldRows } = await admin
+      .from("test_attempts")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("status", "completed")
+      .order("created_at", { ascending: false })
+      .range(50, 200);
+    if (oldRows && oldRows.length > 0) {
+      await admin.from("test_attempts").delete().in("id", oldRows.map((r: any) => r.id));
+    }
+
+    // ── Create attempt in "preparing" state with the full plan stored ──
     const { data: attempt, error } = await admin
       .from("test_attempts")
       .insert({
-        user_id: userId, exam_id, mode: year ? "pyq" : mode, year,
-        status: "preparing", total_questions: planSlots.length, plan: planSlots,
+        user_id: userId,
+        exam_id,
+        mode: year ? "pyq" : mode,
+        year,
+        status: "preparing",
+        total_questions: planSlots.length,
+        plan: planSlots,
       })
       .select()
       .single();
-    if (error || !attempt) return NextResponse.json({ error: "Could not create attempt", debug: error?.message }, { status: 500 });
+    if (error || !attempt) {
+      return NextResponse.json({ error: "Could not create attempt", debug: error?.message }, { status: 500 });
+    }
 
-    // First chunk now (bank-first → instant when bank is warm)
-    // Fast first chunk only (bank-warm = instant). Rest fills in background.
+    // ── Fast first chunk now (bank-warm = instant). Rest fills silently in background. ──
     const res = await fillAttemptQuestions(admin, exam, attempt.id, planSlots, year, 12000, new Set(seenIds));
     if (res.have > 0) {
       await admin.from("test_attempts").update({ status: "in_progress" }).eq("id", attempt.id);
@@ -66,7 +98,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Question engines are busy — please try again in a minute." }, { status: 503 });
     }
 
-    return NextResponse.json({ attempt_id: attempt.id, have: res.have, target: res.target, done: res.done });
+    return NextResponse.json({
+      attempt_id: attempt.id,
+      have: res.have,
+      target: res.target,
+      done: res.done,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: "Server error", debug: e?.message || String(e) }, { status: 500 });
   }

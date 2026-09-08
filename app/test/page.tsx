@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Target, Clock, FileText, AlertTriangle, ArrowLeft, Loader2, TrendingUp, CheckCircle2, CalendarDays, Zap } from "lucide-react";
+import { Target, Clock, FileText, AlertTriangle, ArrowLeft, Loader2, TrendingUp, CheckCircle2, CalendarDays, Zap, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { authHeaders } from "@/lib/testApi";
 import { SSC_CGL_T1 } from "@/lib/examPatterns";
@@ -95,6 +95,30 @@ export default function TestHub() {
   const openAttempt = (a: Attempt) => {
     if (a.status === "completed") router.push(`/test/${a.id}/results`);
     else router.push(`/test/${a.id}`);
+  };
+
+  const deleteAttempt = async (a: Attempt) => {
+    if (!confirm(`Delete this attempt (${new Date(a.created_at).toLocaleDateString()})? This cannot be undone.`)) return;
+    try {
+      const res = await fetch("/api/test/delete", {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({ attempt_id: a.id }),
+      });
+      if (res.ok) setAttempts((prev) => prev.filter((x) => x.id !== a.id));
+    } catch {}
+  };
+
+  const clearHistory = async () => {
+    if (!confirm("Delete ALL completed test history? This cannot be undone.")) return;
+    try {
+      const res = await fetch("/api/test/delete", {
+        method: "POST",
+        headers: await authHeaders(),
+        body: JSON.stringify({ clear_all: true }),
+      });
+      if (res.ok) setAttempts((prev) => prev.filter((x) => x.status !== "completed"));
+    } catch {}
   };
 
   return (
@@ -241,48 +265,58 @@ export default function TestHub() {
 
       {err && <p className="text-center text-sm font-bold text-red-400 mb-4">❌ {err}</p>}
 
-      {/* 🕘 HISTORY */}
+      {/* 🕘 HISTORY (with delete) */}
       {attempts.length > 0 && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-          <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <TrendingUp size={14} /> Your Attempts
-          </p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <TrendingUp size={14} /> Your Attempts
+            </p>
+            <button onClick={clearHistory} className="press text-[10px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded-lg">
+              Clear All
+            </button>
+          </div>
           <div className="grid gap-2">
             {attempts.map((a) => (
-              <button
-                key={a.id}
-                onClick={() => openAttempt(a)}
-                className="press flex items-center justify-between bg-slate-800/60 border border-slate-700 hover:border-slate-600 rounded-xl p-3 text-left"
-              >
-                <div className="flex items-center gap-3">
-                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                    a.status === "completed" ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
-                  }`}>
-                    {a.status === "completed" ? <CheckCircle2 size={15} /> : <Clock size={15} />}
-                  </span>
-                  <div>
-                    <p className="text-sm font-bold text-white">
-                      {a.status === "completed"
-                        ? `Score: ${a.final_score}/${(a.total_questions || 100) * 2}`
-                        : a.status === "preparing" ? "Preparing paper..." : "In Progress"}
-                      <span className="text-[10px] text-slate-500 font-bold ml-2">{a.total_questions} Qs</span>
-                      {a.year && <span className="text-[10px] font-black text-violet-400 ml-2">PYQ {a.year}</span>}
-                    </p>
-                    <p className="text-[10px] text-slate-500 font-semibold">
-                      {new Date(a.created_at).toLocaleDateString()} • {a.questions_answered}/{a.total_questions} answered
-                    </p>
+              <div key={a.id} className="flex items-center gap-2 bg-slate-800/60 border border-slate-700 hover:border-slate-600 rounded-xl p-3">
+                <button onClick={() => openAttempt(a)} className="press flex-1 min-w-0 flex items-center justify-between text-left">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center ${
+                      a.status === "completed" ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
+                    }`}>
+                      {a.status === "completed" ? <CheckCircle2 size={15} /> : <Clock size={15} />}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-white truncate">
+                        {a.status === "completed"
+                          ? `Score: ${a.final_score}/${(a.total_questions || 100) * 2}`
+                          : a.status === "preparing" ? "Preparing paper..." : "In Progress"}
+                        <span className="text-[10px] text-slate-500 font-bold ml-2">{a.total_questions} Qs</span>
+                        {a.year && <span className="text-[10px] font-black text-violet-400 ml-2">PYQ {a.year}</span>}
+                      </p>
+                      <p className="text-[10px] text-slate-500 font-semibold">
+                        {new Date(a.created_at).toLocaleDateString()} • {a.questions_answered}/{a.total_questions} answered
+                      </p>
+                    </div>
                   </div>
-                </div>
-                {a.status === "completed" ? (
-                  <span className={`text-sm font-black ${
-                    a.accuracy >= 60 ? "text-emerald-400" : a.accuracy >= 40 ? "text-amber-400" : "text-red-400"
-                  }`}>
-                    {Math.round(a.accuracy)}%
-                  </span>
-                ) : (
-                  <span className="text-xs font-black text-amber-400">Resume →</span>
-                )}
-              </button>
+                  {a.status === "completed" ? (
+                    <span className={`ml-2 text-sm font-black shrink-0 ${
+                      a.accuracy >= 60 ? "text-emerald-400" : a.accuracy >= 40 ? "text-amber-400" : "text-red-400"
+                    }`}>
+                      {Math.round(a.accuracy)}%
+                    </span>
+                  ) : (
+                    <span className="ml-2 text-xs font-black text-amber-400 shrink-0">Resume →</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => deleteAttempt(a)}
+                  className="press shrink-0 w-8 h-8 rounded-lg bg-slate-900 border border-slate-700 text-red-400 flex items-center justify-center"
+                  title="Delete attempt"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
             ))}
           </div>
         </div>
