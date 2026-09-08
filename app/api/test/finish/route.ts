@@ -82,6 +82,16 @@ export async function POST(req: Request) {
       else wrong += 1;
     }
 
+       // Paper not fully loaded? Attribute missing slots as skipped per stored plan
+    const planSlots: any[] = attempt.plan || [];
+    if (planSlots.length > answerSheet.length) {
+      for (let i = answerSheet.length; i < planSlots.length; i++) {
+        const sid = planSlots[i].section_id;
+        if (sectionStats[sid]) sectionStats[sid].skipped += 1;
+        skipped += 1;
+      }
+    }
+
     const marksPerQ = 2;
     const rawScore = correct * marksPerQ;
     const negMarks = wrong * exam.negativeMarking;

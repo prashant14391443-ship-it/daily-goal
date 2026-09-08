@@ -57,8 +57,14 @@ export async function POST(req: Request) {
     if (error || !attempt) return NextResponse.json({ error: "Could not create attempt", debug: error?.message }, { status: 500 });
 
     // First chunk now (bank-first → instant when bank is warm)
-    const res = await fillAttemptQuestions(admin, exam, attempt.id, planSlots, year, 35000, new Set(seenIds));
-    if (res.done) await admin.from("test_attempts").update({ status: "in_progress" }).eq("id", attempt.id);
+    // Fast first chunk only (bank-warm = instant). Rest fills in background.
+    const res = await fillAttemptQuestions(admin, exam, attempt.id, planSlots, year, 12000, new Set(seenIds));
+    if (res.have > 0) {
+      await admin.from("test_attempts").update({ status: "in_progress" }).eq("id", attempt.id);
+    } else {
+      await admin.from("test_attempts").delete().eq("id", attempt.id);
+      return NextResponse.json({ error: "Question engines are busy — please try again in a minute." }, { status: 503 });
+    }
 
     return NextResponse.json({ attempt_id: attempt.id, have: res.have, target: res.target, done: res.done });
   } catch (e: any) {

@@ -8,7 +8,7 @@ export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
-    const { attempt_id } = await req.json();
+    const { attempt_id, budget = 20000 } = await req.json();
 
     const userClient = userClientFromRequest(req);
     const { data: userData } = await userClient.auth.getUser();
@@ -30,10 +30,38 @@ export async function POST(req: Request) {
     const plan: PlanSlot[] = attempt.plan || [];
     if (plan.length === 0) return NextResponse.json({ error: "No plan stored" }, { status: 400 });
 
-    const res = await fillAttemptQuestions(admin, exam, attempt.id, plan, attempt.year, 35000);
+    const { count } = await admin
+      .from("test_attempt_questions")
+      .select("question_id", { count: "exact", head: true })
+      .eq("attempt_id", attempt.id);
+    const prevHave = count || 0;
+
+    const res = await fillAttemptQuestions(admin, exam, attempt.id, plan, attempt.year, Math.min(Number(budget) || 20000, 40000));
     if (res.done) await admin.from("test_attempts").update({ status: "in_progress" }).eq("id", attempt.id);
 
-    return NextResponse.json({ have: res.have, target: res.target, done: res.done });
+    // Return ONLY the newly added questions (safe: no correct_index)
+    let newQs: any[] = [];
+    if (res.have > prevHave) {
+      const { data: links } = await admin
+        .from("test_attempt_questions")
+        .select("question_order, question_id")
+        .eq("attempt_id", attempt.id)
+        .gte("question_order", prevHave)
+        .lt("question_order", res.have);
+      const ids = (links || []).map((l: any) => l.question_id);
+      if (ids.length > 0) {
+        const { data: qs } = await admin.from("questions").select("id, section_id, topic_id, question_text, options").in("id", ids);
+        const qmap = new Map((qs || []).map((q: any) => [q.id, q]));
+        newQs = (links || [])
+          .map((l: any) => {
+            const q = qmap.get(l.question_id);
+            return q ? { id: q.id, order: l.question_order, section_id: q.section_id, topic_id: q.topic_id, question_text: q.question_text, options: q.options } : null;
+          })
+          .filter(Boolean);
+      }
+    }
+
+    return NextResponse.json({ have: res.have, target: res.target, done: res.done, new_questions: newQs });
   } catch (e: any) {
     return NextResponse.json({ error: "Server error", debug: e?.message || String(e) }, { status: 500 });
   }
