@@ -1,6 +1,3 @@
-// Single source of truth for AI question generation
-// Used by: mock tests, PYQ-style tests, topic practice
-
 export const GROQ_MODELS = [
   "openai/gpt-oss-120b",
   "openai/gpt-oss-20b",
@@ -18,6 +15,18 @@ export type GeneratedQuestion = {
   solution_steps: string[];
   memory_trick: string;
 };
+
+// ✅ Never let a hanging AI call stall the whole batch
+const FETCH_TIMEOUT_MS = 9000;
+async function fetchWithTimeout(url: string, init: RequestInit, ms = FETCH_TIMEOUT_MS): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
 
 export function buildQuestionPrompt(
   examName: string,
@@ -93,16 +102,12 @@ export async function generateOneQuestion(
   prompt: string,
   keys: { groq?: string; gemini?: string }
 ): Promise<{ q: GeneratedQuestion; engine: string } | null> {
-  // Try Groq first (fast + cheap)
   if (keys.groq) {
     for (const model of GROQ_MODELS) {
       try {
-        const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        const r = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${keys.groq}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${keys.groq}` },
           body: JSON.stringify({
             model,
             messages: [{ role: "user", content: prompt }],
@@ -122,22 +127,17 @@ export async function generateOneQuestion(
     }
   }
 
-  // Fallback to Gemini
   if (keys.gemini) {
     for (const model of GEMINI_MODELS) {
       try {
-        const r = await fetch(
+        const r = await fetchWithTimeout(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keys.gemini}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: {
-                temperature: 0.7,
-                maxOutputTokens: 1500,
-                responseMimeType: "application/json",
-              },
+              generationConfig: { temperature: 0.7, maxOutputTokens: 1500, responseMimeType: "application/json" },
             }),
           }
         );

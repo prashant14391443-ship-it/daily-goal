@@ -50,25 +50,26 @@ export default function TestHub() {
   const startTest = async (sectionId?: string, year?: number) => {
     if (!uid) { alert("Please login first to take a test!"); return; }
     const key = year ? `pyq-${year}` : sectionId || "full";
-    setStarting(key); 
-    setErr("");
+    setStarting(key); setErr("");
+    const ctrl = new AbortController();
+    const watchdog = setTimeout(() => ctrl.abort(), 75000);
     try {
       const res = await fetch("/api/test/start", {
         method: "POST",
         headers: await authHeaders(),
-        body: JSON.stringify({ 
-          exam_id: SSC_CGL_T1.id, 
-          mode: year ? "pyq" : "mock", 
-          section_id: sectionId || null,
-          year: year || null
-        }),
+        signal: ctrl.signal,
+        body: JSON.stringify({ exam_id: SSC_CGL_T1.id, mode: year ? "pyq" : "mock", section_id: sectionId || null, year: year || null }),
       });
       const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Failed to start test");
+      if (!res.ok) throw new Error(typeof d.error === "string" ? d.error : "Failed to start test");
       router.push(`/test/${d.attempt_id}`);
     } catch (e: any) {
-      setErr(e.message || "Failed to start");
+      setErr(e.name === "AbortError"
+        ? "Server took too long (first run generates fresh questions). Try again in a few seconds."
+        : (e.message || "Failed to start"));
       setStarting(null);
+    } finally {
+      clearTimeout(watchdog);
     }
   };
 

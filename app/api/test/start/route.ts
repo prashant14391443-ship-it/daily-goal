@@ -4,6 +4,7 @@ import { buildQuestionPlan, generateQuestionBatch, adminClient, userClientFromRe
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 60; // ✅ Vercel: allow up to 60s (default 10s was killing generation)
 
 export async function POST(req: Request) {
   try {
@@ -11,7 +12,6 @@ export async function POST(req: Request) {
     const exam = getExamById(exam_id);
     if (!exam) return NextResponse.json({ error: "Unknown exam" }, { status: 400 });
 
-    // Auth via Bearer token sent by the client
     const userClient = userClientFromRequest(req);
     const { data: userData } = await userClient.auth.getUser();
     const userId = userData.user?.id;
@@ -39,17 +39,20 @@ export async function POST(req: Request) {
       plan = buildQuestionPlan(exam_id);
     }
 
-    // Create attempt (year-aware for PYQ mode)
+    // ✅ Never give the exact same paper as the user's LAST attempt of this exam+year
+    const seenIds = new Set<string>();
+    let lastQ = admin.from("test_attempts").select("id").eq("user_id", userId).eq("exam_id", exam_id);
+    lastQ = year ? lastQ.eq("year", year) : lastQ.is("year", null);
+    const { data: lastAtt } = await lastQ.order("created_at", { ascending: false }).limit(1);
+    if (lastAtt && lastAtt[0]) {
+      const { data: links } = await admin.from("test_attempt_questions").select("question_id").eq("attempt_id", lastAtt[0].id);
+      (links || []).forEach((l: any) => seenIds.add(l.question_id));
+    }
+
+    // Create attempt
     const { data: attempt, error: attemptErr } = await admin
       .from("test_attempts")
-      .insert({ 
-        user_id: userId, 
-        exam_id, 
-        mode: year ? "pyq" : mode, 
-        year, 
-        status: "in_progress", 
-        total_questions: totalQuestions 
-      })
+      .insert({ user_id: userId, exam_id, mode: year ? "pyq" : mode, year, status: "in_progress", total_questions: totalQuestions })
       .select()
       .single();
 
@@ -57,14 +60,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Could not create attempt", debug: attemptErr?.message }, { status: 500 });
     }
 
-    const usedIds = new Set<string>();
-    const questions = await generateQuestionBatch(admin, exam_id, plan, usedIds, year);
+    // ✅ Generate fast: parallel batches of 25, excluding last paper's questions
+    const exclude = new Set<string>(seenIds);
+    let questions = await generateQuestionBatch(admin, exam_id, plan, exclude, 25, year);
 
-    if (questions.length > 0) {
-      await admin.from("test_attempt_questions").insert(
-        questions.map((q, i) => ({ attempt_id: attempt.id, question_id: q.id, question_order: i }))
-      );
+    // ✅ Fallback fill: if AI failed for some slots, fill from ANY cached (even seen) so test always starts
+    if (questions.length < plan.length) {
+      const missing = plan.length - questions.length;
+      const within = new Set<string>(questions.map((q) => q.id));
+      const extra = await generateQuestionBatch(admin, exam_id, plan.slice(0, missing), within, 25, year);
+      questions = [...questions, ...extra.filter((q) => !within.has(q.id))];
     }
+
+    if (questions.length === 0) {
+      await admin.from("test_attempts").delete().eq("id", attempt.id);
+      return NextResponse.json({ error: "Question engines are busy — please try again in a minute." }, { status: 503 });
+    }
+
+    await admin.from("test_attempt_questions").insert(
+      questions.map((q, i) => ({ attempt_id: attempt.id, question_id: q.id, question_order: i }))
+    );
 
     const safeQs = questions.map((q, i) => ({
       id: q.id, order: i, section_id: q.section_id, topic_id: q.topic_id,
