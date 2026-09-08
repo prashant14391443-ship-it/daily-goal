@@ -29,7 +29,6 @@ export default function TestHub() {
   const [pyqYear, setPyqYear] = useState(2025);
   const [err, setErr] = useState("");
 
-  // Load session + attempt history
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase.auth.getSession();
@@ -48,7 +47,7 @@ export default function TestHub() {
     load();
   }, []);
 
-  // 🔥 Background bank warming: silently generates questions while user browses (max once per 10 min)
+  // 🔥 Background bank warming (max once per 10 min)
   useEffect(() => {
     try {
       const last = Number(localStorage.getItem("dg-seed-at") || 0);
@@ -59,7 +58,6 @@ export default function TestHub() {
     } catch {}
   }, []);
 
-  // Start a test → enter INSTANTLY (paper fills silently in background)
   const startTest = async (sectionId?: string, year?: number) => {
     if (!uid) { alert("Please login first to take a test!"); return; }
     const key = year ? `pyq-${year}` : sectionId || "full";
@@ -123,7 +121,7 @@ export default function TestHub() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 HERO */}
+      {/* HERO */}
       <div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${SSC_CGL_T1.gradient} p-5 shadow-xl`}>
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
@@ -138,27 +136,15 @@ export default function TestHub() {
           <h1 className="text-xl font-black text-white leading-tight">{SSC_CGL_T1.name}</h1>
           <p className="text-[11px] text-white/80 font-semibold mt-0.5">{SSC_CGL_T1.description}</p>
           <div className="grid grid-cols-4 gap-2 mt-4">
-            <div className="bg-white/10 backdrop-blur rounded-lg p-2 text-center">
-              <p className="text-[9px] font-bold text-white/70">QUESTIONS</p>
-              <p className="text-sm font-black text-white">{SSC_CGL_T1.totalQuestions}</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur rounded-lg p-2 text-center">
-              <p className="text-[9px] font-bold text-white/70">MARKS</p>
-              <p className="text-sm font-black text-white">{SSC_CGL_T1.totalMarks}</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur rounded-lg p-2 text-center">
-              <p className="text-[9px] font-bold text-white/70">TIME</p>
-              <p className="text-sm font-black text-white">{SSC_CGL_T1.durationMin}m</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur rounded-lg p-2 text-center">
-              <p className="text-[9px] font-bold text-white/70">NEGATIVE</p>
-              <p className="text-sm font-black text-white">−{SSC_CGL_T1.negativeMarking}</p>
-            </div>
+            <div className="bg-white/10 backdrop-blur rounded-lg p-2 text-center"><p className="text-[9px] font-bold text-white/70">QUESTIONS</p><p className="text-sm font-black text-white">{SSC_CGL_T1.totalQuestions}</p></div>
+            <div className="bg-white/10 backdrop-blur rounded-lg p-2 text-center"><p className="text-[9px] font-bold text-white/70">MARKS</p><p className="text-sm font-black text-white">{SSC_CGL_T1.totalMarks}</p></div>
+            <div className="bg-white/10 backdrop-blur rounded-lg p-2 text-center"><p className="text-[9px] font-bold text-white/70">TIME</p><p className="text-sm font-black text-white">{SSC_CGL_T1.durationMin}m</p></div>
+            <div className="bg-white/10 backdrop-blur rounded-lg p-2 text-center"><p className="text-[9px] font-bold text-white/70">NEGATIVE</p><p className="text-sm font-black text-white">−{SSC_CGL_T1.negativeMarking}</p></div>
           </div>
         </div>
       </div>
 
-      {/* ⚡ INSTANT-ENTRY NOTE */}
+      {/* INSTANT-ENTRY NOTE */}
       <div className="flex items-start gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-4">
         <Zap size={14} className="text-emerald-400 shrink-0 mt-0.5" />
         <p className="text-[11px] text-emerald-200 font-semibold">
@@ -166,7 +152,7 @@ export default function TestHub() {
         </p>
       </div>
 
-      {/* 1️⃣ FULL MOCK */}
+      {/* FULL MOCK */}
       <button
         onClick={() => startTest()}
         disabled={starting !== null}
@@ -179,7 +165,7 @@ export default function TestHub() {
         )}
       </button>
 
-      {/* 2️⃣ SECTIONAL PRACTICE */}
+      {/* SECTIONAL */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
         <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
           <FileText size={14} /> Sectional Practice — 25 Qs • 15 min each
@@ -193,9 +179,7 @@ export default function TestHub() {
               className="press p-3 rounded-xl bg-slate-800/60 border border-slate-700 hover:border-orange-500/40 text-left transition-all disabled:opacity-60"
             >
               {starting === s.id ? (
-                <span className="flex items-center gap-2 text-sm font-black text-orange-300">
-                  <Loader2 size={15} className="animate-spin" /> Starting...
-                </span>
+                <span className="flex items-center gap-2 text-sm font-black text-orange-300"><Loader2 size={15} className="animate-spin" /> Starting...</span>
               ) : (
                 <>
                   <p className="text-sm font-black text-white">{s.shortName}</p>
@@ -207,7 +191,7 @@ export default function TestHub() {
         </div>
       </div>
 
-      {/* 3️⃣ PYQ YEAR PAPERS */}
+      {/* PYQ YEARS */}
       <div className="bg-slate-900 border border-violet-500/20 rounded-2xl p-4 mb-4">
         <p className="text-xs font-black text-violet-300 uppercase tracking-wider mb-3 flex items-center gap-2">
           <CalendarDays size={14} /> Previous Year Papers — 100 Qs • 60 min
@@ -218,9 +202,7 @@ export default function TestHub() {
               key={y}
               onClick={() => setPyqYear(y)}
               className={`press py-2 rounded-xl text-[11px] font-black border transition-all ${
-                pyqYear === y
-                  ? "bg-violet-500/20 border-violet-500/50 text-violet-300"
-                  : "bg-slate-800 border-slate-700 text-slate-400"
+                pyqYear === y ? "bg-violet-500/20 border-violet-500/50 text-violet-300" : "bg-slate-800 border-slate-700 text-slate-400"
               }`}
             >
               {y}
@@ -243,7 +225,7 @@ export default function TestHub() {
         </p>
       </div>
 
-      {/* 📋 EXAM PATTERN */}
+      {/* PATTERN */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
         <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">Exam Pattern</p>
         <div className="grid gap-2">
@@ -265,7 +247,7 @@ export default function TestHub() {
 
       {err && <p className="text-center text-sm font-bold text-red-400 mb-4">❌ {err}</p>}
 
-      {/* 🕘 HISTORY (with delete) */}
+      {/* HISTORY with DELETE 🗑 */}
       {attempts.length > 0 && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
