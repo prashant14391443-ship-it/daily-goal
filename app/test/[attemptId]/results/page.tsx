@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Trophy, Clock, Target, TrendingUp, RotateCcw, ArrowLeft, CheckCircle2, XCircle, MinusCircle, Lightbulb, Flame } from "lucide-react";
+import { Trophy, Clock, Target, TrendingUp, RotateCcw, ArrowLeft, CheckCircle2, XCircle, MinusCircle, Lightbulb, Flame, Download, FileText, Share2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { authHeaders } from "@/lib/testApi";
 import { SSC_CGL_T1 } from "@/lib/examPatterns";
@@ -19,6 +19,164 @@ function fmtClock(s: number) {
   return `${m}m ${ss}s`;
 }
 
+// ════════════════════════════════════════
+// Download paper as clean HTML (printable)
+// ════════════════════════════════════════
+function downloadPaper(
+  sheet: SheetItem[],
+  examName: string,
+  mode: "questions" | "solutions",
+  score?: { final: number; total: number; accuracy: number; correct: number; wrong: number; skipped: number }
+) {
+  const title = mode === "solutions" ? `${examName} — Answer Key & Solutions` : `${examName} — Question Paper`;
+  const now = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+
+  const sectionShort = (id: string) => SSC_CGL_T1.sections.find((s) => s.id === id)?.shortName || "";
+  const topicName = (id: string) => SSC_CGL_T1.sections.flatMap((s) => s.topics).find((t) => t.id === id)?.name || "";
+
+  // Group questions by section
+  const bySection: Record<string, SheetItem[]> = {};
+  sheet.forEach((q) => {
+    if (!bySection[q.section_id]) bySection[q.section_id] = [];
+    bySection[q.section_id].push(q);
+  });
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', 'Noto Sans', Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 24px 16px; color: #1a1a2e; font-size: 14px; line-height: 1.6; }
+  .header { text-align: center; border-bottom: 3px solid #1a1a2e; padding-bottom: 16px; margin-bottom: 24px; }
+  .header h1 { font-size: 20px; font-weight: 900; margin-bottom: 4px; }
+  .header p { font-size: 12px; color: #555; }
+  .stats { display: flex; justify-content: center; gap: 16px; margin: 12px 0; flex-wrap: wrap; }
+  .stat { background: #f0f4f8; padding: 8px 16px; border-radius: 8px; text-align: center; }
+  .stat-val { font-size: 18px; font-weight: 900; }
+  .stat-label { font-size: 10px; color: #777; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-green .stat-val { color: #059669; }
+  .stat-red .stat-val { color: #dc2626; }
+  .section-title { background: #1a1a2e; color: white; padding: 8px 16px; border-radius: 8px; font-weight: 800; font-size: 14px; margin: 24px 0 12px; }
+  .question { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #e5e7eb; page-break-inside: avoid; }
+  .q-num { font-weight: 900; color: #1a1a2e; }
+  .q-topic { font-size: 11px; color: #888; margin-left: 8px; }
+  .q-text { font-weight: 600; margin: 8px 0; font-size: 14px; }
+  .options { padding-left: 8px; }
+  .opt { padding: 4px 8px; margin: 3px 0; border-radius: 6px; font-size: 13px; }
+  .opt-correct { background: #d1fae5; border: 1px solid #6ee7b7; }
+  .opt-wrong { background: #fee2e2; border: 1px solid #fca5a5; }
+  .opt-neutral { background: transparent; }
+  .opt-label { font-weight: 800; margin-right: 6px; }
+  .explanation { background: #eff6ff; border-left: 3px solid #3b82f6; padding: 10px 14px; margin-top: 10px; border-radius: 0 8px 8px 0; font-size: 13px; }
+  .explanation strong { color: #1d4ed8; font-size: 11px; text-transform: uppercase; }
+  .user-skipped { color: #9ca3af; font-style: italic; font-size: 12px; margin-top: 6px; }
+  .footer { text-align: center; margin-top: 32px; padding-top: 16px; border-top: 2px solid #e5e7eb; font-size: 11px; color: #999; }
+  .answer-key { margin: 24px 0; padding: 16px; background: #f9fafb; border-radius: 12px; border: 1px solid #e5e7eb; }
+  .answer-key h3 { font-size: 14px; font-weight: 800; margin-bottom: 8px; }
+  .key-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 4px; font-size: 12px; }
+  .key-item { padding: 3px 6px; border-radius: 4px; }
+  .key-correct { background: #d1fae5; }
+  .key-wrong { background: #fee2e2; }
+  .key-skip { background: #f3f4f6; }
+  @media print {
+    body { padding: 0; }
+    .question { page-break-inside: avoid; }
+    .section-title { page-break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>${examName}</h1>
+  <p>${mode === "solutions" ? "Answer Key & Solutions" : "Question Paper"} • ${now}</p>
+  <p>Total: ${sheet.length} Questions • ${sheet.length * 2} Marks • +2 per correct, −0.5 per wrong</p>
+  ${mode === "solutions" && score ? `
+  <div class="stats">
+    <div class="stat stat-green"><div class="stat-val">${score.final}/${score.total}</div><div class="stat-label">Score</div></div>
+    <div class="stat stat-green"><div class="stat-val">${Math.round(score.accuracy)}%</div><div class="stat-label">Accuracy</div></div>
+    <div class="stat"><div class="stat-val">${score.correct}</div><div class="stat-label">Correct</div></div>
+    <div class="stat stat-red"><div class="stat-val">${score.wrong}</div><div class="stat-label">Wrong</div></div>
+    <div class="stat"><div class="stat-val">${score.skipped}</div><div class="stat-label">Skipped</div></div>
+  </div>` : ""}
+</div>
+
+${Object.entries(bySection).map(([secId, qs]) => `
+<div class="section-title">${sectionShort(secId)} — ${SSC_CGL_T1.sections.find((s) => s.id === secId)?.name || secId}</div>
+${qs.map((q) => `
+<div class="question">
+  <span class="q-num">Q${q.order + 1}.</span>
+  <span class="q-topic">[${topicName(q.topic_id)}]</span>
+  <p class="q-text">${q.question_text}</p>
+  <div class="options">
+    ${q.options.map((opt, j) => {
+      let cls = "opt-neutral";
+      if (mode === "solutions") {
+        if (j === q.correct_index) cls = "opt-correct";
+        else if (q.user_answer === j && j !== q.correct_index) cls = "opt-wrong";
+      }
+      return `<div class="opt ${cls}"><span class="opt-label">${String.fromCharCode(65 + j)}.</span> ${opt}</div>`;
+    }).join("")}
+  </div>
+  ${mode === "solutions" && q.user_answer === null ? '<p class="user-skipped">⏭️ Skipped</p>' : ""}
+  ${mode === "solutions" && q.explanation ? `<div class="explanation"><strong>Explanation:</strong> ${q.explanation}</div>` : ""}
+</div>
+`).join("")}
+`).join("")}
+
+${mode === "solutions" ? `
+<div class="answer-key">
+  <h3>Quick Answer Key</h3>
+  <div class="key-grid">
+    ${sheet.map((q) => {
+      const letter = String.fromCharCode(65 + q.correct_index);
+      const cls = q.user_answer === null ? "key-skip" : q.is_correct ? "key-correct" : "key-wrong";
+      return `<div class="key-item ${cls}">Q${q.order + 1}: <strong>${letter}</strong></div>`;
+    }).join("")}
+  </div>
+</div>` : `
+<div class="answer-key">
+  <h3>Answer Key</h3>
+  <div class="key-grid">
+    ${sheet.map((q) => `<div class="key-item">Q${q.order + 1}: <strong>${String.fromCharCode(65 + q.correct_index)}</strong></div>`).join("")}
+  </div>
+</div>`}
+
+<div class="footer">
+  Generated by StudyBuddy AI • ${now} • For personal use only
+</div>
+
+</body></html>`;
+
+  const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${examName.replace(/\s+/g, "_")}_${mode === "solutions" ? "Solutions" : "Paper"}_${now.replace(/\s+/g, "_")}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ════════════════════
+// Share score card
+// ════════════════════
+function shareResult(examName: string, score: number, total: number, accuracy: number, correct: number, wrong: number) {
+  const text = `📊 ${examName} Mock Test Result\n\n🏆 Score: ${score}/${total}\n✅ Correct: ${correct}\n❌ Wrong: ${wrong}\n🎯 Accuracy: ${Math.round(accuracy)}%\n\nPracticing on StudyBuddy AI 🚀`;
+  if (navigator.share) {
+    navigator.share({ title: `${examName} Result`, text }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text).then(() => alert("Result copied to clipboard!")).catch(() => {});
+  }
+}
+
+// ════════════════════
+// Main Component
+// ════════════════════
 export default function ResultsPage() {
   const params = useParams();
   const router = useRouter();
@@ -43,7 +201,6 @@ export default function ResultsPage() {
         if (d.attempt.status !== "completed") { router.replace(`/test/${attemptId}`); return; }
         setData(d);
 
-        // Compare with user's own past attempts
         const { data: sess } = await supabase.auth.getSession();
         const uid = sess.session?.user.id;
         if (uid) {
@@ -79,8 +236,6 @@ export default function ResultsPage() {
   const sections = data.analytics?.sections || {};
   const weak = a.weak_topics || [];
   const strong = a.strong_topics || [];
-
-  // ✅ Dynamic total marks (works for both full mock 100Qs and sectional 25Qs)
   const totalMarks = (a.total_questions || SSC_CGL_T1.totalQuestions) * 2;
 
   const filtered = sheet.filter((q) => {
@@ -90,14 +245,20 @@ export default function ResultsPage() {
     return true;
   });
 
-  const scorePct = Math.max(0, Math.min(100, (a.final_score / totalMarks) * 100));
-
-  // ✅ Test title based on whether it's sectional or full
   const uniqueSections = new Set(sheet.map((q) => q.section_id));
   const isSectional = uniqueSections.size === 1;
   const testTitle = isSectional
     ? `${SSC_CGL_T1.sections.find((s) => s.id === sheet[0]?.section_id)?.shortName || "Sectional"} Test`
-    : "Full Mock Test";
+    : a.year ? `PYQ ${a.year} Paper` : "Full Mock Test";
+
+  const scoreData = {
+    final: a.final_score,
+    total: totalMarks,
+    accuracy: a.accuracy,
+    correct: a.correct_count,
+    wrong: a.wrong_count,
+    skipped: a.skipped_count,
+  };
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
@@ -145,7 +306,40 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {/* SECTION BREAKDOWN — only shows sections that have data */}
+      {/* ✅ DOWNLOAD & SHARE */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
+        <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <Download size={14} /> Save & Share
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            onClick={() => downloadPaper(sheet, `${SSC_CGL_T1.name} ${testTitle}`, "questions")}
+            className="press p-3 rounded-xl bg-slate-800/60 border border-slate-700 hover:border-blue-500/40 text-center transition-all"
+          >
+            <FileText size={18} className="text-blue-400 mx-auto mb-1.5" />
+            <p className="text-[11px] font-black text-white">Questions</p>
+            <p className="text-[9px] text-slate-500 font-bold">Download Paper</p>
+          </button>
+          <button
+            onClick={() => downloadPaper(sheet, `${SSC_CGL_T1.name} ${testTitle}`, "solutions", scoreData)}
+            className="press p-3 rounded-xl bg-slate-800/60 border border-slate-700 hover:border-emerald-500/40 text-center transition-all"
+          >
+            <Lightbulb size={18} className="text-emerald-400 mx-auto mb-1.5" />
+            <p className="text-[11px] font-black text-white">Solutions</p>
+            <p className="text-[9px] text-slate-500 font-bold">With Answers</p>
+          </button>
+          <button
+            onClick={() => shareResult(SSC_CGL_T1.name, a.final_score, totalMarks, a.accuracy, a.correct_count, a.wrong_count)}
+            className="press p-3 rounded-xl bg-slate-800/60 border border-slate-700 hover:border-violet-500/40 text-center transition-all"
+          >
+            <Share2 size={18} className="text-violet-400 mx-auto mb-1.5" />
+            <p className="text-[11px] font-black text-white">Share</p>
+            <p className="text-[9px] text-slate-500 font-bold">Score Card</p>
+          </button>
+        </div>
+      </div>
+
+      {/* SECTION BREAKDOWN */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
         <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
           <TrendingUp size={14} /> Section-wise Performance
