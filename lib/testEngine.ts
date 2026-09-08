@@ -214,3 +214,45 @@ export function userClientFromRequest(req: Request) {
     }
   );
 }
+export type PlanSlot = { section_id: string; topic_id: string };
+
+// Fill an attempt's question paper in safe chunks (bank-first, then AI)
+export async function fillAttemptQuestions(
+  admin: SupabaseClient,
+  exam: ReturnType<typeof getExamById> & {},
+  attemptId: string,
+  plan: PlanSlot[],
+  year: number | null,
+  budgetMs: number,
+  initialExclude?: Set<string>
+): Promise<{ have: number; target: number; done: boolean }> {
+  const started = Date.now();
+  const { data: linked } = await admin
+    .from("test_attempt_questions")
+    .select("question_id, question_order")
+    .eq("attempt_id", attemptId);
+  const haveIds = new Set<string>((linked || []).map((l: any) => l.question_id));
+  (initialExclude || []).forEach((id) => haveIds.add(id));
+  let have = linked?.length || 0;
+  const target = plan.length;
+  if (have >= target) return { have, target, done: true };
+
+  const slotToObj = (s: PlanSlot) => {
+    const section = exam.sections.find((x) => x.id === s.section_id)!;
+    const topic = section.topics.find((t) => t.id === s.topic_id)!;
+    return { section, topic };
+  };
+
+  while (have < target && Date.now() - started < budgetMs) {
+    const slice = plan.slice(have, have + 10).map(slotToObj);
+    if (slice.length === 0) break;
+    const batch = await generateQuestionBatch(admin, exam.id, slice, haveIds, 10, year);
+    if (batch.length === 0) break;
+    await admin.from("test_attempt_questions").insert(
+      batch.map((q, i) => ({ attempt_id: attemptId, question_id: q.id, question_order: have + i }))
+    );
+    batch.forEach((q) => haveIds.add(q.id));
+    have += batch.length;
+  }
+  return { have, target, done: have >= target };
+}

@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (!attempt) return NextResponse.json({ error: "Attempt not found" }, { status: 404 });
-    if (attempt.status !== "in_progress") return NextResponse.json({ error: "Test already finished" }, { status: 400 });
+    if (attempt.status === "completed") return NextResponse.json({ error: "Test already finished" }, { status: 400 });
 
     // Verify this question belongs to the attempt
     const { data: link } = await admin
