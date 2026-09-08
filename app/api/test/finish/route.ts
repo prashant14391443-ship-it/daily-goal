@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { getExamById } from "@/lib/examPatterns";
-import { adminClient, computeAnalytics } from "@/lib/testEngine";
+import { adminClient, computeAnalytics, userClientFromRequest } from "@/lib/testEngine";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,17 +9,15 @@ export async function POST(req: Request) {
   try {
     const { attempt_id } = await req.json();
 
-    const userClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { cookie: req.headers.get("cookie") || "" } } }
-    );
+    // Auth check
+    const userClient = userClientFromRequest(req);
     const { data: userData } = await userClient.auth.getUser();
     const userId = userData.user?.id;
     if (!userId) return NextResponse.json({ error: "Not logged in" }, { status: 401 });
 
     const admin = adminClient();
 
+    // Load attempt with all related questions and answers
     const { data: attempt } = await admin
       .from("test_attempts")
       .select("*, test_attempt_questions(question_id, question_order), test_answers(*)")

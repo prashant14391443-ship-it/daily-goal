@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { adminClient } from "@/lib/testEngine";
+import { adminClient, userClientFromRequest } from "@/lib/testEngine";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,11 +9,7 @@ export async function POST(req: Request) {
     const { attempt_id, question_id, user_answer, time_taken_sec = 0 } = await req.json();
 
     // Auth check
-    const userClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { cookie: req.headers.get("cookie") || "" } } }
-    );
+    const userClient = userClientFromRequest(req);
     const { data: userData } = await userClient.auth.getUser();
     const userId = userData.user?.id;
     if (!userId) return NextResponse.json({ error: "Not logged in" }, { status: 401 });

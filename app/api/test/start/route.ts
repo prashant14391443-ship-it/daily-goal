@@ -1,37 +1,54 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { getExamById } from "@/lib/examPatterns";
-import { buildQuestionPlan, generateQuestionBatch, adminClient } from "@/lib/testEngine";
+import { buildQuestionPlan, generateQuestionBatch, adminClient, userClientFromRequest, distributeByWeight } from "@/lib/testEngine";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
-    const { exam_id, mode = "mock" } = await req.json();
+    const { exam_id, mode = "mock", section_id, year = null } = await req.json();
     const exam = getExamById(exam_id);
     if (!exam) return NextResponse.json({ error: "Unknown exam" }, { status: 400 });
 
-    // 1. Auth — user must be logged in (session comes via cookies)
-    const userClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { cookie: req.headers.get("cookie") || "" } } }
-    );
+    // Auth via Bearer token sent by the client
+    const userClient = userClientFromRequest(req);
     const { data: userData } = await userClient.auth.getUser();
     const userId = userData.user?.id;
     if (!userId) return NextResponse.json({ error: "Please login to start a test" }, { status: 401 });
 
-    // 2. Create the attempt record
     const admin = adminClient();
+
+    // Build plan: full exam OR single section
+    let plan: { section: any; topic: any }[] = [];
+    let totalQuestions = exam.totalQuestions;
+
+    if (section_id) {
+      const section = exam.sections.find((s) => s.id === section_id);
+      if (!section) return NextResponse.json({ error: "Unknown section" }, { status: 400 });
+      const dist = distributeByWeight(section.topics, section.questionCount);
+      for (const { topic, count } of dist) {
+        for (let i = 0; i < count; i++) plan.push({ section, topic });
+      }
+      for (let i = plan.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [plan[i], plan[j]] = [plan[j], plan[i]];
+      }
+      totalQuestions = section.questionCount;
+    } else {
+      plan = buildQuestionPlan(exam_id);
+    }
+
+    // Create attempt (year-aware for PYQ mode)
     const { data: attempt, error: attemptErr } = await admin
       .from("test_attempts")
-      .insert({
-        user_id: userId,
-        exam_id,
-        mode,
-        status: "in_progress",
-        total_questions: exam.totalQuestions,
+      .insert({ 
+        user_id: userId, 
+        exam_id, 
+        mode: year ? "pyq" : mode, 
+        year, 
+        status: "in_progress", 
+        total_questions: totalQuestions 
       })
       .select()
       .single();
@@ -40,50 +57,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Could not create attempt", debug: attemptErr?.message }, { status: 500 });
     }
 
-    // 3. Build question plan (respects topic weights)
-    const plan = buildQuestionPlan(exam_id);
-
-    // 4. Generate first batch (all questions upfront for SSC — 100 Qs parallelized in groups of 10 ≈ 10s)
     const usedIds = new Set<string>();
-    const questions = await generateQuestionBatch(admin, exam_id, plan, usedIds, 10);
+    const questions = await generateQuestionBatch(admin, exam_id, plan, usedIds, year);
 
-    // 5. Link questions to attempt with order
     if (questions.length > 0) {
-      const rows = questions.map((q, i) => ({
-        attempt_id: attempt.id,
-        question_id: q.id,
-        question_order: i,
-      }));
-      await admin.from("test_attempt_questions").insert(rows);
+      await admin.from("test_attempt_questions").insert(
+        questions.map((q, i) => ({ attempt_id: attempt.id, question_id: q.id, question_order: i }))
+      );
     }
 
-    // 6. Strip correct_index from client payload (never leak answers!)
     const safeQs = questions.map((q, i) => ({
-      id: q.id,
-      order: i,
-      section_id: q.section_id,
-      topic_id: q.topic_id,
-      question_text: q.question_text,
-      options: q.options,
+      id: q.id, order: i, section_id: q.section_id, topic_id: q.topic_id,
+      question_text: q.question_text, options: q.options,
     }));
 
     return NextResponse.json({
       attempt_id: attempt.id,
-      exam: {
-        id: exam.id,
-        name: exam.name,
-        totalQuestions: exam.totalQuestions,
-        totalMarks: exam.totalMarks,
-        durationMin: exam.durationMin,
-        negativeMarking: exam.negativeMarking,
-        sections: exam.sections.map((s) => ({
-          id: s.id,
-          name: s.name,
-          shortName: s.shortName,
-          questionCount: s.questionCount,
-          color: s.color,
-        })),
-      },
+      total_questions: totalQuestions,
       questions: safeQs,
       total_generated: questions.length,
     });

@@ -63,13 +63,23 @@ async function fetchOrGenerate(
   topicName: string,
   sectionName: string,
   examName: string,
-  usedIds: Set<string>
+  usedIds: Set<string>,
+  year: number | null = null // ✅ Added year parameter
 ): Promise<LoadedQuestion | null> {
-  // 1. Try cache
+  // 1. Try cache (year-aware for PYQ mode)
   let q = admin.from("questions").select("*")
     .eq("exam_id", examId).eq("section_id", sectionId).eq("topic_id", topicId);
+  
+  // ✅ Filter by year: null for mock mode, specific year for PYQ mode
+  if (year) {
+    q = q.eq("year", year);
+  } else {
+    q = q.is("year", null);
+  }
+  
   if (usedIds.size > 0) q = q.not("id", "in", `(${[...usedIds].map((i) => `"${i}"`).join(",")})`);
   const { data: cached } = await q.limit(10);
+  
   if (cached && cached.length > 0) {
     const pick = cached[Math.floor(Math.random() * cached.length)];
     return {
@@ -78,10 +88,12 @@ async function fetchOrGenerate(
       explanation: pick.explanation,
     };
   }
-  // 2. Generate new
-  const prompt = buildQuestionPrompt(examName, sectionName, topicName, "medium");
+  
+  // 2. Generate new (pass year to prompt for PYQ style matching)
+  const prompt = buildQuestionPrompt(examName, sectionName, topicName, "medium", year);
   const gen = await generateOneQuestion(prompt, getKeys());
   if (!gen) return null;
+  
   const { data: saved, error } = await admin.from("questions")
     .insert({
       exam_id: examId, section_id: sectionId, topic_id: topicId,
@@ -89,9 +101,11 @@ async function fetchOrGenerate(
       correct_index: gen.q.correct_index, explanation: gen.q.explanation,
       solution_steps: gen.q.solution_steps.join("\n"), memory_trick: gen.q.memory_trick,
       source: "ai-generated", difficulty: "medium",
+      year, // ✅ Store year in database
     })
     .select()
     .single();
+  
   if (error || !saved) return null;
   return {
     id: saved.id, exam_id: saved.exam_id, section_id: saved.section_id, topic_id: saved.topic_id,
@@ -106,7 +120,8 @@ export async function generateQuestionBatch(
   examId: string,
   plan: { section: ExamSection; topic: ExamTopic }[],
   usedIds: Set<string>,
-  batchSize = 8
+  batchSize = 8,
+  year: number | null = null // ✅ Added year parameter
 ): Promise<LoadedQuestion[]> {
   const exam = getExamById(examId);
   if (!exam) return [];
@@ -114,7 +129,7 @@ export async function generateQuestionBatch(
   for (let i = 0; i < plan.length; i += batchSize) {
     const slice = plan.slice(i, i + batchSize);
     const results = await Promise.all(
-      slice.map((p) => fetchOrGenerate(admin, examId, p.section.id, p.topic.id, p.topic.name, p.section.name, exam.name, usedIds))
+      slice.map((p) => fetchOrGenerate(admin, examId, p.section.id, p.topic.id, p.topic.name, p.section.name, exam.name, usedIds, year))
     );
     for (const q of results) {
       if (q && !usedIds.has(q.id)) {
@@ -186,4 +201,16 @@ export function computeAnalytics(
 
 export function adminClient(): SupabaseClient {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+}
+
+// Server-side: build a user client from the Authorization header
+export function userClientFromRequest(req: Request) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: { headers: { Authorization: req.headers.get("authorization") || "" } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    }
+  );
 }

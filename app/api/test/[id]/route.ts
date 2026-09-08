@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { getExamById } from "@/lib/examPatterns";
-import { adminClient } from "@/lib/testEngine";
+import { adminClient, userClientFromRequest } from "@/lib/testEngine";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,11 +9,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const { id } = await params;
 
-    const userClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { cookie: req.headers.get("cookie") || "" } } }
-    );
+    const userClient = userClientFromRequest(req);
     const { data: userData } = await userClient.auth.getUser();
     const userId = userData.user?.id;
     if (!userId) return NextResponse.json({ error: "Not logged in" }, { status: 401 });

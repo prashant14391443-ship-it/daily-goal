@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Trophy, Clock, Target, TrendingUp, RotateCcw, ArrowLeft, CheckCircle2, XCircle, MinusCircle, Lightbulb, Flame } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { authHeaders } from "@/lib/testApi";
 import { SSC_CGL_T1 } from "@/lib/examPatterns";
 
 type SheetItem = {
@@ -34,27 +35,32 @@ export default function ResultsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const res = await fetch(`/api/test/${attemptId}`);
-      const d = await res.json();
-      if (!res.ok) { router.replace("/test"); return; }
-      if (d.attempt.status !== "completed") { router.replace(`/test/${attemptId}`); return; }
-      setData(d);
+      try {
+        const headers = await authHeaders();
+        const res = await fetch(`/api/test/${attemptId}`, { headers });
+        const d = await res.json();
+        if (!res.ok) { router.replace("/test"); return; }
+        if (d.attempt.status !== "completed") { router.replace(`/test/${attemptId}`); return; }
+        setData(d);
 
-      // Compare with user's own past attempts
-      const { data: sess } = await supabase.auth.getSession();
-      const uid = sess.session?.user.id;
-      if (uid) {
-        const { data: past } = await supabase
-          .from("test_attempts")
-          .select("final_score")
-          .eq("user_id", uid)
-          .eq("exam_id", d.attempt.exam_id)
-          .eq("status", "completed")
-          .neq("id", attemptId);
-        if (past && past.length > 0) {
-          const beaten = past.filter((p: any) => (p.final_score || 0) < (d.attempt.final_score || 0)).length;
-          setBetterThan(Math.round((beaten / past.length) * 100));
+        // Compare with user's own past attempts
+        const { data: sess } = await supabase.auth.getSession();
+        const uid = sess.session?.user.id;
+        if (uid) {
+          const { data: past } = await supabase
+            .from("test_attempts")
+            .select("final_score")
+            .eq("user_id", uid)
+            .eq("exam_id", d.attempt.exam_id)
+            .eq("status", "completed")
+            .neq("id", attemptId);
+          if (past && past.length > 0) {
+            const beaten = past.filter((p: any) => (p.final_score || 0) < (d.attempt.final_score || 0)).length;
+            setBetterThan(Math.round((beaten / past.length) * 100));
+          }
         }
+      } catch {
+        router.replace("/test");
       }
     };
     load();
@@ -74,6 +80,9 @@ export default function ResultsPage() {
   const weak = a.weak_topics || [];
   const strong = a.strong_topics || [];
 
+  // ✅ Dynamic total marks (works for both full mock 100Qs and sectional 25Qs)
+  const totalMarks = (a.total_questions || SSC_CGL_T1.totalQuestions) * 2;
+
   const filtered = sheet.filter((q) => {
     if (filter === "wrong") return q.user_answer !== null && !q.is_correct;
     if (filter === "correct") return q.is_correct;
@@ -81,7 +90,14 @@ export default function ResultsPage() {
     return true;
   });
 
-  const scorePct = Math.max(0, Math.min(100, (a.final_score / SSC_CGL_T1.totalMarks) * 100));
+  const scorePct = Math.max(0, Math.min(100, (a.final_score / totalMarks) * 100));
+
+  // ✅ Test title based on whether it's sectional or full
+  const uniqueSections = new Set(sheet.map((q) => q.section_id));
+  const isSectional = uniqueSections.size === 1;
+  const testTitle = isSectional
+    ? `${SSC_CGL_T1.sections.find((s) => s.id === sheet[0]?.section_id)?.shortName || "Sectional"} Test`
+    : "Full Mock Test";
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
@@ -90,8 +106,10 @@ export default function ResultsPage() {
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
           <Trophy size={36} className="text-white mx-auto mb-2" />
-          <p className="text-[11px] font-black text-white/80 uppercase tracking-wider">Test Complete</p>
-          <p className="text-4xl font-black text-white mt-1">{a.final_score}<span className="text-lg text-white/70">/{SSC_CGL_T1.totalMarks}</span></p>
+          <p className="text-[11px] font-black text-white/80 uppercase tracking-wider">{testTitle} • Complete</p>
+          <p className="text-4xl font-black text-white mt-1">
+            {a.final_score}<span className="text-lg text-white/70">/{totalMarks}</span>
+          </p>
           <p className="text-xs font-bold text-white/80 mt-1">
             Accuracy {Math.round(a.accuracy)}% • Time {fmtClock(a.time_taken_sec || 0)}
           </p>
@@ -127,29 +145,34 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {/* SECTION BREAKDOWN */}
+      {/* SECTION BREAKDOWN — only shows sections that have data */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
         <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
           <TrendingUp size={14} /> Section-wise Performance
         </p>
         <div className="grid gap-3">
-          {SSC_CGL_T1.sections.map((s) => {
-            const st = sections[s.id] || { correct: 0, wrong: 0, skipped: 0, total: s.questionCount };
-            const pct = Math.round(((st.correct || 0) / s.questionCount) * 100);
-            return (
-              <div key={s.id}>
-                <div className="flex justify-between text-[11px] font-bold mb-1">
-                  <span className="text-slate-300">{s.name}</span>
-                  <span className="text-slate-500">
-                    <span className="text-emerald-400">{st.correct}✓</span> • <span className="text-red-400">{st.wrong}✗</span> • <span className="text-slate-500">{st.skipped}–</span>
-                  </span>
+          {SSC_CGL_T1.sections
+            .filter((s) => sheet.some((q) => q.section_id === s.id))
+            .map((s) => {
+              const st = sections[s.id] || { correct: 0, wrong: 0, skipped: 0, total: s.questionCount };
+              const pct = Math.round(((st.correct || 0) / s.questionCount) * 100);
+              return (
+                <div key={s.id}>
+                  <div className="flex justify-between text-[11px] font-bold mb-1">
+                    <span className="text-slate-300">{s.name}</span>
+                    <span className="text-slate-500">
+                      <span className="text-emerald-400">{st.correct}✓</span> • <span className="text-red-400">{st.wrong}✗</span> • <span className="text-slate-500">{st.skipped}–</span>
+                    </span>
+                  </div>
+                  <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${pct >= 60 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-red-500"}`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full ${pct >= 60 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${pct}%` }} />
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
         </div>
       </div>
 
@@ -195,7 +218,11 @@ export default function ResultsPage() {
           </p>
           <div className="flex gap-1.5">
             {(["all", "wrong", "correct", "skipped"] as const).map((f) => (
-              <button key={f} onClick={() => setFilter(f)} className={`press px-2.5 py-1 rounded-lg text-[10px] font-black border capitalize ${filter === f ? "bg-orange-500/20 border-orange-500/40 text-orange-300" : "bg-slate-800 border-slate-700 text-slate-400"}`}>
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`press px-2.5 py-1 rounded-lg text-[10px] font-black border capitalize ${filter === f ? "bg-orange-500/20 border-orange-500/40 text-orange-300" : "bg-slate-800 border-slate-700 text-slate-400"}`}
+              >
                 {f}
               </button>
             ))}
@@ -203,7 +230,14 @@ export default function ResultsPage() {
         </div>
         <div className="grid gap-3">
           {filtered.map((q) => (
-            <div key={q.question_id} className={`rounded-xl border p-4 ${q.user_answer === null ? "border-slate-700 bg-slate-800/40" : q.is_correct ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5"}`}>
+            <div
+              key={q.question_id}
+              className={`rounded-xl border p-4 ${
+                q.user_answer === null ? "border-slate-700 bg-slate-800/40"
+                  : q.is_correct ? "border-emerald-500/30 bg-emerald-500/5"
+                  : "border-red-500/30 bg-red-500/5"
+              }`}
+            >
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-slate-800 text-slate-400">Q{q.order + 1}</span>
                 <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-slate-800 text-slate-400">{sectionShort(q.section_id)}</span>
@@ -213,7 +247,14 @@ export default function ResultsPage() {
               <p className="text-sm font-bold text-white leading-relaxed mb-3">{q.question_text}</p>
               <div className="grid gap-1.5 mb-3">
                 {q.options.map((opt, i) => (
-                  <div key={i} className={`flex items-start gap-2 p-2.5 rounded-lg text-xs border ${i === q.correct_index ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200" : q.user_answer === i ? "bg-red-500/15 border-red-500/40 text-red-200" : "bg-slate-800/50 border-slate-700/50 text-slate-400"}`}>
+                  <div
+                    key={i}
+                    className={`flex items-start gap-2 p-2.5 rounded-lg text-xs border ${
+                      i === q.correct_index ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
+                        : q.user_answer === i ? "bg-red-500/15 border-red-500/40 text-red-200"
+                        : "bg-slate-800/50 border-slate-700/50 text-slate-400"
+                    }`}
+                  >
                     <span className="font-black shrink-0">{String.fromCharCode(65 + i)}.</span>
                     <span className="flex-1">{opt}</span>
                     {i === q.correct_index && <CheckCircle2 size={13} className="text-emerald-400 shrink-0 mt-0.5" />}

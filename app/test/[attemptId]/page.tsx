@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Clock, ChevronLeft, ChevronRight, Bookmark, Eraser, Send, AlertTriangle, LayoutGrid, X } from "lucide-react";
 import { SSC_CGL_T1 } from "@/lib/examPatterns";
+import { authHeaders } from "@/lib/testApi";
 
 type Q = { id: string; order: number; section_id: string; topic_id: string; question_text: string; options: string[] };
 
@@ -28,6 +29,7 @@ export default function LiveTest() {
   const [showSubmit, setShowSubmit] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [testTitle, setTestTitle] = useState("Mock Test");
 
   const enterRef = useRef(Date.now());
   const finishedRef = useRef(false);
@@ -39,11 +41,13 @@ export default function LiveTest() {
   const cur = qs[idx] || null;
 
   const postAnswer = useCallback((qid: string, val: number | null, sec: number) => {
-    fetch("/api/test/answer", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ attempt_id: attemptId, question_id: qid, user_answer: val, time_taken_sec: sec }),
-    }).catch(() => {});
+    authHeaders().then((h) =>
+      fetch("/api/test/answer", {
+        method: "POST",
+        headers: h,
+        body: JSON.stringify({ attempt_id: attemptId, question_id: qid, user_answer: val, time_taken_sec: sec }),
+      }).catch(() => {})
+    );
   }, [attemptId]);
 
   const finishTest = useCallback(async () => {
@@ -54,16 +58,17 @@ export default function LiveTest() {
       const all = qsRef.current;
       const ans = answersRef.current;
       const unanswered = all.filter((q) => ans[q.id] === undefined);
+      const headers = await authHeaders();
       await Promise.all(unanswered.map((q) =>
         fetch("/api/test/answer", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ attempt_id: attemptId, question_id: q.id, user_answer: null, time_taken_sec: 0 }),
         })
       ));
       await fetch("/api/test/finish", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ attempt_id: attemptId }),
       });
     } catch {}
@@ -74,25 +79,44 @@ export default function LiveTest() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`/api/test/${attemptId}`);
+        const headers = await authHeaders();
+        const res = await fetch(`/api/test/${attemptId}`, { headers });
         const d = await res.json();
         if (!res.ok) throw new Error(d.error);
         if (d.attempt.status === "completed") { router.replace(`/test/${attemptId}/results`); return; }
+        
         const sheet: Q[] = (d.answer_sheet || []).map((r: any) => ({
           id: r.question_id, order: r.order, section_id: r.section_id, topic_id: r.topic_id,
           question_text: r.question_text, options: r.options,
         }));
         setQs(sheet);
+        
+        // Set title based on whether it's sectional or full
+        if (sheet.length > 0 && new Set(sheet.map((q) => q.section_id)).size === 1) {
+          const sectionName = SSC_CGL_T1.sections.find((s) => s.id === sheet[0].section_id)?.shortName;
+          setTestTitle(`${sectionName} Sectional`);
+        } else {
+          setTestTitle("Full Mock");
+        }
+        
         const ans: Record<string, number | null> = {};
         const vis: Record<string, boolean> = {};
         (d.answer_sheet || []).forEach((r: any) => {
-          if (r.user_answer !== null && r.user_answer !== undefined) { ans[r.question_id] = r.user_answer; vis[r.question_id] = true; }
+          if (r.user_answer !== null && r.user_answer !== undefined) { 
+            ans[r.question_id] = r.user_answer; 
+            vis[r.question_id] = true; 
+          }
         });
         setAnswers(ans);
         setVisited(vis);
         if (sheet.length > 0) setVisited((v) => ({ ...v, [sheet[0].id]: true }));
+        
+        // Sectional-aware duration
+        const durationMin = d.attempt.total_questions >= SSC_CGL_T1.totalQuestions
+          ? SSC_CGL_T1.durationMin
+          : Math.max(5, Math.round((SSC_CGL_T1.durationMin * d.attempt.total_questions) / SSC_CGL_T1.totalQuestions));
         const elapsed = Math.floor((Date.now() - new Date(d.attempt.started_at).getTime()) / 1000);
-        setTimeLeft(Math.max(0, SSC_CGL_T1.durationMin * 60 - elapsed));
+        setTimeLeft(Math.max(0, durationMin * 60 - elapsed));
         setLoading(false);
       } catch {
         router.replace("/test");
@@ -181,7 +205,7 @@ export default function LiveTest() {
       <div className="shrink-0 bg-slate-900 border-b border-slate-800 px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-black text-white truncate">{SSC_CGL_T1.name} — Mock Test</p>
+            <p className="text-sm font-black text-white truncate">{SSC_CGL_T1.name} — {testTitle}</p>
             <p className="text-[10px] text-slate-500 font-bold">Q {idx + 1}/{qs.length} • {answeredCount} answered • {markedCount} marked</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
