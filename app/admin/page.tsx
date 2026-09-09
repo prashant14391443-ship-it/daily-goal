@@ -45,10 +45,7 @@ export default function AdminPage() {
   const destroyCommunity = async (communityId: string) => {
     if (!confirm("🧨 DESTROY this community and ALL its messages/files?")) return;
     
-    // Deletes the community (auto-deletes members, chats, files)
     await supabase.from("communities").delete().eq("id", communityId);
-    
-    // Removes the reports for it from the screen
     setReports(reports.filter((r) => r.community_id !== communityId));
     alert("Community destroyed! Everything inside it is gone.");
   };
@@ -61,6 +58,31 @@ export default function AdminPage() {
         <h1 className="text-2xl font-bold">👑 Admin Dashboard</h1>
         <Link href="/dashboard" className="text-sm text-slate-400 hover:text-white">← Back to Dashboard</Link>
       </div>
+
+      {/* ✨ NEW: Admin Tools */}
+      <p className="text-slate-400 mb-3 text-sm font-bold">🛠️ Admin Tools:</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+        <Link href="/seeder" className="press bg-slate-900 border border-emerald-500/30 rounded-xl p-4 hover:border-emerald-500/60 transition-colors">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">📄</span>
+            <div className="flex-1">
+              <p className="font-bold text-emerald-300">PYQ Seeder</p>
+              <p className="text-xs text-slate-500 mt-1">Upload official papers → Gemini extracts → save into bank</p>
+            </div>
+          </div>
+        </Link>
+        <Link href="/moderate" className="press bg-slate-900 border border-amber-500/30 rounded-xl p-4 hover:border-amber-500/60 transition-colors">
+          <div className="flex items-start gap-3">
+            <span className="text-2xl">🛡️</span>
+            <div className="flex-1">
+              <p className="font-bold text-amber-300">Review Queue</p>
+              <p className="text-xs text-slate-500 mt-1">Approve community PYQ submissions → award coins</p>
+            </div>
+          </div>
+        </Link>
+      </div>
+
+      <hr className="border-slate-800 mb-6" />
 
       <p className="text-slate-400 mb-6">🚩 Communities reported by users:</p>
 

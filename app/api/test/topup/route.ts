@@ -36,8 +36,18 @@ export async function POST(req: Request) {
       .eq("attempt_id", attempt.id);
     const prevHave = count || 0;
 
-    const res = await fillAttemptQuestions(admin, exam, attempt.id, plan, attempt.year, Math.min(Number(budget) || 20000, 40000));
+    const sourceMode = attempt.mode === "pyq-real" ? new Set(["real"]) : new Set(["ai"]);
+    const res = await fillAttemptQuestions(
+      admin,
+      exam,
+      attempt.id,
+      plan,
+      attempt.year,
+      Math.min(Number(budget) || 20000, 40000),
+      sourceMode
+    );
     if (res.done) await admin.from("test_attempts").update({ status: "in_progress" }).eq("id", attempt.id);
+    if (attempt.mode === "pyq-real") await admin.from("test_attempts").update({ total_questions: res.have }).eq("id", attempt.id);
 
     // Return ONLY the newly added questions (safe: no correct_index)
     let newQs: any[] = [];

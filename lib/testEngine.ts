@@ -13,15 +13,15 @@ export type LoadedQuestion = {
   explanation: string | null;
 };
 
+export type PlanSlot = { section_id: string; topic_id: string };
+
 // Distribute N questions across topics proportional to their weights
 export function distributeByWeight(topics: ExamTopic[], total: number): { topic: ExamTopic; count: number }[] {
   const totalWeight = topics.reduce((sum, t) => sum + t.weight, 0);
-  // Integer floor allocation first
   const allocation = topics.map((t) => ({
     topic: t,
     count: Math.floor((t.weight / totalWeight) * total),
   }));
-  // Distribute remainder to topics with largest fractional parts
   let assigned = allocation.reduce((s, a) => s + a.count, 0);
   const remainders = topics
     .map((t) => ({ topic: t, frac: ((t.weight / totalWeight) * total) % 1 }))
@@ -46,7 +46,6 @@ export function buildQuestionPlan(examId: string): { section: ExamSection; topic
       for (let i = 0; i < count; i++) plan.push({ section, topic });
     }
   }
-  // Shuffle so the test feels mixed
   for (let i = plan.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [plan[i], plan[j]] = [plan[j], plan[i]];
@@ -54,7 +53,7 @@ export function buildQuestionPlan(examId: string): { section: ExamSection; topic
   return plan;
 }
 
-// Try to find cached question first, else generate via AI
+// Try to find cached AI-generated question first, else generate via AI
 async function fetchOrGenerate(
   admin: SupabaseClient,
   examId: string,
@@ -64,22 +63,21 @@ async function fetchOrGenerate(
   sectionName: string,
   examName: string,
   usedIds: Set<string>,
-  year: number | null = null // ✅ Added year parameter
+  year: number | null = null
 ): Promise<LoadedQuestion | null> {
-  // 1. Try cache (year-aware for PYQ mode)
+  // Only pull from AI-generated pool (real papers live in separate section)
   let q = admin.from("questions").select("*")
-    .eq("exam_id", examId).eq("section_id", sectionId).eq("topic_id", topicId);
-  
-  // ✅ Filter by year: null for mock mode, specific year for PYQ mode
-  if (year) {
-    q = q.eq("year", year);
-  } else {
-    q = q.is("year", null);
-  }
-  
+    .eq("exam_id", examId)
+    .eq("section_id", sectionId)
+    .eq("topic_id", topicId)
+    .eq("source", "ai-generated");
+
+  if (year) q = q.eq("year", year);
+  else q = q.is("year", null);
+
   if (usedIds.size > 0) q = q.not("id", "in", `(${[...usedIds].map((i) => `"${i}"`).join(",")})`);
   const { data: cached } = await q.limit(10);
-  
+
   if (cached && cached.length > 0) {
     const pick = cached[Math.floor(Math.random() * cached.length)];
     return {
@@ -88,12 +86,11 @@ async function fetchOrGenerate(
       explanation: pick.explanation,
     };
   }
-  
-  // 2. Generate new (pass year to prompt for PYQ style matching)
+
   const prompt = buildQuestionPrompt(examName, sectionName, topicName, "medium", year);
   const gen = await generateOneQuestion(prompt, getKeys());
   if (!gen) return null;
-  
+
   const { data: saved, error } = await admin.from("questions")
     .insert({
       exam_id: examId, section_id: sectionId, topic_id: topicId,
@@ -101,11 +98,11 @@ async function fetchOrGenerate(
       correct_index: gen.q.correct_index, explanation: gen.q.explanation,
       solution_steps: gen.q.solution_steps.join("\n"), memory_trick: gen.q.memory_trick,
       source: "ai-generated", difficulty: "medium",
-      year, // ✅ Store year in database
+      year,
     })
     .select()
     .single();
-  
+
   if (error || !saved) return null;
   return {
     id: saved.id, exam_id: saved.exam_id, section_id: saved.section_id, topic_id: saved.topic_id,
@@ -121,7 +118,7 @@ export async function generateQuestionBatch(
   plan: { section: ExamSection; topic: ExamTopic }[],
   usedIds: Set<string>,
   batchSize = 8,
-  year: number | null = null // ✅ Added year parameter
+  year: number | null = null
 ): Promise<LoadedQuestion[]> {
   const exam = getExamById(examId);
   if (!exam) return [];
@@ -139,6 +136,72 @@ export async function generateQuestionBatch(
     }
   }
   return out;
+}
+
+// Fill an attempt's paper. sourceMode: "ai" (topic-weighted, bank-first+AI) or "real" (only official/community)
+export async function fillAttemptQuestions(
+  admin: SupabaseClient,
+  exam: ReturnType<typeof getExamById> & {},
+  attemptId: string,
+  plan: PlanSlot[],
+  year: number | null,
+  budgetMs: number,
+  initialExclude?: Set<string>,
+  sourceMode: "ai" | "real" = "ai"
+): Promise<{ have: number; target: number; done: boolean }> {
+  const started = Date.now();
+  const { data: linked } = await admin
+    .from("test_attempt_questions")
+    .select("question_id, question_order")
+    .eq("attempt_id", attemptId);
+  const haveIds = new Set<string>((linked || []).map((l: any) => l.question_id));
+  (initialExclude || []).forEach((id) => haveIds.add(id));
+  let have = linked?.length || 0;
+
+  // ── REAL MODE: use ONLY official/community questions for this year ──
+  if (sourceMode === "real") {
+    let q = admin.from("questions").select("*")
+      .eq("exam_id", exam.id)
+      .in("source", ["official", "community"]);
+    if (year) q = q.eq("year", year);
+    const { data: realQs } = await q.limit(300);
+    const pool = (realQs || []).filter((qq: any) => !haveIds.has(qq.id));
+    // Shuffle
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    if (pool.length > 0) {
+      await admin.from("test_attempt_questions").insert(
+        pool.map((qq: any, i: number) => ({ attempt_id: attemptId, question_id: qq.id, question_order: have + i }))
+      );
+      have += pool.length;
+    }
+    return { have, target: have, done: true };
+  }
+
+  // ── AI MODE: topic-weighted plan, bank-first then generate ──
+  const target = plan.length;
+  if (have >= target) return { have, target, done: true };
+
+  const slotToObj = (s: PlanSlot) => {
+    const section = exam.sections.find((x) => x.id === s.section_id)!;
+    const topic = section.topics.find((t) => t.id === s.topic_id)!;
+    return { section, topic };
+  };
+
+  while (have < target && Date.now() - started < budgetMs) {
+    const slice = plan.slice(have, have + 10).map(slotToObj);
+    if (slice.length === 0) break;
+    const batch = await generateQuestionBatch(admin, exam.id, slice, haveIds, 10, year);
+    if (batch.length === 0) break;
+    await admin.from("test_attempt_questions").insert(
+      batch.map((q, i) => ({ attempt_id: attemptId, question_id: q.id, question_order: have + i }))
+    );
+    batch.forEach((q) => haveIds.add(q.id));
+    have += batch.length;
+  }
+  return { have, target, done: have >= target };
 }
 
 // Compute score with negative marking + identify weak/strong topics
@@ -174,8 +237,6 @@ export function computeAnalytics(
   const attempted = correct + wrong;
   const accuracy = attempted > 0 ? (correct / attempted) * 100 : 0;
 
-  // Weak topics: <50% accuracy, at least 2 questions attempted
-  // Strong topics: >=75% accuracy, at least 2 questions attempted
   const weak: { topic_id: string; accuracy: number; total: number }[] = [];
   const strong: { topic_id: string; accuracy: number; total: number }[] = [];
   for (const [tid, s] of Object.entries(topicStats)) {
@@ -188,14 +249,9 @@ export function computeAnalytics(
   strong.sort((a, b) => b.accuracy - a.accuracy);
 
   return {
-    correct, wrong, skipped,
-    attempted,
-    raw_score: rawScore,
-    negative_marks: negMarks,
-    final_score: finalScore,
-    accuracy,
-    weak_topics: weak.slice(0, 5),
-    strong_topics: strong.slice(0, 5),
+    correct, wrong, skipped, attempted,
+    raw_score: rawScore, negative_marks: negMarks, final_score: finalScore, accuracy,
+    weak_topics: weak.slice(0, 5), strong_topics: strong.slice(0, 5),
   };
 }
 
@@ -203,7 +259,6 @@ export function adminClient(): SupabaseClient {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 }
 
-// Server-side: build a user client from the Authorization header
 export function userClientFromRequest(req: Request) {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -213,46 +268,4 @@ export function userClientFromRequest(req: Request) {
       auth: { persistSession: false, autoRefreshToken: false },
     }
   );
-}
-export type PlanSlot = { section_id: string; topic_id: string };
-
-// Fill an attempt's question paper in safe chunks (bank-first, then AI)
-export async function fillAttemptQuestions(
-  admin: SupabaseClient,
-  exam: ReturnType<typeof getExamById> & {},
-  attemptId: string,
-  plan: PlanSlot[],
-  year: number | null,
-  budgetMs: number,
-  initialExclude?: Set<string>
-): Promise<{ have: number; target: number; done: boolean }> {
-  const started = Date.now();
-  const { data: linked } = await admin
-    .from("test_attempt_questions")
-    .select("question_id, question_order")
-    .eq("attempt_id", attemptId);
-  const haveIds = new Set<string>((linked || []).map((l: any) => l.question_id));
-  (initialExclude || []).forEach((id) => haveIds.add(id));
-  let have = linked?.length || 0;
-  const target = plan.length;
-  if (have >= target) return { have, target, done: true };
-
-  const slotToObj = (s: PlanSlot) => {
-    const section = exam.sections.find((x) => x.id === s.section_id)!;
-    const topic = section.topics.find((t) => t.id === s.topic_id)!;
-    return { section, topic };
-  };
-
-  while (have < target && Date.now() - started < budgetMs) {
-    const slice = plan.slice(have, have + 10).map(slotToObj);
-    if (slice.length === 0) break;
-    const batch = await generateQuestionBatch(admin, exam.id, slice, haveIds, 10, year);
-    if (batch.length === 0) break;
-    await admin.from("test_attempt_questions").insert(
-      batch.map((q, i) => ({ attempt_id: attemptId, question_id: q.id, question_order: have + i }))
-    );
-    batch.forEach((q) => haveIds.add(q.id));
-    have += batch.length;
-  }
-  return { have, target, done: have >= target };
 }
