@@ -28,7 +28,6 @@ export async function POST(req: Request) {
     const exam = getExamById(attempt.exam_id);
     if (!exam) return NextResponse.json({ error: "Unknown exam" }, { status: 400 });
 
-    // Fetch questions
     const qIds = (attempt.test_attempt_questions || []).map((l: any) => l.question_id);
     let questions: any[] = [];
     if (qIds.length > 0) {
@@ -37,7 +36,6 @@ export async function POST(req: Request) {
     }
     const qMap = new Map(questions.map((q) => [q.id, q]));
 
-    // Build answer sheet (single source of truth)
     const answerSheet = (attempt.test_attempt_questions || [])
       .sort((a: any, b: any) => a.question_order - b.question_order)
       .map((link: any) => {
@@ -60,7 +58,6 @@ export async function POST(req: Request) {
       })
       .filter(Boolean);
 
-    // ── Compute ALL stats from the answer sheet ──
     let correct = 0, wrong = 0, skipped = 0;
     const sectionStats: Record<string, { name: string; correct: number; wrong: number; skipped: number; total: number }> = {};
     for (const s of exam.sections) {
@@ -82,7 +79,7 @@ export async function POST(req: Request) {
       else wrong += 1;
     }
 
-       // Paper not fully loaded? Attribute missing slots as skipped per stored plan
+    // Paper not fully loaded? Attribute missing slots as skipped per stored plan
     const planSlots: any[] = attempt.plan || [];
     if (planSlots.length > answerSheet.length) {
       for (let i = answerSheet.length; i < planSlots.length; i++) {
@@ -92,7 +89,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const marksPerQ = 2;
+    const marksPerQ = exam.sections[0]?.marksPerQ ?? 2;
     const rawScore = correct * marksPerQ;
     const negMarks = wrong * exam.negativeMarking;
     const finalScore = rawScore - negMarks;
@@ -100,7 +97,6 @@ export async function POST(req: Request) {
     const accuracy = attempted > 0 ? (correct / attempted) * 100 : 0;
     const timeTaken = Math.floor((Date.now() - new Date(attempt.started_at).getTime()) / 1000);
 
-    // Weak: <50% with ≥1 question • Strong: ≥75% with ≥2 questions
     const weak: { topic_id: string; accuracy: number; total: number }[] = [];
     const strong: { topic_id: string; accuracy: number; total: number }[] = [];
     for (const [tid, s] of Object.entries(topicStats)) {
@@ -111,7 +107,6 @@ export async function POST(req: Request) {
     weak.sort((a, b) => a.accuracy - b.accuracy);
     strong.sort((a, b) => b.accuracy - a.accuracy);
 
-    // Save final stats
     const { data: updated } = await admin
       .from("test_attempts")
       .update({

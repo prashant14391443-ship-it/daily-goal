@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Trophy, Clock, Target, TrendingUp, RotateCcw, ArrowLeft, CheckCircle2, XCircle, MinusCircle, Lightbulb, Flame, Download, FileText, Share2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { authHeaders } from "@/lib/testApi";
-import { SSC_CGL_T1 } from "@/lib/examPatterns";
+import { getExamById, SSC_CGL_T1 } from "@/lib/examPatterns";
 
 type SheetItem = {
   order: number; question_id: string; section_id: string; topic_id: string;
@@ -19,22 +19,19 @@ function fmtClock(s: number) {
   return `${m}m ${ss}s`;
 }
 
-// ════════════════════════════════════════
-// Download paper as clean HTML (printable)
-// ════════════════════════════════════════
 function downloadPaper(
   sheet: SheetItem[],
   examName: string,
   mode: "questions" | "solutions",
+  sectionShort: (id: string) => string,
+  topicName: (id: string) => string,
+  mpq: number,
+  neg: number,
   score?: { final: number; total: number; accuracy: number; correct: number; wrong: number; skipped: number }
 ) {
   const title = mode === "solutions" ? `${examName} — Answer Key & Solutions` : `${examName} — Question Paper`;
   const now = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 
-  const sectionShort = (id: string) => SSC_CGL_T1.sections.find((s) => s.id === id)?.shortName || "";
-  const topicName = (id: string) => SSC_CGL_T1.sections.flatMap((s) => s.topics).find((t) => t.id === id)?.name || "";
-
-  // Group questions by section
   const bySection: Record<string, SheetItem[]> = {};
   sheet.forEach((q) => {
     if (!bySection[q.section_id]) bySection[q.section_id] = [];
@@ -68,7 +65,6 @@ function downloadPaper(
   .opt { padding: 4px 8px; margin: 3px 0; border-radius: 6px; font-size: 13px; }
   .opt-correct { background: #d1fae5; border: 1px solid #6ee7b7; }
   .opt-wrong { background: #fee2e2; border: 1px solid #fca5a5; }
-  .opt-neutral { background: transparent; }
   .opt-label { font-weight: 800; margin-right: 6px; }
   .explanation { background: #eff6ff; border-left: 3px solid #3b82f6; padding: 10px 14px; margin-top: 10px; border-radius: 0 8px 8px 0; font-size: 13px; }
   .explanation strong { color: #1d4ed8; font-size: 11px; text-transform: uppercase; }
@@ -81,19 +77,14 @@ function downloadPaper(
   .key-correct { background: #d1fae5; }
   .key-wrong { background: #fee2e2; }
   .key-skip { background: #f3f4f6; }
-  @media print {
-    body { padding: 0; }
-    .question { page-break-inside: avoid; }
-    .section-title { page-break-after: avoid; }
-  }
+  @media print { body { padding: 0; } .question { page-break-inside: avoid; } .section-title { page-break-after: avoid; } }
 </style>
 </head>
 <body>
-
 <div class="header">
   <h1>${examName}</h1>
   <p>${mode === "solutions" ? "Answer Key & Solutions" : "Question Paper"} • ${now}</p>
-  <p>Total: ${sheet.length} Questions • ${sheet.length * 2} Marks • +2 per correct, −0.5 per wrong</p>
+  <p>Total: ${sheet.length} Questions • ${sheet.length * mpq} Marks • +${mpq} per correct, −${neg} per wrong</p>
   ${mode === "solutions" && score ? `
   <div class="stats">
     <div class="stat stat-green"><div class="stat-val">${score.final}/${score.total}</div><div class="stat-label">Score</div></div>
@@ -103,9 +94,8 @@ function downloadPaper(
     <div class="stat"><div class="stat-val">${score.skipped}</div><div class="stat-label">Skipped</div></div>
   </div>` : ""}
 </div>
-
 ${Object.entries(bySection).map(([secId, qs]) => `
-<div class="section-title">${sectionShort(secId)} — ${SSC_CGL_T1.sections.find((s) => s.id === secId)?.name || secId}</div>
+<div class="section-title">${sectionShort(secId)}</div>
 ${qs.map((q) => `
 <div class="question">
   <span class="q-num">Q${q.order + 1}.</span>
@@ -113,7 +103,7 @@ ${qs.map((q) => `
   <p class="q-text">${q.question_text}</p>
   <div class="options">
     ${q.options.map((opt, j) => {
-      let cls = "opt-neutral";
+      let cls = "";
       if (mode === "solutions") {
         if (j === q.correct_index) cls = "opt-correct";
         else if (q.user_answer === j && j !== q.correct_index) cls = "opt-wrong";
@@ -126,57 +116,36 @@ ${qs.map((q) => `
 </div>
 `).join("")}
 `).join("")}
-
-${mode === "solutions" ? `
 <div class="answer-key">
-  <h3>Quick Answer Key</h3>
+  <h3>${mode === "solutions" ? "Quick Answer Key" : "Answer Key"}</h3>
   <div class="key-grid">
     ${sheet.map((q) => {
       const letter = String.fromCharCode(65 + q.correct_index);
-      const cls = q.user_answer === null ? "key-skip" : q.is_correct ? "key-correct" : "key-wrong";
+      const cls = mode === "solutions" ? (q.user_answer === null ? "key-skip" : q.is_correct ? "key-correct" : "key-wrong") : "";
       return `<div class="key-item ${cls}">Q${q.order + 1}: <strong>${letter}</strong></div>`;
     }).join("")}
   </div>
-</div>` : `
-<div class="answer-key">
-  <h3>Answer Key</h3>
-  <div class="key-grid">
-    ${sheet.map((q) => `<div class="key-item">Q${q.order + 1}: <strong>${String.fromCharCode(65 + q.correct_index)}</strong></div>`).join("")}
-  </div>
-</div>`}
-
-<div class="footer">
-  Generated by StudyBuddy AI • ${now} • For personal use only
 </div>
-
+<div class="footer">Generated by StudyBuddy AI • ${now} • For personal use only</div>
 </body></html>`;
 
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${examName.replace(/\s+/g, "_")}_${mode === "solutions" ? "Solutions" : "Paper"}_${now.replace(/\s+/g, "_")}.html`;
+  a.download = `${examName.replace(/\s+/g, "_")}_${mode === "solutions" ? "Solutions" : "Paper"}.html`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
-// ════════════════════
-// Share score card
-// ════════════════════
 function shareResult(examName: string, score: number, total: number, accuracy: number, correct: number, wrong: number) {
   const text = `📊 ${examName} Mock Test Result\n\n🏆 Score: ${score}/${total}\n✅ Correct: ${correct}\n❌ Wrong: ${wrong}\n🎯 Accuracy: ${Math.round(accuracy)}%\n\nPracticing on StudyBuddy AI 🚀`;
-  if (navigator.share) {
-    navigator.share({ title: `${examName} Result`, text }).catch(() => {});
-  } else {
-    navigator.clipboard.writeText(text).then(() => alert("Result copied to clipboard!")).catch(() => {});
-  }
+  if (navigator.share) navigator.share({ title: `${examName} Result`, text }).catch(() => {});
+  else navigator.clipboard.writeText(text).then(() => alert("Result copied to clipboard!")).catch(() => {});
 }
 
-// ════════════════════
-// Main Component
-// ════════════════════
 export default function ResultsPage() {
   const params = useParams();
   const router = useRouter();
@@ -185,11 +154,6 @@ export default function ResultsPage() {
   const [data, setData] = useState<any>(null);
   const [filter, setFilter] = useState<"all" | "wrong" | "correct" | "skipped">("all");
   const [betterThan, setBetterThan] = useState<number | null>(null);
-
-  const topicName = (id: string) =>
-    SSC_CGL_T1.sections.flatMap((s) => s.topics).find((t) => t.id === id)?.name || id;
-  const sectionShort = (id: string) =>
-    SSC_CGL_T1.sections.find((s) => s.id === id)?.shortName || "";
 
   useEffect(() => {
     const load = async () => {
@@ -232,11 +196,16 @@ export default function ResultsPage() {
   }
 
   const a = data.attempt;
+  const exam = getExamById(a.exam_id) || SSC_CGL_T1;
+  const marksPerQ = exam.sections[0]?.marksPerQ ?? 2;
   const sheet: SheetItem[] = data.answer_sheet || [];
   const sections = data.analytics?.sections || {};
   const weak = a.weak_topics || [];
   const strong = a.strong_topics || [];
-  const totalMarks = (a.total_questions || SSC_CGL_T1.totalQuestions) * 2;
+  const totalMarks = (a.total_questions || exam.totalQuestions) * marksPerQ;
+
+  const topicName = (id: string) => exam.sections.flatMap((s) => s.topics).find((t) => t.id === id)?.name || id;
+  const sectionShort = (id: string) => exam.sections.find((s) => s.id === id)?.shortName || "";
 
   const filtered = sheet.filter((q) => {
     if (filter === "wrong") return q.user_answer !== null && !q.is_correct;
@@ -248,22 +217,14 @@ export default function ResultsPage() {
   const uniqueSections = new Set(sheet.map((q) => q.section_id));
   const isSectional = uniqueSections.size === 1;
   const testTitle = isSectional
-    ? `${SSC_CGL_T1.sections.find((s) => s.id === sheet[0]?.section_id)?.shortName || "Sectional"} Test`
-    : a.year ? `PYQ ${a.year} Paper` : "Full Mock Test";
+    ? `${sectionShort(sheet[0]?.section_id)} Test`
+    : a.year ? (a.mode === "pyq-real" ? `Real ${a.year} Paper` : `PYQ ${a.year} Paper`) : "Full Mock Test";
 
-  const scoreData = {
-    final: a.final_score,
-    total: totalMarks,
-    accuracy: a.accuracy,
-    correct: a.correct_count,
-    wrong: a.wrong_count,
-    skipped: a.skipped_count,
-  };
+  const scoreData = { final: a.final_score, total: totalMarks, accuracy: a.accuracy, correct: a.correct_count, wrong: a.wrong_count, skipped: a.skipped_count };
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      {/* SCORE HERO */}
-      <div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${SSC_CGL_T1.gradient} p-6 shadow-xl text-center`}>
+      <div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${exam.gradient} p-6 shadow-xl text-center`}>
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
           <Trophy size={36} className="text-white mx-auto mb-2" />
@@ -271,9 +232,7 @@ export default function ResultsPage() {
           <p className="text-4xl font-black text-white mt-1">
             {a.final_score}<span className="text-lg text-white/70">/{totalMarks}</span>
           </p>
-          <p className="text-xs font-bold text-white/80 mt-1">
-            Accuracy {Math.round(a.accuracy)}% • Time {fmtClock(a.time_taken_sec || 0)}
-          </p>
+          <p className="text-xs font-bold text-white/80 mt-1">Accuracy {Math.round(a.accuracy)}% • Time {fmtClock(a.time_taken_sec || 0)}</p>
           {betterThan !== null && (
             <p className="inline-block mt-3 bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-[11px] font-black text-white">
               🔥 Better than {betterThan}% of your previous attempts
@@ -282,7 +241,6 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {/* STAT GRID */}
       <div className="grid grid-cols-4 gap-2 mb-5">
         <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-3 text-center">
           <CheckCircle2 size={16} className="text-emerald-400 mx-auto mb-1" />
@@ -306,32 +264,20 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {/* ✅ DOWNLOAD & SHARE */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
-        <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-          <Download size={14} /> Save & Share
-        </p>
+        <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2"><Download size={14} /> Save & Share</p>
         <div className="grid grid-cols-3 gap-2">
-          <button
-            onClick={() => downloadPaper(sheet, `${SSC_CGL_T1.name} ${testTitle}`, "questions")}
-            className="press p-3 rounded-xl bg-slate-800/60 border border-slate-700 hover:border-blue-500/40 text-center transition-all"
-          >
+          <button onClick={() => downloadPaper(sheet, `${exam.name} ${testTitle}`, "questions", sectionShort, topicName, marksPerQ, exam.negativeMarking)} className="press p-3 rounded-xl bg-slate-800/60 border border-slate-700 hover:border-blue-500/40 text-center transition-all">
             <FileText size={18} className="text-blue-400 mx-auto mb-1.5" />
             <p className="text-[11px] font-black text-white">Questions</p>
             <p className="text-[9px] text-slate-500 font-bold">Download Paper</p>
           </button>
-          <button
-            onClick={() => downloadPaper(sheet, `${SSC_CGL_T1.name} ${testTitle}`, "solutions", scoreData)}
-            className="press p-3 rounded-xl bg-slate-800/60 border border-slate-700 hover:border-emerald-500/40 text-center transition-all"
-          >
+          <button onClick={() => downloadPaper(sheet, `${exam.name} ${testTitle}`, "solutions", sectionShort, topicName, marksPerQ, exam.negativeMarking, scoreData)} className="press p-3 rounded-xl bg-slate-800/60 border border-slate-700 hover:border-emerald-500/40 text-center transition-all">
             <Lightbulb size={18} className="text-emerald-400 mx-auto mb-1.5" />
             <p className="text-[11px] font-black text-white">Solutions</p>
             <p className="text-[9px] text-slate-500 font-bold">With Answers</p>
           </button>
-          <button
-            onClick={() => shareResult(SSC_CGL_T1.name, a.final_score, totalMarks, a.accuracy, a.correct_count, a.wrong_count)}
-            className="press p-3 rounded-xl bg-slate-800/60 border border-slate-700 hover:border-violet-500/40 text-center transition-all"
-          >
+          <button onClick={() => shareResult(exam.name, a.final_score, totalMarks, a.accuracy, a.correct_count, a.wrong_count)} className="press p-3 rounded-xl bg-slate-800/60 border border-slate-700 hover:border-violet-500/40 text-center transition-all">
             <Share2 size={18} className="text-violet-400 mx-auto mb-1.5" />
             <p className="text-[11px] font-black text-white">Share</p>
             <p className="text-[9px] text-slate-500 font-bold">Score Card</p>
@@ -339,13 +285,10 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {/* SECTION BREAKDOWN */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
-        <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-          <TrendingUp size={14} /> Section-wise Performance
-        </p>
+        <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2"><TrendingUp size={14} /> Section-wise Performance</p>
         <div className="grid gap-3">
-          {SSC_CGL_T1.sections
+          {exam.sections
             .filter((s) => sheet.some((q) => q.section_id === s.id))
             .map((s) => {
               const st = sections[s.id] || { correct: 0, wrong: 0, skipped: 0, total: s.questionCount };
@@ -359,10 +302,7 @@ export default function ResultsPage() {
                     </span>
                   </div>
                   <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${pct >= 60 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-red-500"}`}
-                      style={{ width: `${pct}%` }}
-                    />
+                    <div className={`h-full rounded-full ${pct >= 60 ? "bg-emerald-500" : pct >= 40 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${pct}%` }} />
                   </div>
                 </div>
               );
@@ -370,13 +310,10 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {/* WEAK / STRONG */}
       {(weak.length > 0 || strong.length > 0) && (
         <div className="grid grid-cols-2 gap-3 mb-5">
           <div className="bg-slate-900 border border-red-500/20 rounded-2xl p-4">
-            <p className="text-xs font-black text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Target size={13} /> Focus Here (Weak)
-            </p>
+            <p className="text-xs font-black text-red-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Target size={13} /> Focus Here (Weak)</p>
             {weak.length === 0 ? <p className="text-[11px] text-slate-500 font-semibold">No weak topics — great!</p> : (
               <div className="flex flex-wrap gap-1.5">
                 {weak.map((w: any) => (
@@ -388,9 +325,7 @@ export default function ResultsPage() {
             )}
           </div>
           <div className="bg-slate-900 border border-emerald-500/20 rounded-2xl p-4">
-            <p className="text-xs font-black text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <Flame size={13} /> Your Strengths
-            </p>
+            <p className="text-xs font-black text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5"><Flame size={13} /> Your Strengths</p>
             {strong.length === 0 ? <p className="text-[11px] text-slate-500 font-semibold">Attempt more to discover strengths.</p> : (
               <div className="flex flex-wrap gap-1.5">
                 {strong.map((s: any) => (
@@ -404,19 +339,12 @@ export default function ResultsPage() {
         </div>
       )}
 
-      {/* ANSWER REVIEW */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <p className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2">
-            <Lightbulb size={14} /> Solution Review
-          </p>
+          <p className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2"><Lightbulb size={14} /> Solution Review</p>
           <div className="flex gap-1.5">
             {(["all", "wrong", "correct", "skipped"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`press px-2.5 py-1 rounded-lg text-[10px] font-black border capitalize ${filter === f ? "bg-orange-500/20 border-orange-500/40 text-orange-300" : "bg-slate-800 border-slate-700 text-slate-400"}`}
-              >
+              <button key={f} onClick={() => setFilter(f)} className={`press px-2.5 py-1 rounded-lg text-[10px] font-black border capitalize ${filter === f ? "bg-orange-500/20 border-orange-500/40 text-orange-300" : "bg-slate-800 border-slate-700 text-slate-400"}`}>
                 {f}
               </button>
             ))}
@@ -424,14 +352,7 @@ export default function ResultsPage() {
         </div>
         <div className="grid gap-3">
           {filtered.map((q) => (
-            <div
-              key={q.question_id}
-              className={`rounded-xl border p-4 ${
-                q.user_answer === null ? "border-slate-700 bg-slate-800/40"
-                  : q.is_correct ? "border-emerald-500/30 bg-emerald-500/5"
-                  : "border-red-500/30 bg-red-500/5"
-              }`}
-            >
+            <div key={q.question_id} className={`rounded-xl border p-4 ${q.user_answer === null ? "border-slate-700 bg-slate-800/40" : q.is_correct ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5"}`}>
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-slate-800 text-slate-400">Q{q.order + 1}</span>
                 <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-slate-800 text-slate-400">{sectionShort(q.section_id)}</span>
@@ -441,14 +362,7 @@ export default function ResultsPage() {
               <p className="text-sm font-bold text-white leading-relaxed mb-3">{q.question_text}</p>
               <div className="grid gap-1.5 mb-3">
                 {q.options.map((opt, i) => (
-                  <div
-                    key={i}
-                    className={`flex items-start gap-2 p-2.5 rounded-lg text-xs border ${
-                      i === q.correct_index ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200"
-                        : q.user_answer === i ? "bg-red-500/15 border-red-500/40 text-red-200"
-                        : "bg-slate-800/50 border-slate-700/50 text-slate-400"
-                    }`}
-                  >
+                  <div key={i} className={`flex items-start gap-2 p-2.5 rounded-lg text-xs border ${i === q.correct_index ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200" : q.user_answer === i ? "bg-red-500/15 border-red-500/40 text-red-200" : "bg-slate-800/50 border-slate-700/50 text-slate-400"}`}>
                     <span className="font-black shrink-0">{String.fromCharCode(65 + i)}.</span>
                     <span className="flex-1">{opt}</span>
                     {i === q.correct_index && <CheckCircle2 size={13} className="text-emerald-400 shrink-0 mt-0.5" />}
@@ -469,7 +383,6 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {/* ACTIONS */}
       <div className="grid grid-cols-2 gap-3">
         <Link href="/test" className="press py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-red-600 font-black text-sm flex items-center justify-center gap-2">
           <RotateCcw size={16} /> Take Another Test

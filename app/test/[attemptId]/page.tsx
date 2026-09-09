@@ -2,10 +2,17 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Clock, ChevronLeft, ChevronRight, Bookmark, Eraser, Send, AlertTriangle, LayoutGrid, X, Loader2 } from "lucide-react";
-import { SSC_CGL_T1 } from "@/lib/examPatterns";
+import { getExamById, type ExamPattern } from "@/lib/examPatterns";
 import { authHeaders } from "@/lib/testApi";
 
-type Q = { id: string; order: number; section_id: string; topic_id: string; question_text: string; options: string[] };
+type Q = { 
+  id: string; 
+  order: number; 
+  section_id: string; 
+  topic_id: string; 
+  question_text: string; 
+  options: string[] 
+};
 
 function fmtClock(s: number) {
   const m = Math.floor(s / 60);
@@ -23,7 +30,7 @@ export default function LiveTest() {
   const [answers, setAnswers] = useState<Record<string, number | null>>({});
   const [marked, setMarked] = useState<Record<string, boolean>>({});
   const [visited, setVisited] = useState<Record<string, boolean>>({});
-  const [timeLeft, setTimeLeft] = useState(0);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showSubmit, setShowSubmit] = useState(false);
@@ -32,6 +39,7 @@ export default function LiveTest() {
   const [testTitle, setTestTitle] = useState("Mock Test");
   const [totalQ, setTotalQ] = useState(0);
   const [jumpLoading, setJumpLoading] = useState(false);
+  const [exam, setExam] = useState<ExamPattern | null>(null);
 
   const enterRef = useRef(Date.now());
   const finishedRef = useRef(false);
@@ -39,6 +47,7 @@ export default function LiveTest() {
   const answersRef = useRef<Record<string, number | null>>({});
   const totalRef = useRef(0);
   const moreRef = useRef(false);
+  
   useEffect(() => { qsRef.current = qs; }, [qs]);
   useEffect(() => { answersRef.current = answers; }, [answers]);
 
@@ -53,19 +62,24 @@ export default function LiveTest() {
     );
   }, [attemptId]);
 
-  // ✅ Silently append newly prepared questions
   const appendQuestions = useCallback((news: any[]) => {
     if (!news || news.length === 0) return;
     setQs((prev) => {
       const ids = new Set(prev.map((q) => q.id));
-      const add = news
+      const add: Q[] = news
         .filter((q: any) => !ids.has(q.id))
-        .map((q: any) => ({ id: q.id, order: q.order, section_id: q.section_id, topic_id: q.topic_id, question_text: q.question_text, options: q.options }));
-      return [...prev, ...add].sort((a, b) => a.order - b.order);
+        .map((q: any): Q => ({ 
+          id: q.id, 
+          order: q.order, 
+          section_id: q.section_id, 
+          topic_id: q.topic_id, 
+          question_text: q.question_text, 
+          options: q.options 
+        }));
+      return [...prev, ...add].sort((a: Q, b: Q) => a.order - b.order);
     });
   }, []);
 
-  // ✅ Background top-up call
   const topupNow = useCallback(async (budget = 20000) => {
     if (moreRef.current) return;
     moreRef.current = true;
@@ -101,7 +115,6 @@ export default function LiveTest() {
     router.replace(`/test/${attemptId}/results`);
   }, [attemptId, router]);
 
-  // Load attempt
   useEffect(() => {
     const load = async () => {
       try {
@@ -110,20 +123,29 @@ export default function LiveTest() {
         const d = await res.json();
         if (!res.ok) throw new Error(d.error);
         if (d.attempt.status === "completed") { router.replace(`/test/${attemptId}/results`); return; }
-        const sheet: Q[] = (d.answer_sheet || []).map((r: any) => ({
-          id: r.question_id, order: r.order, section_id: r.section_id, topic_id: r.topic_id,
-          question_text: r.question_text, options: r.options,
+
+        const ex = getExamById(d.attempt.exam_id) || getExamById("SSC-CGL-T1")!;
+        setExam(ex);
+
+        const sheet: Q[] = (d.answer_sheet || []).map((r: any): Q => ({
+          id: r.question_id, 
+          order: r.order, 
+          section_id: r.section_id, 
+          topic_id: r.topic_id,
+          question_text: r.question_text, 
+          options: r.options,
         })).sort((a: Q, b: Q) => a.order - b.order);
+        
         setQs(sheet);
         const total = d.attempt.total_questions || sheet.length;
         setTotalQ(total);
         totalRef.current = total;
 
         if (sheet.length > 0 && new Set(sheet.map((q) => q.section_id)).size === 1) {
-          const sectionName = SSC_CGL_T1.sections.find((s) => s.id === sheet[0].section_id)?.shortName;
+          const sectionName = ex.sections.find((s) => s.id === sheet[0].section_id)?.shortName;
           setTestTitle(`${sectionName} Sectional`);
         } else if (d.attempt.year) {
-          setTestTitle(`PYQ ${d.attempt.year}`);
+          setTestTitle(d.attempt.mode === "pyq-real" ? `Real ${d.attempt.year}` : `PYQ ${d.attempt.year}`);
         } else {
           setTestTitle("Full Mock");
         }
@@ -137,9 +159,7 @@ export default function LiveTest() {
         setVisited(vis);
         if (sheet.length > 0) setVisited((v) => ({ ...v, [sheet[0].id]: true }));
 
-        const durationMin = total >= SSC_CGL_T1.totalQuestions
-          ? SSC_CGL_T1.durationMin
-          : Math.max(5, Math.round((SSC_CGL_T1.durationMin * total) / SSC_CGL_T1.totalQuestions));
+        const durationMin = Math.max(5, Math.round(ex.durationMin * (total / ex.totalQuestions)));
         const elapsed = Math.floor((Date.now() - new Date(d.attempt.started_at).getTime()) / 1000);
         setTimeLeft(Math.max(0, durationMin * 60 - elapsed));
         setLoading(false);
@@ -150,7 +170,6 @@ export default function LiveTest() {
     load();
   }, [attemptId, router]);
 
-  // ✅ Silent background filler: every 10s top up while paper incomplete
   useEffect(() => {
     if (loading) return;
     const t = setInterval(() => {
@@ -159,17 +178,19 @@ export default function LiveTest() {
     return () => clearInterval(t);
   }, [loading, topupNow]);
 
-  // Countdown + auto-submit
   useEffect(() => {
-    if (loading) return;
+    if (loading || timeLeft === null) return;
     const t = setInterval(() => {
-      setTimeLeft((s) => {
-        if (s <= 1) { clearInterval(t); finishTest(); return 0; }
-        return s - 1;
-      });
+      setTimeLeft((s) => Math.max(0, (s || 0) - 1));
     }, 1000);
     return () => clearInterval(t);
-  }, [loading, finishTest]);
+  }, [loading, timeLeft]);
+
+  useEffect(() => {
+    if (!loading && timeLeft === 0) {
+      finishTest();
+    }
+  }, [loading, timeLeft, finishTest]);
 
   const goTo = (i: number) => {
     const list = qsRef.current;
@@ -178,11 +199,9 @@ export default function LiveTest() {
     setIdx(i);
     enterRef.current = Date.now();
     setShowPalette(false);
-    // Proactively fill when approaching the loaded edge
     if (i + 2 >= list.length && list.length < totalRef.current) topupNow(15000);
   };
 
-  // Jump to a slot that may not be loaded yet
   const jumpTo = async (i: number) => {
     if (i < qsRef.current.length) { goTo(i); return; }
     setJumpLoading(true);
@@ -242,6 +261,23 @@ export default function LiveTest() {
   const answeredCount = qs.filter((q) => answers[q.id] !== undefined && answers[q.id] !== null).length;
   const markedCount = qs.filter((q) => marked[q.id]).length;
 
+  if (loading || !exam || timeLeft === null) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-orange-500/20 flex items-center justify-center animate-pulse">
+            <Clock size={24} className="text-orange-400" />
+          </div>
+          <p className="text-sm font-black">Loading your paper...</p>
+        </div>
+      </main>
+    );
+  }
+
+  const marksPerQ = cur 
+    ? (exam.sections.find((s) => s.id === cur.section_id)?.marksPerQ ?? 2)
+    : (exam.sections[0]?.marksPerQ ?? 2);
+
   const renderPalette = () => {
     const slots = activeSection
       ? Array.from({ length: qs.length }, (_, i) => i).filter((i) => qs[i].section_id === activeSection)
@@ -252,7 +288,7 @@ export default function LiveTest() {
           <button onClick={() => setActiveSection(null)} className={`press px-2.5 py-1 rounded-lg text-[10px] font-black border ${!activeSection ? "bg-orange-500/20 border-orange-500/40 text-orange-300" : "bg-slate-800 border-slate-700 text-slate-400"}`}>
             All ({totalQ || qs.length})
           </button>
-          {SSC_CGL_T1.sections.map((s) => (
+          {exam.sections.map((s) => (
             <button key={s.id} onClick={() => setActiveSection(s.id)} className={`press px-2.5 py-1 rounded-lg text-[10px] font-black border ${activeSection === s.id ? "bg-orange-500/20 border-orange-500/40 text-orange-300" : "bg-slate-800 border-slate-700 text-slate-400"}`}>
               {s.shortName}
             </button>
@@ -262,11 +298,7 @@ export default function LiveTest() {
           {slots.map((i) => {
             const q = qs[i];
             return (
-              <button
-                key={i}
-                onClick={() => jumpTo(i)}
-                className={`press h-9 rounded-lg text-xs font-black ${q ? paletteColor(q) : "bg-slate-800/40 text-slate-600"} ${i === idx ? "ring-2 ring-white" : ""}`}
-              >
+              <button key={i} onClick={() => jumpTo(i)} className={`press h-9 rounded-lg text-xs font-black ${q ? paletteColor(q) : "bg-slate-800/40 text-slate-600"} ${i === idx ? "ring-2 ring-white" : ""}`}>
                 {i + 1}
               </button>
             );
@@ -283,26 +315,12 @@ export default function LiveTest() {
     );
   };
 
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-14 h-14 mx-auto mb-3 rounded-full bg-orange-500/20 flex items-center justify-center animate-pulse">
-            <Clock size={24} className="text-orange-400" />
-          </div>
-          <p className="text-sm font-black">Loading your paper...</p>
-        </div>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen bg-slate-950 text-white flex flex-col">
-      {/* TOP BAR */}
       <div className="shrink-0 bg-slate-900 border-b border-slate-800 px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-black text-white truncate">{SSC_CGL_T1.name} — {testTitle}</p>
+            <p className="text-sm font-black text-white truncate">{exam.name} — {testTitle}</p>
             <p className="text-[10px] text-slate-500 font-bold">
               Q {idx + 1}/{totalQ || qs.length} • {answeredCount} answered • {markedCount} marked
               {qs.length < totalQ && <span className="text-slate-600"> • {qs.length} loaded</span>}
@@ -320,17 +338,16 @@ export default function LiveTest() {
       </div>
 
       <div className="flex-1 flex min-h-0">
-        {/* QUESTION AREA */}
         <div className="flex-1 overflow-y-auto px-4 py-5">
           <div className="max-w-3xl mx-auto">
             {cur && (
               <>
                 <div className="flex items-center gap-2 mb-4 flex-wrap">
                   <span className="px-2.5 py-1 rounded-lg text-[10px] font-black bg-slate-800 border border-slate-700 text-slate-300">
-                    {SSC_CGL_T1.sections.find((s) => s.id === cur.section_id)?.shortName}
+                    {exam.sections.find((s) => s.id === cur.section_id)?.shortName}
                   </span>
                   <span className="px-2.5 py-1 rounded-lg text-[10px] font-black bg-slate-800 border border-slate-700 text-slate-400">
-                    Q{idx + 1} • +2 / −0.5
+                    Q{idx + 1} • +{marksPerQ} / −{exam.negativeMarking}
                   </span>
                   {marked[cur.id] && <span className="px-2.5 py-1 rounded-lg text-[10px] font-black bg-violet-500/15 border border-violet-500/40 text-violet-300">Marked</span>}
                 </div>
@@ -343,11 +360,7 @@ export default function LiveTest() {
                   {cur.options.map((opt, i) => {
                     const picked = answers[cur.id] === i;
                     return (
-                      <button
-                        key={i}
-                        onClick={() => selectOption(i)}
-                        className={`press flex items-start gap-3 p-4 rounded-xl border text-left text-sm transition-all ${picked ? "bg-emerald-500/15 border-emerald-500" : "bg-slate-900 border-slate-800 hover:border-slate-600"}`}
-                      >
+                      <button key={i} onClick={() => selectOption(i)} className={`press flex items-start gap-3 p-4 rounded-xl border text-left text-sm transition-all ${picked ? "bg-emerald-500/15 border-emerald-500" : "bg-slate-900 border-slate-800 hover:border-slate-600"}`}>
                         <span className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-black ${picked ? "bg-emerald-500 text-white" : "bg-slate-800 text-slate-300"}`}>
                           {String.fromCharCode(65 + i)}
                         </span>
@@ -376,13 +389,11 @@ export default function LiveTest() {
           </div>
         </div>
 
-        {/* PALETTE — desktop */}
         <aside className="hidden md:block w-72 shrink-0 border-l border-slate-800 bg-slate-900 overflow-y-auto p-4">
           {renderPalette()}
         </aside>
       </div>
 
-      {/* PALETTE — mobile drawer */}
       {showPalette && (
         <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm md:hidden" onClick={() => setShowPalette(false)}>
           <div className="absolute right-0 top-0 bottom-0 w-80 max-w-[85vw] bg-slate-900 border-l border-slate-800 overflow-y-auto p-4" onClick={(e) => e.stopPropagation()}>
@@ -399,7 +410,6 @@ export default function LiveTest() {
         <LayoutGrid size={22} className="text-white" />
       </button>
 
-      {/* SUBMIT MODAL */}
       {showSubmit && (
         <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-sm w-full">

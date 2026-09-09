@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
-    const { attempt_id, clear_all } = await req.json();
+    const { attempt_id, clear_all, exam_id } = await req.json();
 
     const userClient = userClientFromRequest(req);
     const { data: userData } = await userClient.auth.getUser();
@@ -16,7 +16,9 @@ export async function POST(req: Request) {
     const admin = adminClient();
 
     if (clear_all) {
-      const { data: rows } = await admin.from("test_attempts").select("id").eq("user_id", userId).eq("status", "completed");
+      let q = admin.from("test_attempts").select("id").eq("user_id", userId).eq("status", "completed");
+      if (exam_id) q = q.eq("exam_id", exam_id);
+      const { data: rows } = await q;
       const ids = (rows || []).map((r: any) => r.id);
       if (ids.length > 0) await admin.from("test_attempts").delete().in("id", ids);
       return NextResponse.json({ deleted: ids.length });
