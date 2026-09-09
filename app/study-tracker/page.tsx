@@ -17,6 +17,20 @@ export default function StudyHub() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
+        {/* ⭐ FEATURED: SSC CGL Mock Test (full-width, top position) */}
+        <Link href="/test" className="press col-span-2 bg-slate-900 border-2 border-orange-500/40 rounded-2xl p-5 hover:border-orange-500/60 transition-all shadow-lg shadow-orange-500/10">
+          <div className="flex items-center gap-4">
+            <span className="w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 text-white flex items-center justify-center">
+              <Target size={24} strokeWidth={2.2} />
+            </span>
+            <div className="flex-1">
+              <p className="font-black text-base text-white">SSC CGL Mock Test</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">100 Qs • 60 min • Full mock + sectionals + PYQ</p>
+            </div>
+            <span className="text-[10px] font-black text-orange-400 bg-orange-500/10 border border-orange-500/30 px-2 py-1 rounded-lg">NEW</span>
+          </div>
+        </Link>
+
         {/* Row 1 */}
         <Link href="/studylog" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <span className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center mb-4">
@@ -68,8 +82,6 @@ export default function StudyHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Summarize → map + cards + quiz</p>
         </Link>
 
-       
-
         <Link href="/learn" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <span className="w-9 h-9 rounded-lg bg-fuchsia-500/10 text-fuchsia-400 flex items-center justify-center mb-4">
             <GraduationCap size={18} strokeWidth={2.2} />
@@ -78,18 +90,6 @@ export default function StudyHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Full blueprint to master any skill</p>
         </Link>
       </div>
-
-<Link href="/test" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-orange-500/40 transition-colors">
-  <span className="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 text-white flex items-center justify-center mb-4">
-    <Target size={18} strokeWidth={2.2} />
-  </span>
-  <p className="font-black text-sm text-white">SSC CGL Mock Test</p>
-  <p className="text-[10px] text-slate-500 mt-0.5">100 Qs • 60 min • real exam feel</p>
-</Link>
-
-
-
-
     </main>
   );
 }
