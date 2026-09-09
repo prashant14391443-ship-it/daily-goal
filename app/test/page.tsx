@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Target, Clock, FileText, AlertTriangle, ArrowLeft, Loader2, TrendingUp, CheckCircle2, CalendarDays, Zap, Trash2, Upload, Database } from "lucide-react";
+import { Target, Clock, FileText, AlertTriangle, ArrowLeft, Loader2, TrendingUp, CheckCircle2, CalendarDays, Zap, Trash2, Upload, Database, Sparkles } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { authHeaders } from "@/lib/testApi";
 import { SSC_CGL_T1 } from "@/lib/examPatterns";
@@ -39,7 +39,6 @@ export default function TestHub() {
     load();
   }, []);
 
-  // Real-question counts per year + admin detection
   useEffect(() => {
     const loadMeta = async () => {
       const counts: Record<number, number> = {};
@@ -58,13 +57,12 @@ export default function TestHub() {
     loadMeta();
   }, []);
 
-  // Years that have real questions
   const realYears = PYQ_YEARS.filter((y) => (realCounts[y] || 0) > 0);
   useEffect(() => {
     if (realYears.length > 0 && !realYears.includes(realYear)) setRealYear(realYears[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [realYears.length]);
 
-  // Background bank warming
   useEffect(() => {
     try {
       const last = Number(localStorage.getItem("dg-seed-at") || 0);
@@ -119,139 +117,267 @@ export default function TestHub() {
   };
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      {/* HERO */}
-      <div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${SSC_CGL_T1.gradient} p-5 shadow-xl`}>
-        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+    <main className="min-h-screen bg-slate-950 text-slate-200 antialiased px-4 pt-6 pb-24 max-w-4xl mx-auto relative">
+      {/* ambient top glow */}
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-80 bg-gradient-to-b from-indigo-500/[0.06] to-transparent" />
+
+      {/* ── HERO ── */}
+      <div className="relative mb-6 overflow-hidden rounded-3xl border border-white/5 bg-gradient-to-br from-indigo-950/70 via-slate-900 to-slate-950 p-6">
+        <div className="pointer-events-none absolute -top-24 -right-24 w-72 h-72 rounded-full bg-indigo-500/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-32 -left-20 w-64 h-64 rounded-full bg-teal-500/10 blur-3xl" />
         <div className="relative">
-          <div className="flex items-center justify-between mb-3">
-            <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center"><Target size={22} className="text-white" /></span>
-            <Link href="/study" className="flex items-center gap-1 text-xs text-white/80 hover:text-white font-bold"><ArrowLeft size={12} /> Study</Link>
+          <div className="flex items-start justify-between mb-5">
+            <span className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+              <Target size={20} className="text-indigo-300" strokeWidth={1.8} />
+            </span>
+            <Link href="/study" className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white transition-colors">
+              <ArrowLeft size={13} /> Study
+            </Link>
           </div>
-          <h1 className="text-xl font-black text-white leading-tight">{SSC_CGL_T1.name}</h1>
-          <p className="text-[11px] text-white/80 font-semibold mt-0.5">{SSC_CGL_T1.description}</p>
-          <div className="grid grid-cols-4 gap-2 mt-4">
-            <div className="bg-white/10 backdrop-blur rounded-lg p-2 text-center"><p className="text-[9px] font-bold text-white/70">QUESTIONS</p><p className="text-sm font-black text-white">{SSC_CGL_T1.totalQuestions}</p></div>
-            <div className="bg-white/10 backdrop-blur rounded-lg p-2 text-center"><p className="text-[9px] font-bold text-white/70">MARKS</p><p className="text-sm font-black text-white">{SSC_CGL_T1.totalMarks}</p></div>
-            <div className="bg-white/10 backdrop-blur rounded-lg p-2 text-center"><p className="text-[9px] font-bold text-white/70">TIME</p><p className="text-sm font-black text-white">{SSC_CGL_T1.durationMin}m</p></div>
-            <div className="bg-white/10 backdrop-blur rounded-lg p-2 text-center"><p className="text-[9px] font-bold text-white/70">NEGATIVE</p><p className="text-sm font-black text-white">−{SSC_CGL_T1.negativeMarking}</p></div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-300/80 mb-1.5">Exam Programme</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-white">{SSC_CGL_T1.name}</h1>
+          <p className="text-[13px] text-slate-400 mt-1.5 leading-relaxed max-w-md">{SSC_CGL_T1.description}</p>
+
+          <div className="grid grid-cols-4 divide-x divide-white/5 mt-6 rounded-2xl border border-white/5 bg-white/[0.02] backdrop-blur">
+            <div className="py-3.5 text-center">
+              <p className="text-lg font-semibold text-white">{SSC_CGL_T1.totalQuestions}</p>
+              <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 mt-0.5">Questions</p>
+            </div>
+            <div className="py-3.5 text-center">
+              <p className="text-lg font-semibold text-white">{SSC_CGL_T1.totalMarks}</p>
+              <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 mt-0.5">Marks</p>
+            </div>
+            <div className="py-3.5 text-center">
+              <p className="text-lg font-semibold text-white">{SSC_CGL_T1.durationMin}m</p>
+              <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 mt-0.5">Duration</p>
+            </div>
+            <div className="py-3.5 text-center">
+              <p className="text-lg font-semibold text-white">−{SSC_CGL_T1.negativeMarking}</p>
+              <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 mt-0.5">Negative</p>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="flex items-start gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 mb-4">
-        <Zap size={14} className="text-emerald-400 shrink-0 mt-0.5" />
-        <p className="text-[11px] text-emerald-200 font-semibold">Tests open instantly — your paper builds itself silently in the background while you answer.</p>
+      {/* ── instant note ── */}
+      <div className="flex items-start gap-2.5 rounded-2xl border border-teal-400/15 bg-teal-400/[0.05] px-4 py-3 mb-5">
+        <Zap size={14} className="text-teal-300 shrink-0 mt-0.5" strokeWidth={1.8} />
+        <p className="text-xs text-teal-100/70 leading-relaxed">Tests open instantly — your paper assembles silently in the background while you answer.</p>
       </div>
 
-      {/* FULL MOCK */}
-      <button onClick={() => startTest()} disabled={starting !== null} className="press w-full py-4 rounded-2xl bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-400 hover:to-red-500 font-black text-base shadow-xl shadow-red-900/30 flex items-center justify-center gap-2 disabled:opacity-60 mb-4">
-        {starting === "full" ? <><Loader2 size={18} className="animate-spin" /> Starting...</> : <>Start Full Mock Test (100 Qs • 60 min)</>}
+      {/* ── FULL MOCK CTA ── */}
+      <button
+        onClick={() => startTest()}
+        disabled={starting !== null}
+        className="w-full py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 mb-6"
+      >
+        {starting === "full" ? <><Loader2 size={16} className="animate-spin" /> Preparing...</> : <>Start Full Mock Test · 100 Qs · 60 min</>}
       </button>
 
-      {/* SECTIONAL */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
-        <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2"><FileText size={14} /> Sectional Practice — 25 Qs • 15 min each</p>
-        <div className="grid grid-cols-2 gap-2">
+      {/* ── SECTIONAL ── */}
+      <section className="rounded-3xl border border-white/5 bg-white/[0.02] p-5 mb-5">
+        <header className="flex items-center gap-3 mb-4">
+          <span className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-400/15 flex items-center justify-center">
+            <FileText size={15} className="text-indigo-300" strokeWidth={1.8} />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold text-white">Sectional Practice</h2>
+            <p className="text-[11px] text-slate-500">25 questions · 15 minutes each</p>
+          </div>
+        </header>
+        <div className="grid grid-cols-2 gap-2.5">
           {SSC_CGL_T1.sections.map((s) => (
-            <button key={s.id} onClick={() => startTest(s.id)} disabled={starting !== null} className="press p-3 rounded-xl bg-slate-800/60 border border-slate-700 hover:border-orange-500/40 text-left transition-all disabled:opacity-60">
-              {starting === s.id ? <span className="flex items-center gap-2 text-sm font-black text-orange-300"><Loader2 size={15} className="animate-spin" /> Starting...</span> : (<><p className="text-sm font-black text-white">{s.shortName}</p><p className="text-[10px] text-slate-500 font-bold mt-0.5">{s.questionCount} Qs • {s.questionCount * s.marksPerQ} marks</p></>)}
+            <button
+              key={s.id}
+              onClick={() => startTest(s.id)}
+              disabled={starting !== null}
+              className="rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-left hover:border-indigo-400/25 hover:bg-white/[0.04] transition-all disabled:opacity-50"
+            >
+              {starting === s.id ? (
+                <span className="flex items-center gap-2 text-sm font-medium text-indigo-300"><Loader2 size={14} className="animate-spin" /> Preparing...</span>
+              ) : (
+                <>
+                  <p className="text-sm font-semibold text-slate-100">{s.shortName}</p>
+                  <p className="text-[11px] text-slate-500 mt-1">{s.questionCount} Qs · {s.questionCount * s.marksPerQ} marks</p>
+                </>
+              )}
             </button>
           ))}
         </div>
-      </div>
+      </section>
 
-      {/* 🤖 AI PATTERN PAPERS */}
-      <div className="bg-slate-900 border border-violet-500/20 rounded-2xl p-4 mb-4">
-        <p className="text-xs font-black text-violet-300 uppercase tracking-wider mb-3 flex items-center gap-2"><CalendarDays size={14} /> AI Pattern Papers — 100 Qs • 60 min</p>
-        <div className="grid grid-cols-6 gap-1.5 mb-3">
+      {/* ── AI PATTERN PAPERS ── */}
+      <section className="rounded-3xl border border-white/5 bg-white/[0.02] p-5 mb-5">
+        <header className="flex items-center gap-3 mb-4">
+          <span className="w-9 h-9 rounded-xl bg-violet-500/10 border border-violet-400/15 flex items-center justify-center">
+            <Sparkles size={15} className="text-violet-300" strokeWidth={1.8} />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold text-white">AI Pattern Papers</h2>
+            <p className="text-[11px] text-slate-500">100 questions · 60 minutes · year-matched style</p>
+          </div>
+        </header>
+        <div className="grid grid-cols-6 gap-1.5 mb-4">
           {PYQ_YEARS.map((y) => (
-            <button key={y} onClick={() => setPyqYear(y)} className={`press py-2 rounded-xl text-[11px] font-black border transition-all ${pyqYear === y ? "bg-violet-500/20 border-violet-500/50 text-violet-300" : "bg-slate-800 border-slate-700 text-slate-400"}`}>{y}</button>
+            <button
+              key={y}
+              onClick={() => setPyqYear(y)}
+              className={`rounded-xl border py-2.5 text-xs font-medium transition-all ${
+                pyqYear === y
+                  ? "border-violet-400/40 bg-violet-500/15 text-violet-200"
+                  : "border-white/5 bg-white/[0.02] text-slate-400 hover:border-white/10 hover:text-slate-200"
+              }`}
+            >
+              {y}
+            </button>
           ))}
         </div>
-        <button onClick={() => startTest(undefined, pyqYear, "ai")} disabled={starting !== null} className="press w-full py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 font-black text-sm shadow-xl shadow-violet-900/30 flex items-center justify-center gap-2 disabled:opacity-60">
-          {starting === `pyq-${pyqYear}` ? <><Loader2 size={16} className="animate-spin" /> Starting {pyqYear} paper...</> : <>Start {pyqYear} Pattern Paper (AI)</>}
+        <button
+          onClick={() => startTest(undefined, pyqYear, "ai")}
+          disabled={starting !== null}
+          className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-violet-500 to-indigo-500 hover:from-violet-400 hover:to-indigo-400 text-sm font-semibold text-white shadow-lg shadow-violet-500/15 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+        >
+          {starting === `pyq-${pyqYear}` ? <><Loader2 size={15} className="animate-spin" /> Preparing {pyqYear}...</> : <>Start {pyqYear} Pattern Paper</>}
         </button>
-        <p className="text-[10px] text-slate-500 mt-2 text-center font-semibold">AI-recreated in the exact {pyqYear} exam pattern & difficulty • ~90% new questions every attempt</p>
-      </div>
+        <p className="text-[11px] text-slate-500 mt-3 text-center leading-relaxed">
+          Reconstructed in the exact {pyqYear} pattern & difficulty · ~90% fresh questions each attempt
+        </p>
+      </section>
 
-      {/* 📄 REAL PREVIOUS YEAR PAPERS */}
-      <div className="bg-slate-900 border border-emerald-500/20 rounded-2xl p-4 mb-4">
-        <p className="text-xs font-black text-emerald-300 uppercase tracking-wider mb-3 flex items-center gap-2"><Database size={14} /> Real Previous Year Papers</p>
+      {/* ── REAL PREVIOUS YEAR PAPERS ── */}
+      <section className="rounded-3xl border border-white/5 bg-white/[0.02] p-5 mb-5">
+        <header className="flex items-center gap-3 mb-4">
+          <span className="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-400/15 flex items-center justify-center">
+            <Database size={15} className="text-teal-300" strokeWidth={1.8} />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold text-white">Real Previous Year Papers</h2>
+            <p className="text-[11px] text-slate-500">Official questions · authentic papers</p>
+          </div>
+        </header>
         {realYears.length === 0 ? (
-          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-            <p className="text-xs text-slate-300 font-bold mb-1">No real papers uploaded yet.</p>
-            <p className="text-[10px] text-slate-500 font-semibold">Admin uploads official papers via Admin Panel → PYQ Seeder. They appear here automatically.</p>
+          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.01] px-5 py-6 text-center">
+            <p className="text-xs font-medium text-slate-300 mb-1">No real papers uploaded yet</p>
+            <p className="text-[11px] text-slate-500 leading-relaxed mb-4">Official papers uploaded via the admin seeder appear here automatically.</p>
             {isAdminUser && (
-              <Link href="/seeder" className="press mt-3 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-black"><Upload size={13} /> Upload first paper</Link>
+              <Link href="/seeder" className="inline-flex items-center gap-1.5 rounded-xl border border-teal-400/25 bg-teal-500/10 px-4 py-2.5 text-xs font-semibold text-teal-200 hover:bg-teal-500/15 transition-colors">
+                <Upload size={13} /> Upload first paper
+              </Link>
             )}
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="grid grid-cols-3 gap-2 mb-4">
               {realYears.map((y) => (
-                <button key={y} onClick={() => setRealYear(y)} className={`press p-2.5 rounded-xl border text-center transition-all ${realYear === y ? "bg-emerald-500/20 border-emerald-500/50" : "bg-slate-800 border-slate-700"}`}>
-                  <p className={`text-sm font-black ${realYear === y ? "text-emerald-300" : "text-slate-300"}`}>{y}</p>
-                  <p className="text-[9px] font-black text-emerald-400 mt-0.5">{realCounts[y]} REAL</p>
+                <button
+                  key={y}
+                  onClick={() => setRealYear(y)}
+                  className={`rounded-2xl border p-3 text-center transition-all ${
+                    realYear === y
+                      ? "border-teal-400/40 bg-teal-500/10"
+                      : "border-white/5 bg-white/[0.02] hover:border-white/10"
+                  }`}
+                >
+                  <p className={`text-sm font-semibold ${realYear === y ? "text-teal-200" : "text-slate-200"}`}>{y}</p>
+                  <p className="text-[10px] font-medium text-teal-300/80 mt-0.5">{realCounts[y]} real Qs</p>
                 </button>
               ))}
             </div>
-            <button onClick={() => startTest(undefined, realYear, "real")} disabled={starting !== null} className="press w-full py-3.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 font-black text-sm shadow-xl shadow-emerald-900/30 flex items-center justify-center gap-2 disabled:opacity-60">
-              {starting === `real-${realYear}` ? <><Loader2 size={16} className="animate-spin" /> Loading {realYear} real paper...</> : <>Start {realYear} Real Paper ({realCounts[realYear]} Qs)</>}
+            <button
+              onClick={() => startTest(undefined, realYear, "real")}
+              disabled={starting !== null}
+              className="w-full py-3.5 rounded-2xl border border-teal-400/30 bg-teal-500/10 hover:bg-teal-500/15 text-sm font-semibold text-teal-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {starting === `real-${realYear}` ? <><Loader2 size={15} className="animate-spin" /> Loading...</> : <>Start {realYear} Real Paper · {realCounts[realYear]} Qs</>}
             </button>
-            <p className="text-[10px] text-slate-500 mt-2 text-center font-semibold">100% real questions from {realYear} • timer scales to length • retake anytime</p>
+            <p className="text-[11px] text-slate-500 mt-3 text-center leading-relaxed">
+              100% official questions · timer scales to paper length · retake anytime
+            </p>
           </>
         )}
-      </div>
+      </section>
 
-      {/* PATTERN */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
-        <p className="text-xs font-black text-slate-400 uppercase tracking-wider mb-3">Exam Pattern</p>
+      {/* ── EXAM PATTERN ── */}
+      <section className="rounded-3xl border border-white/5 bg-white/[0.02] p-5 mb-5">
+        <h2 className="text-sm font-semibold text-white mb-4">Exam Pattern</h2>
         <div className="grid gap-2">
           {SSC_CGL_T1.sections.map((s, i) => (
-            <div key={s.id} className="flex items-center justify-between bg-slate-800/60 rounded-xl p-3">
-              <div className="flex items-center gap-3"><span className="w-7 h-7 rounded-lg bg-slate-700 flex items-center justify-center text-xs font-black text-white">{i + 1}</span><p className="text-sm font-bold text-white">{s.name}</p></div>
-              <p className="text-xs font-black text-slate-400">{s.questionCount} Qs • {s.questionCount * s.marksPerQ} marks</p>
+            <div key={s.id} className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className="w-7 h-7 rounded-lg border border-white/5 bg-white/[0.03] flex items-center justify-center text-[11px] font-semibold text-slate-400">{i + 1}</span>
+                <p className="text-[13px] font-medium text-slate-200">{s.name}</p>
+              </div>
+              <p className="text-[11px] font-medium text-slate-500">{s.questionCount} Qs · {s.questionCount * s.marksPerQ} marks</p>
             </div>
           ))}
         </div>
-        <div className="flex items-start gap-2 mt-3 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-          <AlertTriangle size={14} className="text-amber-400 shrink-0 mt-0.5" />
-          <p className="text-[11px] text-amber-200 font-semibold">+2 per correct, −0.5 per wrong. Timer auto-submits at 0:00.</p>
+        <div className="flex items-start gap-2.5 mt-4 rounded-2xl border border-amber-400/15 bg-amber-400/[0.05] px-4 py-3">
+          <AlertTriangle size={14} className="text-amber-300 shrink-0 mt-0.5" strokeWidth={1.8} />
+          <p className="text-[11px] text-amber-100/70 leading-relaxed">+2 per correct answer, −0.5 per wrong. The timer auto-submits at 0:00.</p>
         </div>
-      </div>
+      </section>
 
-      {err && <p className="text-center text-sm font-bold text-red-400 mb-4">❌ {err}</p>}
+      {err && <p className="text-center text-xs font-medium text-rose-300 mb-5">❌ {err}</p>}
 
-      {/* HISTORY */}
+      {/* ── HISTORY ─ */}
       {attempts.length > 0 && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-2"><TrendingUp size={14} /> Your Attempts</p>
-            <button onClick={clearHistory} className="press text-[10px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded-lg">Clear All</button>
+        <section className="rounded-3xl border border-white/5 bg-white/[0.02] p-5">
+          <div className="flex items-center justify-between mb-4">
+            <header className="flex items-center gap-3">
+              <span className="w-9 h-9 rounded-xl bg-white/[0.04] border border-white/5 flex items-center justify-center">
+                <TrendingUp size={15} className="text-slate-300" strokeWidth={1.8} />
+              </span>
+              <div>
+                <h2 className="text-sm font-semibold text-white">Your Attempts</h2>
+                <p className="text-[11px] text-slate-500">Recent test history</p>
+              </div>
+            </header>
+            <button onClick={clearHistory} className="rounded-lg border border-rose-400/20 bg-rose-500/[0.06] px-2.5 py-1.5 text-[10px] font-semibold text-rose-300 hover:bg-rose-500/10 transition-colors">
+              Clear all
+            </button>
           </div>
           <div className="grid gap-2">
             {attempts.map((a) => (
-              <div key={a.id} className="flex items-center gap-2 bg-slate-800/60 border border-slate-700 hover:border-slate-600 rounded-xl p-3">
+              <div key={a.id} className="flex items-center gap-2 rounded-2xl border border-white/5 bg-white/[0.02] p-3.5 hover:bg-white/[0.04] transition-colors">
                 <button onClick={() => openAttempt(a)} className="press flex-1 min-w-0 flex items-center justify-between text-left">
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className={`w-8 h-8 shrink-0 rounded-lg flex items-center justify-center ${a.status === "completed" ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>{a.status === "completed" ? <CheckCircle2 size={15} /> : <Clock size={15} />}</span>
+                    <span className={`w-9 h-9 shrink-0 rounded-xl border flex items-center justify-center ${
+                      a.status === "completed" ? "bg-emerald-500/[0.08] border-emerald-400/15 text-emerald-300" : "bg-amber-500/[0.08] border-amber-400/15 text-amber-300"
+                    }`}>
+                      {a.status === "completed" ? <CheckCircle2 size={15} strokeWidth={1.8} /> : <Clock size={15} strokeWidth={1.8} />}
+                    </span>
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-white truncate">
-                        {a.status === "completed" ? `Score: ${a.final_score}/${(a.total_questions || 100) * 2}` : a.status === "preparing" ? "Preparing paper..." : "In Progress"}
-                        <span className="text-[10px] text-slate-500 font-bold ml-2">{a.total_questions} Qs</span>
-                        {a.year && <span className={`text-[10px] font-black ml-2 ${a.mode === "pyq-real" ? "text-emerald-400" : "text-violet-400"}`}>{a.mode === "pyq-real" ? `REAL ${a.year}` : `PYQ ${a.year}`}</span>}
+                      <p className="text-[13px] font-medium text-slate-100 truncate">
+                        {a.status === "completed" ? `Score ${a.final_score}/${(a.total_questions || 100) * 2}` : a.status === "preparing" ? "Preparing paper..." : "In progress"}
+                        <span className="text-[11px] text-slate-500 ml-2">{a.total_questions} Qs</span>
+                        {a.year && (
+                          <span className={`ml-2 rounded-md border px-1.5 py-0.5 text-[9px] font-semibold ${
+                            a.mode === "pyq-real" ? "border-teal-400/20 bg-teal-500/10 text-teal-300" : "border-violet-400/20 bg-violet-500/10 text-violet-300"
+                          }`}>
+                            {a.mode === "pyq-real" ? `REAL ${a.year}` : `PYQ ${a.year}`}
+                          </span>
+                        )}
                       </p>
-                      <p className="text-[10px] text-slate-500 font-semibold">{new Date(a.created_at).toLocaleDateString()} • {a.questions_answered}/{a.total_questions} answered</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{new Date(a.created_at).toLocaleDateString()} · {a.questions_answered}/{a.total_questions} answered</p>
                     </div>
                   </div>
-                  {a.status === "completed" ? <span className={`ml-2 text-sm font-black shrink-0 ${a.accuracy >= 60 ? "text-emerald-400" : a.accuracy >= 40 ? "text-amber-400" : "text-red-400"}`}>{Math.round(a.accuracy)}%</span> : <span className="ml-2 text-xs font-black text-amber-400 shrink-0">Resume →</span>}
+                  {a.status === "completed" ? (
+                    <span className={`ml-2 text-sm font-semibold shrink-0 ${a.accuracy >= 60 ? "text-emerald-300" : a.accuracy >= 40 ? "text-amber-300" : "text-rose-300"}`}>{Math.round(a.accuracy)}%</span>
+                  ) : (
+                    <span className="ml-2 text-[11px] font-semibold text-amber-300 shrink-0">Resume →</span>
+                  )}
                 </button>
-                <button onClick={() => deleteAttempt(a)} className="press shrink-0 w-8 h-8 rounded-lg bg-slate-900 border border-slate-700 text-red-400 flex items-center justify-center" title="Delete attempt"><Trash2 size={13} /></button>
+                <button
+                  onClick={() => deleteAttempt(a)}
+                  className="shrink-0 w-8 h-8 rounded-lg border border-white/5 bg-white/[0.02] text-slate-500 hover:text-rose-300 hover:border-rose-400/20 transition-colors flex items-center justify-center"
+                  title="Delete attempt"
+                >
+                  <Trash2 size={13} strokeWidth={1.8} />
+                </button>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
     </main>
   );
