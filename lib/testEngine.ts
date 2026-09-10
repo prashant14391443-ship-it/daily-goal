@@ -60,18 +60,18 @@ async function fetchOrGenerate(
   sectionName: string,
   examName: string,
   usedIds: Set<string>,
-  year: number | null = null
+  year: number | null,
+  styleGuide: string | undefined,
+  yearPatterns: any
 ): Promise<LoadedQuestion | null> {
-  // Try cache first
+  // 1. Try cached question (year-aware)
   let q = admin.from("questions").select("*")
     .eq("exam_id", examId).eq("section_id", sectionId).eq("topic_id", topicId);
-  
   if (year) q = q.eq("year", year);
   else q = q.is("year", null);
-  
   if (usedIds.size > 0) q = q.not("id", "in", `(${[...usedIds].map((i) => `"${i}"`).join(",")})`);
   const { data: cached } = await q.limit(10);
-  
+
   if (cached && cached.length > 0) {
     const pick = cached[Math.floor(Math.random() * cached.length)];
     return {
@@ -80,13 +80,12 @@ async function fetchOrGenerate(
       explanation: pick.explanation,
     };
   }
-  
-  // Generate new
-  const prompt = buildQuestionPrompt(examName, sectionName, topicName, "medium", year);
-  const keys = getKeys(); // This returns {groq?: string, gemini?: string}
-  const gen = await generateOneQuestion(prompt, keys);
+
+  // 2. Generate with exam-specific style + year patterns
+  const prompt = buildQuestionPrompt(examName, sectionName, topicName, "medium", year, styleGuide, yearPatterns);
+  const gen = await generateOneQuestion(prompt, getKeys());
   if (!gen) return null;
-  
+
   const { data: saved, error } = await admin.from("questions")
     .insert({
       exam_id: examId, section_id: sectionId, topic_id: topicId,
@@ -98,7 +97,7 @@ async function fetchOrGenerate(
     })
     .select()
     .single();
-  
+
   if (error || !saved) return null;
   return {
     id: saved.id, exam_id: saved.exam_id, section_id: saved.section_id, topic_id: saved.topic_id,
@@ -117,11 +116,22 @@ export async function generateQuestionBatch(
 ): Promise<LoadedQuestion[]> {
   const exam = getExamById(examId);
   if (!exam) return [];
+
+  // Load exam style guide + year patterns ONCE per batch (fast)
+  const styleGuide = exam.style_guide;
+  let yearPatterns: any = null;
+  if (year) {
+    const { data } = await admin.from("year_patterns").select("*").eq("exam_id", examId).eq("year", year).maybeSingle();
+    yearPatterns = data;
+  }
+
   const out: LoadedQuestion[] = [];
   for (let i = 0; i < plan.length; i += batchSize) {
     const slice = plan.slice(i, i + batchSize);
     const results = await Promise.all(
-      slice.map((p) => fetchOrGenerate(admin, examId, p.section.id, p.topic.id, p.topic.name, p.section.name, exam.name, usedIds, year))
+      slice.map((p) =>
+        fetchOrGenerate(admin, examId, p.section.id, p.topic.id, p.topic.name, p.section.name, exam.name, usedIds, year, styleGuide, yearPatterns)
+      )
     );
     for (const q of results) {
       if (q && !usedIds.has(q.id)) {
@@ -141,22 +151,16 @@ export function computeAnalytics(
 ) {
   const qMap = new Map(questions.map((q) => [q.id, q]));
   let correct = 0, wrong = 0, skipped = 0;
-  const topicStats: Record<string, { total: number; correct: number; name?: string; section?: string }> = {};
+  const topicStats: Record<string, { total: number; correct: number }> = {};
 
   for (const ans of answers) {
     const q = qMap.get(ans.question_id);
     if (!q) continue;
     if (!topicStats[q.topic_id]) topicStats[q.topic_id] = { total: 0, correct: 0 };
     topicStats[q.topic_id].total += 1;
-
-    if (ans.user_answer === null || ans.user_answer === undefined) {
-      skipped += 1;
-    } else if (ans.is_correct) {
-      correct += 1;
-      topicStats[q.topic_id].correct += 1;
-    } else {
-      wrong += 1;
-    }
+    if (ans.user_answer === null || ans.user_answer === undefined) skipped += 1;
+    else if (ans.is_correct) { correct += 1; topicStats[q.topic_id].correct += 1; }
+    else wrong += 1;
   }
 
   const rawScore = correct * marksPerQuestion;
@@ -176,16 +180,7 @@ export function computeAnalytics(
   weak.sort((a, b) => a.accuracy - b.accuracy);
   strong.sort((a, b) => b.accuracy - a.accuracy);
 
-  return {
-    correct, wrong, skipped,
-    attempted,
-    raw_score: rawScore,
-    negative_marks: negMarks,
-    final_score: finalScore,
-    accuracy,
-    weak_topics: weak.slice(0, 5),
-    strong_topics: strong.slice(0, 5),
-  };
+  return { correct, wrong, skipped, attempted, raw_score: rawScore, negative_marks: negMarks, final_score: finalScore, accuracy, weak_topics: weak.slice(0, 5), strong_topics: strong.slice(0, 5) };
 }
 
 export function adminClient(): SupabaseClient {

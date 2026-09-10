@@ -16,7 +16,6 @@ export type GeneratedQuestion = {
   memory_trick: string;
 };
 
-// ✅ Never let a hanging AI call stall the whole batch
 const FETCH_TIMEOUT_MS = 9000;
 async function fetchWithTimeout(url: string, init: RequestInit, ms = FETCH_TIMEOUT_MS): Promise<Response> {
   const ctrl = new AbortController();
@@ -33,24 +32,36 @@ export function buildQuestionPrompt(
   sectionName: string,
   topicName: string,
   difficulty: "easy" | "medium" | "hard",
-  year?: number | null
+  year?: number | null,
+  styleGuide?: string,
+  yearPatterns?: any
 ): string {
-  const yearCtx = year
-    ? `This question must match the exact style, difficulty, and pattern of the ${year} ${examName} exam.`
-    : `This question must match the official ${examName} exam pattern.`;
+  let prompt = `You are an expert question setter for the ${examName} examination.\n\n`;
+
+  if (styleGuide) {
+    prompt += `OFFICIAL EXAM PATTERN & STYLE (follow strictly):\n${styleGuide}\n\n`;
+  }
+
+  if (yearPatterns) {
+    prompt += `REAL ${year} PAPER ANALYSIS (match this exactly):\n`;
+    if (yearPatterns.difficulty_mix) prompt += `- Difficulty mix: ${JSON.stringify(yearPatterns.difficulty_mix)}\n`;
+    if (yearPatterns.style_notes?.length) prompt += `- Style: ${yearPatterns.style_notes.join("; ")}\n`;
+    if (yearPatterns.avg_question_length) prompt += `- Avg question length: ~${yearPatterns.avg_question_length} words\n`;
+    if (yearPatterns.trap_patterns?.length) prompt += `- Wrong-option traps: ${yearPatterns.trap_patterns.join("; ")}\n`;
+    prompt += `\n`;
+  } else if (year) {
+    prompt += `Match the style and difficulty of the ${year} ${examName} paper.\n\n`;
+  }
 
   const diffCtx = {
-    easy: "Easy difficulty: basic recall / direct application.",
-    medium: "Medium difficulty: requires 2-step reasoning or common traps.",
-    hard: "Hard difficulty: tricky, multi-step, tests deep conceptual clarity.",
+    easy: "EASY: basic recall / direct application.",
+    medium: "MEDIUM: 2-step reasoning or common traps.",
+    hard: "HARD: tricky, multi-step, deep conceptual clarity.",
   }[difficulty];
 
-  return `You are an expert question setter for ${examName}.
+  prompt += `Difficulty: ${diffCtx}\n\n`;
 
-${yearCtx}
-${diffCtx}
-
-Generate ONE multiple-choice question:
+  prompt += `Generate ONE multiple-choice question:
 - Exam: ${examName}
 - Section: ${sectionName}
 - Topic: ${topicName}
@@ -63,18 +74,22 @@ Reply ONLY with valid JSON. No markdown. No preamble.
   "correct_index": 0,
   "explanation": "2-sentence explanation of why the answer is correct",
   "solution_steps": ["Step 1...", "Step 2...", "Step 3..."],
-  "memory_trick": "A short catchy mnemonic to remember this concept (max 15 words)"
+  "memory_trick": "A short catchy mnemonic (max 15 words)"
 }
 
 Rules:
-- "correct_index" is 0-based (0, 1, 2, or 3)
-- All 4 options must be plausible and similar in length
-- Wrong options should target common misconceptions
-- Never use "None of the above" or "All of the above" unless genuinely appropriate
-- Question must be solvable in under 60 seconds by a prepared candidate
-- For Quant: ensure clean numbers and integer answers when possible
-- For Reasoning: ensure one unambiguous answer
-- For GK: facts must be accurate and verifiable`;
+- "correct_index" is 0-based (0,1,2,3)
+- All 4 options plausible and similar in length
+- Wrong options target common misconceptions
+- Never use "None/All of the above" unless genuinely appropriate
+- Respect the exam's time-per-question from the style guide above
+- For Quant: clean numbers, integer answers when possible
+- For Reasoning: exactly one unambiguous answer
+- For GK/Science: facts must be accurate and verifiable
+- For UPSC: prefer statement-based format when natural
+- For CTET: prefer scenario-based pedagogy format when natural`;
+
+  return prompt;
 }
 
 export function cleanJson(raw: string): string {
