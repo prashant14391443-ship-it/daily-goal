@@ -1,21 +1,3 @@
-// Try your newest models FIRST, then proven-stable fallbacks (one of these WILL work)
-export const GROQ_MODELS = [
-  "openai/gpt-oss-120b",
-  "openai/gpt-oss-20b",
-  "meta-llama/llama-4-scout-17b-16e-instruct",
-  "meta-llama/llama-4-maverick-17b-128e-instruct",
-  "llama-3.3-70b-versatile",
-  "llama-3.1-8b-instant",
-];
-
-export const GEMINI_MODELS = [
-  "gemini-3-flash-preview",
-  "gemini-3.7-flash",
-  "gemini-2.5-flash",
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
-];
-
 export type GeneratedQuestion = {
   question_text: string;
   options: string[];
@@ -25,12 +7,11 @@ export type GeneratedQuestion = {
   memory_trick: string;
 };
 
-// ✅ Record WHY generation failed so we can see it
 let lastGenError = "no attempt yet";
 export function getLastGenError() { return lastGenError; }
 
-const FETCH_TIMEOUT_MS = 20000; // was 9000 — too short for slow models
-async function fetchWithTimeout(url: string, init: RequestInit, ms = FETCH_TIMEOUT_MS): Promise<Response> {
+const FETCH_TIMEOUT_MS = 20000;
+async function fetchWithTimeout(url: string, init?: RequestInit, ms = FETCH_TIMEOUT_MS): Promise<Response> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
   try {
@@ -40,6 +21,56 @@ async function fetchWithTimeout(url: string, init: RequestInit, ms = FETCH_TIMEO
   }
 }
 
+// ── Hardcoded fallbacks (used only if discovery fails) ──
+const FALLBACK_GEMINI = ["gemini-2.5-flash", "gemini-2.0-flash"];
+const FALLBACK_GROQ = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+
+// ── Live discovery: ask the provider which models exist RIGHT NOW (cached 10 min) ──
+let geminiCache: { models: string[]; at: number } | null = null;
+export async function discoverGeminiModels(key: string): Promise<string[]> {
+  if (geminiCache && Date.now() - geminiCache.at < 10 * 60 * 1000) return geminiCache.models;
+  try {
+    const r = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=200`);
+    if (r.ok) {
+      const d = await r.json();
+      const all = (d.models || [])
+        .filter((m: any) => (m.supportedGenerationMethods || []).includes("generateContent"))
+        .map((m: any) => (m.name || "").replace("models/", ""))
+        .filter((n: string) => n && !n.includes("embedding") && !n.includes("tts") && !n.includes("imagen") && !n.includes("aqa"));
+      const flash = all.filter((n: string) => n.includes("flash"));
+      const pro = all.filter((n: string) => n.includes("pro"));
+      const rest = all.filter((n: string) => !n.includes("flash") && !n.includes("pro"));
+      const models = [...flash, ...pro, ...rest].slice(0, 8);
+      if (models.length > 0) { geminiCache = { models, at: Date.now() }; return models; }
+    }
+  } catch {}
+  return FALLBACK_GEMINI;
+}
+
+let groqCache: { models: string[]; at: number } | null = null;
+export async function discoverGroqModels(key: string): Promise<string[]> {
+  if (groqCache && Date.now() - groqCache.at < 10 * 60 * 1000) return groqCache.models;
+  try {
+    const r = await fetchWithTimeout("https://api.groq.com/openai/v1/models", {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (r.ok) {
+      const d = await r.json();
+      const ids: string[] = (d.data || []).map((m: any) => m.id).filter(Boolean);
+      const preferred = [
+        ...ids.filter((i) => i.includes("70b")),
+        ...ids.filter((i) => i.includes("gpt-oss")),
+        ...ids.filter((i) => i.includes("llama") && !i.includes("70b")),
+        ...ids.filter((i) => !i.includes("llama") && !i.includes("gpt-oss")),
+      ];
+      const models = [...new Set(preferred)].slice(0, 6);
+      if (models.length > 0) { groqCache = { models, at: Date.now() }; return models; }
+    }
+  } catch {}
+  return FALLBACK_GROQ;
+}
+
+// ── Prompt (exam-specific style + year patterns) ──
 export function buildQuestionPrompt(
   examName: string,
   sectionName: string,
@@ -112,6 +143,7 @@ export function isValidQuestion(q: any): q is GeneratedQuestion {
   );
 }
 
+// ── Generation with live-discovered models ──
 export async function generateOneQuestion(
   prompt: string,
   keys: { groq?: string; gemini?: string }
@@ -122,7 +154,8 @@ export async function generateOneQuestion(
   }
 
   if (keys.groq) {
-    for (const model of GROQ_MODELS) {
+    const models = await discoverGroqModels(keys.groq);
+    for (const model of models) {
       try {
         const r = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
@@ -145,7 +178,8 @@ export async function generateOneQuestion(
   }
 
   if (keys.gemini) {
-    for (const model of GEMINI_MODELS) {
+    const models = await discoverGeminiModels(keys.gemini);
+    for (const model of models) {
       try {
         const r = await fetchWithTimeout(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keys.gemini}`,
