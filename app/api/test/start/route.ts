@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getExamById } from "@/lib/examPatterns";
 import { buildQuestionPlan, adminClient, userClientFromRequest, distributeByWeight, fillAttemptQuestions, type PlanSlot } from "@/lib/testEngine";
-
+import { getLastGenError } from "@/lib/qGen";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -67,8 +67,7 @@ export async function POST(req: Request) {
       await admin.from("test_attempts").update({ status: "in_progress", total_questions: res.have }).eq("id", attempt.id);
     } else {
       await admin.from("test_attempts").delete().eq("id", attempt.id);
-      return NextResponse.json({ error: isReal ? "No real questions for this year yet — admin must upload via Seeder." : "Question engines are busy — try again in a minute." }, { status: 503 });
-    }
+      return NextResponse.json({ error: `Generation failed: ${getLastGenError()}` }, { status: 503 });    }
 
     return NextResponse.json({ attempt_id: attempt.id, have: res.have, target: res.target, done: res.done });
   } catch (e: any) {

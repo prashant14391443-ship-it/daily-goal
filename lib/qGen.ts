@@ -1,11 +1,20 @@
+// Try your newest models FIRST, then proven-stable fallbacks (one of these WILL work)
 export const GROQ_MODELS = [
   "openai/gpt-oss-120b",
   "openai/gpt-oss-20b",
   "meta-llama/llama-4-scout-17b-16e-instruct",
   "meta-llama/llama-4-maverick-17b-128e-instruct",
+  "llama-3.3-70b-versatile",
+  "llama-3.1-8b-instant",
 ];
 
-export const GEMINI_MODELS = ["gemini-3-flash-preview", "gemini-3.7-flash"];
+export const GEMINI_MODELS = [
+  "gemini-3-flash-preview",
+  "gemini-3.7-flash",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+];
 
 export type GeneratedQuestion = {
   question_text: string;
@@ -16,7 +25,11 @@ export type GeneratedQuestion = {
   memory_trick: string;
 };
 
-const FETCH_TIMEOUT_MS = 9000;
+// ✅ Record WHY generation failed so we can see it
+let lastGenError = "no attempt yet";
+export function getLastGenError() { return lastGenError; }
+
+const FETCH_TIMEOUT_MS = 20000; // was 9000 — too short for slow models
 async function fetchWithTimeout(url: string, init: RequestInit, ms = FETCH_TIMEOUT_MS): Promise<Response> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
@@ -37,58 +50,44 @@ export function buildQuestionPrompt(
   yearPatterns?: any
 ): string {
   let prompt = `You are an expert question setter for the ${examName} examination.\n\n`;
-
-  if (styleGuide) {
-    prompt += `OFFICIAL EXAM PATTERN & STYLE (follow strictly):\n${styleGuide}\n\n`;
-  }
-
+  if (styleGuide) prompt += `OFFICIAL EXAM PATTERN & STYLE (follow strictly):\n${styleGuide}\n\n`;
   if (yearPatterns) {
     prompt += `REAL ${year} PAPER ANALYSIS (match this exactly):\n`;
     if (yearPatterns.difficulty_mix) prompt += `- Difficulty mix: ${JSON.stringify(yearPatterns.difficulty_mix)}\n`;
     if (yearPatterns.style_notes?.length) prompt += `- Style: ${yearPatterns.style_notes.join("; ")}\n`;
-    if (yearPatterns.avg_question_length) prompt += `- Avg question length: ~${yearPatterns.avg_question_length} words\n`;
     if (yearPatterns.trap_patterns?.length) prompt += `- Wrong-option traps: ${yearPatterns.trap_patterns.join("; ")}\n`;
     prompt += `\n`;
   } else if (year) {
     prompt += `Match the style and difficulty of the ${year} ${examName} paper.\n\n`;
   }
-
   const diffCtx = {
     easy: "EASY: basic recall / direct application.",
     medium: "MEDIUM: 2-step reasoning or common traps.",
     hard: "HARD: tricky, multi-step, deep conceptual clarity.",
   }[difficulty];
-
   prompt += `Difficulty: ${diffCtx}\n\n`;
-
   prompt += `Generate ONE multiple-choice question:
 - Exam: ${examName}
 - Section: ${sectionName}
 - Topic: ${topicName}
 
 Reply ONLY with valid JSON. No markdown. No preamble.
-
 {
   "question_text": "Clear, unambiguous question text",
   "options": ["Option A", "Option B", "Option C", "Option D"],
   "correct_index": 0,
-  "explanation": "2-sentence explanation of why the answer is correct",
-  "solution_steps": ["Step 1...", "Step 2...", "Step 3..."],
-  "memory_trick": "A short catchy mnemonic (max 15 words)"
+  "explanation": "2-sentence explanation",
+  "solution_steps": ["Step 1...", "Step 2..."],
+  "memory_trick": "short mnemonic (max 15 words)"
 }
-
 Rules:
 - "correct_index" is 0-based (0,1,2,3)
-- All 4 options plausible and similar in length
+- 4 plausible options, similar length
 - Wrong options target common misconceptions
-- Never use "None/All of the above" unless genuinely appropriate
-- Respect the exam's time-per-question from the style guide above
+- Respect the exam's time-per-question from the style guide
 - For Quant: clean numbers, integer answers when possible
 - For Reasoning: exactly one unambiguous answer
-- For GK/Science: facts must be accurate and verifiable
-- For UPSC: prefer statement-based format when natural
-- For CTET: prefer scenario-based pedagogy format when natural`;
-
+- For GK/Science: facts must be accurate and verifiable`;
   return prompt;
 }
 
@@ -117,28 +116,31 @@ export async function generateOneQuestion(
   prompt: string,
   keys: { groq?: string; gemini?: string }
 ): Promise<{ q: GeneratedQuestion; engine: string } | null> {
+  if (!keys.groq && !keys.gemini) {
+    lastGenError = "NO API KEYS: set GROQ_API_KEY or GEMINI_API_KEY in Vercel env";
+    return null;
+  }
+
   if (keys.groq) {
     for (const model of GROQ_MODELS) {
       try {
         const r = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${keys.groq}` },
-          body: JSON.stringify({
-            model,
-            messages: [{ role: "user", content: prompt }],
-            max_tokens: 1500,
-            temperature: 0.7,
-          }),
+          body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], max_tokens: 1500, temperature: 0.7 }),
         });
         if (r.ok) {
           const d = await r.json();
           const raw = d.choices?.[0]?.message?.content || "";
           try {
             const parsed = JSON.parse(cleanJson(raw));
-            if (isValidQuestion(parsed)) return { q: parsed, engine: model };
-          } catch {}
+            if (isValidQuestion(parsed)) return { q: parsed, engine: `groq:${model}` };
+            lastGenError = `groq:${model}: invalid JSON shape`;
+          } catch { lastGenError = `groq:${model}: JSON parse failed`; }
+        } else {
+          lastGenError = `groq:${model}: HTTP ${r.status}`;
         }
-      } catch {}
+      } catch (e: any) { lastGenError = `groq:${model}: ${e?.message || "timeout"}`; }
     }
   }
 
@@ -161,10 +163,13 @@ export async function generateOneQuestion(
           const raw = d.candidates?.[0]?.content?.parts?.[0]?.text || "";
           try {
             const parsed = JSON.parse(cleanJson(raw));
-            if (isValidQuestion(parsed)) return { q: parsed, engine: model };
-          } catch {}
+            if (isValidQuestion(parsed)) return { q: parsed, engine: `gemini:${model}` };
+            lastGenError = `gemini:${model}: invalid JSON shape`;
+          } catch { lastGenError = `gemini:${model}: JSON parse failed`; }
+        } else {
+          lastGenError = `gemini:${model}: HTTP ${r.status}`;
         }
-      } catch {}
+      } catch (e: any) { lastGenError = `gemini:${model}: ${e?.message || "timeout"}`; }
     }
   }
 
