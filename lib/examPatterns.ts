@@ -184,6 +184,10 @@ export const EXAMS: ExamPattern[] = [
   CTET_PAPER_1,
 ];
 
+// Provide aliases for older frontend pages
+export const ALL_EXAMS = EXAMS;
+export const SSC_CGL_T1 = SSC_CGL_TIER1;
+
 export function getExamById(id: string): ExamPattern | undefined {
   return EXAMS.find((e) => e.id === id);
 }

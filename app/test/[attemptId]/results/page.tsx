@@ -224,8 +224,7 @@ export default function ResultsPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      <div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${exam.gradient} p-6 shadow-xl text-center`}>
-        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+<div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${('gradient' in exam ? exam.gradient : 'from-slate-800 to-slate-900')} p-6 shadow-xl text-center`}>        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
           <Trophy size={36} className="text-white mx-auto mb-2" />
           <p className="text-[11px] font-black text-white/80 uppercase tracking-wider">{testTitle} • Complete</p>
