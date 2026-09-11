@@ -1,10 +1,12 @@
 export type GeneratedQuestion = {
+  question_type: string;
   question_text: string;
   options: string[];
-  correct_index: number;
+  correct_index: number | null;
+  correct_value: string | null;
   explanation: string;
   solution_steps: string[];
-  memory_trick: string;
+  memory_trick: string | null;
 };
 
 let lastGenError = "no attempt yet";
@@ -24,7 +26,6 @@ async function fetchWithTimeout(url: string, init?: RequestInit, ms = FETCH_TIME
 const FALLBACK_GEMINI = ["gemini-2.5-flash", "gemini-2.0-flash"];
 const FALLBACK_GROQ = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
 
-// ── Gemini: live discovery, skip non-chat models, prefer stable flash ──
 let geminiCache: { models: string[]; at: number } | null = null;
 export async function discoverGeminiModels(key: string): Promise<string[]> {
   if (geminiCache && Date.now() - geminiCache.at < 10 * 60 * 1000) return geminiCache.models;
@@ -47,7 +48,6 @@ export async function discoverGeminiModels(key: string): Promise<string[]> {
   return FALLBACK_GEMINI;
 }
 
-// ── Groq: live discovery, EXCLUDE safeguard/moderation/whisper models ──
 let groqCache: { models: string[]; at: number } | null = null;
 export async function discoverGroqModels(key: string): Promise<string[]> {
   if (groqCache && Date.now() - groqCache.at < 10 * 60 * 1000) return groqCache.models;
@@ -58,7 +58,6 @@ export async function discoverGroqModels(key: string): Promise<string[]> {
     if (r.ok) {
       const d = await r.json();
       const ids: string[] = (d.data || []).map((m: any) => m.id).filter(Boolean);
-      // ONLY real chat models — drop safeguard/guard/whisper/embed/tts/moderation
       const chat = ids.filter((i) => !/safeguard|guard|whisper|embed|tts|asr|moderation|distil-whisper/i.test(i));
       const preferred = [
         ...chat.filter((i) => i.includes("llama-3.3-70b")),
@@ -80,6 +79,7 @@ export function buildQuestionPrompt(
   sectionName: string,
   topicName: string,
   difficulty: "easy" | "medium" | "hard",
+  optionCount: number = 4, 
   year?: number | null,
   styleGuide?: string,
   yearPatterns?: any
@@ -95,12 +95,18 @@ export function buildQuestionPrompt(
   } else if (year) {
     prompt += `Match the style and difficulty of the ${year} ${examName} paper.\n\n`;
   }
+  
   const diffCtx = {
     easy: "EASY: basic recall / direct application.",
     medium: "MEDIUM: 2-step reasoning or common traps.",
     hard: "HARD: tricky, multi-step, deep conceptual clarity.",
   }[difficulty];
   prompt += `Difficulty: ${diffCtx}\n\n`;
+
+  const optionsString = optionCount === 5 
+    ? '["Option A", "Option B", "Option C", "Option D", "Option E"]' 
+    : '["Option A", "Option B", "Option C", "Option D"]';
+
   prompt += `Generate ONE multiple-choice question:
 - Exam: ${examName}
 - Section: ${sectionName}
@@ -108,42 +114,46 @@ export function buildQuestionPrompt(
 
 Reply ONLY with valid JSON. No markdown. No preamble.
 {
-  "question_text": "Clear, unambiguous question text",
-  "options": ["Option A", "Option B", "Option C", "Option D"],
+  "question_type": "mcq-${optionCount}",
+  "question_text": "Clear, unambiguous question text. Use standard text formatting.",
+  "options": ${optionsString},
   "correct_index": 0,
+  "correct_value": null,
   "explanation": "2-sentence explanation",
   "solution_steps": ["Step 1...", "Step 2..."],
-  "memory_trick": "short mnemonic (max 15 words)"
+  "memory_trick": "short mnemonic (optional, leave as empty string if not applicable)"
 }
+
 Rules:
-- "correct_index" is 0-based (0,1,2,3)
-- 4 plausible options, similar length
+- "correct_index" is 0-based (0 to ${optionCount - 1})
+- ${optionCount} plausible options, similar length
 - Wrong options target common misconceptions
-- Respect the exam's time-per-question from the style guide
 - For Quant: clean numbers, integer answers when possible
-- For Reasoning: exactly one unambiguous answer
-- For GK/Science: facts must be accurate and verifiable`;
+- For Reasoning: exactly one unambiguous answer`;
+
   return prompt;
 }
 
 export function cleanJson(raw: string): string {
   let t = (raw || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
   const m = t.match(/\{[\s\S]*\}/);
-  if (m) t = m[0];
+  if (m) {
+    // Basic cleanup to prevent JSON parse crashes on weird formatting
+    return m[0].replace(/\n/g, "\\n").replace(/\r/g, ""); 
+  }
   return t;
 }
 
-export function isValidQuestion(q: any): q is GeneratedQuestion {
+export function isValidQuestion(q: any, allowedOptionCounts: number[] = [4, 5]): q is GeneratedQuestion {
   return (
     !!q &&
     typeof q.question_text === "string" &&
-    q.question_text.length > 10 &&
+    q.question_text.length > 5 &&
     Array.isArray(q.options) &&
-    q.options.length === 4 &&
-    q.options.every((o: any) => typeof o === "string" && o.length > 0) &&
+    allowedOptionCounts.includes(q.options.length) &&
+    q.options.every((o: any) => typeof o === "string") &&
     typeof q.correct_index === "number" &&
-    q.correct_index >= 0 &&
-    q.correct_index <= 3
+    q.correct_index >= -1
   );
 }
 
@@ -168,7 +178,7 @@ export async function generateOneQuestion(
             messages: [{ role: "user", content: prompt }],
             max_tokens: 1500,
             temperature: 0.7,
-            response_format: { type: "json_object" }, // force valid JSON
+            response_format: { type: "json_object" },
           }),
         });
         if (r.ok) {

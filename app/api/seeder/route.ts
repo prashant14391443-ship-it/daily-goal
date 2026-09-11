@@ -24,7 +24,6 @@ function cleanJsonObj(raw: string) {
   return t;
 }
 
-// 🔥 Live model discovery — always uses whatever Gemini has TODAY (no more 404s from retired models)
 let modelCache: { models: string[]; at: number } | null = null;
 async function discoverGeminiModels(key: string): Promise<string[]> {
   if (modelCache && Date.now() - modelCache.at < 30 * 60 * 1000) return modelCache.models;
@@ -43,25 +42,28 @@ async function discoverGeminiModels(key: string): Promise<string[]> {
       if (models.length > 0) { modelCache = { models, at: Date.now() }; return models; }
     }
   } catch {}
-  return ["gemini-2.5-flash", "gemini-2.0-flash"]; // hardcoded safety net
+  return ["gemini-2.5-flash", "gemini-2.0-flash"]; 
 }
 
-const EXTRACT_PROMPT = `You are an exam paper digitizer. Extract EVERY multiple-choice question visible in this document.
+// 🔥 UPDATED: Tells AI to look for 4 OR 5 options, or numerical inputs
+const EXTRACT_PROMPT = `You are an exam paper digitizer. Extract EVERY multiple-choice or numerical question visible in this document.
 
 Return ONLY a valid JSON array. No markdown. Each item:
 {
+  "question_type": "mcq-4", // use "mcq-4", "mcq-5", or "nvt" (for numerical/text input)
   "question_text": "full question text",
-  "options": ["A", "B", "C", "D"],
-  "correct_index": 0,
-  "explanation": "1-sentence reason (or empty string if unknown)",
+  "options": ["A", "B", "C", "D", "E"], // Extract all printed options. Empty array if NVT.
+  "correct_index": 0, // 0-based index. Use -1 if unknown or NVT.
+  "correct_value": "42.5", // Only use if NVT. Otherwise null.
+  "explanation": "1-sentence reason (or empty string)",
   "topic": "best-matching topic name"
 }
 
 Rules:
 - If the correct answer is not marked, set correct_index to -1
-- Keep options exactly as printed (4 options; pad with empty strings if fewer)
+- Keep options exactly as printed. Do not limit to 4 if 5 are present.
 - Preserve numbers, formulas and units exactly
-- Skip non-MCQ questions`;
+- Skip non-question text`;
 
 const ANALYZE_PROMPT = `You are an exam pattern analyst. Analyze this exam paper and extract its unique characteristics.
 
@@ -126,11 +128,14 @@ export async function POST(req: Request) {
           const parsed = JSON.parse(cleanJsonArr(raw));
           if (Array.isArray(parsed) && parsed.length > 0) {
             questions = parsed
-              .filter((q: any) => q && typeof q.question_text === "string" && Array.isArray(q.options))
+              .filter((q: any) => q && typeof q.question_text === "string")
               .map((q: any) => ({
+                // 🔥 UPDATED: Dynamic parsing for options and polymorphic types
+                question_type: q.question_type || (Array.isArray(q.options) && q.options.length === 5 ? "mcq-5" : "mcq-4"),
                 question_text: q.question_text,
-                options: [q.options[0] || "", q.options[1] || "", q.options[2] || "", q.options[3] || ""],
+                options: Array.isArray(q.options) ? q.options.filter(Boolean) : [],
                 correct_index: typeof q.correct_index === "number" ? q.correct_index : -1,
+                correct_value: q.correct_value || null,
                 explanation: q.explanation || "",
                 topic: q.topic || "",
               }));
@@ -155,20 +160,23 @@ export async function POST(req: Request) {
         topic_id: q.topic_id,
         year: year || null,
         difficulty: q.difficulty || "medium",
+        // 🔥 UPDATED: Saving the polymorphic fields safely to Supabase
+        question_type: q.question_type || "mcq-4",
         question_text: q.question_text,
-        options: q.options,
-        correct_index: Math.max(0, Number(q.correct_index) || 0),
+        options: q.options || [],
+        correct_index: typeof q.correct_index === "number" && q.correct_index >= 0 ? q.correct_index : null,
+        correct_value: q.correct_value || null,
         explanation: q.explanation || "",
         source: "official",
       }));
+      
       const { error } = await admin.from("questions").insert(rows);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-      // Analyze patterns (best-effort, uses live models)
       let patterns = null;
       if (questions.length > 10) {
         const questionsText = questions.map((q: any, i: number) =>
-          `Q${i+1}: ${q.question_text}\nOptions: ${q.options.join(", ")}\nCorrect: ${String.fromCharCode(65 + q.correct_index)}`
+          `Q${i+1}: ${q.question_text}\nOptions: ${(q.options||[]).join(", ")}\nCorrect Index: ${q.correct_index}`
         ).join("\n\n");
 
         const models = await discoverGeminiModels(gKey);

@@ -8,7 +8,6 @@ export const runtime = "nodejs";
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-
     const userClient = userClientFromRequest(req);
     const { data: userData } = await userClient.auth.getUser();
     const userId = userData.user?.id;
@@ -33,6 +32,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
     const qMap = new Map(questions.map((q) => [q.id, q]));
 
+    // 🔥 NEW: Check if test is finished to prevent cheating!
+    const isCompleted = attempt.status === "completed";
+
     const answerSheet = (attempt.test_attempt_questions || [])
       .sort((a: any, b: any) => a.question_order - b.question_order)
       .map((link: any) => {
@@ -44,10 +46,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           question_id: q.id,
           section_id: q.section_id,
           topic_id: q.topic_id,
+          question_type: q.question_type || "mcq-4", // Pass to frontend
           question_text: q.question_text,
           options: q.options,
-          correct_index: q.correct_index,
-          explanation: q.explanation,
+          // 🔥 SECURITY FIX: Mask correct answers and explanation during active test
+          correct_index: isCompleted ? q.correct_index : null,
+          correct_value: isCompleted ? q.correct_value : null,
+          explanation: isCompleted ? q.explanation : null,
+          
           user_answer: ans?.user_answer ?? null,
           is_correct: ans?.is_correct ?? false,
           time_taken_sec: ans?.time_taken_sec ?? 0,

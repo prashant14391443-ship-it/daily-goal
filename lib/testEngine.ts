@@ -7,9 +7,11 @@ export type LoadedQuestion = {
   exam_id: string;
   section_id: string;
   topic_id: string;
+  question_type: string;
   question_text: string;
   options: string[];
-  correct_index: number;
+  correct_index: number | null; 
+  correct_value: string | null; 
   explanation: string | null;
 };
 
@@ -62,9 +64,10 @@ async function fetchOrGenerate(
   usedIds: Set<string>,
   year: number | null,
   styleGuide: string | undefined,
-  yearPatterns: any
+  yearPatterns: any,
+  optionCount: number = 4, 
+  difficulty: "easy" | "medium" | "hard" = "medium" 
 ): Promise<LoadedQuestion | null> {
-  // 1. Try cached question (year-aware)
   let q = admin.from("questions").select("*")
     .eq("exam_id", examId).eq("section_id", sectionId).eq("topic_id", topicId);
   if (year) q = q.eq("year", year);
@@ -76,23 +79,27 @@ async function fetchOrGenerate(
     const pick = cached[Math.floor(Math.random() * cached.length)];
     return {
       id: pick.id, exam_id: pick.exam_id, section_id: pick.section_id, topic_id: pick.topic_id,
-      question_text: pick.question_text, options: pick.options, correct_index: pick.correct_index,
+      question_type: pick.question_type || `mcq-${optionCount}`,
+      question_text: pick.question_text, options: pick.options, 
+      correct_index: pick.correct_index, correct_value: pick.correct_value,
       explanation: pick.explanation,
     };
   }
 
-  // 2. Generate with exam-specific style + year patterns
-  const prompt = buildQuestionPrompt(examName, sectionName, topicName, "medium", year, styleGuide, yearPatterns);
+  const prompt = buildQuestionPrompt(examName, sectionName, topicName, difficulty, optionCount, year, styleGuide, yearPatterns);
   const gen = await generateOneQuestion(prompt, getKeys());
   if (!gen) return null;
 
   const { data: saved, error } = await admin.from("questions")
     .insert({
       exam_id: examId, section_id: sectionId, topic_id: topicId,
+      question_type: gen.q.question_type || `mcq-${optionCount}`,
       question_text: gen.q.question_text, options: gen.q.options,
-      correct_index: gen.q.correct_index, explanation: gen.q.explanation,
+      correct_index: gen.q.correct_index === -1 ? null : gen.q.correct_index, 
+      correct_value: gen.q.correct_value,
+      explanation: gen.q.explanation,
       solution_steps: gen.q.solution_steps.join("\n"), memory_trick: gen.q.memory_trick,
-      source: "ai-generated", difficulty: "medium",
+      source: "ai-generated", difficulty: difficulty,
       year,
     })
     .select()
@@ -101,7 +108,9 @@ async function fetchOrGenerate(
   if (error || !saved) return null;
   return {
     id: saved.id, exam_id: saved.exam_id, section_id: saved.section_id, topic_id: saved.topic_id,
-    question_text: saved.question_text, options: saved.options, correct_index: saved.correct_index,
+    question_type: saved.question_type,
+    question_text: saved.question_text, options: saved.options, 
+    correct_index: saved.correct_index, correct_value: saved.correct_value,
     explanation: saved.explanation,
   };
 }
@@ -117,9 +126,10 @@ export async function generateQuestionBatch(
   const exam = getExamById(examId);
   if (!exam) return [];
 
-  // Load exam style guide + year patterns ONCE per batch (fast)
   const styleGuide = exam.style_guide;
+  const optionCount = exam.allowedOptionCounts?.[0] || 4; 
   let yearPatterns: any = null;
+  
   if (year) {
     const { data } = await admin.from("year_patterns").select("*").eq("exam_id", examId).eq("year", year).maybeSingle();
     yearPatterns = data;
@@ -130,7 +140,10 @@ export async function generateQuestionBatch(
     const slice = plan.slice(i, i + batchSize);
     const results = await Promise.all(
       slice.map((p) =>
-        fetchOrGenerate(admin, examId, p.section.id, p.topic.id, p.topic.name, p.section.name, exam.name, usedIds, year, styleGuide, yearPatterns)
+        fetchOrGenerate(
+          admin, examId, p.section.id, p.topic.id, p.topic.name, p.section.name, 
+          exam.name, usedIds, year, styleGuide, yearPatterns, optionCount, "medium"
+        )
       )
     );
     for (const q of results) {
