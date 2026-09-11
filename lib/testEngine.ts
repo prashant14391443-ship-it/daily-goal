@@ -18,7 +18,7 @@ export type LoadedQuestion = {
 export type PlanSlot = { section_id: string; topic_id: string };
 
 // ==========================================
-// PLAN BUILDERS (unchanged)
+// PLAN BUILDERS
 // ==========================================
 
 export function distributeByWeight(topics: ExamTopic[], total: number): { topic: ExamTopic; count: number }[] {
@@ -58,7 +58,7 @@ export function buildQuestionPlan(examId: string): { section: ExamSection; topic
 }
 
 // ==========================================
-// FETCH OR GENERATE (🔥 FIXED: no more silent nulls)
+// FETCH OR GENERATE (throws real errors — no silent nulls)
 // ==========================================
 
 async function fetchOrGenerate(
@@ -95,7 +95,7 @@ async function fetchOrGenerate(
     };
   }
 
-  // 2) DB empty for this slot → ask the AI (throws a REAL error message on failure)
+  // 2) DB empty for this slot → ask the AI
   const prompt = buildQuestionPrompt(examName, sectionName, topicName, difficulty, optionCount, year, styleGuide, yearPatterns);
   const gen = await generateOneQuestion(prompt, getKeys());
 
@@ -116,8 +116,6 @@ async function fetchOrGenerate(
     .select()
     .single();
 
-  // 🔥 FIX #2: previously this was `return null` and the error was thrown away.
-  // Now the exact Supabase error bubbles up so we can SEE why it failed.
   if (error || !saved) throw new Error(`DB insert failed: ${error?.message || "no row returned"}`);
 
   return {
@@ -130,7 +128,7 @@ async function fetchOrGenerate(
 }
 
 // ==========================================
-// BATCH GENERATOR (🔥 FIXED: reports WHY a batch failed)
+// BATCH GENERATOR
 // ==========================================
 
 export async function generateQuestionBatch(
@@ -179,14 +177,66 @@ export async function generateQuestionBatch(
     }
   }
 
-  // 🔥 FIX #2: zero questions + a known error → throw it upward instead of silent []
   if (out.length === 0 && firstError) throw firstError;
-
   return out;
 }
 
 // ==========================================
-// ANALYTICS (unchanged)
+// 🔥 QUICK FILL: fast first batch so the test opens instantly
+// ==========================================
+
+export async function quickFill(
+  admin: SupabaseClient,
+  exam: ReturnType<typeof getExamById> & {},
+  slots: PlanSlot[],
+  usedIds: Set<string>,
+  year: number | null,
+  deadlineMs = 8000,
+  waveSize = 4
+): Promise<{ results: { slot: PlanSlot; q: LoadedQuestion | null }[]; firstError: string }> {
+  const started = Date.now();
+  const results: { slot: PlanSlot; q: LoadedQuestion | null }[] = [];
+  let firstError = "";
+
+  const slotToObj = (s: PlanSlot) => {
+    const section = exam.sections.find((x) => x.id === s.section_id)!;
+    const topic = section.topics.find((t) => t.id === s.topic_id)!;
+    return { section, topic };
+  };
+
+  for (let i = 0; i < slots.length; i += waveSize) {
+    if (Date.now() - started > deadlineMs) {
+      // Out of time budget → remaining slots go to the background top-up
+      for (let j = i; j < slots.length; j++) results.push({ slot: slots[j], q: null });
+      break;
+    }
+    const wave = slots.slice(i, i + waveSize);
+    const settled = await Promise.allSettled(
+      wave.map((s) => {
+        const { section, topic } = slotToObj(s);
+        return fetchOrGenerate(
+          admin, exam.id, section.id, topic.id, topic.name, section.name,
+          exam.name, usedIds, year, exam.style_guide, null,
+          exam.allowedOptionCounts?.[0] || 4, "medium"
+        );
+      })
+    );
+    settled.forEach((r, k) => {
+      if (r.status === "fulfilled") {
+        usedIds.add(r.value.id);
+        results.push({ slot: wave[k], q: r.value });
+      } else {
+        if (!firstError) firstError = r.reason?.message || "generation failed";
+        results.push({ slot: wave[k], q: null });
+      }
+    });
+  }
+
+  return { results, firstError };
+}
+
+// ==========================================
+// ANALYTICS
 // ==========================================
 
 export function computeAnalytics(
@@ -230,7 +280,7 @@ export function computeAnalytics(
 }
 
 // ==========================================
-// SUPABASE CLIENTS (unchanged)
+// SUPABASE CLIENTS
 // ==========================================
 
 export function adminClient(): SupabaseClient {
@@ -249,7 +299,7 @@ export function userClientFromRequest(req: Request) {
 }
 
 // ==========================================
-// FILL ATTEMPT (🔥 FIXED: error reporting + failure cap)
+// FILL ATTEMPT (background builder)
 // ==========================================
 
 export async function fillAttemptQuestions(
@@ -280,7 +330,7 @@ export async function fillAttemptQuestions(
 
   let lastError = "";
   let failures = 0;
-  const MAX_FAILURES = 2; // 🔥 stop hammering a dead AI after 2 failed rounds
+  const MAX_FAILURES = 2;
 
   while (have < target && Date.now() - started < budgetMs && failures < MAX_FAILURES) {
     const slice = plan.slice(have, have + 3).map(slotToObj);

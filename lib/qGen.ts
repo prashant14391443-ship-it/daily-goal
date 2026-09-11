@@ -12,13 +12,18 @@ export type GeneratedQuestion = {
 // 🔥 Fastest first. All Gemini 3.x = available to new API keys.
 const MODEL_CHAIN = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.7-flash"];
 
-const PER_MODEL_TIMEOUT = 25000; // 25s each
+const PER_MODEL_TIMEOUT = 25000; // 25s per model
 const TOTAL_TIMEOUT = 45000;     // never exceed 45s total
 
 export function buildQuestionPrompt(
-  examName: string, sectionName: string, topicName: string,
-  difficulty: "easy" | "medium" | "hard", optionCount: number = 4,
-  year?: number | null, styleGuide?: string, yearPatterns?: any
+  examName: string,
+  sectionName: string,
+  topicName: string,
+  difficulty: "easy" | "medium" | "hard",
+  optionCount: number = 4,
+  year?: number | null,
+  styleGuide?: string,
+  yearPatterns?: any
 ): string {
   let prompt = `You are an expert question setter for the ${examName} examination.\n\n`;
   if (styleGuide) prompt += `OFFICIAL EXAM PATTERN & STYLE (follow strictly):\n${styleGuide}\n\n`;
@@ -28,15 +33,18 @@ export function buildQuestionPrompt(
     if (yearPatterns.style_notes?.length) prompt += `- Style: ${yearPatterns.style_notes.join("; ")}\n`;
     prompt += `\n`;
   }
+
   const diffCtx = {
     easy: "EASY: basic recall / direct application.",
     medium: "MEDIUM: 2-step reasoning or common traps.",
     hard: "HARD: tricky, multi-step, deep conceptual clarity.",
   }[difficulty];
   prompt += `Difficulty: ${diffCtx}\n\n`;
+
   const optionsString = optionCount === 5
     ? '["Option A", "Option B", "Option C", "Option D", "Option E"]'
     : '["Option A", "Option B", "Option C", "Option D"]';
+
   prompt += `Generate ONE multiple-choice question:
 - Exam: ${examName}
 - Section: ${sectionName}
@@ -59,19 +67,17 @@ Rules:
 - ${optionCount} plausible options, similar length
 - For Quant: clean numbers, integer answers when possible
 - For Reasoning: exactly one unambiguous answer`;
+
   return prompt;
 }
 
-// 🔥 FIXED: two-stage parse. Old version escaped newlines and destroyed pretty JSON.
+// 🔥 Two-stage parse: handles pretty-printed JSON AND raw newlines inside strings
 export function parseJsonResponse(raw: string): any {
   let t = (raw || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
   const m = t.match(/\{[\s\S]*\}/);
   if (m) t = m[0];
 
-  // Attempt 1: parse as-is (handles pretty-printed JSON correctly)
   try { return JSON.parse(t); } catch {}
-
-  // Attempt 2: escape literal newlines (handles models that put raw line breaks inside strings)
   try { return JSON.parse(t.replace(/\r?\n/g, "\\n")); } catch {}
 
   throw new Error("Unparseable AI JSON: " + t.slice(0, 80));
@@ -80,10 +86,13 @@ export function parseJsonResponse(raw: string): any {
 export function isValidQuestion(q: any, allowedOptionCounts: number[] = [4, 5]): q is GeneratedQuestion {
   return (
     !!q &&
-    typeof q.question_text === "string" && q.question_text.length > 5 &&
-    Array.isArray(q.options) && allowedOptionCounts.includes(q.options.length) &&
+    typeof q.question_text === "string" &&
+    q.question_text.length > 5 &&
+    Array.isArray(q.options) &&
+    allowedOptionCounts.includes(q.options.length) &&
     q.options.every((o: any) => typeof o === "string") &&
-    typeof q.correct_index === "number" && q.correct_index >= -1
+    typeof q.correct_index === "number" &&
+    q.correct_index >= -1
   );
 }
 
@@ -118,9 +127,6 @@ export async function generateOneQuestion(
               temperature: 0.7,
               maxOutputTokens: 1024,
               responseMimeType: "application/json",
-              // 🔥 KEY FIX: Gemini 3 models think by default (slow + costly).
-              // Low thinking = fast MCQ generation, same quality for this task.
-              thinkingConfig: { thinkingLevel: "low" },
             },
           }),
         }
@@ -130,7 +136,7 @@ export async function generateOneQuestion(
       if (!r.ok) {
         const body = await r.text().catch(() => "");
         errors.push(`${model}: HTTP ${r.status} ${body.slice(0, 90)}`);
-        if (r.status === 403) break; // bad key — pointless to continue
+        if (r.status === 403) break; // invalid key — pointless to continue
         continue;                    // 404 / 429 / 503 → try next model
       }
 

@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
 import { getExamById } from "@/lib/examPatterns";
-import { buildQuestionPlan, adminClient, userClientFromRequest, distributeByWeight, fillAttemptQuestions, type PlanSlot } from "@/lib/testEngine";
-// 🔥 FIX #3: getLastGenError import REMOVED (global state is gone)
+import { buildQuestionPlan, adminClient, userClientFromRequest, distributeByWeight, quickFill, type PlanSlot, type LoadedQuestion } from "@/lib/testEngine";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// 🔥 FIX #3: safe time budget.
-// Vercel FREE (Hobby) kills functions at ~10s → keep default 8000.
-// On Vercel Pro / Railway / Render / local: set GEN_BUDGET_MS=45000 in env for fuller papers.
-const BUDGET_MS = Math.min(Number(process.env.GEN_BUDGET_MS || 8000), 50000);
+// 🔥 How many questions must exist before the test is allowed to open
+const QUICK_TARGET = 8;
 
 export async function POST(req: Request) {
   try {
@@ -28,9 +25,7 @@ export async function POST(req: Request) {
     const mode = isReal ? "pyq-real" : year ? "pyq" : "mock";
 
     // ==========================================
-    // 🔥 FIX #3 (BONUS): REAL PYQ MODE — was broken before!
-    // Old code passed an EMPTY plan for real mode → have=0 → always 503.
-    // Now we load the real questions straight from the DB.
+    // REAL PYQ MODE: load straight from DB (instant)
     // ==========================================
     if (isReal) {
       const { data: realQs } = await admin
@@ -44,9 +39,7 @@ export async function POST(req: Request) {
 
       const ids = (realQs || []).map((r: any) => r.id);
       if (ids.length === 0) {
-        return NextResponse.json({
-          error: `No real ${year} questions in the database yet. Upload a paper via the Admin Seeder first.`,
-        }, { status: 404 });
+        return NextResponse.json({ error: `No real ${year} questions in the database yet. Upload a paper via the Admin Seeder first.` }, { status: 404 });
       }
 
       const { data: attempt, error } = await admin.from("test_attempts").insert({
@@ -66,7 +59,7 @@ export async function POST(req: Request) {
     }
 
     // ==========================================
-    // AI MODE: build the plan
+    // AI MODE: build the full plan (100 Qs / sectional)
     // ==========================================
     let planObjs: { section: any; topic: any }[] = [];
     if (section_id) {
@@ -103,20 +96,38 @@ export async function POST(req: Request) {
     }).select().single();
     if (error || !attempt) return NextResponse.json({ error: "Could not create attempt", debug: error?.message }, { status: 500 });
 
-    // Fill it (DB cache first, AI only for missing slots)
-    const res = await fillAttemptQuestions(admin, exam, attempt.id, planSlots, year, BUDGET_MS, new Set(seenIds));
+    // ==========================================
+    // 🔥 QUICK START: only the first 8 questions are blocking (max ~8s).
+    // The rest is built in the background by /api/test/topup while the user answers.
+    // ==========================================
+    const quickSlots = planSlots.slice(0, Math.min(QUICK_TARGET, planSlots.length));
+    const restSlots = planSlots.slice(quickSlots.length);
 
-    if (res.have > 0) {
-      await admin.from("test_attempts").update({ status: "in_progress", total_questions: res.have }).eq("id", attempt.id);
-    } else {
+    const { results, firstError } = await quickFill(admin, exam, quickSlots, new Set(seenIds), year, 8000, 4);
+
+    const okPairs = results.filter((r) => r.q !== null) as { slot: PlanSlot; q: LoadedQuestion }[];
+    const failedSlots = results.filter((r) => r.q === null).map((r) => r.slot);
+
+    if (okPairs.length === 0) {
       await admin.from("test_attempts").delete().eq("id", attempt.id);
-      // 🔥 FIX #3: show the REAL reason (model 404 / bad key / DB column missing / quota)
-      return NextResponse.json({
-        error: `Generation failed: ${res.error || "no questions available (empty DB and AI unreachable)"}`,
-      }, { status: 503 });
+      return NextResponse.json({ error: `Could not prepare the first questions: ${firstError || "unknown error"}` }, { status: 503 });
     }
 
-    return NextResponse.json({ attempt_id: attempt.id, have: res.have, target: res.target, done: res.done });
+    // Keep slot↔question alignment: filled slots first, then the rest, failed quick slots last
+    const newPlan: PlanSlot[] = [...okPairs.map((p) => p.slot), ...restSlots, ...failedSlots];
+
+    const { error: linkErr } = await admin.from("test_attempt_questions").insert(
+      okPairs.map((p, i) => ({ attempt_id: attempt.id, question_id: p.q.id, question_order: i }))
+    );
+    if (linkErr) return NextResponse.json({ error: linkErr.message }, { status: 500 });
+
+    await admin.from("test_attempts").update({
+      status: "in_progress",
+      total_questions: planSlots.length,
+      plan: newPlan,
+    }).eq("id", attempt.id);
+
+    return NextResponse.json({ attempt_id: attempt.id, have: okPairs.length, target: planSlots.length, done: okPairs.length >= planSlots.length });
   } catch (e: any) {
     return NextResponse.json({ error: "Server error", debug: e?.message || String(e) }, { status: 500 });
   }
