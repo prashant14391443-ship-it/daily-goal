@@ -9,8 +9,13 @@ export type GeneratedQuestion = {
   memory_trick: string | null;
 };
 
-// 🔥 2026-valid chain. NEVER use 1.5-flash / 2.0-flash again.
-const MODEL_CHAIN = ["gemini-3.7-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
+// 🔥 FINAL FIX: Gemini 3.x only — old 2.5/1.5 models are blocked for new API keys
+const MODEL_CHAIN = [
+  "gemini-3.7-flash",
+  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.6-flash",
+];
 
 export function buildQuestionPrompt(
   examName: string, sectionName: string, topicName: string,
@@ -76,14 +81,15 @@ export function isValidQuestion(q: any, allowedOptionCounts: number[] = [4, 5]):
   );
 }
 
-// 🔥 Now THROWS real errors instead of global variable
 export async function generateOneQuestion(
   prompt: string,
   keys: { gemini?: string }
 ): Promise<{ q: GeneratedQuestion; engine: string }> {
   if (!keys.gemini) throw new Error("GEMINI_API_KEY missing in Vercel env");
 
-  let lastErr = "No model attempted";
+  // 🔥 NEW: collect EVERY model's error so the message shows the full story
+  const errors: string[] = [];
+
   for (const model of MODEL_CHAIN) {
     try {
       const ctrl = new AbortController();
@@ -104,23 +110,30 @@ export async function generateOneQuestion(
 
       if (!r.ok) {
         const body = await r.text().catch(() => "");
-        lastErr = `${model}: HTTP ${r.status} ${body.slice(0, 120)}`;
-        if (r.status === 403) break; // bad key — stop trying
-        continue;                    // 404/429/503 — try next model
+        errors.push(`${model}: HTTP ${r.status} ${body.slice(0, 90)}`);
+        if (r.status === 403) break; // invalid key — stop trying
+        continue;
       }
 
       const d = await r.json();
       const raw = d.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      if (!raw) { lastErr = `${model}: empty response (${d.candidates?.[0]?.finishReason || "unknown"})`; continue; }
+      if (!raw) {
+        errors.push(`${model}: empty response (${d.candidates?.[0]?.finishReason || "unknown"})`);
+        continue;
+      }
 
       const parsed = JSON.parse(cleanJson(raw));
-      if (!isValidQuestion(parsed)) { lastErr = `${model}: invalid question shape`; continue; }
+      if (!isValidQuestion(parsed)) {
+        errors.push(`${model}: invalid question shape`);
+        continue;
+      }
       return { q: parsed, engine: `gemini:${model}` };
     } catch (e: any) {
-      lastErr = `${model}: ${e?.message || "network error"}`;
+      errors.push(`${model}: ${e?.message || "network error"}`);
     }
   }
-  throw new Error(lastErr);
+
+  throw new Error(errors.join(" | ") || "No model attempted");
 }
 
 export function getKeys(): { gemini?: string } {
