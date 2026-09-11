@@ -82,7 +82,27 @@ const CDP_TOPICS: ExamTopic[] = [
   { id: "CDP-2", name: "Inclusive Education", weight: 3 },
   { id: "CDP-3", name: "Pedagogy & Teaching Methods", weight: 4 },
 ];
-
+const CSAT_RC: ExamTopic[] = [
+  { id: "CSAT-RC-1", name: "Passage Comprehension & Inference", weight: 5 },
+  { id: "CSAT-RC-2", name: "Author's Tone, Main Idea & Crux", weight: 3 },
+];
+const CSAT_REASON: ExamTopic[] = [
+  { id: "CSAT-R-1", name: "Logical & Analytical Reasoning", weight: 4 },
+  { id: "CSAT-R-2", name: "Syllogism, Venn Diagrams & Data Sufficiency", weight: 3 },
+  { id: "CSAT-R-3", name: "Decision Making & Problem Solving", weight: 2 },
+];
+const CSAT_MATH: ExamTopic[] = [
+  { id: "CSAT-M-1", name: "Number System & Basic Numeracy", weight: 4 },
+  { id: "CSAT-M-2", name: "Percentages, Ratio & Averages", weight: 3 },
+  { id: "CSAT-M-3", name: "Time, Speed, Distance & Work", weight: 3 },
+  { id: "CSAT-M-4", name: "Data Interpretation (Charts & Graphs)", weight: 3 },
+];
+const CUET_GEN: ExamTopic[] = [
+  { id: "CUET-1", name: "General Awareness & Current Affairs", weight: 4 },
+  { id: "CUET-2", name: "Logical & Numerical Reasoning", weight: 3 },
+  { id: "CUET-3", name: "Quantitative Aptitude", weight: 3 },
+  { id: "CUET-4", name: "English & Comprehension", weight: 2 },
+];
 // ==========================================
 // 2. 9 EXAM PATTERNS
 // ==========================================
@@ -167,6 +187,81 @@ export const CTET_PAPER_1: ExamPattern = {
     { id: "CTET-ENG", name: "Language I (English)", shortName: "English", questionCount: 30, marksPerQ: 1, timeLimitMin: null, color: "blue", sortOrder: 4, topics: ENGLISH },
   ],
 };
+export const SSC_MTS: ExamPattern = {
+  id: "SSC-MTS", name: "SSC MTS / Havaldar", shortName: "SSC MTS",
+  description: "Multi Tasking Staff (Non-Technical) — Paper I",
+  totalMarks: 230, totalQuestions: 90, durationMin: 90, negativeMarking: 1,
+  allowedOptionCounts: [4],
+  sections: [
+    { id: "MTS-MATH", name: "Numerical & Mathematical Ability", shortName: "Math", questionCount: 20, marksPerQ: 2, timeLimitMin: null, color: "orange", sortOrder: 1, topics: SSC_MATH },
+    { id: "MTS-REAS", name: "Reasoning Ability & Problem Solving", shortName: "Reasoning", questionCount: 20, marksPerQ: 2, timeLimitMin: null, color: "blue", sortOrder: 2, topics: SSC_REAS },
+    { id: "MTS-GK", name: "General Awareness", shortName: "GK", questionCount: 25, marksPerQ: 3, timeLimitMin: null, color: "emerald", sortOrder: 3, topics: GK_GS },
+    { id: "MTS-ENG", name: "English Language & Comprehension", shortName: "English", questionCount: 25, marksPerQ: 3, timeLimitMin: null, color: "purple", sortOrder: 4, topics: ENGLISH },
+  ],
+};
+
+export const SSC_CPO_SI: ExamPattern = {
+  id: "SSC-CPO-SI", name: "SSC CPO (SI / ASI)", shortName: "SSC CPO",
+  description: "Sub-Inspector, Delhi Police & CAPFs — Tier 1",
+  totalMarks: 200, totalQuestions: 100, durationMin: 60, negativeMarking: 0.5,
+  allowedOptionCounts: [4],
+  sections: [
+    { id: "CPO-REAS", name: "General Intelligence & Reasoning", shortName: "Reasoning", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "blue", sortOrder: 1, topics: SSC_REAS },
+    { id: "CPO-GK", name: "General Knowledge & Awareness", shortName: "GK", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "emerald", sortOrder: 2, topics: GK_GS },
+    { id: "CPO-MATH", name: "Quantitative Aptitude", shortName: "Quant", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "orange", sortOrder: 3, topics: SSC_MATH },
+    { id: "CPO-ENG", name: "English Comprehension", shortName: "English", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "purple", sortOrder: 4, topics: ENGLISH },
+  ],
+};
+
+export const RRB_ALP: ExamPattern = {
+  id: "RRB-ALP", name: "RRB ALP (Loco Pilot)", shortName: "RRB ALP",
+  description: "Assistant Loco Pilot — CBT Stage 1",
+  totalMarks: 75, totalQuestions: 75, durationMin: 60, negativeMarking: 0.33,
+  allowedOptionCounts: [4],
+  sections: [
+    { id: "ALP-MATH", name: "Mathematics", shortName: "Math", questionCount: 20, marksPerQ: 1, timeLimitMin: null, color: "orange", sortOrder: 1, topics: SSC_MATH },
+    { id: "ALP-REAS", name: "General Intelligence & Reasoning", shortName: "Reasoning", questionCount: 25, marksPerQ: 1, timeLimitMin: null, color: "blue", sortOrder: 2, topics: SSC_REAS },
+    { id: "ALP-SCI", name: "General Science", shortName: "Science", questionCount: 20, marksPerQ: 1, timeLimitMin: null, color: "emerald", sortOrder: 3, topics: GENERAL_SCIENCE },
+    { id: "ALP-GK", name: "General Awareness & Current Affairs", shortName: "GK", questionCount: 10, marksPerQ: 1, timeLimitMin: null, color: "purple", sortOrder: 4, topics: GK_GS },
+  ],
+};
+
+export const UPSC_CSAT: ExamPattern = {
+  id: "UPSC-PRE-CSAT", name: "UPSC Prelims (CSAT Paper-II)", shortName: "UPSC CSAT",
+  description: "Civil Services Aptitude Test (qualifying, 33% needed)",
+  totalMarks: 200, totalQuestions: 80, durationMin: 120, negativeMarking: 0.83,
+  allowedOptionCounts: [4],
+  sections: [
+    { id: "CSAT-RC", name: "Reading Comprehension", shortName: "RC", questionCount: 30, marksPerQ: 2.5, timeLimitMin: null, color: "purple", sortOrder: 1, topics: CSAT_RC },
+    { id: "CSAT-REAS", name: "Logical Reasoning & Analytical Ability", shortName: "Reasoning", questionCount: 35, marksPerQ: 2.5, timeLimitMin: null, color: "blue", sortOrder: 2, topics: CSAT_REASON },
+    { id: "CSAT-MATH", name: "Quantitative & Mental Ability", shortName: "Numeracy", questionCount: 15, marksPerQ: 2.5, timeLimitMin: null, color: "orange", sortOrder: 3, topics: CSAT_MATH },
+  ],
+};
+
+export const CDS_COMBINED: ExamPattern = {
+  id: "CDS-COMBINED", name: "CDS (Combined Defence Services)", shortName: "CDS",
+  description: "IMA / INA / AFA / OTA — combined practice (30 Qs per paper)",
+  totalMarks: 90, totalQuestions: 90, durationMin: 120, negativeMarking: 0.33,
+  allowedOptionCounts: [4],
+  sections: [
+    { id: "CDS-ENG", name: "English", shortName: "English", questionCount: 30, marksPerQ: 1, timeLimitMin: null, color: "purple", sortOrder: 1, topics: ENGLISH },
+    { id: "CDS-GK", name: "General Knowledge", shortName: "GK", questionCount: 30, marksPerQ: 1, timeLimitMin: null, color: "emerald", sortOrder: 2, topics: GK_GS },
+    { id: "CDS-MATH", name: "Elementary Mathematics", shortName: "Math", questionCount: 30, marksPerQ: 1, timeLimitMin: null, color: "orange", sortOrder: 3, topics: SSC_MATH },
+  ],
+};
+
+export const CUET_GENERAL: ExamPattern = {
+  id: "CUET-UG-GEN", name: "CUET UG (General Test)", shortName: "CUET General",
+  description: "Common University Entrance Test — General Test section",
+  totalMarks: 375, totalQuestions: 75, durationMin: 60, negativeMarking: 1,
+  allowedOptionCounts: [4],
+  sections: [
+    { id: "CUET-GK", name: "General Awareness & Current Affairs", shortName: "GK", questionCount: 25, marksPerQ: 5, timeLimitMin: null, color: "emerald", sortOrder: 1, topics: CUET_GEN },
+    { id: "CUET-REAS", name: "Logical & Numerical Reasoning", shortName: "Reasoning", questionCount: 20, marksPerQ: 5, timeLimitMin: null, color: "blue", sortOrder: 2, topics: SSC_REAS },
+    { id: "CUET-MATH", name: "Quantitative Aptitude", shortName: "Quant", questionCount: 15, marksPerQ: 5, timeLimitMin: null, color: "orange", sortOrder: 3, topics: SSC_MATH },
+    { id: "CUET-ENG", name: "English & Comprehension", shortName: "English", questionCount: 15, marksPerQ: 5, timeLimitMin: null, color: "purple", sortOrder: 4, topics: ENGLISH },
+  ],
+};
 
 // ==========================================
 // 3. EXPORT LIST & HELPERS
@@ -182,6 +277,12 @@ export const EXAMS: ExamPattern[] = [
   UPSC_PRELIMS_GS,
   STATE_PSC_PRELIMS,
   CTET_PAPER_1,
+    SSC_MTS,
+  SSC_CPO_SI,
+  RRB_ALP,
+  UPSC_CSAT,
+  CDS_COMBINED,
+  CUET_GENERAL,
 ];
 
 // Provide aliases for older frontend pages
