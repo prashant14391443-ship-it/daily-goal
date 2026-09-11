@@ -12,7 +12,7 @@ export type GeneratedQuestion = {
 let lastGenError = "no attempt yet";
 export function getLastGenError() { return lastGenError; }
 
-const FETCH_TIMEOUT_MS = 20000;
+const FETCH_TIMEOUT_MS = 25000;
 async function fetchWithTimeout(url: string, init?: RequestInit, ms = FETCH_TIMEOUT_MS): Promise<Response> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), ms);
@@ -23,8 +23,8 @@ async function fetchWithTimeout(url: string, init?: RequestInit, ms = FETCH_TIME
   }
 }
 
-const FALLBACK_GEMINI = ["gemini-2.5-flash", "gemini-2.0-flash"];
-const FALLBACK_GROQ = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+// Fallback to the latest robust models in case dynamic discovery fails
+const FALLBACK_GEMINI = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
 
 let geminiCache: { models: string[]; at: number } | null = null;
 export async function discoverGeminiModels(key: string): Promise<string[]> {
@@ -40,38 +40,11 @@ export async function discoverGeminiModels(key: string): Promise<string[]> {
       const flashStable = all.filter((n: string) => n.includes("flash") && !n.includes("preview"));
       const flashPrev = all.filter((n: string) => n.includes("flash") && n.includes("preview"));
       const pro = all.filter((n: string) => n.includes("pro"));
-      const rest = all.filter((n: string) => !n.includes("flash") && !n.includes("pro"));
-      const models = [...flashStable, ...flashPrev, ...pro, ...rest].slice(0, 8);
+      const models = [...flashStable, ...flashPrev, ...pro].slice(0, 5);
       if (models.length > 0) { geminiCache = { models, at: Date.now() }; return models; }
     }
   } catch {}
   return FALLBACK_GEMINI;
-}
-
-let groqCache: { models: string[]; at: number } | null = null;
-export async function discoverGroqModels(key: string): Promise<string[]> {
-  if (groqCache && Date.now() - groqCache.at < 10 * 60 * 1000) return groqCache.models;
-  try {
-    const r = await fetchWithTimeout("https://api.groq.com/openai/v1/models", {
-      headers: { Authorization: `Bearer ${key}` },
-    });
-    if (r.ok) {
-      const d = await r.json();
-      const ids: string[] = (d.data || []).map((m: any) => m.id).filter(Boolean);
-      const chat = ids.filter((i) => !/safeguard|guard|whisper|embed|tts|asr|moderation|distil-whisper/i.test(i));
-      const preferred = [
-        ...chat.filter((i) => i.includes("llama-3.3-70b")),
-        ...chat.filter((i) => i.includes("llama-3.1-8b")),
-        ...chat.filter((i) => i.includes("gpt-oss-120b")),
-        ...chat.filter((i) => i.includes("gpt-oss-20b")),
-        ...chat.filter((i) => i.includes("llama")),
-        ...chat.filter((i) => !i.includes("llama") && !i.includes("gpt-oss")),
-      ];
-      const models = [...new Set(preferred)].slice(0, 8);
-      if (models.length > 0) { groqCache = { models, at: Date.now() }; return models; }
-    }
-  } catch {}
-  return FALLBACK_GROQ;
 }
 
 export function buildQuestionPrompt(
@@ -137,10 +110,7 @@ Rules:
 export function cleanJson(raw: string): string {
   let t = (raw || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
   const m = t.match(/\{[\s\S]*\}/);
-  if (m) {
-    // Basic cleanup to prevent JSON parse crashes on weird formatting
-    return m[0].replace(/\n/g, "\\n").replace(/\r/g, ""); 
-  }
+  if (m) return m[0].replace(/\n/g, "\\n").replace(/\r/g, ""); 
   return t;
 }
 
@@ -159,79 +129,46 @@ export function isValidQuestion(q: any, allowedOptionCounts: number[] = [4, 5]):
 
 export async function generateOneQuestion(
   prompt: string,
-  keys: { groq?: string; gemini?: string }
+  keys: { gemini?: string }
 ): Promise<{ q: GeneratedQuestion; engine: string } | null> {
-  if (!keys.groq && !keys.gemini) {
-    lastGenError = "NO API KEYS: set GROQ_API_KEY or GEMINI_API_KEY in Vercel env";
+  if (!keys.gemini) {
+    lastGenError = "NO API KEYS: set GEMINI_API_KEY in Vercel env";
     return null;
   }
 
-  if (keys.groq) {
-    const models = await discoverGroqModels(keys.groq);
-    for (const model of models) {
-      try {
-        const r = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
+  const models = await discoverGeminiModels(keys.gemini);
+  for (const model of models) {
+    try {
+      const r = await fetchWithTimeout(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keys.gemini}`,
+        {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${keys.groq}` },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            model,
-            messages: [{ role: "user", content: prompt }],
-            max_tokens: 1500,
-            temperature: 0.7,
-            response_format: { type: "json_object" },
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 1500, responseMimeType: "application/json" },
           }),
-        });
-        if (r.ok) {
-          const d = await r.json();
-          const raw = d.choices?.[0]?.message?.content || "";
-          try {
-            const parsed = JSON.parse(cleanJson(raw));
-            if (isValidQuestion(parsed)) return { q: parsed, engine: `groq:${model}` };
-            lastGenError = `groq:${model}: invalid JSON shape`;
-          } catch { lastGenError = `groq:${model}: JSON parse failed`; }
-        } else {
-          lastGenError = `groq:${model}: HTTP ${r.status}`;
         }
-      } catch (e: any) { lastGenError = `groq:${model}: ${e?.message || "timeout"}`; }
-    }
-  }
-
-  if (keys.gemini) {
-    const models = await discoverGeminiModels(keys.gemini);
-    for (const model of models) {
-      try {
-        const r = await fetchWithTimeout(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keys.gemini}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: { temperature: 0.7, maxOutputTokens: 1500, responseMimeType: "application/json" },
-            }),
-          }
-        );
-        if (r.ok) {
-          const d = await r.json();
-          const raw = d.candidates?.[0]?.content?.parts?.[0]?.text || "";
-          try {
-            const parsed = JSON.parse(cleanJson(raw));
-            if (isValidQuestion(parsed)) return { q: parsed, engine: `gemini:${model}` };
-            lastGenError = `gemini:${model}: invalid JSON shape`;
-          } catch { lastGenError = `gemini:${model}: JSON parse failed`; }
-        } else {
-          lastGenError = `gemini:${model}: HTTP ${r.status}`;
-        }
-      } catch (e: any) { lastGenError = `gemini:${model}: ${e?.message || "timeout"}`; }
-    }
+      );
+      if (r.ok) {
+        const d = await r.json();
+        const raw = d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        try {
+          const parsed = JSON.parse(cleanJson(raw));
+          if (isValidQuestion(parsed)) return { q: parsed, engine: `gemini:${model}` };
+          lastGenError = `gemini:${model}: invalid JSON shape`;
+        } catch { lastGenError = `gemini:${model}: JSON parse failed`; }
+      } else {
+        lastGenError = `gemini:${model}: HTTP ${r.status}`;
+      }
+    } catch (e: any) { lastGenError = `gemini:${model}: ${e?.message || "timeout"}`; }
   }
 
   return null;
 }
 
-export function getKeys(): { groq?: string; gemini?: string } {
+export function getKeys(): { gemini?: string } {
   return {
-    groq: process.env.GROQ_API_KEY,
     gemini: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
   };
 }
