@@ -9,13 +9,11 @@ export type GeneratedQuestion = {
   memory_trick: string | null;
 };
 
-// 🔥 FINAL FIX: Gemini 3.x only — old 2.5/1.5 models are blocked for new API keys
-const MODEL_CHAIN = [
-  "gemini-3.7-flash",
-  "gemini-3.5-flash",
-  "gemini-3.5-flash-lite",
-  "gemini-3.6-flash",
-];
+// 🔥 Fastest first. All Gemini 3.x = available to new API keys.
+const MODEL_CHAIN = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.7-flash"];
+
+const PER_MODEL_TIMEOUT = 25000; // 25s each
+const TOTAL_TIMEOUT = 45000;     // never exceed 45s total
 
 export function buildQuestionPrompt(
   examName: string, sectionName: string, topicName: string,
@@ -64,11 +62,19 @@ Rules:
   return prompt;
 }
 
-export function cleanJson(raw: string): string {
+// 🔥 FIXED: two-stage parse. Old version escaped newlines and destroyed pretty JSON.
+export function parseJsonResponse(raw: string): any {
   let t = (raw || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
   const m = t.match(/\{[\s\S]*\}/);
-  if (m) return m[0].replace(/\n/g, "\\n").replace(/\r/g, "");
-  return t;
+  if (m) t = m[0];
+
+  // Attempt 1: parse as-is (handles pretty-printed JSON correctly)
+  try { return JSON.parse(t); } catch {}
+
+  // Attempt 2: escape literal newlines (handles models that put raw line breaks inside strings)
+  try { return JSON.parse(t.replace(/\r?\n/g, "\\n")); } catch {}
+
+  throw new Error("Unparseable AI JSON: " + t.slice(0, 80));
 }
 
 export function isValidQuestion(q: any, allowedOptionCounts: number[] = [4, 5]): q is GeneratedQuestion {
@@ -87,13 +93,19 @@ export async function generateOneQuestion(
 ): Promise<{ q: GeneratedQuestion; engine: string }> {
   if (!keys.gemini) throw new Error("GEMINI_API_KEY missing in Vercel env");
 
-  // 🔥 NEW: collect EVERY model's error so the message shows the full story
   const errors: string[] = [];
+  const started = Date.now();
 
   for (const model of MODEL_CHAIN) {
+    if (Date.now() - started > TOTAL_TIMEOUT) {
+      errors.push("total time budget exceeded, stopped trying more models");
+      break;
+    }
+
     try {
       const ctrl = new AbortController();
-      const to = setTimeout(() => ctrl.abort(), 20000);
+      const to = setTimeout(() => ctrl.abort(), PER_MODEL_TIMEOUT);
+
       const r = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keys.gemini}`,
         {
@@ -102,7 +114,14 @@ export async function generateOneQuestion(
           signal: ctrl.signal,
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.7, maxOutputTokens: 1500, responseMimeType: "application/json" },
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 1024,
+              responseMimeType: "application/json",
+              // 🔥 KEY FIX: Gemini 3 models think by default (slow + costly).
+              // Low thinking = fast MCQ generation, same quality for this task.
+              thinkingConfig: { thinkingLevel: "low" },
+            },
           }),
         }
       );
@@ -111,8 +130,8 @@ export async function generateOneQuestion(
       if (!r.ok) {
         const body = await r.text().catch(() => "");
         errors.push(`${model}: HTTP ${r.status} ${body.slice(0, 90)}`);
-        if (r.status === 403) break; // invalid key — stop trying
-        continue;
+        if (r.status === 403) break; // bad key — pointless to continue
+        continue;                    // 404 / 429 / 503 → try next model
       }
 
       const d = await r.json();
@@ -122,7 +141,7 @@ export async function generateOneQuestion(
         continue;
       }
 
-      const parsed = JSON.parse(cleanJson(raw));
+      const parsed = parseJsonResponse(raw);
       if (!isValidQuestion(parsed)) {
         errors.push(`${model}: invalid question shape`);
         continue;
