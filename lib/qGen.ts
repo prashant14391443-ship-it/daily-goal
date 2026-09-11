@@ -100,7 +100,8 @@ export async function generateOneQuestion(
   }
 
   // 🔥 Force the app to use the most stable, reliable free model
-  const model = "gemini-1.5-flash"; 
+  // Replace the old model name with this:
+const model = "gemini-3.7-flash";
   lastGenError = `Waiting for ${model} to generate...`;
 
   try {
