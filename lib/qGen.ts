@@ -21,11 +21,10 @@ async function fetchWithTimeout(url: string, init?: RequestInit, ms = FETCH_TIME
   }
 }
 
-// ── Hardcoded fallbacks (used only if discovery fails) ──
 const FALLBACK_GEMINI = ["gemini-2.5-flash", "gemini-2.0-flash"];
 const FALLBACK_GROQ = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
 
-// ── Live discovery: ask the provider which models exist RIGHT NOW (cached 10 min) ──
+// ── Gemini: live discovery, skip non-chat models, prefer stable flash ──
 let geminiCache: { models: string[]; at: number } | null = null;
 export async function discoverGeminiModels(key: string): Promise<string[]> {
   if (geminiCache && Date.now() - geminiCache.at < 10 * 60 * 1000) return geminiCache.models;
@@ -36,17 +35,19 @@ export async function discoverGeminiModels(key: string): Promise<string[]> {
       const all = (d.models || [])
         .filter((m: any) => (m.supportedGenerationMethods || []).includes("generateContent"))
         .map((m: any) => (m.name || "").replace("models/", ""))
-        .filter((n: string) => n && !n.includes("embedding") && !n.includes("tts") && !n.includes("imagen") && !n.includes("aqa"));
-      const flash = all.filter((n: string) => n.includes("flash"));
+        .filter((n: string) => n && !/embedding|tts|imagen|aqa|safeguard|guard/i.test(n));
+      const flashStable = all.filter((n: string) => n.includes("flash") && !n.includes("preview"));
+      const flashPrev = all.filter((n: string) => n.includes("flash") && n.includes("preview"));
       const pro = all.filter((n: string) => n.includes("pro"));
       const rest = all.filter((n: string) => !n.includes("flash") && !n.includes("pro"));
-      const models = [...flash, ...pro, ...rest].slice(0, 8);
+      const models = [...flashStable, ...flashPrev, ...pro, ...rest].slice(0, 8);
       if (models.length > 0) { geminiCache = { models, at: Date.now() }; return models; }
     }
   } catch {}
   return FALLBACK_GEMINI;
 }
 
+// ── Groq: live discovery, EXCLUDE safeguard/moderation/whisper models ──
 let groqCache: { models: string[]; at: number } | null = null;
 export async function discoverGroqModels(key: string): Promise<string[]> {
   if (groqCache && Date.now() - groqCache.at < 10 * 60 * 1000) return groqCache.models;
@@ -57,20 +58,23 @@ export async function discoverGroqModels(key: string): Promise<string[]> {
     if (r.ok) {
       const d = await r.json();
       const ids: string[] = (d.data || []).map((m: any) => m.id).filter(Boolean);
+      // ONLY real chat models — drop safeguard/guard/whisper/embed/tts/moderation
+      const chat = ids.filter((i) => !/safeguard|guard|whisper|embed|tts|asr|moderation|distil-whisper/i.test(i));
       const preferred = [
-        ...ids.filter((i) => i.includes("70b")),
-        ...ids.filter((i) => i.includes("gpt-oss")),
-        ...ids.filter((i) => i.includes("llama") && !i.includes("70b")),
-        ...ids.filter((i) => !i.includes("llama") && !i.includes("gpt-oss")),
+        ...chat.filter((i) => i.includes("llama-3.3-70b")),
+        ...chat.filter((i) => i.includes("llama-3.1-8b")),
+        ...chat.filter((i) => i.includes("gpt-oss-120b")),
+        ...chat.filter((i) => i.includes("gpt-oss-20b")),
+        ...chat.filter((i) => i.includes("llama")),
+        ...chat.filter((i) => !i.includes("llama") && !i.includes("gpt-oss")),
       ];
-      const models = [...new Set(preferred)].slice(0, 6);
+      const models = [...new Set(preferred)].slice(0, 8);
       if (models.length > 0) { groqCache = { models, at: Date.now() }; return models; }
     }
   } catch {}
   return FALLBACK_GROQ;
 }
 
-// ── Prompt (exam-specific style + year patterns) ──
 export function buildQuestionPrompt(
   examName: string,
   sectionName: string,
@@ -143,7 +147,6 @@ export function isValidQuestion(q: any): q is GeneratedQuestion {
   );
 }
 
-// ── Generation with live-discovered models ──
 export async function generateOneQuestion(
   prompt: string,
   keys: { groq?: string; gemini?: string }
@@ -160,7 +163,13 @@ export async function generateOneQuestion(
         const r = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${keys.groq}` },
-          body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], max_tokens: 1500, temperature: 0.7 }),
+          body: JSON.stringify({
+            model,
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 1500,
+            temperature: 0.7,
+            response_format: { type: "json_object" }, // force valid JSON
+          }),
         });
         if (r.ok) {
           const d = await r.json();
