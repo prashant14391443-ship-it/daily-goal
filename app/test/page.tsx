@@ -180,7 +180,7 @@ export default function TestHub() {
         <div className="grid grid-cols-2 gap-2.5">
           {exam.sections.map((s) => (
             <button key={s.id} onClick={() => startTest(s.id)} disabled={starting !== null} className="rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-left hover:border-indigo-400/25 hover:bg-white/[0.04] transition-all disabled:opacity-50">
-              {starting === s.id ? <span className="flex items-center gap-2 text-sm font-medium text-indigo-300"><Loader2 size={14} className="animate-spin" /> Preparing...</span> : (<><p className="text-sm font-semibold text-slate-100">{s.shortName}</p><p className="text-[11px] text-slate-500 mt-1">{s.questionCount} Qs · {s.questionCount * s.marksPerQ} marks</p></>)}
+              {starting === s.id ? <span className="flex items-center gap-2 text-sm font-medium text-indigo-300"><Loader2 size={14} className="animate-spin" /> Preparing...</span> : (<><p className="text-sm font-semibold text-slate-100">{s.shortName}</p><p className="text-[11px] text-slate-500 mt-1">{s.questionCount} Qs · {s.questionCount * s.marksPerQ} marks · {s.timeLimitMin ?? Math.max(5, Math.round((exam.durationMin * s.questionCount) / exam.totalQuestions))} min</p></>)}
             </button>
           ))}
         </div>

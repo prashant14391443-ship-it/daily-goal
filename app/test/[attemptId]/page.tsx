@@ -42,6 +42,7 @@ export default function LiveTest() {
   const [exam, setExam] = useState<ExamPattern | null>(null);
   const [topupError, setTopupError] = useState("");
   const [finishError, setFinishError] = useState("");
+  const [plannedMin, setPlannedMin] = useState<number | null>(null);
 
   const enterRef = useRef(Date.now());
   const finishedRef = useRef(false);
@@ -49,6 +50,7 @@ export default function LiveTest() {
   const answersRef = useRef<Record<string, string | null>>({});
   const totalRef = useRef(0);
   const moreRef = useRef(false);
+  const durationRef = useRef<number | null>(null);
 
   useEffect(() => { qsRef.current = qs; }, [qs]);
   useEffect(() => { answersRef.current = answers; }, [answers]);
@@ -151,11 +153,32 @@ export default function LiveTest() {
         const target = d.attempt.total_questions || 0;
         setTotalQ(target);
         totalRef.current = target;
-        setTestTitle(
+
+        // 🔥 SMART TIMER: sectional tests get proportional time, not full exam time
+        const plan: any[] = Array.isArray(d.attempt.plan) ? d.attempt.plan : [];
+        const qCount = plan.length > 0 ? plan.length : target;
+        let durationMin = examObj?.durationMin || 60;
+        if (examObj && qCount > 0 && qCount < examObj.totalQuestions) {
+          durationMin = Math.max(5, Math.round((examObj.durationMin * qCount) / examObj.totalQuestions));
+        }
+
+        // If only ONE section in the plan → it's a sectional test
+        const sectionIds = [...new Set(plan.map((p: any) => p.section_id))];
+        let title =
           d.attempt.mode === "pyq-real" ? `Real ${d.attempt.year} Paper`
           : d.attempt.year ? `PYQ ${d.attempt.year} Pattern`
-          : "Mock Test"
-        );
+          : "Full Mock Test";
+        if (examObj && sectionIds.length === 1) {
+          const sec = examObj.sections.find((s) => s.id === sectionIds[0]);
+          if (sec) {
+            if (sec.timeLimitMin) durationMin = sec.timeLimitMin; // Bank-style official sectional limit
+            title = `${sec.shortName} Sectional`;
+          }
+        }
+        durationRef.current = durationMin * 60;
+        setPlannedMin(durationMin);
+        setTestTitle(title);
+
         if (Array.isArray(d.answer_sheet) && d.answer_sheet.length > 0) {
           appendQuestions(d.answer_sheet.map((a: any) => ({ ...a, id: a.question_id })));
         }
@@ -169,8 +192,8 @@ export default function LiveTest() {
 
   // 🔥 Countdown starts only when the first question is on screen
   useEffect(() => {
-    if (timeLeft === null && qs.length > 0 && exam && !finishedRef.current) {
-      setTimeLeft((exam.durationMin || 60) * 60);
+    if (timeLeft === null && qs.length > 0 && exam && !finishedRef.current && durationRef.current) {
+      setTimeLeft(durationRef.current);
     }
   }, [qs.length, exam, timeLeft]);
 
@@ -304,7 +327,7 @@ export default function LiveTest() {
       <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/95 backdrop-blur px-4 py-3">
         <div className="max-w-3xl mx-auto flex items-center gap-2">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-black truncate">{testTitle}</p>
+            <p className="text-sm font-black truncate">{testTitle}{plannedMin ? ` · ${plannedMin} min` : ""}</p>
             <p className="text-[10px] text-slate-500 font-semibold">
               {answeredCount}/{qs.length} answered
               {totalQ > 0 && qs.length < totalQ && (
