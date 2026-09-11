@@ -10,12 +10,16 @@ export type LoadedQuestion = {
   question_type: string;
   question_text: string;
   options: string[];
-  correct_index: number | null; 
-  correct_value: string | null; 
+  correct_index: number | null;
+  correct_value: string | null;
   explanation: string | null;
 };
 
 export type PlanSlot = { section_id: string; topic_id: string };
+
+// ==========================================
+// PLAN BUILDERS (unchanged)
+// ==========================================
 
 export function distributeByWeight(topics: ExamTopic[], total: number): { topic: ExamTopic; count: number }[] {
   const totalWeight = topics.reduce((sum, t) => sum + t.weight, 0);
@@ -53,6 +57,10 @@ export function buildQuestionPlan(examId: string): { section: ExamSection; topic
   return plan;
 }
 
+// ==========================================
+// FETCH OR GENERATE (🔥 FIXED: no more silent nulls)
+// ==========================================
+
 async function fetchOrGenerate(
   admin: SupabaseClient,
   examId: string,
@@ -65,9 +73,10 @@ async function fetchOrGenerate(
   year: number | null,
   styleGuide: string | undefined,
   yearPatterns: any,
-  optionCount: number = 4, 
-  difficulty: "easy" | "medium" | "hard" = "medium" 
-): Promise<LoadedQuestion | null> {
+  optionCount: number = 4,
+  difficulty: "easy" | "medium" | "hard" = "medium"
+): Promise<LoadedQuestion> {
+  // 1) Try the database cache first (free + instant)
   let q = admin.from("questions").select("*")
     .eq("exam_id", examId).eq("section_id", sectionId).eq("topic_id", topicId);
   if (year) q = q.eq("year", year);
@@ -80,40 +89,49 @@ async function fetchOrGenerate(
     return {
       id: pick.id, exam_id: pick.exam_id, section_id: pick.section_id, topic_id: pick.topic_id,
       question_type: pick.question_type || `mcq-${optionCount}`,
-      question_text: pick.question_text, options: pick.options, 
+      question_text: pick.question_text, options: pick.options,
       correct_index: pick.correct_index, correct_value: pick.correct_value,
       explanation: pick.explanation,
     };
   }
 
+  // 2) DB empty for this slot → ask the AI (throws a REAL error message on failure)
   const prompt = buildQuestionPrompt(examName, sectionName, topicName, difficulty, optionCount, year, styleGuide, yearPatterns);
   const gen = await generateOneQuestion(prompt, getKeys());
-  if (!gen) return null;
 
+  // 3) Save it so we never pay for the same question twice
   const { data: saved, error } = await admin.from("questions")
     .insert({
       exam_id: examId, section_id: sectionId, topic_id: topicId,
       question_type: gen.q.question_type || `mcq-${optionCount}`,
       question_text: gen.q.question_text, options: gen.q.options,
-      correct_index: gen.q.correct_index === -1 ? null : gen.q.correct_index, 
+      correct_index: gen.q.correct_index === -1 ? null : gen.q.correct_index,
       correct_value: gen.q.correct_value,
       explanation: gen.q.explanation,
-      solution_steps: gen.q.solution_steps.join("\n"), memory_trick: gen.q.memory_trick,
+      solution_steps: (gen.q.solution_steps || []).join("\n"),
+      memory_trick: gen.q.memory_trick,
       source: "ai-generated", difficulty: difficulty,
       year,
     })
     .select()
     .single();
 
-  if (error || !saved) return null;
+  // 🔥 FIX #2: previously this was `return null` and the error was thrown away.
+  // Now the exact Supabase error bubbles up so we can SEE why it failed.
+  if (error || !saved) throw new Error(`DB insert failed: ${error?.message || "no row returned"}`);
+
   return {
     id: saved.id, exam_id: saved.exam_id, section_id: saved.section_id, topic_id: saved.topic_id,
     question_type: saved.question_type,
-    question_text: saved.question_text, options: saved.options, 
+    question_text: saved.question_text, options: saved.options,
     correct_index: saved.correct_index, correct_value: saved.correct_value,
     explanation: saved.explanation,
   };
 }
+
+// ==========================================
+// BATCH GENERATOR (🔥 FIXED: reports WHY a batch failed)
+// ==========================================
 
 export async function generateQuestionBatch(
   admin: SupabaseClient,
@@ -127,34 +145,49 @@ export async function generateQuestionBatch(
   if (!exam) return [];
 
   const styleGuide = exam.style_guide;
-  const optionCount = exam.allowedOptionCounts?.[0] || 4; 
+  const optionCount = exam.allowedOptionCounts?.[0] || 4;
   let yearPatterns: any = null;
-  
+
   if (year) {
     const { data } = await admin.from("year_patterns").select("*").eq("exam_id", examId).eq("year", year).maybeSingle();
     yearPatterns = data;
   }
 
   const out: LoadedQuestion[] = [];
+  let firstError: Error | null = null;
+
   for (let i = 0; i < plan.length; i += batchSize) {
     const slice = plan.slice(i, i + batchSize);
-    const results = await Promise.all(
+    const results = await Promise.allSettled(
       slice.map((p) =>
         fetchOrGenerate(
-          admin, examId, p.section.id, p.topic.id, p.topic.name, p.section.name, 
+          admin, examId, p.section.id, p.topic.id, p.topic.name, p.section.name,
           exam.name, usedIds, year, styleGuide, yearPatterns, optionCount, "medium"
         )
       )
     );
-    for (const q of results) {
-      if (q && !usedIds.has(q.id)) {
-        out.push(q);
-        usedIds.add(q.id);
+    for (const r of results) {
+      if (r.status === "fulfilled") {
+        const q = r.value;
+        if (q && !usedIds.has(q.id)) {
+          out.push(q);
+          usedIds.add(q.id);
+        }
+      } else if (!firstError) {
+        firstError = r.reason instanceof Error ? r.reason : new Error(String(r.reason));
       }
     }
   }
+
+  // 🔥 FIX #2: zero questions + a known error → throw it upward instead of silent []
+  if (out.length === 0 && firstError) throw firstError;
+
   return out;
 }
+
+// ==========================================
+// ANALYTICS (unchanged)
+// ==========================================
 
 export function computeAnalytics(
   answers: { question_id: string; user_answer: number | null; is_correct: boolean }[],
@@ -196,6 +229,10 @@ export function computeAnalytics(
   return { correct, wrong, skipped, attempted, raw_score: rawScore, negative_marks: negMarks, final_score: finalScore, accuracy, weak_topics: weak.slice(0, 5), strong_topics: strong.slice(0, 5) };
 }
 
+// ==========================================
+// SUPABASE CLIENTS (unchanged)
+// ==========================================
+
 export function adminClient(): SupabaseClient {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 }
@@ -211,6 +248,10 @@ export function userClientFromRequest(req: Request) {
   );
 }
 
+// ==========================================
+// FILL ATTEMPT (🔥 FIXED: error reporting + failure cap)
+// ==========================================
+
 export async function fillAttemptQuestions(
   admin: SupabaseClient,
   exam: ReturnType<typeof getExamById> & {},
@@ -219,7 +260,7 @@ export async function fillAttemptQuestions(
   year: number | null,
   budgetMs: number,
   initialExclude?: Set<string>
-): Promise<{ have: number; target: number; done: boolean }> {
+): Promise<{ have: number; target: number; done: boolean; error?: string }> {
   const started = Date.now();
   const { data: linked } = await admin
     .from("test_attempt_questions")
@@ -237,16 +278,29 @@ export async function fillAttemptQuestions(
     return { section, topic };
   };
 
-  while (have < target && Date.now() - started < budgetMs) {
+  let lastError = "";
+  let failures = 0;
+  const MAX_FAILURES = 2; // 🔥 stop hammering a dead AI after 2 failed rounds
+
+  while (have < target && Date.now() - started < budgetMs && failures < MAX_FAILURES) {
     const slice = plan.slice(have, have + 3).map(slotToObj);
     if (slice.length === 0) break;
-    const batch = await generateQuestionBatch(admin, exam.id, slice, haveIds, 3, year);
-    if (batch.length === 0) break;
-    await admin.from("test_attempt_questions").insert(
-      batch.map((q, i) => ({ attempt_id: attemptId, question_id: q.id, question_order: have + i }))
-    );
-    batch.forEach((q) => haveIds.add(q.id));
-    have += batch.length;
+
+    try {
+      const batch = await generateQuestionBatch(admin, exam.id, slice, haveIds, 3, year);
+      if (batch.length === 0) { failures++; continue; }
+      failures = 0;
+      await admin.from("test_attempt_questions").insert(
+        batch.map((q, i) => ({ attempt_id: attemptId, question_id: q.id, question_order: have + i }))
+      );
+      batch.forEach((q) => haveIds.add(q.id));
+      have += batch.length;
+    } catch (e: any) {
+      lastError = e?.message || "unknown generation error";
+      failures++;
+      console.error("[fillAttemptQuestions]", lastError);
+    }
   }
-  return { have, target, done: have >= target };
+
+  return { have, target, done: have >= target, error: lastError };
 }
