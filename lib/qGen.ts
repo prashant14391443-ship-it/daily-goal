@@ -9,43 +9,9 @@ export type GeneratedQuestion = {
   memory_trick: string | null;
 };
 
-let lastGenError = "no attempt yet";
+// Start with a clear default message
+let lastGenError = "Starting AI Generation...";
 export function getLastGenError() { return lastGenError; }
-
-const FETCH_TIMEOUT_MS = 25000;
-async function fetchWithTimeout(url: string, init?: RequestInit, ms = FETCH_TIMEOUT_MS): Promise<Response> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), ms);
-  try {
-    return await fetch(url, { ...init, signal: ctrl.signal });
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-// Fallback to the latest robust models in case dynamic discovery fails
-const FALLBACK_GEMINI = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
-
-let geminiCache: { models: string[]; at: number } | null = null;
-export async function discoverGeminiModels(key: string): Promise<string[]> {
-  if (geminiCache && Date.now() - geminiCache.at < 10 * 60 * 1000) return geminiCache.models;
-  try {
-    const r = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=200`);
-    if (r.ok) {
-      const d = await r.json();
-      const all = (d.models || [])
-        .filter((m: any) => (m.supportedGenerationMethods || []).includes("generateContent"))
-        .map((m: any) => (m.name || "").replace("models/", ""))
-        .filter((n: string) => n && !/embedding|tts|imagen|aqa|safeguard|guard/i.test(n));
-      const flashStable = all.filter((n: string) => n.includes("flash") && !n.includes("preview"));
-      const flashPrev = all.filter((n: string) => n.includes("flash") && n.includes("preview"));
-      const pro = all.filter((n: string) => n.includes("pro"));
-      const models = [...flashStable, ...flashPrev, ...pro].slice(0, 5);
-      if (models.length > 0) { geminiCache = { models, at: Date.now() }; return models; }
-    }
-  } catch {}
-  return FALLBACK_GEMINI;
-}
 
 export function buildQuestionPrompt(
   examName: string,
@@ -63,10 +29,7 @@ export function buildQuestionPrompt(
     prompt += `REAL ${year} PAPER ANALYSIS (match this exactly):\n`;
     if (yearPatterns.difficulty_mix) prompt += `- Difficulty mix: ${JSON.stringify(yearPatterns.difficulty_mix)}\n`;
     if (yearPatterns.style_notes?.length) prompt += `- Style: ${yearPatterns.style_notes.join("; ")}\n`;
-    if (yearPatterns.trap_patterns?.length) prompt += `- Wrong-option traps: ${yearPatterns.trap_patterns.join("; ")}\n`;
     prompt += `\n`;
-  } else if (year) {
-    prompt += `Match the style and difficulty of the ${year} ${examName} paper.\n\n`;
   }
   
   const diffCtx = {
@@ -88,19 +51,18 @@ export function buildQuestionPrompt(
 Reply ONLY with valid JSON. No markdown. No preamble.
 {
   "question_type": "mcq-${optionCount}",
-  "question_text": "Clear, unambiguous question text. Use standard text formatting.",
+  "question_text": "Clear, unambiguous question text.",
   "options": ${optionsString},
   "correct_index": 0,
   "correct_value": null,
   "explanation": "2-sentence explanation",
   "solution_steps": ["Step 1...", "Step 2..."],
-  "memory_trick": "short mnemonic (optional, leave as empty string if not applicable)"
+  "memory_trick": ""
 }
 
 Rules:
 - "correct_index" is 0-based (0 to ${optionCount - 1})
 - ${optionCount} plausible options, similar length
-- Wrong options target common misconceptions
 - For Quant: clean numbers, integer answers when possible
 - For Reasoning: exactly one unambiguous answer`;
 
@@ -131,37 +93,47 @@ export async function generateOneQuestion(
   prompt: string,
   keys: { gemini?: string }
 ): Promise<{ q: GeneratedQuestion; engine: string } | null> {
+  
   if (!keys.gemini) {
-    lastGenError = "NO API KEYS: set GEMINI_API_KEY in Vercel env";
+    lastGenError = "ERROR: GEMINI_API_KEY is missing in Vercel Settings.";
     return null;
   }
 
-  const models = await discoverGeminiModels(keys.gemini);
-  for (const model of models) {
-    try {
-      const r = await fetchWithTimeout(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keys.gemini}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.7, maxOutputTokens: 1500, responseMimeType: "application/json" },
-          }),
-        }
-      );
-      if (r.ok) {
-        const d = await r.json();
-        const raw = d.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        try {
-          const parsed = JSON.parse(cleanJson(raw));
-          if (isValidQuestion(parsed)) return { q: parsed, engine: `gemini:${model}` };
-          lastGenError = `gemini:${model}: invalid JSON shape`;
-        } catch { lastGenError = `gemini:${model}: JSON parse failed`; }
-      } else {
-        lastGenError = `gemini:${model}: HTTP ${r.status}`;
+  // 🔥 Force the app to use the most stable, reliable free model
+  const model = "gemini-1.5-flash"; 
+  lastGenError = `Waiting for ${model} to generate...`;
+
+  try {
+    const r = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keys.gemini}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 1500, responseMimeType: "application/json" },
+        }),
       }
-    } catch (e: any) { lastGenError = `gemini:${model}: ${e?.message || "timeout"}`; }
+    );
+
+    if (r.ok) {
+      const d = await r.json();
+      const raw = d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      try {
+        const parsed = JSON.parse(cleanJson(raw));
+        if (isValidQuestion(parsed)) {
+          lastGenError = "Success";
+          return { q: parsed, engine: `gemini:${model}` };
+        }
+        lastGenError = "ERROR: Google AI returned bad JSON data.";
+      } catch { 
+        lastGenError = "ERROR: Google AI failed to format the question correctly."; 
+      }
+    } else {
+      lastGenError = `ERROR: Google AI API failed with HTTP ${r.status}. Check your API Key.`;
+    }
+  } catch (e: any) { 
+    lastGenError = `ERROR: Vercel Timeout or Network Issue - ${e?.message}`; 
   }
 
   return null;
