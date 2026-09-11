@@ -68,15 +68,8 @@ export default function TestHub() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [realYears.length]);
 
-  useEffect(() => {
-    try {
-      const last = Number(localStorage.getItem("dg-seed-at") || 0);
-      if (Date.now() - last > 10 * 60 * 1000) {
-        localStorage.setItem("dg-seed-at", String(Date.now()));
-        fetch("/api/test/seed", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }).catch(() => {});
-      }
-    } catch {}
-  }, []);
+
+  
 
   const startTest = async (sectionId?: string, year?: number, source?: "ai" | "real") => {
     if (!uid) { alert("Please login first to take a test!"); return; }

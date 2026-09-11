@@ -5,8 +5,6 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const GEMINI_MODELS = ["gemini-3-flash-preview", "gemini-3.7-flash"];
-
 function isAdmin(email?: string) {
   const list = (process.env.ADMIN_EMAILS || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
   return !!email && list.includes(email.toLowerCase());
@@ -26,6 +24,28 @@ function cleanJsonObj(raw: string) {
   return t;
 }
 
+// 🔥 Live model discovery — always uses whatever Gemini has TODAY (no more 404s from retired models)
+let modelCache: { models: string[]; at: number } | null = null;
+async function discoverGeminiModels(key: string): Promise<string[]> {
+  if (modelCache && Date.now() - modelCache.at < 30 * 60 * 1000) return modelCache.models;
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}&pageSize=200`);
+    if (r.ok) {
+      const d = await r.json();
+      const all = (d.models || [])
+        .filter((m: any) => (m.supportedGenerationMethods || []).includes("generateContent"))
+        .map((m: any) => (m.name || "").replace("models/", ""))
+        .filter((n: string) => n && !/embedding|tts|imagen|aqa|safeguard|guard|veo/i.test(n));
+      const flashStable = all.filter((n: string) => n.includes("flash") && !n.includes("preview") && !n.includes("lite"));
+      const flashPrev = all.filter((n: string) => n.includes("flash") && n.includes("preview"));
+      const pro = all.filter((n: string) => n.includes("pro"));
+      const models = [...flashStable, ...flashPrev, ...pro].slice(0, 5);
+      if (models.length > 0) { modelCache = { models, at: Date.now() }; return models; }
+    }
+  } catch {}
+  return ["gemini-2.5-flash", "gemini-2.0-flash"]; // hardcoded safety net
+}
+
 const EXTRACT_PROMPT = `You are an exam paper digitizer. Extract EVERY multiple-choice question visible in this document.
 
 Return ONLY a valid JSON array. No markdown. Each item:
@@ -34,12 +54,12 @@ Return ONLY a valid JSON array. No markdown. Each item:
   "options": ["A", "B", "C", "D"],
   "correct_index": 0,
   "explanation": "1-sentence reason (or empty string if unknown)",
-  "topic": "best-matching topic name (e.g. 'Trigonometry', 'Indian Polity & Constitution', 'Idioms & Phrases')"
+  "topic": "best-matching topic name"
 }
 
 Rules:
-- If the correct answer is not marked in the paper, set correct_index to -1
-- Keep options exactly as printed (4 options; if fewer, pad with empty strings to 4)
+- If the correct answer is not marked, set correct_index to -1
+- Keep options exactly as printed (4 options; pad with empty strings if fewer)
 - Preserve numbers, formulas and units exactly
 - Skip non-MCQ questions`;
 
@@ -49,20 +69,30 @@ Return ONLY valid JSON. No markdown.
 
 {
   "difficulty_mix": { "easy": 35, "medium": 45, "hard": 20 },
-  "topic_distribution": { "Geometry": 8, "Current Affairs": 12, "Coding-Decoding": 2 },
-  "style_notes": ["More data interpretation", "Longer passages", "Complex calculations"],
+  "topic_distribution": { "Geometry": 8, "Current Affairs": 12 },
+  "style_notes": ["More data interpretation", "Longer passages"],
   "avg_question_length": 45,
   "trap_patterns": ["close options", "unit conversion tricks"],
   "time_pressure": "medium"
 }
 
-Analyze:
-- difficulty_mix: percentage of easy/medium/hard questions (must sum to 100)
-- topic_distribution: count of questions per topic
-- style_notes: 3-5 bullet points about what makes this year's paper unique
-- avg_question_length: average words per question (estimate)
-- trap_patterns: common tricks used in wrong options
-- time_pressure: "low" / "medium" / "high" (based on question complexity and length)`;
+difficulty_mix must sum to 100. style_notes: 3-5 bullets. time_pressure: low/medium/high.`;
+
+async function callGemini(key: string, model: string, prompt: string, image?: { mime: string; base64: string }) {
+  const parts: any[] = [{ text: prompt }];
+  if (image) parts.push({ inline_data: { mime_type: image.mime, data: image.base64 } });
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: { temperature: 0.25, maxOutputTokens: 8192, responseMimeType: "application/json" },
+    }),
+  });
+  if (!r.ok) throw new Error(`${model}: HTTP ${r.status}`);
+  const d = await r.json();
+  return d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+}
 
 export async function POST(req: Request) {
   try {
@@ -78,29 +108,21 @@ export async function POST(req: Request) {
 
     const admin = adminClient();
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    if (!gKey) return NextResponse.json({ error: "GEMINI_API_KEY missing in Vercel env" }, { status: 500 });
 
     if (action === "extract") {
       const { dataUrl } = body;
-      if (!gKey) return NextResponse.json({ error: "GEMINI_API_KEY missing in Vercel env" }, { status: 500 });
       const base64 = String(dataUrl || "").split(",")[1];
       const mime = String(dataUrl || "").split(";")[0].split(":")[1] || "application/pdf";
       if (!base64 || base64.length < 100) return NextResponse.json({ error: "Invalid file" }, { status: 400 });
 
+      const models = await discoverGeminiModels(gKey);
       let questions: any[] = [];
       let lastErr = "";
-      for (const model of GEMINI_MODELS) {
+
+      for (const model of models) {
         try {
-          const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gKey}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: EXTRACT_PROMPT }, { inline_data: { mime_type: mime, data: base64 } }] }],
-              generationConfig: { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: "application/json" },
-            }),
-          });
-          if (!r.ok) { lastErr = `${model}: ${r.status}`; continue; }
-          const d = await r.json();
-          const raw = d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          const raw = await callGemini(gKey, model, EXTRACT_PROMPT, { mime, base64 });
           const parsed = JSON.parse(cleanJsonArr(raw));
           if (Array.isArray(parsed) && parsed.length > 0) {
             questions = parsed
@@ -127,7 +149,6 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Nothing to save" }, { status: 400 });
       }
 
-      // Save questions
       const rows = questions.map((q: any) => ({
         exam_id,
         section_id: q.section_id,
@@ -143,26 +164,17 @@ export async function POST(req: Request) {
       const { error } = await admin.from("questions").insert(rows);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-      // Analyze patterns
+      // Analyze patterns (best-effort, uses live models)
       let patterns = null;
-      if (gKey && questions.length > 10) {
-        const questionsText = questions.map((q: any, i: number) => 
+      if (questions.length > 10) {
+        const questionsText = questions.map((q: any, i: number) =>
           `Q${i+1}: ${q.question_text}\nOptions: ${q.options.join(", ")}\nCorrect: ${String.fromCharCode(65 + q.correct_index)}`
         ).join("\n\n");
 
-        for (const model of GEMINI_MODELS) {
+        const models = await discoverGeminiModels(gKey);
+        for (const model of models) {
           try {
-            const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gKey}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: `${ANALYZE_PROMPT}\n\nPaper content:\n${questionsText}` }] }],
-                generationConfig: { temperature: 0.3, maxOutputTokens: 2048, responseMimeType: "application/json" },
-              }),
-            });
-            if (!r.ok) continue;
-            const d = await r.json();
-            const raw = d.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            const raw = await callGemini(gKey, model, `${ANALYZE_PROMPT}\n\nPaper content:\n${questionsText}`);
             const parsed = JSON.parse(cleanJsonObj(raw));
             if (parsed && parsed.difficulty_mix && parsed.topic_distribution) {
               patterns = {
@@ -179,22 +191,18 @@ export async function POST(req: Request) {
         }
       }
 
-      // Store patterns
       if (patterns && year) {
         await admin.from("year_patterns").upsert({
-          exam_id,
-          year,
-          ...patterns,
-          updated_at: new Date().toISOString(),
+          exam_id, year, ...patterns, updated_at: new Date().toISOString(),
         }, { onConflict: "exam_id,year" });
       }
 
-      return NextResponse.json({ 
-        saved: rows.length, 
+      return NextResponse.json({
+        saved: rows.length,
         patterns_analyzed: !!patterns,
-        message: patterns 
+        message: patterns
           ? `Saved ${rows.length} questions + analyzed ${year} patterns!`
-          : `Saved ${rows.length} questions (pattern analysis skipped).`
+          : `Saved ${rows.length} questions (pattern analysis skipped).`,
       });
     }
 

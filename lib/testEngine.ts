@@ -225,9 +225,9 @@ export async function fillAttemptQuestions(
   };
 
   while (have < target && Date.now() - started < budgetMs) {
-    const slice = plan.slice(have, have + 10).map(slotToObj);
+    const slice = plan.slice(have, have + 3).map(slotToObj);
     if (slice.length === 0) break;
-    const batch = await generateQuestionBatch(admin, exam.id, slice, haveIds, 10, year);
+    const batch = await generateQuestionBatch(admin, exam.id, slice, haveIds, 3, year);
     if (batch.length === 0) break;
     await admin.from("test_attempt_questions").insert(
       batch.map((q, i) => ({ attempt_id: attemptId, question_id: q.id, question_order: have + i }))
