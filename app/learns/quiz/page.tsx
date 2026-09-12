@@ -50,6 +50,11 @@ function QuizContent() {
 
       {loading ? (
         <div className="py-16 text-center"><Loader2 className="animate-spin mx-auto text-indigo-400" /></div>
+      ) : qs.length === 0 ? (
+        <div className="py-16 text-center">
+          <p className="text-sm font-bold text-slate-300 mb-1">No questions available yet</p>
+          <p className="text-[11px] text-slate-500">Quiz bank for this milestone is being prepared.</p>
+        </div>
       ) : (
         <div className="grid gap-3">
           {qs.map((q, qi) => {
@@ -102,7 +107,6 @@ function QuizContent() {
   );
 }
 
-// 🔥 THIS IS THE FIX: Wrapping the component in Suspense so Next.js build passes
 export default function LearnQuizPage() {
   return (
     <Suspense fallback={
