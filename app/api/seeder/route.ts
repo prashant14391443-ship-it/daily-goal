@@ -172,7 +172,21 @@ export async function POST(req: Request) {
       
       const { error } = await admin.from("questions").insert(rows);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
+      // 🔥 Update topic_stats (PYQ frequency) for smart syllabus badges
+      const recent = year && year >= new Date().getFullYear() - 5;
+      const counts: Record<string, number> = {};
+      for (const q of questions) { if (q.topic_id) counts[q.topic_id] = (counts[q.topic_id] || 0) + 1; }
+      for (const [tid, add] of Object.entries(counts)) {
+        const { data: ex } = await admin.from("topic_stats")
+          .select("total_pyq_count, last_5_years_count")
+          .eq("exam_id", exam_id).eq("topic_id", tid).maybeSingle();
+        await admin.from("topic_stats").upsert({
+          exam_id, topic_id: tid,
+          total_pyq_count: (ex?.total_pyq_count || 0) + add,
+          last_5_years_count: (ex?.last_5_years_count || 0) + (recent ? add : 0),
+          last_updated: new Date().toISOString(),
+        }, { onConflict: "exam_id,topic_id" });
+      }
       let patterns = null;
       if (questions.length > 10) {
         const questionsText = questions.map((q: any, i: number) =>

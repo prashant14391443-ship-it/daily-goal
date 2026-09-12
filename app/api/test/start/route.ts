@@ -11,7 +11,7 @@ const QUICK_TARGET = 8;
 
 export async function POST(req: Request) {
   try {
-    const { exam_id, section_id = null, year = null, source = "ai" } = await req.json();
+    const { exam_id, section_id = null, topic_id = null, year = null, source = "ai" } = await req.json();
     const exam = getExamById(exam_id);
     if (!exam) return NextResponse.json({ error: "Unknown exam" }, { status: 400 });
 
@@ -62,7 +62,17 @@ export async function POST(req: Request) {
     // AI MODE: build the full plan (100 Qs / sectional)
     // ==========================================
     let planObjs: { section: any; topic: any }[] = [];
-    if (section_id) {
+    if (topic_id) {
+      // 🔥 Topic-only practice: 10 questions from this exact topic
+      for (const s of exam.sections) {
+        const t = s.topics.find((tp) => tp.id === topic_id);
+        if (t) {
+          for (let i = 0; i < 10; i++) planObjs.push({ section: s, topic: t });
+          break;
+        }
+      }
+      if (planObjs.length === 0) return NextResponse.json({ error: "Unknown topic" }, { status: 400 });
+    } else if (section_id) {
       const section = exam.sections.find((s) => s.id === section_id);
       if (!section) return NextResponse.json({ error: "Unknown section" }, { status: 400 });
       const dist = distributeByWeight(section.topics, section.questionCount);
