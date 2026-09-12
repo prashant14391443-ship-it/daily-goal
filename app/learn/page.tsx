@@ -194,6 +194,9 @@ export default function LearnPage() {
         <button onClick={generate} disabled={busy} className="press col-span-2 py-3 rounded-xl bg-violet-500/15 border border-violet-500/30 text-sm font-black text-violet-300 disabled:opacity-50 flex items-center justify-center gap-1.5">
           <Sparkles size={15} /> {busy ? "Building…" : "Build My Blueprint"}
         </button>
+       <Link href="/learn/web-dev" className="w-full py-3.5 rounded-xl border border-indigo-400/30 bg-indigo-500/10 text-sm font-black text-indigo-200 flex items-center justify-center gap-2">
+  <Code2 size={16} /> Structured Web Dev Track (Hinglish) — 8 milestones + projects
+</Link>
       </div>
       {msg && <p className="text-center text-xs font-bold text-violet-300 mb-3">{msg}</p>}
 
