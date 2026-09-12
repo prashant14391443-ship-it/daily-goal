@@ -1,12 +1,13 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, XCircle, Loader2, Sparkles, Database } from "lucide-react";
 
 type Q = { q: string; options: string[]; correct: number; explain: string; source: string };
 
-export default function LearnQuizPage() {
+// 🔥 Extracted the main logic into QuizContent
+function QuizContent() {
   const sp = useSearchParams();
   const track_id = sp.get("track_id") || "web-dev";
   const milestone_id = sp.get("milestone_id") || "";
@@ -19,7 +20,7 @@ export default function LearnQuizPage() {
 
   useEffect(() => {
     const load = async () => {
-      const res = await fetch(`/api/learns/quiz?track_id=${track_id}&milestone_id=${milestone_id}&ai=${want_ai ? 1 : 0}`);
+      const res = await fetch(`/api/learn/quiz?track_id=${track_id}&milestone_id=${milestone_id}&ai=${want_ai ? 1 : 0}`);
       const d = await res.json();
       if (res.ok) { setQs(d.questions || []); setMeta(d); }
       setLoading(false);
@@ -99,5 +100,14 @@ export default function LearnQuizPage() {
         </div>
       )}
     </main>
+  );
+}
+
+// 🔥 Wrap it in Suspense so Next.js doesn't crash during build
+export default function LearnQuizPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen bg-slate-950 text-white flex items-center justify-center"><Loader2 className="animate-spin text-indigo-400" /></main>}>
+      <QuizContent />
+    </Suspense>
   );
 }
