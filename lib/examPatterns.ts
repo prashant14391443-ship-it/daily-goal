@@ -104,6 +104,60 @@ const CUET_GEN: ExamTopic[] = [
   { id: "CUET-4", name: "English & Comprehension", weight: 2 },
 ];
 // ==========================================
+// JEE (PCM) POOLS
+// ==========================================
+const JEE_PHY: ExamTopic[] = [
+  { id: "JEE-P-1", name: "Mechanics (Kinematics, Laws of Motion, Rotation)", weight: 4 },
+  { id: "JEE-P-2", name: "Electrodynamics & Magnetism", weight: 4 },
+  { id: "JEE-P-3", name: "Modern Physics, Optics & Waves", weight: 3 },
+  { id: "JEE-P-4", name: "Thermodynamics & Properties of Matter", weight: 2 },
+];
+const JEE_CHEM: ExamTopic[] = [
+  { id: "JEE-C-1", name: "Physical Chemistry (Mole Concept, Thermo, Electro)", weight: 3 },
+  { id: "JEE-C-2", name: "Organic Chemistry (GOC, Hydrocarbons, Biomolecules)", weight: 4 },
+  { id: "JEE-C-3", name: "Inorganic Chemistry (Coordination, p/d/f blocks)", weight: 3 },
+];
+const JEE_MATH: ExamTopic[] = [
+  { id: "JEE-M-1", name: "Calculus (Limits, Derivatives, Integration)", weight: 4 },
+  { id: "JEE-M-2", name: "Algebra (Matrices, Determinants, Probability)", weight: 3 },
+  { id: "JEE-M-3", name: "Coordinate Geometry (Conics, Straight Lines)", weight: 3 },
+  { id: "JEE-M-4", name: "Vectors & 3D Geometry", weight: 2 },
+];
+
+// ==========================================
+// NEET (PCB) POOLS
+// ==========================================
+const NEET_PHY: ExamTopic[] = [
+  { id: "NEET-P-1", name: "Mechanics & Properties of Matter", weight: 3 },
+  { id: "NEET-P-2", name: "Electrodynamics & Modern Physics", weight: 4 },
+  { id: "NEET-P-3", name: "Optics, Waves & Thermodynamics", weight: 3 },
+];
+const NEET_CHEM: ExamTopic[] = [
+  { id: "NEET-C-1", name: "Physical & Inorganic Chemistry", weight: 4 },
+  { id: "NEET-C-2", name: "Organic Chemistry & Biomolecules", weight: 5 },
+];
+const NEET_BIO: ExamTopic[] = [
+  { id: "NEET-B-1", name: "Genetics, Evolution & Biotechnology", weight: 4 },
+  { id: "NEET-B-2", name: "Human & Plant Physiology", weight: 5 },
+  { id: "NEET-B-3", name: "Ecology, Environment & Biodiversity", weight: 3 },
+  { id: "NEET-B-4", name: "Cell Biology, Reproduction & Biomolecules", weight: 4 },
+];
+
+// ==========================================
+// GATE (Computer Science) POOLS
+// ==========================================
+const GATE_CS_CORE: ExamTopic[] = [
+  { id: "GATE-CS-1", name: "Data Structures, Algorithms & C Programming", weight: 5 },
+  { id: "GATE-CS-2", name: "Operating Systems & DBMS", weight: 4 },
+  { id: "GATE-CS-3", name: "Computer Networks & Digital Logic", weight: 3 },
+  { id: "GATE-CS-4", name: "Theory of Computation & Compiler Design", weight: 3 },
+  { id: "GATE-CS-5", name: "Computer Organization & Architecture", weight: 2 },
+];
+const GATE_MATH_APTI: ExamTopic[] = [
+  { id: "GATE-MA-1", name: "Discrete Math & Engineering Mathematics", weight: 4 },
+  { id: "GATE-MA-2", name: "General Aptitude (Verbal & Numerical)", weight: 2 },
+];
+// ==========================================
 // 2. 9 EXAM PATTERNS
 // ==========================================
 
@@ -262,7 +316,43 @@ export const CUET_GENERAL: ExamPattern = {
     { id: "CUET-ENG", name: "English & Comprehension", shortName: "English", questionCount: 15, marksPerQ: 5, timeLimitMin: null, color: "purple", sortOrder: 4, topics: ENGLISH },
   ],
 };
+export const JEE_MAIN: ExamPattern = {
+  id: "JEE-MAIN", name: "JEE Main (B.E./B.Tech)", shortName: "JEE Main",
+  description: "Joint Entrance Examination — Physics, Chemistry, Mathematics",
+  totalMarks: 300, totalQuestions: 90, durationMin: 180, negativeMarking: 1,
+  allowedOptionCounts: [4],
+  style_guide: "JEE questions are highly conceptual, numerical, and require multi-step problem solving. Use realistic physical constants and clean integer/fractional answers where possible.",
+  sections: [
+    { id: "JEE-PHY", name: "Physics", shortName: "Physics", questionCount: 30, marksPerQ: 4, timeLimitMin: 60, color: "blue", sortOrder: 1, topics: JEE_PHY },
+    { id: "JEE-CHEM", name: "Chemistry", shortName: "Chemistry", questionCount: 30, marksPerQ: 4, timeLimitMin: 60, color: "emerald", sortOrder: 2, topics: JEE_CHEM },
+    { id: "JEE-MATH", name: "Mathematics", shortName: "Math", questionCount: 30, marksPerQ: 4, timeLimitMin: 60, color: "orange", sortOrder: 3, topics: JEE_MATH },
+  ],
+};
 
+export const NEET_UG: ExamPattern = {
+  id: "NEET-UG", name: "NEET UG (Medical)", shortName: "NEET",
+  description: "National Eligibility cum Entrance Test — Physics, Chemistry, Biology",
+  totalMarks: 720, totalQuestions: 180, durationMin: 200, negativeMarking: 1,
+  allowedOptionCounts: [4],
+  style_guide: "NEET questions are strictly based on NCERT textbooks. Focus on factual accuracy, biological processes, chemical reactions, and assertion-reasoning statements.",
+  sections: [
+    { id: "NEET-PHY", name: "Physics", shortName: "Physics", questionCount: 45, marksPerQ: 4, timeLimitMin: 50, color: "blue", sortOrder: 1, topics: NEET_PHY },
+    { id: "NEET-CHEM", name: "Chemistry", shortName: "Chemistry", questionCount: 45, marksPerQ: 4, timeLimitMin: 50, color: "emerald", sortOrder: 2, topics: NEET_CHEM },
+    { id: "NEET-BIO", name: "Biology (Botany & Zoology)", shortName: "Biology", questionCount: 90, marksPerQ: 4, timeLimitMin: 100, color: "purple", sortOrder: 3, topics: NEET_BIO },
+  ],
+};
+
+export const GATE_CSE: ExamPattern = {
+  id: "GATE-CSE", name: "GATE (Computer Science & IT)", shortName: "GATE CSE",
+  description: "Graduate Aptitude Test in Engineering — CS/IT Paper",
+  totalMarks: 100, totalQuestions: 65, durationMin: 180, negativeMarking: 0.33,
+  allowedOptionCounts: [4],
+  style_guide: "GATE CS questions test deep technical fundamentals, algorithmic complexity, OS/DBMS concurrency, and discrete mathematics. Code snippets and pseudocode are highly encouraged.",
+  sections: [
+    { id: "GATE-CORE", name: "Core Computer Science", shortName: "Core CS", questionCount: 45, marksPerQ: 1.5, timeLimitMin: 120, color: "blue", sortOrder: 1, topics: GATE_CS_CORE },
+    { id: "GATE-MATH", name: "Engg Math & General Aptitude", shortName: "Math/Apti", questionCount: 20, marksPerQ: 1.5, timeLimitMin: 60, color: "orange", sortOrder: 2, topics: GATE_MATH_APTI },
+  ],
+};
 // ==========================================
 // 3. EXPORT LIST & HELPERS
 // ==========================================
@@ -283,6 +373,9 @@ export const EXAMS: ExamPattern[] = [
   UPSC_CSAT,
   CDS_COMBINED,
   CUET_GENERAL,
+    JEE_MAIN,
+  NEET_UG,
+  GATE_CSE,
 ];
 
 // Provide aliases for older frontend pages

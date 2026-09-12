@@ -24,6 +24,7 @@ export function buildQuestionPrompt(
   year?: number | null,
   styleGuide?: string,
   yearPatterns?: any
+  
 ): string {
   let prompt = `You are an expert question setter for the ${examName} examination.\n\n`;
   if (styleGuide) prompt += `OFFICIAL EXAM PATTERN & STYLE (follow strictly):\n${styleGuide}\n\n`;
@@ -66,7 +67,8 @@ Rules:
 - "correct_index" is 0-based (0 to ${optionCount - 1})
 - ${optionCount} plausible options, similar length
 - For Quant: clean numbers, integer answers when possible
-- For Reasoning: exactly one unambiguous answer`;
+- For Reasoning: exactly one unambiguous answer
+- For JEE/NEET (Physics/Chemistry/Math): 30% of the time, generate a Numerical Value Type (NVT) question. If NVT, set "question_type" to "nvt", "options" to [], "correct_index" to -1, and put the exact numerical answer (e.g. "42.5") in "correct_value".`;
 
   return prompt;
 }
