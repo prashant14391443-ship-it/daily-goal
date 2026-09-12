@@ -56,7 +56,7 @@ export default function TrackPage() {
       <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
         <div className="text-center">
           <p className="text-sm font-bold mb-3">Track not found</p>
-          <Link href="/learn" className="text-xs text-indigo-300 underline">Back to Learn</Link>
+          <Link href="/learns" className="text-xs text-indigo-300 underline">Back to Learn</Link>
         </div>
       </main>
     );
@@ -120,7 +120,7 @@ export default function TrackPage() {
   if (!enrollment) {
     return (
       <main className="min-h-screen bg-slate-950 text-white px-4 pt-8 pb-24 max-w-2xl mx-auto">
-        <Link href="/learn" className="flex items-center gap-1.5 text-xs text-slate-400 mb-5"><ArrowLeft size={13} /> Back to Learn</Link>
+        <Link href="/learns" className="flex items-center gap-1.5 text-xs text-slate-400 mb-5"><ArrowLeft size={13} /> Back to Learn</Link>
         <div className="rounded-3xl border border-indigo-400/20 bg-gradient-to-br from-indigo-950/70 via-slate-900 to-slate-950 p-6 mb-5">
           <span className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center mb-4"><Code2 size={22} /></span>
           <h1 className="text-xl font-black">{track.name}</h1>
@@ -167,7 +167,7 @@ export default function TrackPage() {
   // ── DASHBOARD ──
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-8 pb-24 max-w-2xl mx-auto">
-      <Link href="/learn" className="flex items-center gap-1.5 text-xs text-slate-400 mb-5"><ArrowLeft size={13} /> Back to Learn</Link>
+      <Link href="/learns" className="flex items-center gap-1.5 text-xs text-slate-400 mb-5"><ArrowLeft size={13} /> Back to Learn</Link>
 
       <div className="rounded-3xl border border-white/5 bg-gradient-to-br from-indigo-950/70 via-slate-900 to-slate-950 p-5 mb-4">
         <div className="flex items-center justify-between mb-3">
