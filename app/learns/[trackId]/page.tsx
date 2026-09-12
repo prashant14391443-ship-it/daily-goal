@@ -28,6 +28,8 @@ export default function TrackPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [urlInput, setUrlInput] = useState("");
+  const [review, setReview] = useState<any>(null);
+  const [reviewFor, setReviewFor] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -269,9 +271,45 @@ export default function TrackPage() {
                     )}
                   </div>
 
-                  <Link href={`/quiz?topic=${encodeURIComponent(m.aiQuizTopics.join(", "))}`}
+                  {/* AI Project Review Button */}
+                  {row?.project_url && (
+                    <button
+                      onClick={async () => {
+                        const url = progress[m.id]?.project_url;
+                        if (!url) return;
+                        setReviewFor(m.id);
+                        setReview({ loading: true });
+                        try {
+                          const res = await fetch("/api/learn/review", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ track_id: track.id, milestone_id: m.id, project_url: url }),
+                          });
+                          const d = await res.json();
+                          setReview(res.ok ? d : { error: d.error });
+                        } catch (e: any) { setReview({ error: e.message }); }
+                      }}
+                      className="w-full py-2.5 rounded-lg bg-violet-500/15 border border-violet-500/30 text-[11px] font-black text-violet-300 mb-2"
+                    >
+                      🤖 Get AI Project Review
+                    </button>
+                  )}
+                  {review && reviewFor === m.id && (
+                    <div className="rounded-lg bg-slate-800/60 border border-slate-700 p-3 text-[11px] text-slate-300 mb-2">
+                      {review.loading ? <Loader2 size={14} className="animate-spin" /> : review.error ? <p className="text-rose-300">{review.error}</p> : (
+                        <>
+                          <p className="font-black text-white mb-1">Score: {review.review?.score}/100</p>
+                          {(review.review?.strengths || []).map((s: string, i: number) => <p key={i} className="text-emerald-300">✅ {s}</p>)}
+                          {(review.review?.fixes || []).map((s: string, i: number) => <p key={i} className="text-amber-300">🔧 {s}</p>)}
+                          <p className="text-indigo-300 mt-1">➡️ {review.review?.next_step}</p>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  <Link href={`/learns/quiz?track_id=${track.id}&milestone_id=${m.id}&ai=1`}
                     className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-slate-800/60 border border-slate-700 text-[11px] font-black text-slate-200">
-                    <Sparkles size={13} className="text-cyan-400" /> AI Quiz: {m.aiQuizTopics.slice(0, 2).join(" + ")}
+                    <Sparkles size={13} className="text-cyan-400" /> Practice Quiz (free bank + cached AI)
                   </Link>
                 </div>
               )}
