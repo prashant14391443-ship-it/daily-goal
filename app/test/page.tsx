@@ -6,7 +6,7 @@ import { Target, Clock, FileText, AlertTriangle, ArrowLeft, Loader2, TrendingUp,
 import { supabase } from "@/lib/supabase";
 import { authHeaders } from "@/lib/testApi";
 import { ALL_EXAMS, getExamById, type ExamPattern } from "@/lib/examPatterns";
-
+import ExamSyllabusNotes from "@/app/components/ExamSyllabusNotes";
 type Attempt = {
   id: string; status: string; mode: string; year: number | null; exam_id: string;
   final_score: number; accuracy: number; created_at: string;
@@ -235,7 +235,8 @@ export default function TestHub() {
         )}
       </section>
 
-      {/* ── PATTERN ── */}
+      {/* ── SYLLABUS & SMART NOTES (auto-matches selected exam) ── */}
+      <ExamSyllabusNotes exam={exam} />
       <section className="rounded-3xl border border-white/5 bg-white/[0.02] p-5 mb-5">
         <h2 className="text-sm font-semibold text-white mb-4">Exam Pattern</h2>
         <div className="grid gap-2">

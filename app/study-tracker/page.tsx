@@ -36,19 +36,6 @@ export default function StudyHub() {
           </div>
         </Link>
 
-        {/* 📘 FEATURED: Syllabus & Smart Notes */}
-        <Link href="/study/syllabus" className="press bg-slate-900 border-2 border-indigo-500/40 rounded-2xl p-5 hover:border-indigo-500/60 transition-all shadow-lg shadow-indigo-500/10">
-          <div className="flex items-center gap-4">
-            <span className="w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center">
-              <ClipboardList size={24} strokeWidth={2.2} />
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="font-black text-base text-white">Syllabus & Smart Notes</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">Topic cheat sheets • 🔥 high-weightage • examiner traps • instant topic practice</p>
-            </div>
-            <span className="text-[10px] font-black text-indigo-400 bg-indigo-500/10 border border-indigo-500/30 px-2 py-1 rounded-lg">NEW</span>
-          </div>
-        </Link>
       </div>
 
       {/* ═══════════ SECTION 2: STUDY TOOLS ═══════════ */}
