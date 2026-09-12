@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -6,6 +7,7 @@ import { ArrowLeft, CheckCircle2, XCircle, Loader2, Sparkles, Database } from "l
 
 type Q = { q: string; options: string[]; correct: number; explain: string; source: string };
 
+// THIS IS THE INNER COMPONENT THAT USES useSearchParams
 function QuizContent() {
   const sp = useSearchParams();
   const track_id = sp.get("track_id") || "web-dev";
@@ -19,9 +21,13 @@ function QuizContent() {
 
   useEffect(() => {
     const load = async () => {
-      const res = await fetch(`/api/learn/quiz?track_id=${track_id}&milestone_id=${milestone_id}&ai=${want_ai ? 1 : 0}`);
-      const d = await res.json();
-      if (res.ok) { setQs(d.questions || []); setMeta(d); }
+      try {
+        const res = await fetch(`/api/learn/quiz?track_id=${track_id}&milestone_id=${milestone_id}&ai=${want_ai ? 1 : 0}`);
+        const d = await res.json();
+        if (res.ok) { setQs(d.questions || []); setMeta(d); }
+      } catch (e) {
+        console.error("Failed to load quiz", e);
+      }
       setLoading(false);
     };
     load();
@@ -29,6 +35,14 @@ function QuizContent() {
 
   const answered = Object.keys(picked).length;
   const correct = qs.filter((q, i) => picked[i] === q.correct).length;
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+        <Loader2 className="animate-spin text-indigo-400" />
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-8 pb-24 max-w-2xl mx-auto">
@@ -48,9 +62,7 @@ function QuizContent() {
         )}
       </p>
 
-      {loading ? (
-        <div className="py-16 text-center"><Loader2 className="animate-spin mx-auto text-indigo-400" /></div>
-      ) : qs.length === 0 ? (
+      {qs.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-sm font-bold text-slate-300 mb-1">No questions available yet</p>
           <p className="text-[11px] text-slate-500">Quiz bank for this milestone is being prepared.</p>
@@ -59,6 +71,7 @@ function QuizContent() {
         <div className="grid gap-3">
           {qs.map((q, qi) => {
             const pick = picked[qi];
+            const revealed = pick !== undefined;
             return (
               <div key={qi} className="rounded-2xl border border-white/5 bg-white/[0.02] p-4">
                 <p className="text-[13px] font-bold text-slate-100 mb-3">Q{qi + 1}. {q.q}</p>
@@ -66,14 +79,13 @@ function QuizContent() {
                   {q.options.map((opt, oi) => {
                     const isPick = pick === oi;
                     const isCorrect = oi === q.correct;
-                    const revealed = pick !== undefined;
-                    let cls = "bg-slate-900/60 border-slate-800 text-slate-300";
+                    let cls = "bg-slate-900/60 border-slate-800 text-slate-300 hover:bg-slate-800/60";
                     if (revealed && isCorrect) cls = "bg-emerald-500/10 border-emerald-500/40 text-emerald-200";
                     else if (revealed && isPick && !isCorrect) cls = "bg-rose-500/10 border-rose-500/40 text-rose-200";
                     return (
                       <button key={oi} disabled={revealed}
                         onClick={() => setPicked((p) => ({ ...p, [qi]: oi }))}
-                        className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-[12px] font-semibold ${cls}`}>
+                        className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-[12px] font-semibold transition-colors ${cls}`}>
                         <span className="shrink-0 w-6 h-6 rounded-md bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-black">
                           {String.fromCharCode(65 + oi)}
                         </span>
@@ -107,6 +119,7 @@ function QuizContent() {
   );
 }
 
+// THIS IS THE DEFAULT EXPORT THAT WRAPS IT IN SUSPENSE (THIS FIXES THE BUILD ERROR)
 export default function LearnQuizPage() {
   return (
     <Suspense fallback={
