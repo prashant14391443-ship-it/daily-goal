@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { addTopic } from "@/lib/srs";
-import { GraduationCap, Sparkles, Save, Download, Layers, Map as MapIcon, Hammer, BookOpen, Dumbbell, AlertTriangle, ListOrdered, Calendar, Lightbulb, Timer, Trash2, Pencil } from "lucide-react";
+import { GraduationCap, Sparkles, Save, Download, Layers, Map as MapIcon, Hammer, BookOpen, Dumbbell, AlertTriangle, ListOrdered, Calendar, Lightbulb, Timer, Trash2, Pencil, Code2 } from "lucide-react";
 
 type LearnBP = {
   title: string;
