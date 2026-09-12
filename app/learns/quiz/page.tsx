@@ -6,7 +6,6 @@ import { ArrowLeft, CheckCircle2, XCircle, Loader2, Sparkles, Database } from "l
 
 type Q = { q: string; options: string[]; correct: number; explain: string; source: string };
 
-// 🔥 Extracted the main logic into QuizContent
 function QuizContent() {
   const sp = useSearchParams();
   const track_id = sp.get("track_id") || "web-dev";
@@ -103,10 +102,14 @@ function QuizContent() {
   );
 }
 
-// 🔥 Wrap it in Suspense so Next.js doesn't crash during build
+// 🔥 THIS IS THE FIX: Wrapping the component in Suspense so Next.js build passes
 export default function LearnQuizPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-slate-950 text-white flex items-center justify-center"><Loader2 className="animate-spin text-indigo-400" /></main>}>
+    <Suspense fallback={
+      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+        <Loader2 className="animate-spin text-indigo-400" />
+      </main>
+    }>
       <QuizContent />
     </Suspense>
   );
