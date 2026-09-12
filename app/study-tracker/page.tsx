@@ -1,8 +1,11 @@
 "use client";
 import Link from "next/link";
-import { BookOpen, Timer, Layers, Brain, Bot, RefreshCw, GraduationCap, Target } from "lucide-react";
+import { BookOpen, Timer, Layers, Brain, Bot, RefreshCw, GraduationCap, Target, ClipboardList } from "lucide-react";
+import { ALL_EXAMS } from "@/lib/examPatterns";
 
 export default function StudyHub() {
+  const examCount = ALL_EXAMS.length;
+
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-16 pb-24 max-w-4xl mx-auto">
       {/* 🌆 CALM HERO */}
@@ -16,22 +19,41 @@ export default function StudyHub() {
         <p className="text-[11px] text-slate-500 font-semibold mt-2">Choose your tool</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        {/* ⭐ FEATURED: SSC CGL Mock Test (full-width, top position) */}
-        <Link href="/test" className="press col-span-2 bg-slate-900 border-2 border-orange-500/40 rounded-2xl p-5 hover:border-orange-500/60 transition-all shadow-lg shadow-orange-500/10">
+      {/* ═══════════ SECTION 1: EXAM PREPARATION ═══════════ */}
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mb-2.5">Exam Preparation</p>
+      <div className="grid gap-3 mb-7">
+        {/* ⭐ FEATURED: Mock Tests & PYQ Papers (all exams) */}
+        <Link href="/test" className="press bg-slate-900 border-2 border-orange-500/40 rounded-2xl p-5 hover:border-orange-500/60 transition-all shadow-lg shadow-orange-500/10">
           <div className="flex items-center gap-4">
             <span className="w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 text-white flex items-center justify-center">
               <Target size={24} strokeWidth={2.2} />
             </span>
-            <div className="flex-1">
-              <p className="font-black text-base text-white">SSC CGL Mock Test</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">100 Qs • 60 min • Full mock + sectionals + PYQ</p>
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-base text-white">Mock Tests & PYQ Papers</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">{examCount} exams • AI pattern papers • real PYQs • sectionals</p>
             </div>
             <span className="text-[10px] font-black text-orange-400 bg-orange-500/10 border border-orange-500/30 px-2 py-1 rounded-lg">NEW</span>
           </div>
         </Link>
 
-        {/* Row 1 */}
+        {/* 📘 FEATURED: Syllabus & Smart Notes */}
+        <Link href="/study/syllabus" className="press bg-slate-900 border-2 border-indigo-500/40 rounded-2xl p-5 hover:border-indigo-500/60 transition-all shadow-lg shadow-indigo-500/10">
+          <div className="flex items-center gap-4">
+            <span className="w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white flex items-center justify-center">
+              <ClipboardList size={24} strokeWidth={2.2} />
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-base text-white">Syllabus & Smart Notes</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Topic cheat sheets • 🔥 high-weightage • examiner traps • instant topic practice</p>
+            </div>
+            <span className="text-[10px] font-black text-indigo-400 bg-indigo-500/10 border border-indigo-500/30 px-2 py-1 rounded-lg">NEW</span>
+          </div>
+        </Link>
+      </div>
+
+      {/* ═══════════ SECTION 2: STUDY TOOLS ═══════════ */}
+      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 mb-2.5">Study Tools</p>
+      <div className="grid grid-cols-2 gap-3">
         <Link href="/studylog" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <span className="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center mb-4">
             <BookOpen size={18} strokeWidth={2.2} />
@@ -48,7 +70,6 @@ export default function StudyHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Pomodoro + growing plant</p>
         </Link>
 
-        {/* Row 2 */}
         <Link href="/flashcards" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <span className="w-9 h-9 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center mb-4">
             <Layers size={18} strokeWidth={2.2} />
@@ -65,7 +86,6 @@ export default function StudyHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Spaced repetition</p>
         </Link>
 
-        {/* Row 3 */}
         <Link href="/quiz" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <span className="w-9 h-9 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center mb-4">
             <Bot size={18} strokeWidth={2.2} />
