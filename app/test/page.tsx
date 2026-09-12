@@ -1,298 +1,124 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Target, Clock, FileText, AlertTriangle, ArrowLeft, Loader2, TrendingUp, CheckCircle2, CalendarDays, Zap, Trash2, Upload, Database, Sparkles, Layers } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { authHeaders } from "@/lib/testApi";
-import { ALL_EXAMS, getExamById, type ExamPattern } from "@/lib/examPatterns";
-import ExamSyllabusNotes from "@/app/components/ExamSyllabusNotes";
-type Attempt = {
-  id: string; status: string; mode: string; year: number | null; exam_id: string;
-  final_score: number; accuracy: number; created_at: string;
-  questions_answered: number; total_questions: number;
-};
+import {
+  ChevronRight, Search, Landmark, Wallet, Train, ScrollText,
+  GraduationCap, Shield, FlaskConical, Sigma, Cpu, School, ArrowLeft, Layers
+} from "lucide-react";
+import { ALL_EXAMS } from "@/lib/examPatterns";
 
-const PYQ_YEARS = [2025, 2024, 2023, 2022, 2021, 2020];
+function metaFor(id: string): { tag: string; icon: any; grad: string } {
+  if (id.startsWith("SSC")) return { tag: "SSC", icon: Landmark, grad: "from-blue-500 to-indigo-600" };
+  if (id.startsWith("BANK")) return { tag: "Banking", icon: Wallet, grad: "from-emerald-500 to-teal-600" };
+  if (id.startsWith("RRB")) return { tag: "Railway", icon: Train, grad: "from-green-500 to-emerald-600" };
+  if (id.startsWith("UPSC")) return { tag: "UPSC", icon: ScrollText, grad: "from-amber-500 to-orange-600" };
+  if (id.startsWith("CTET")) return { tag: "Teaching", icon: GraduationCap, grad: "from-purple-500 to-fuchsia-600" };
+  if (id.startsWith("CDS") || id.startsWith("NDA")) return { tag: "Defence", icon: Shield, grad: "from-red-500 to-rose-600" };
+  if (id.startsWith("CUET")) return { tag: "University", icon: School, grad: "from-cyan-500 to-blue-600" };
+  if (id.startsWith("JEE")) return { tag: "Engineering", icon: Sigma, grad: "from-indigo-500 to-violet-600" };
+  if (id.startsWith("NEET")) return { tag: "Medical", icon: FlaskConical, grad: "from-teal-500 to-cyan-600" };
+  if (id.startsWith("GATE")) return { tag: "Post-Grad", icon: Cpu, grad: "from-slate-500 to-slate-700" };
+  return { tag: "Exam", icon: GraduationCap, grad: "from-slate-500 to-slate-700" };
+}
 
-export default function TestHub() {
+const CATEGORIES = ["All", "SSC", "Banking", "Railway", "UPSC", "Defence", "Teaching", "Engineering", "Medical", "Post-Grad", "University"];
+
+export default function ExamSelector() {
   const router = useRouter();
-  const [uid, setUid] = useState<string | null>(null);
-  const [examId, setExamId] = useState("SSC-CGL-T1");
-  const [attempts, setAttempts] = useState<Attempt[]>([]);
-  const [starting, setStarting] = useState<string | null>(null);
-  const [pyqYear, setPyqYear] = useState(2025);
-  const [realYear, setRealYear] = useState(2025);
-  const [err, setErr] = useState("");
-  const [realCounts, setRealCounts] = useState<Record<number, number>>({});
-  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [q, setQ] = useState("");
+  const [cat, setCat] = useState("All");
 
-  const exam: ExamPattern = getExamById(examId) || ALL_EXAMS[0];
-  const marksPerQ = exam.sections[0]?.marksPerQ ?? 2;
-
-  useEffect(() => {
-    const load = async () => {
-      const { data } = await supabase.auth.getSession();
-      const id = data.session?.user.id || null;
-      setUid(id);
-      if (id) {
-        const { data: rows } = await supabase.from("test_attempts").select("*").eq("user_id", id).order("created_at", { ascending: false }).limit(30);
-        setAttempts((rows || []) as Attempt[]);
-      }
-    };
-    load();
-  }, []);
-
-  // Real-question counts for the SELECTED exam + admin detection
-  useEffect(() => {
-    const loadMeta = async () => {
-      const counts: Record<number, number> = {};
-      await Promise.all(PYQ_YEARS.map(async (y) => {
-        const { count } = await supabase.from("questions").select("id", { count: "exact", head: true }).eq("exam_id", exam.id).eq("source", "official").eq("year", y);
-        const { count: c2 } = await supabase.from("questions").select("id", { count: "exact", head: true }).eq("exam_id", exam.id).eq("source", "community").eq("year", y);
-        counts[y] = (count || 0) + (c2 || 0);
-      }));
-      setRealCounts(counts);
-      try {
-        const res = await fetch("/api/seeder", { method: "POST", headers: await authHeaders(), body: JSON.stringify({ action: "ping" }) });
-        const d = await res.json();
-        setIsAdminUser(!!d.admin);
-      } catch {}
-    };
-    loadMeta();
-  }, [exam.id]);
-
-  const realYears = PYQ_YEARS.filter((y) => (realCounts[y] || 0) > 0);
-  useEffect(() => {
-    if (realYears.length > 0 && !realYears.includes(realYear)) setRealYear(realYears[0]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [realYears.length]);
-
-
-  
-
-  const startTest = async (sectionId?: string, year?: number, source?: "ai" | "real") => {
-    if (!uid) { alert("Please login first to take a test!"); return; }
-    const key = source === "real" ? `real-${year}` : year ? `pyq-${year}` : sectionId || "full";
-    setStarting(key); setErr("");
-    const ctrl = new AbortController();
-    const watchdog = setTimeout(() => ctrl.abort(), 60000);
-    try {
-      const res = await fetch("/api/test/start", {
-        method: "POST",
-        headers: await authHeaders(),
-        signal: ctrl.signal,
-        body: JSON.stringify({ exam_id: exam.id, section_id: sectionId || null, year: year || null, source: source || "ai" }),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(typeof d.error === "string" ? d.error : "Failed to start test");
-      router.push(`/test/${d.attempt_id}`);
-    } catch (e: any) {
-      setErr(e.name === "AbortError" ? "Server took too long — try again in a few seconds." : (e.message || "Failed to start"));
-      setStarting(null);
-    } finally { clearTimeout(watchdog); }
-  };
-
-  const openAttempt = (a: Attempt) => {
-    if (a.status === "completed") router.push(`/test/${a.id}/results`);
-    else router.push(`/test/${a.id}`);
-  };
-
-  const deleteAttempt = async (a: Attempt) => {
-    if (!confirm(`Delete this attempt (${new Date(a.created_at).toLocaleDateString()})? This cannot be undone.`)) return;
-    try {
-      const res = await fetch("/api/test/delete", { method: "POST", headers: await authHeaders(), body: JSON.stringify({ attempt_id: a.id }) });
-      if (res.ok) setAttempts((prev) => prev.filter((x) => x.id !== a.id));
-    } catch {}
-  };
-
-  const clearHistory = async () => {
-    if (!confirm("Delete ALL completed history for this exam? This cannot be undone.")) return;
-    try {
-      const res = await fetch("/api/test/delete", { method: "POST", headers: await authHeaders(), body: JSON.stringify({ clear_all: true, exam_id: exam.id }) });
-      if (res.ok) setAttempts((prev) => prev.filter((x) => !(x.status === "completed" && x.exam_id === exam.id)));
-    } catch {}
-  };
-
-  const examAttempts = attempts.filter((a) => a.exam_id === exam.id);
+  const list = useMemo(() => {
+    return ALL_EXAMS.filter((e) => {
+      const m = metaFor(e.id);
+      const matchSearch = (e.name + " " + e.shortName + " " + m.tag).toLowerCase().includes(q.toLowerCase());
+      const matchCat = cat === "All" || m.tag === cat;
+      return matchSearch && matchCat;
+    });
+  }, [q, cat]);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-200 antialiased px-4 pt-6 pb-24 max-w-4xl mx-auto relative">
+    <main className="min-h-screen bg-slate-950 text-white px-4 pt-8 pb-24 max-w-3xl mx-auto relative">
       <div className="pointer-events-none fixed inset-x-0 top-0 h-80 bg-gradient-to-b from-indigo-500/[0.06] to-transparent" />
 
-      {/* ── EXAM SWITCHER ── */}
-      <div className="relative mb-6">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500 mb-2.5 flex items-center gap-1.5"><Layers size={12} /> Choose your exam</p>
-        <div className="grid grid-cols-2 gap-2">
-          {ALL_EXAMS.map((e) => (
+      {/* Header */}
+      <div className="relative mb-5">
+        <div className="flex items-center gap-3 mb-1">
+          <Link href="/study" className="w-9 h-9 shrink-0 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center hover:border-slate-600 transition-colors">
+            <ArrowLeft size={15} />
+          </Link>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-300/80">Step 1</p>
+            <h1 className="text-xl font-semibold tracking-tight text-white">Choose Your Exam</h1>
+          </div>
+        </div>
+        <p className="text-[11px] text-slate-500 font-medium mt-1.5 ml-12">
+          {ALL_EXAMS.length} exams · Tap to open dashboard with mocks, PYQs, notes & analytics
+        </p>
+      </div>
+
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search exam (SSC, NEET, Banking…)"
+          className="w-full bg-white/[0.03] border border-white/5 rounded-2xl pl-10 pr-4 py-3.5 text-sm outline-none focus:border-indigo-500/40 placeholder:text-slate-600 transition-colors"
+        />
+      </div>
+
+      {/* Category chips */}
+      <div className="flex gap-1.5 overflow-x-auto pb-3 mb-4 -mx-4 px-4 scrollbar-hide">
+        {CATEGORIES.map((c) => (
+          <button
+            key={c}
+            onClick={() => setCat(c)}
+            className={`shrink-0 px-3.5 py-2 rounded-xl text-[11px] font-semibold border transition-all ${
+              cat === c
+                ? "bg-indigo-500/15 border-indigo-400/40 text-indigo-200"
+                : "bg-white/[0.02] border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-200"
+            }`}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
+
+      {/* Exam cards */}
+      <div className="grid gap-2.5 relative">
+        {list.map((e) => {
+          const m = metaFor(e.id);
+          const Icon = m.icon;
+          return (
             <button
               key={e.id}
-              onClick={() => setExamId(e.id)}
-              className={`rounded-2xl border p-3.5 text-left transition-all ${
-                examId === e.id ? "border-indigo-400/40 bg-indigo-500/10" : "border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]"
-              }`}
+              onClick={() => router.push(`/exam/${e.id}`)}
+              className="flex items-center gap-3.5 rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-left hover:border-indigo-400/25 hover:bg-white/[0.04] transition-all"
             >
-              <p className={`text-[13px] font-semibold ${examId === e.id ? "text-indigo-200" : "text-slate-200"}`}>{e.name}</p>
-              <p className="text-[10px] text-slate-500 mt-0.5">{e.totalQuestions} Qs · {e.durationMin} min · −{e.negativeMarking}</p>
+              <span className={`w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br ${m.grad} flex items-center justify-center shadow-lg`}>
+                <Icon size={20} className="text-white" />
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="flex items-center gap-2">
+                  <span className="text-[13px] font-semibold text-slate-100 truncate">{e.name}</span>
+                  <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-[8px] font-semibold uppercase tracking-wider text-slate-400">{m.tag}</span>
+                </span>
+                <span className="block text-[10px] text-slate-500 font-medium mt-1">
+                  {e.totalQuestions} Qs · {e.totalMarks} marks · {e.durationMin} min · −{e.negativeMarking}
+                </span>
+              </span>
+              <ChevronRight size={16} className="text-slate-600 shrink-0" />
             </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── HERO ─ */}
-      <div className="relative mb-6 overflow-hidden rounded-3xl border border-white/5 bg-gradient-to-br from-indigo-950/70 via-slate-900 to-slate-950 p-6">
-        <div className="pointer-events-none absolute -top-24 -right-24 w-72 h-72 rounded-full bg-indigo-500/15 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 -left-20 w-64 h-64 rounded-full bg-teal-500/10 blur-3xl" />
-        <div className="relative">
-          <div className="flex items-start justify-between mb-5">
-            <span className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
-              <Target size={20} className="text-indigo-300" strokeWidth={1.8} />
-            </span>
-            <Link href="/study" className="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white transition-colors"><ArrowLeft size={13} /> Study</Link>
+          );
+        })}
+        {list.length === 0 && (
+          <div className="py-10 text-center">
+            <p className="text-xs text-slate-500 font-medium">No exam matches "{q}" in {cat}</p>
           </div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-indigo-300/80 mb-1.5">Exam Programme</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">{exam.name}</h1>
-          <p className="text-[13px] text-slate-400 mt-1.5 leading-relaxed max-w-md">{exam.description}</p>
-          <div className="grid grid-cols-4 divide-x divide-white/5 mt-6 rounded-2xl border border-white/5 bg-white/[0.02] backdrop-blur">
-            <div className="py-3.5 text-center"><p className="text-lg font-semibold text-white">{exam.totalQuestions}</p><p className="text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 mt-0.5">Questions</p></div>
-            <div className="py-3.5 text-center"><p className="text-lg font-semibold text-white">{exam.totalMarks}</p><p className="text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 mt-0.5">Marks</p></div>
-            <div className="py-3.5 text-center"><p className="text-lg font-semibold text-white">{exam.durationMin}m</p><p className="text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 mt-0.5">Duration</p></div>
-            <div className="py-3.5 text-center"><p className="text-lg font-semibold text-white">−{exam.negativeMarking}</p><p className="text-[9px] font-medium uppercase tracking-[0.14em] text-slate-500 mt-0.5">Negative</p></div>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-start gap-2.5 rounded-2xl border border-teal-400/15 bg-teal-400/[0.05] px-4 py-3 mb-5">
-        <Zap size={14} className="text-teal-300 shrink-0 mt-0.5" strokeWidth={1.8} />
-        <p className="text-xs text-teal-100/70 leading-relaxed">Tests open instantly — your paper assembles silently in the background while you answer.</p>
-      </div>
-
-      <button onClick={() => startTest()} disabled={starting !== null} className="w-full py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-sm font-semibold text-white shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 mb-6">
-        {starting === "full" ? <><Loader2 size={16} className="animate-spin" /> Preparing...</> : <>Start Full Mock Test · {exam.totalQuestions} Qs · {exam.durationMin} min</>}
-      </button>
-
-      {/* ── SECTIONAL ── */}
-      <section className="rounded-3xl border border-white/5 bg-white/[0.02] p-5 mb-5">
-        <header className="flex items-center gap-3 mb-4">
-          <span className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-400/15 flex items-center justify-center"><FileText size={15} className="text-indigo-300" strokeWidth={1.8} /></span>
-          <div><h2 className="text-sm font-semibold text-white">Sectional Practice</h2><p className="text-[11px] text-slate-500">Focused practice per section</p></div>
-        </header>
-        <div className="grid grid-cols-2 gap-2.5">
-          {exam.sections.map((s) => (
-            <button key={s.id} onClick={() => startTest(s.id)} disabled={starting !== null} className="rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-left hover:border-indigo-400/25 hover:bg-white/[0.04] transition-all disabled:opacity-50">
-              {starting === s.id ? <span className="flex items-center gap-2 text-sm font-medium text-indigo-300"><Loader2 size={14} className="animate-spin" /> Preparing...</span> : (<><p className="text-sm font-semibold text-slate-100">{s.shortName}</p><p className="text-[11px] text-slate-500 mt-1">{s.questionCount} Qs · {s.questionCount * s.marksPerQ} marks · {s.timeLimitMin ?? Math.max(5, Math.round((exam.durationMin * s.questionCount) / exam.totalQuestions))} min</p></>)}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* ── AI PATTERN PAPERS ── */}
-      <section className="rounded-3xl border border-white/5 bg-white/[0.02] p-5 mb-5">
-        <header className="flex items-center gap-3 mb-4">
-          <span className="w-9 h-9 rounded-xl bg-violet-500/10 border border-violet-400/15 flex items-center justify-center"><Sparkles size={15} className="text-violet-300" strokeWidth={1.8} /></span>
-          <div><h2 className="text-sm font-semibold text-white">AI Pattern Papers</h2><p className="text-[11px] text-slate-500">{exam.totalQuestions} questions · {exam.durationMin} minutes · year-matched style</p></div>
-        </header>
-        <div className="grid grid-cols-6 gap-1.5 mb-4">
-          {PYQ_YEARS.map((y) => (
-            <button key={y} onClick={() => setPyqYear(y)} className={`rounded-xl border py-2.5 text-xs font-medium transition-all ${pyqYear === y ? "border-violet-400/40 bg-violet-500/15 text-violet-200" : "border-white/5 bg-white/[0.02] text-slate-400 hover:border-white/10 hover:text-slate-200"}`}>{y}</button>
-          ))}
-        </div>
-        <button onClick={() => startTest(undefined, pyqYear, "ai")} disabled={starting !== null} className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-violet-500 to-indigo-500 hover:from-violet-400 hover:to-indigo-400 text-sm font-semibold text-white shadow-lg shadow-violet-500/15 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-          {starting === `pyq-${pyqYear}` ? <><Loader2 size={15} className="animate-spin" /> Preparing {pyqYear}...</> : <>Start {pyqYear} Pattern Paper</>}
-        </button>
-        <p className="text-[11px] text-slate-500 mt-3 text-center">Reconstructed in the exact {pyqYear} {exam.name} pattern · ~90% fresh each attempt</p>
-      </section>
-
-      {/* ── REAL PYQ ── */}
-      <section className="rounded-3xl border border-white/5 bg-white/[0.02] p-5 mb-5">
-        <header className="flex items-center gap-3 mb-4">
-          <span className="w-9 h-9 rounded-xl bg-teal-500/10 border border-teal-400/15 flex items-center justify-center"><Database size={15} className="text-teal-300" strokeWidth={1.8} /></span>
-          <div><h2 className="text-sm font-semibold text-white">Real Previous Year Papers</h2><p className="text-[11px] text-slate-500">Official questions · authentic papers</p></div>
-        </header>
-        {realYears.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.01] px-5 py-6 text-center">
-            <p className="text-xs font-medium text-slate-300 mb-1">No real papers uploaded for {exam.name} yet</p>
-            <p className="text-[11px] text-slate-500 leading-relaxed mb-4">Official papers uploaded via the admin seeder appear here automatically.</p>
-            {isAdminUser && (
-              <Link href="/seeder" className="inline-flex items-center gap-1.5 rounded-xl border border-teal-400/25 bg-teal-500/10 px-4 py-2.5 text-xs font-semibold text-teal-200 hover:bg-teal-500/15 transition-colors"><Upload size={13} /> Upload first paper</Link>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              {realYears.map((y) => (
-                <button key={y} onClick={() => setRealYear(y)} className={`rounded-2xl border p-3 text-center transition-all ${realYear === y ? "border-teal-400/40 bg-teal-500/10" : "border-white/5 bg-white/[0.02] hover:border-white/10"}`}>
-                  <p className={`text-sm font-semibold ${realYear === y ? "text-teal-200" : "text-slate-200"}`}>{y}</p>
-                  <p className="text-[10px] font-medium text-teal-300/80 mt-0.5">{realCounts[y]} real Qs</p>
-                </button>
-              ))}
-            </div>
-            <button onClick={() => startTest(undefined, realYear, "real")} disabled={starting !== null} className="w-full py-3.5 rounded-2xl border border-teal-400/30 bg-teal-500/10 hover:bg-teal-500/15 text-sm font-semibold text-teal-100 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
-              {starting === `real-${realYear}` ? <><Loader2 size={15} className="animate-spin" /> Loading...</> : <>Start {realYear} Real Paper · {realCounts[realYear]} Qs</>}
-            </button>
-            <p className="text-[11px] text-slate-500 mt-3 text-center">100% official questions · timer scales to length · retake anytime</p>
-          </>
         )}
-      </section>
-
-      {/* ── SYLLABUS & SMART NOTES (auto-matches selected exam) ── */}
-      <ExamSyllabusNotes exam={exam} />
-      <section className="rounded-3xl border border-white/5 bg-white/[0.02] p-5 mb-5">
-        <h2 className="text-sm font-semibold text-white mb-4">Exam Pattern</h2>
-        <div className="grid gap-2">
-          {exam.sections.map((s, i) => (
-            <div key={s.id} className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-3">
-              <div className="flex items-center gap-3">
-                <span className="w-7 h-7 rounded-lg border border-white/5 bg-white/[0.03] flex items-center justify-center text-[11px] font-semibold text-slate-400">{i + 1}</span>
-                <p className="text-[13px] font-medium text-slate-200">{s.name}</p>
-              </div>
-              <p className="text-[11px] font-medium text-slate-500">{s.questionCount} Qs · {s.questionCount * s.marksPerQ} marks</p>
-            </div>
-          ))}
-        </div>
-        <div className="flex items-start gap-2.5 mt-4 rounded-2xl border border-amber-400/15 bg-amber-400/[0.05] px-4 py-3">
-          <AlertTriangle size={14} className="text-amber-300 shrink-0 mt-0.5" strokeWidth={1.8} />
-          <p className="text-[11px] text-amber-100/70 leading-relaxed">+{marksPerQ} per correct, −{exam.negativeMarking} per wrong. Timer auto-submits at 0:00.</p>
-        </div>
-      </section>
-
-      {err && <p className="text-center text-xs font-medium text-rose-300 mb-5">❌ {err}</p>}
-
-      {/* ── HISTORY (this exam only) ── */}
-      {examAttempts.length > 0 && (
-        <section className="rounded-3xl border border-white/5 bg-white/[0.02] p-5">
-          <div className="flex items-center justify-between mb-4">
-            <header className="flex items-center gap-3">
-              <span className="w-9 h-9 rounded-xl bg-white/[0.04] border border-white/5 flex items-center justify-center"><TrendingUp size={15} className="text-slate-300" strokeWidth={1.8} /></span>
-              <div><h2 className="text-sm font-semibold text-white">Your Attempts</h2><p className="text-[11px] text-slate-500">{exam.name}</p></div>
-            </header>
-            <button onClick={clearHistory} className="rounded-lg border border-rose-400/20 bg-rose-500/[0.06] px-2.5 py-1.5 text-[10px] font-semibold text-rose-300 hover:bg-rose-500/10 transition-colors">Clear all</button>
-          </div>
-          <div className="grid gap-2">
-            {examAttempts.map((a) => (
-              <div key={a.id} className="flex items-center gap-2 rounded-2xl border border-white/5 bg-white/[0.02] p-3.5 hover:bg-white/[0.04] transition-colors">
-                <button onClick={() => openAttempt(a)} className="press flex-1 min-w-0 flex items-center justify-between text-left">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className={`w-9 h-9 shrink-0 rounded-xl border flex items-center justify-center ${a.status === "completed" ? "bg-emerald-500/[0.08] border-emerald-400/15 text-emerald-300" : "bg-amber-500/[0.08] border-amber-400/15 text-amber-300"}`}>
-                      {a.status === "completed" ? <CheckCircle2 size={15} strokeWidth={1.8} /> : <Clock size={15} strokeWidth={1.8} />}
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-[13px] font-medium text-slate-100 truncate">
-                        {a.status === "completed" ? `Score ${a.final_score}/${a.total_questions * marksPerQ}` : a.status === "preparing" ? "Preparing paper..." : "In progress"}
-                        <span className="text-[11px] text-slate-500 ml-2">{a.total_questions} Qs</span>
-                        {a.year && <span className={`ml-2 rounded-md border px-1.5 py-0.5 text-[9px] font-semibold ${a.mode === "pyq-real" ? "border-teal-400/20 bg-teal-500/10 text-teal-300" : "border-violet-400/20 bg-violet-500/10 text-violet-300"}`}>{a.mode === "pyq-real" ? `REAL ${a.year}` : `PYQ ${a.year}`}</span>}
-                      </p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">{new Date(a.created_at).toLocaleDateString()} · {a.questions_answered}/{a.total_questions} answered</p>
-                    </div>
-                  </div>
-                  {a.status === "completed" ? <span className={`ml-2 text-sm font-semibold shrink-0 ${a.accuracy >= 60 ? "text-emerald-300" : a.accuracy >= 40 ? "text-amber-300" : "text-rose-300"}`}>{Math.round(a.accuracy)}%</span> : <span className="ml-2 text-[11px] font-semibold text-amber-300 shrink-0">Resume →</span>}
-                </button>
-                <button onClick={() => deleteAttempt(a)} className="shrink-0 w-8 h-8 rounded-lg border border-white/5 bg-white/[0.02] text-slate-500 hover:text-rose-300 hover:border-rose-400/20 transition-colors flex items-center justify-center" title="Delete attempt"><Trash2 size={13} strokeWidth={1.8} /></button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      </div>
     </main>
   );
 }
