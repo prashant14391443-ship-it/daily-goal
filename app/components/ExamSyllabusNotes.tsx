@@ -23,6 +23,11 @@ export default function ExamSyllabusNotes({ exam }: { exam: ExamPattern }) {
   const [noteLoading, setNoteLoading] = useState(false);
   const [starting, setStarting] = useState(false);
 
+  // 🔥 PATCH A: admin + generator state
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [genBusy, setGenBusy] = useState<string | null>(null);
+  const [genMsg, setGenMsg] = useState("");
+
   // Load PYQ stats + note availability + user's weak topics for THIS exam
   useEffect(() => {
     let cancelled = false;
@@ -49,6 +54,61 @@ export default function ExamSyllabusNotes({ exam }: { exam: ExamPattern }) {
     load();
     return () => { cancelled = true; };
   }, [exam.id]);
+
+  // 🔥 PATCH B: admin detection
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const res = await fetch("/api/seeder", { method: "POST", headers: await authHeaders(), body: JSON.stringify({ action: "ping" }) });
+        const d = await res.json();
+        setIsAdminUser(!!d.admin);
+      } catch {}
+    };
+    check();
+  }, []);
+
+  // 🔥 PATCH B: helpers
+  const refreshNotes = async () => {
+    const { data: nt } = await supabase.from("topic_notes").select("topic_id").eq("exam_id", exam.id);
+    setNoteIds(new Set((nt || []).map((n: any) => n.topic_id)));
+  };
+
+  const generateTopicNote = async (topic: ExamTopic) => {
+    setGenBusy(topic.id); setGenMsg("");
+    try {
+      const res = await fetch("/api/admin/generate-notes", {
+        method: "POST", headers: await authHeaders(),
+        body: JSON.stringify({ exam_id: exam.id, topic_id: topic.id }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Failed");
+      await refreshNotes();
+      const { data } = await supabase.from("topic_notes").select("*")
+        .eq("exam_id", exam.id).eq("topic_id", topic.id).maybeSingle();
+      setNote((data as TopicNote) || null);
+      setGenMsg("✅ Notes ready!");
+    } catch (e: any) { setGenMsg(`❌ ${e.message}`); }
+    setGenBusy(null);
+  };
+
+  const generateAllMissing = async () => {
+    setGenBusy("all"); setGenMsg("");
+    try {
+      const missing = exam.sections.flatMap((s) => s.topics.filter((t) => !noteIds.has(t.id)).map((t) => t));
+      let done = 0;
+      for (const t of missing) {
+        setGenMsg(`Generating ${done + 1}/${missing.length}…`);
+        const res = await fetch("/api/admin/generate-notes", {
+          method: "POST", headers: await authHeaders(),
+          body: JSON.stringify({ exam_id: exam.id, topic_id: t.id }),
+        });
+        if (res.ok) done++;
+      }
+      await refreshNotes();
+      setGenMsg(`✅ Generated ${done}/${missing.length} notes`);
+    } catch (e: any) { setGenMsg(`❌ ${e.message}`); }
+    setGenBusy(null);
+  };
 
   const openNote = async (sectionName: string, topic: ExamTopic) => {
     setActiveTopic({ sectionName, topic });
@@ -80,15 +140,23 @@ export default function ExamSyllabusNotes({ exam }: { exam: ExamPattern }) {
 
   return (
     <section className="rounded-3xl border border-indigo-400/15 bg-indigo-500/[0.04] p-5 mb-5">
+      {/* 🔥 PATCH C: header with bulk generate button (admin-only) */}
       <header className="flex items-center gap-3 mb-4">
         <span className="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-400/15 flex items-center justify-center">
           <BookOpen size={15} className="text-indigo-300" strokeWidth={1.8} />
         </span>
-        <div>
+        <div className="flex-1">
           <h2 className="text-sm font-semibold text-white">Syllabus & Smart Notes</h2>
           <p className="text-[11px] text-slate-500">Topic cheat sheets · 🔥 high-weightage · 🔁 repeated in PYQs</p>
         </div>
+        {isAdminUser && (
+          <button onClick={generateAllMissing} disabled={genBusy !== null}
+            className="shrink-0 px-3 py-2 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-[10px] font-black text-indigo-300 disabled:opacity-50">
+            {genBusy === "all" ? "Generating…" : "✨ Generate all missing notes"}
+          </button>
+        )}
       </header>
+      {genMsg && <p className="text-[11px] font-bold text-slate-300 mb-3">{genMsg}</p>}
 
       <div className="grid gap-2">
         {exam.sections.map((s, si) => {
@@ -201,9 +269,18 @@ export default function ExamSyllabusNotes({ exam }: { exam: ExamPattern }) {
                 )}
               </div>
             ) : (
+              // 🔥 PATCH D: admin can generate a single note from inside the modal
               <div className="py-6 text-center">
                 <p className="text-sm font-bold text-slate-300 mb-1">Notes not generated yet</p>
-                <p className="text-[11px] text-slate-500">Admin: run /api/admin/generate-notes for this exam to create cheat sheets.</p>
+                {isAdminUser ? (
+                  <button onClick={() => generateTopicNote(activeTopic.topic)} disabled={genBusy !== null}
+                    className="mt-3 px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 text-xs font-black text-white disabled:opacity-50">
+                    {genBusy === activeTopic.topic.id ? "Writing cheat sheet…" : "✨ Generate notes for this topic now"}
+                  </button>
+                ) : (
+                  <p className="text-[11px] text-slate-500">Notes are prepared by the admin. Check back soon!</p>
+                )}
+                {genMsg && <p className="text-[11px] font-bold text-slate-300 mt-2">{genMsg}</p>}
               </div>
             )}
 
