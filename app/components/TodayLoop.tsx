@@ -46,7 +46,10 @@ export default function TodayLoop() {
         supabase.from("learning_enrollments").select("track_id").eq("user_id", uid).maybeSingle(),
         supabase.from("learning_progress").select("track_id,milestone_id,status").eq("user_id", uid),
       ]);
-      const g = goals || { study_target: 120, workout_target: 1, habits_target: 3 };
+      
+      const enrollmentData = en.data;
+      const goalsData = goals.data;
+      const g = goalsData || { study_target: 120, workout_target: 1, habits_target: 3 };
       const sMin = (study.data || []).reduce((s: number, r: any) => s + r.duration_minutes, 0);
       const gymN = (gym.data || []).length;
       const hTot = (habits.data || []).length;
@@ -56,8 +59,8 @@ export default function TodayLoop() {
       const due = countDue(uid);
 
       const list: StepItem[] = [];
-      if (en?.track_id) {
-        const tr = getTrackById(en.track_id);
+      if (enrollmentData?.track_id) {
+        const tr = getTrackById(enrollmentData.track_id);
         if (tr && tr.milestones.length > 0) {
           const doneIds = new Set((pr.data || []).filter((p: any) => p.track_id === tr.id && p.status === "completed").map((p: any) => p.milestone_id));
           const m = tr.milestones.find((x) => !doneIds.has(x.id));
