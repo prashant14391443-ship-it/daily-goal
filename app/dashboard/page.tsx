@@ -366,14 +366,16 @@ export default function Dashboard() {
         <StatCard href="/english" icon={Mic} tint="bg-teal-500/10 text-teal-400" bar="bg-teal-500" label="English" value="Speak Live + AI" sub="Practice with AI & real people" streak={0} pct={0} />
         <StatCard href="/learns" icon={Code2} tint="bg-indigo-500/10 text-indigo-400" bar="bg-indigo-500" label="Tech Track" value={String(learnXp)} sub={learnLabel} streak={learnStreak} pct={learnPct} />
 
-        <Link href="/streaks" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
-          <div className="flex items-start justify-between mb-4">
-            <span className="w-9 h-9 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center"><Flame size={18} strokeWidth={2.2} /></span>
-            <span className="text-xl font-black text-orange-400">{maxStreak}</span>
+        <Link href="/streaks" className="press col-span-2 md:col-span-3 bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors flex items-center gap-4">
+          <span className="w-11 h-11 shrink-0 rounded-xl bg-orange-500/10 text-orange-400 flex items-center justify-center"><Flame size={22} strokeWidth={2.2} /></span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-slate-400 mb-0.5">Streak</p>
+            <p className="text-xl font-black text-white leading-none">{maxStreak} days</p>
           </div>
-          <p className="text-xs font-semibold text-slate-400 mb-1">Streak</p>
-          <p className="text-xl font-black text-white leading-none mb-1">{maxStreak} days</p>
-          <p className={`text-[10px] ${maxBroken >= 2 ? "text-rose-400 font-black" : "text-slate-500"}`}>{maxBroken >= 2 ? "💔 rescue today!" : "tap to see all"}</p>
+          <div className="shrink-0 text-right">
+            <p className={`text-[10px] font-black ${maxBroken >= 2 ? "text-rose-400" : "text-slate-500"}`}>{maxBroken >= 2 ? "💔 rescue today!" : "tap to see all"}</p>
+            <ArrowRight size={16} className="text-slate-600 ml-auto mt-1" />
+          </div>
         </Link>
       </div>
 
