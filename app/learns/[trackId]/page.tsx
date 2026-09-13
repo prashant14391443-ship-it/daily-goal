@@ -4,10 +4,10 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, CheckCircle2, Circle, ExternalLink, Target,
-  ChevronDown, ChevronRight, Loader2, Rocket, Copy, Check
+  ChevronDown, ChevronRight, Loader2, Rocket, Copy, Check, Bot, Sparkles
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { getTrackById, buildSchedule, dayNumber, trackTotalHours, type TrackMilestone } from "@/lib/learningTracks";
+import { getTrackById, buildSchedule, dayNumber, type TrackMilestone } from "@/lib/learningTracks";
 
 type ProgressRow = {
   id: string; milestone_id: string; done_resources: string[];
@@ -29,6 +29,8 @@ export default function TrackDashboard() {
   const [busy, setBusy] = useState<string | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
+  const [review, setReview] = useState<any>(null);
+  const [reviewFor, setReviewFor] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -113,6 +115,24 @@ export default function TrackDashboard() {
     setBusy(null);
   };
 
+  const getReview = async (m: TrackMilestone) => {
+    const url = progress[m.id]?.project_url;
+    if (!url) return;
+    setReviewFor(m.id);
+    setReview({ loading: true });
+    try {
+      const res = await fetch("/api/learn/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ track_id: track.id, milestone_id: m.id, project_url: url }),
+      });
+      const d = await res.json();
+      setReview(res.ok ? d : { error: d.error || "Review failed" });
+    } catch (e: any) {
+      setReview({ error: e.message });
+    }
+  };
+
   const copyPrompt = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedPrompt(id);
@@ -131,7 +151,6 @@ export default function TrackDashboard() {
           <h1 className="text-xl font-black">{track.name}</h1>
           <p className="text-[12px] text-slate-400 mt-1">{track.tagline}</p>
         </div>
-
         <div className="rounded-3xl border border-white/5 bg-white/[0.02] p-6">
           <p className="text-sm font-black mb-1">Kitna time doge roz? 🕐</p>
           <p className="text-[11px] text-slate-500 mb-4">Isse tumhara personal schedule banega</p>
@@ -209,7 +228,8 @@ export default function TrackDashboard() {
                 <div className="px-4 pb-4">
                   <p className="text-[12px] text-slate-300 leading-relaxed mb-4">{m.summary}</p>
 
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">1. Resources (Check off as you finish)</p>
+                  {/* STEP 1: RESOURCES */}
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">1. Resources (finish & check off)</p>
                   <div className="grid gap-1.5 mb-5">
                     {m.resources.map((r) => {
                       const checked = doneRes.includes(r.id);
@@ -228,26 +248,25 @@ export default function TrackDashboard() {
                     })}
                   </div>
 
+                  {/* STEP 2: AI COACH PROMPTS */}
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">
-                    2. AI Coach Prompts <span className="text-[9px] text-violet-300 font-normal normal-case">(Copy & paste into ChatGPT / Gemini)</span>
+                    2. AI Coach <span className="text-[9px] text-violet-300 font-normal normal-case">(copy → paste in ChatGPT / Gemini)</span>
                   </p>
                   <div className="grid gap-2 mb-5">
                     {m.aiCoachPrompts.map((prompt, i) => (
                       <div key={i} className="relative rounded-xl bg-violet-500/5 border border-violet-500/20 p-3 pr-12">
                         <p className="text-[11px] text-violet-100 leading-relaxed">{prompt}</p>
-                        <button 
-                          onClick={() => copyPrompt(prompt, `${m.id}-${i}`)}
-                          className="absolute top-2 right-2 p-1.5 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 transition-colors"
-                          title="Copy prompt"
-                        >
+                        <button onClick={() => copyPrompt(prompt, `${m.id}-${i}`)}
+                          className="absolute top-2 right-2 p-1.5 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 transition-colors">
                           {copiedPrompt === `${m.id}-${i}` ? <Check size={12} /> : <Copy size={12} />}
                         </button>
                       </div>
                     ))}
                   </div>
 
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">3. Build & Ship Project</p>
-                  <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3.5 mb-2">
+                  {/* STEP 3: PROJECT + AI REVIEW */}
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">3. Build & ship project</p>
+                  <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3.5 mb-3">
                     <p className="text-[12px] font-bold text-white mb-1">{m.project.title}</p>
                     <p className="text-[11px] text-slate-400 leading-relaxed mb-2">{m.project.brief}</p>
                     <ul className="grid gap-1 mb-3">
@@ -256,10 +275,35 @@ export default function TrackDashboard() {
                       ))}
                     </ul>
                     {row?.project_url ? (
-                      <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-3 py-2">
-                        <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
-                        <a href={row.project_url} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-emerald-300 truncate">{row.project_url}</a>
-                      </div>
+                      <>
+                        <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-3 py-2 mb-2">
+                          <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                          <a href={row.project_url} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-emerald-300 truncate">{row.project_url}</a>
+                        </div>
+                        <button onClick={() => getReview(m)}
+                          className="w-full py-2.5 rounded-lg bg-violet-500/15 border border-violet-500/30 text-[11px] font-black text-violet-300 flex items-center justify-center gap-1.5">
+                          <Bot size={13} /> Get AI Project Review (Hinglish)
+                        </button>
+                        {reviewFor === m.id && review && (
+                          <div className="mt-2 rounded-lg bg-slate-800/60 border border-slate-700 p-3 text-[11px]">
+                            {review.loading ? (
+                              <span className="flex items-center gap-2 text-slate-300"><Loader2 size={13} className="animate-spin" /> Senior dev review ho raha hai…</span>
+                            ) : review.error ? (
+                              <p className="text-rose-300">❌ {review.error}</p>
+                            ) : (
+                              <>
+                                <p className="font-black text-white mb-1.5">Score: {review.review?.score}/100 <span className="text-[9px] text-slate-500 font-bold">({review.source})</span></p>
+                                {(review.rule_checks || []).map((c: any, i: number) => (
+                                  <p key={i} className={c.ok ? "text-emerald-300" : "text-slate-500"}>{c.ok ? "✅" : "⬜"} {c.check}</p>
+                                ))}
+                                {(review.review?.strengths || []).map((x: string, i: number) => <p key={i} className="text-emerald-300 mt-1">💪 {x}</p>)}
+                                {(review.review?.fixes || []).map((x: string, i: number) => <p key={i} className="text-amber-300 mt-1">🔧 {x}</p>)}
+                                {review.review?.next_step && <p className="text-indigo-300 mt-1.5 font-bold">➡️ {review.review.next_step}</p>}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <div className="flex gap-2">
                         <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="Paste GitHub / Vercel link"
@@ -271,6 +315,12 @@ export default function TrackDashboard() {
                       </div>
                     )}
                   </div>
+
+                  {/* STEP 4: QUIZ */}
+                  <Link href={`/learns/${track.id}/quiz/${m.id}`}
+                    className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-slate-800/60 border border-slate-700 text-[11px] font-black text-slate-200">
+                    <Sparkles size={13} className="text-cyan-400" /> 4. Practice Quiz — concept pakka karo
+                  </Link>
                 </div>
               )}
             </div>
