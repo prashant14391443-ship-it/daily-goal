@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { getTrackById } from "@/lib/learningTracks";
 import { countDue } from "@/lib/srs";
 import { Code2, BookOpen, Dumbbell, ListChecks, ListTodo, RefreshCw, ArrowRight, Check, ChevronUp, ChevronDown, type LucideIcon } from "lucide-react";
-
+import { readGoal } from "@/lib/goal";
 function iso(d: Date) { const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, "0"); const dd = String(d.getDate()).padStart(2, "0"); return `${y}-${m}-${dd}`; }
 
 type StepItem = { key: string; icon: LucideIcon; label: string; sub: string; href: string; done: boolean };
@@ -74,6 +74,10 @@ export default function TodayLoop() {
         { key: "habits", icon: ListChecks, label: "Habits", sub: `${hDone}/${hTot || g.habits_target}`, href: "/routine-habits", done: hTot > 0 && hDone >= hTot },
         { key: "todo", icon: ListTodo, label: "To-do", sub: `${tDone}/${tRows.length}`, href: "/todo", done: tRows.length > 0 && tDone >= tRows.length },
       );
+            const goal = readGoal(uid);
+      const prefMap: Record<string, string> = { job: "learn", exam: "study", fit: "gym", habits: "habits", english: "study" };
+      const want = goal ? prefMap[goal] : undefined;
+      if (want) { const i = list.findIndex((s) => s.key === want); if (i > 0) { const [it] = list.splice(i, 1); list.unshift(it); } }
       setSteps(list);
       setNext(list.find((s) => !s.done) || null);
     } catch (e) {
