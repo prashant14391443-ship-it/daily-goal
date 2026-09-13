@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
-import { Activity, PersonStanding, Bike, Mountain, Trophy, Ruler, Rocket, TrendingUp, Flag, Footprints, Timer, Radio, Pause, Square, Play, Coins } from "lucide-react";
+import { Activity, PersonStanding, Bike, Mountain, Trophy, Ruler, Rocket, TrendingUp, Flag, Footprints, Timer, Radio, Pause, Square, Play, Coins, Share2, Send, MapPin } from "lucide-react";
 
 const MODES = [
   { id: "walk", icon: PersonStanding, label: "Walk", met: 3.5 },
@@ -33,6 +33,25 @@ function fmtTime(s: number) { const m = Math.floor(s / 60); const ss = Math.floo
 function fmtPace(s: number) { const m = Math.floor(s / 60); const ss = Math.round(s % 60); return `${m}:${String(ss).padStart(2, "0")}`; }
 function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 type WeekBar = { label: string; speed: number };
+type RoutePt = { lat: number; lon: number; alt: number | null };
+
+function routePoints(route: RoutePt[] | null): string {
+  if (!route || route.length < 2) return "";
+  const lats = route.map((p) => p.lat), lons = route.map((p) => p.lon);
+  const minLa = Math.min(...lats), maxLa = Math.max(...lats), minLo = Math.min(...lons), maxLo = Math.max(...lons);
+  const dLa = maxLa - minLa || 1e-6, dLo = maxLo - minLo || 1e-6;
+  return route.map((p) => `${((p.lon - minLo) / dLo) * 100},${100 - ((p.lat - minLa) / dLa) * 100}`).join(" ");
+}
+
+function RouteMap({ route, size = 90 }: { route: RoutePt[] | null; size?: number }) {
+  const pts = routePoints(route);
+  if (!pts) return <div style={{ width: size, height: size }} className="rounded-xl bg-slate-800/60 flex items-center justify-center"><MapPin size={16} className="text-slate-600" /></div>;
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" className="rounded-xl bg-slate-800/60 shrink-0">
+      <polyline points={pts} fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export default function MoveTracker() {
   const [mode, setMode] = useState(MODES[0]);
@@ -46,11 +65,14 @@ export default function MoveTracker() {
   const [weight, setWeight] = useState("");
   const [steps, setSteps] = useState(0);
   const [gpsMoving, setGpsMoving] = useState(false);
-  const [last, setLast] = useState<null | { dist: number; sec: number; cal: number; label: string; coins: number }>(null);
+  const [last, setLast] = useState<null | { dist: number; sec: number; cal: number; label: string; coins: number; route: RoutePt[]; elev: number; maxSpeed: number; steps: number }>(null);
   const [coachTip, setCoachTip] = useState("");
   const [pbFlash, setPbFlash] = useState("");
   const [pbs, setPbs] = useState<{ pace: number | null; dist: number | null }>({ pace: null, dist: null });
   const [weekChart, setWeekChart] = useState<WeekBar[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
+  const [feed, setFeed] = useState<any[]>([]);
+  const [posted, setPosted] = useState(false);
 
   const uidRef = useRef("");
   const lastStepRef = useRef(0);
@@ -62,6 +84,32 @@ export default function MoveTracker() {
   const secRef = useRef(0);
   const speedRef = useRef(0);
   const movingRef = useRef(false);
+
+  // ✅ NEW refs for wake-lock, timestamp timing, route/elev/max
+  const wakeRef = useRef<any>(null);
+  const startTsRef = useRef(0);
+  const pausedMsRef = useRef(0);
+  const pauseStartRef = useRef(0);
+  const routeRef = useRef<RoutePt[]>([]);
+  const elevRef = useRef(0);
+  const maxSpeedRef = useRef(0);
+
+  // ✅ Screen Wake Lock helpers
+  const requestWake = async () => {
+    try {
+      if (typeof navigator !== "undefined" && "wakeLock" in navigator) {
+        wakeRef.current = await (navigator as any).wakeLock.request("screen");
+      }
+    } catch {}
+  };
+  const releaseWake = () => { try { wakeRef.current?.release(); } catch {} wakeRef.current = null; };
+
+  // ✅ re-acquire wake lock when tab becomes visible again
+  useEffect(() => {
+    const onVis = () => { if (document.visibilityState === "visible" && tracking && !paused) requestWake(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [tracking, paused]);
 
   useEffect(() => {
     const load = async () => {
@@ -82,13 +130,26 @@ export default function MoveTracker() {
       });
       const labels = ["5w", "4w", "3w", "2w", "Last", "Now"];
       setWeekChart(buckets.map((b, i) => ({ label: labels[i], speed: b.d > 0.05 ? Math.round((b.d / (b.t / 60)) * 10) / 10 : 0 })));
+
+      // ✅ history + community feed
+      const { data: hist } = await supabase.from("gym_logs")
+        .select("id, session_date, workout_type, duration_minutes, distance_km, calories, avg_speed, activity_type, route, elevation_gain_m, max_speed, steps_count")
+        .eq("user_id", uid).not("activity_type", "is", null).eq("completed", true)
+        .order("session_date", { ascending: false }).limit(8);
+      setHistory(hist || []);
+      const { data: fd } = await supabase.from("move_posts").select("*").order("created_at", { ascending: false }).limit(10);
+      setFeed(fd || []);
     };
     load();
   }, []);
 
+  // ✅ timestamp-based timer (accurate even if OS throttles)
   useEffect(() => {
     if (!tracking || paused) return;
-    const id = setInterval(() => { setSec((s) => s + 1); secRef.current += 1; }, 1000);
+    const id = setInterval(() => {
+      const el = Math.max(0, Math.floor((Date.now() - startTsRef.current - pausedMsRef.current) / 1000));
+      setSec(el); secRef.current = el;
+    }, 1000);
     return () => clearInterval(id);
   }, [tracking, paused]);
 
@@ -111,10 +172,10 @@ export default function MoveTracker() {
   const setMoving = (v: boolean) => { movingRef.current = v; setGpsMoving(v); };
 
   const onPos = (pos: GeolocationPosition) => {
-    const { latitude, longitude, accuracy, speed: gpsSpeed } = pos.coords;
+    const { latitude, longitude, accuracy, speed: gpsSpeed, altitude } = pos.coords;
     if (accuracy == null || accuracy > MIN_ACCURACY) return;
     const now = Date.now();
-    setWarming(false); // ✅ first good fix received
+    setWarming(false);
 
     if (prevRef.current) {
       const d = hav(prevRef.current.lat, prevRef.current.lon, latitude, longitude);
@@ -128,10 +189,16 @@ export default function MoveTracker() {
     }
     prevRef.current = { lat: latitude, lon: longitude };
 
-    // ✅ LIVE distance on screen (committed + pending) — moves from first step
+    // ✅ capture route + elevation
+    const lp = routeRef.current[routeRef.current.length - 1];
+    if (!lp || hav(lp.lat, lp.lon, latitude, longitude) > 4) routeRef.current.push({ lat: latitude, lon: longitude, alt: altitude ?? null });
+    if (lp && altitude != null && lp.alt != null) {
+      const dAlt = altitude - lp.alt;
+      if (dAlt > 1) elevRef.current += dAlt;
+    }
+
     setDist(distRef.current + pendingRef.current);
 
-    // ✅ detect movement earlier
     if (pendingRef.current > 2 || (gpsSpeed != null && gpsSpeed >= 1)) { setMoving(true); lastMoveRef.current = now; }
     if (now - lastMoveRef.current > 6000) setMoving(false);
 
@@ -139,6 +206,7 @@ export default function MoveTracker() {
       const kmh = gpsSpeed * 3.6;
       speedRef.current = speedRef.current === 0 ? kmh : speedRef.current * 0.6 + kmh * 0.4;
       setSpeed(Math.round(speedRef.current * 10) / 10);
+      if (speedRef.current > maxSpeedRef.current) maxSpeedRef.current = speedRef.current;
     }
 
     const kmhNow = speedRef.current;
@@ -174,45 +242,63 @@ export default function MoveTracker() {
       DME.requestPermission().catch(() => {});
     }
     distRef.current = 0; secRef.current = 0; pendingRef.current = 0; speedRef.current = 0;
-    setDist(0); setSec(0); setSteps(0); setSpeed(0); setMoving(false); setHint(""); setLast(null); setCoachTip("");
+    routeRef.current = []; elevRef.current = 0; maxSpeedRef.current = 0;
+    startTsRef.current = Date.now(); pausedMsRef.current = 0;
+    setDist(0); setSec(0); setSteps(0); setSpeed(0); setMoving(false); setHint(""); setLast(null); setCoachTip(""); setPosted(false);
     setWarming(true);
     prevRef.current = null; lastMoveRef.current = Date.now();
     setTracking(true); setPaused(false);
+    requestWake(); // ✅ keep screen on
     startWatch();
   };
 
   const pause = () => {
     if (watchRef.current != null) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null; }
+    pauseStartRef.current = Date.now();
+    releaseWake();
     setPaused(true); setMoving(false); setSpeed(0); speedRef.current = 0;
     setHint("⏸️ Paused — timer & GPS stopped. Resume when ready!");
   };
 
   const resume = () => {
+    pausedMsRef.current += Date.now() - pauseStartRef.current;
     setPaused(false);
     prevRef.current = null; pendingRef.current = 0; lastMoveRef.current = Date.now();
     setHint("");
+    requestWake(); // ✅ keep screen on again
     startWatch();
   };
 
   const stop = async () => {
     if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current);
     watchRef.current = null;
+    releaseWake();
     setTracking(false); setPaused(false); setMoving(false);
+
+    // ✅ accurate elapsed from timestamps
+    const now = Date.now();
+    const elapsedMs = (paused ? pauseStartRef.current : now) - startTsRef.current - pausedMsRef.current;
+    const secs = Math.max(0, Math.floor(elapsedMs / 1000));
+
     const km = distRef.current / 1000;
-    const secs = secRef.current;
     const mins = Math.max(1, Math.round(secs / 60));
     const userWeight = Number(weight) || 65;
     const cal = km > 0.01 ? Math.round(((mode.met * 3.5 * userWeight) / 200) * mins) : 0;
     const earnedCoins = Math.floor(km) * 15;
     const uid = uidRef.current;
+    const route = routeRef.current;
+    const elev = Math.round(elevRef.current);
+    const maxSp = Math.round(maxSpeedRef.current * 10) / 10;
+
     if (uid && secs >= 10) {
       await supabase.from("gym_logs").insert({
         user_id: uid, workout_type: `${mode.label} ${km.toFixed(2)} km`, duration_minutes: mins,
         session_date: todayStr(), completed: true, activity_type: mode.id,
         distance_km: Math.round(km * 100) / 100, calories: cal,
         avg_speed: secs > 0 ? Math.round((km / (secs / 3600)) * 10) / 10 : 0,
+        route, elevation_gain_m: elev, max_speed: maxSp, steps_count: steps,
       });
-      setLast({ dist: km, sec: secs, cal, label: mode.label, coins: earnedCoins });
+      setLast({ dist: km, sec: secs, cal, label: mode.label, coins: earnedCoins, route, elev, maxSpeed: maxSp, steps });
       if (km >= 0.5) {
         const paceSec = Math.round(secs / km);
         const { data: pb } = await supabase.from("personal_bests").select("*").eq("user_id", uid).maybeSingle();
@@ -238,7 +324,40 @@ export default function MoveTracker() {
           setCoachTip(d.reply || "Keep going — consistency beats speed! 🏃");
         } catch { setCoachTip(""); }
       }
+      // refresh history
+      const { data: hist } = await supabase.from("gym_logs")
+        .select("id, session_date, workout_type, duration_minutes, distance_km, calories, avg_speed, activity_type, route, elevation_gain_m, max_speed, steps_count")
+        .eq("user_id", uid).not("activity_type", "is", null).eq("completed", true)
+        .order("session_date", { ascending: false }).limit(8);
+      setHistory(hist || []);
     } else if (secs < 10) setHint("⏱️ Too short — track at least 10 seconds!");
+  };
+
+  // ✅ Share via native share sheet / clipboard fallback
+  const shareRun = async () => {
+    if (!last) return;
+    const pace = last.dist > 0 ? fmtPace(Math.round(last.sec / last.dist)) : "—";
+    const text = `🏃 I just ${last.label}ed ${last.dist.toFixed(2)} km in ${fmtTime(last.sec)} (pace ${pace}/km) · ${last.cal} kcal · +${last.coins} 🪙 on DailyGoal!`;
+    if (typeof navigator !== "undefined" && (navigator as any).share) {
+      try { await (navigator as any).share({ title: "My Run", text }); return; } catch {}
+    }
+    try { await navigator.clipboard.writeText(text); alert("Copied! Paste it anywhere 📋"); } catch {}
+  };
+
+  // ✅ Post to community Run Feed
+  const postRun = async () => {
+    const uid = uidRef.current; if (!uid || !last) return;
+    const { data: sess } = await supabase.auth.getSession();
+    const name = (sess.session?.user.user_metadata as any)?.display_name || "Athlete";
+    await supabase.from("move_posts").insert({
+      user_id: uid, display_name: name, mode: last.label,
+      distance_km: Math.round(last.dist * 100) / 100, duration_sec: last.sec,
+      pace_sec: last.dist > 0 ? Math.round(last.sec / last.dist) : null,
+      calories: last.cal, coins: last.coins, route: last.route,
+    });
+    const { data: fd } = await supabase.from("move_posts").select("*").order("created_at", { ascending: false }).limit(10);
+    setFeed(fd || []);
+    setPosted(true);
   };
 
   const km = dist / 1000;
@@ -256,7 +375,6 @@ export default function MoveTracker() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white px-4 pt-4 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 GREEN HERO — now the very first element, pulled up */}
       <div className="relative mb-4 overflow-hidden rounded-3xl bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 p-5 shadow-xl shadow-emerald-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
@@ -270,17 +388,15 @@ export default function MoveTracker() {
             </span>
           </div>
           <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Auto Tracker</h1>
-          <p className="text-[11px] text-white/75 font-semibold mt-0.5">GPS + steps + calories</p>
+          <p className="text-[11px] text-white/75 font-semibold mt-0.5">GPS + steps + calories · screen stays on</p>
         </div>
       </div>
 
-      {/* 🏆 PB BAR */}
       <div className="flex justify-center gap-4 mb-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 text-[11px] font-black">
         <span className="text-amber-300 flex items-center gap-1"><Rocket size={11} /> Best pace: {pbs.pace ? `${fmtPace(pbs.pace)}/km` : "—"}</span>
         <span className="text-orange-300 flex items-center gap-1"><Ruler size={11} /> Longest: {pbs.dist ? `${pbs.dist.toFixed(2)} km` : "—"}</span>
       </div>
 
-      {/* MODES */}
       <div className="grid grid-cols-4 gap-2 mb-4">
         {MODES.map((m) => {
           const Icon = m.icon;
@@ -294,7 +410,6 @@ export default function MoveTracker() {
         })}
       </div>
 
-      {/* WEIGHT */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4 flex items-center justify-between">
         <span className="text-sm font-bold text-slate-400">Body Weight (kg)</span>
         <input type="number" min="20" max="300" value={weight} onChange={(e) => setWeight(e.target.value)} disabled={tracking}
@@ -302,7 +417,6 @@ export default function MoveTracker() {
           className="bg-slate-800 border border-slate-700 rounded-xl w-20 text-center text-white py-1.5 text-sm outline-none focus:border-green-500 disabled:opacity-50" />
       </div>
 
-      {/* STATS */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid gap-3 mb-4">
         <div className="grid grid-cols-2 gap-3 text-center">
           <div className="bg-slate-800/60 rounded-xl p-4">
@@ -356,7 +470,6 @@ export default function MoveTracker() {
 
       {hint && <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2.5 mb-4 text-center"><p className="text-[11px] text-amber-300 font-bold">{hint}</p></div>}
 
-      {/* CONTROLS */}
       {tracking ? (
         <div className="grid grid-cols-2 gap-2">
           <button onClick={paused ? resume : pause}
@@ -377,12 +490,86 @@ export default function MoveTracker() {
         </button>
       )}
 
+      {/* LAST RUN + share/post */}
+      {last && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5 mt-5">
+          <div className="flex justify-between items-center text-sm font-black mb-3">
+            <span className="flex items-center gap-2"><Flag size={15} className="text-green-400" /> Run Saved!</span>
+            <span className="text-slate-500 text-xs">{fmtTime(last.sec)}</span>
+          </div>
+          <div className="flex gap-3 items-center mb-3">
+            <RouteMap route={last.route} size={80} />
+            <div className="flex-1 grid grid-cols-2 gap-2 text-[11px] font-bold text-slate-300">
+              <span>⛰️ Elev: {last.elev} m</span>
+              <span>⚡ Max: {last.maxSpeed} km/h</span>
+              <span>👟 Steps: {last.steps}</span>
+              <span>🔥 {last.cal} kcal</span>
+            </div>
+          </div>
+          {last.coins > 0 ? (
+            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3 text-center text-green-300 text-sm font-black mb-2 flex items-center justify-center gap-1.5">
+              <Coins size={15} /> COMPLETED {last.label} → +{last.coins} coins
+            </div>
+          ) : (
+            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 text-center text-slate-400 text-sm font-bold mb-2">Run ≥1 km to earn coins (0 coins)</div>
+          )}
+          <div className="grid grid-cols-2 gap-2 mb-2">
+            <button onClick={shareRun} className="press py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-black text-slate-200 flex items-center justify-center gap-1.5">
+              <Share2 size={14} /> Share
+            </button>
+            <button onClick={postRun} disabled={posted} className="press py-2.5 rounded-xl bg-green-500/15 border border-green-500/30 text-xs font-black text-green-300 flex items-center justify-center gap-1.5 disabled:opacity-50">
+              <Send size={14} /> {posted ? "Posted ✓" : "Post to Feed"}
+            </button>
+          </div>
+          {coachTip && <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl p-3 text-xs text-violet-200 whitespace-pre-wrap font-semibold">{coachTip}</div>}
+        </div>
+      )}
+
+      {/* HISTORY */}
+      {history.length > 0 && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
+          <p className="text-xs font-black text-slate-400 mb-3 flex items-center gap-2"><TrendingUp size={14} className="text-blue-400" /> YOUR RECENT ACTIVITIES</p>
+          <div className="grid gap-2">
+            {history.map((h) => (
+              <div key={h.id} className="flex items-center gap-3 bg-slate-800/50 rounded-xl p-2.5">
+                <RouteMap route={h.route} size={52} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-bold text-white truncate">{h.workout_type}</p>
+                  <p className="text-[10px] text-slate-500">{h.session_date} · {h.duration_minutes} min · {h.calories} kcal</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[13px] font-black text-green-400">{(h.distance_km || 0).toFixed(2)} km</p>
+                  <p className="text-[9px] text-slate-500">{h.avg_speed ? `${h.avg_speed} km/h` : ""}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* COMMUNITY RUN FEED */}
+      {feed.length > 0 && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
+          <p className="text-xs font-black text-slate-400 mb-3 flex items-center gap-2"><Flag size={14} className="text-green-400" /> COMMUNITY RUN FEED</p>
+          <div className="grid gap-2">
+            {feed.map((f) => (
+              <div key={f.id} className="flex items-center gap-3 bg-slate-800/50 rounded-xl p-2.5">
+                <RouteMap route={f.route} size={48} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-bold text-white truncate">{f.display_name} · {f.mode}</p>
+                  <p className="text-[10px] text-slate-500">{f.distance_km} km · {fmtTime(f.duration_sec || 0)} · {f.calories} kcal</p>
+                </div>
+                <span className="text-[10px] font-black text-amber-300 shrink-0">+{f.coins} 🪙</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* WEEKLY CHART */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-5 mb-5">
         <div className="flex items-center gap-2 mb-4">
-          <span className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
-            <TrendingUp size={14} strokeWidth={2.2} />
-          </span>
+          <span className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center"><TrendingUp size={14} strokeWidth={2.2} /></span>
           <p className="text-xs font-black text-slate-400">YOUR SPEED JOURNEY</p>
         </div>
         <div className="flex items-end justify-between gap-2 h-24">
@@ -398,31 +585,6 @@ export default function MoveTracker() {
         <p className="text-[10px] text-slate-600 mt-2 text-center font-bold">Higher bars = faster you!</p>
       </div>
 
-      {/* LAST RUN */}
-      {last && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
-          <div className="flex justify-between items-center text-sm font-black mb-3">
-            <span className="flex items-center gap-2">
-              <Flag size={15} className="text-green-400" />
-              Run Saved!
-            </span>
-            <span className="text-slate-500 text-xs">{fmtTime(last.sec)}</span>
-          </div>
-          {last.coins > 0 ? (
-            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3 text-center text-green-300 text-sm font-black mb-2 flex items-center justify-center gap-1.5">
-              <Coins size={15} />
-              COMPLETED {last.label} → +{last.coins} coins
-            </div>
-          ) : (
-            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 text-center text-slate-400 text-sm font-bold mb-2">
-              Run ≥1 km to earn coins (0 coins)
-            </div>
-          )}
-          {coachTip && <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl p-3 text-xs text-violet-200 whitespace-pre-wrap font-semibold">{coachTip}</div>}
-        </div>
-      )}
-
-      {/* PB MODAL */}
       {pbFlash && (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border-2 border-amber-500/40 rounded-3xl p-8 text-center max-w-sm w-full">
