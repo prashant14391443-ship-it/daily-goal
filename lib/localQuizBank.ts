@@ -170,4 +170,40 @@ export const LOCAL_QUIZ: Record<string, LocalQuizQ[]> = {
     { q: "System design interview freshers se expect kya?", options: ["Full production system", "High-level components + tradeoffs", "Code only", "No expectations"], correct: 1, explain: "Freshers se high-level understanding + basic tradeoffs expected hain." },
     { q: "Resume me DSA projects kaise dikhao?", options: ["Sirf problem count", "Links + patterns covered + impact", "Certificates only", "Mat dikhao"], correct: 1, explain: "Public repo + blog + patterns = proof of depth." },
   ],
+    "APP-1": [
+    { q: "React Native me UI banane ke liye kya use hota hai?", options: ["HTML tags", "React components (View, Text)", "XML", "jQuery"], correct: 1, explain: "React Native me View, Text, Image jaise components hote hain — HTML nahi." },
+    { q: "Expo ka main advantage kya hai?", options: ["Faster performance", "No native setup required", "Cheaper hosting", "Better animations"], correct: 1, explain: "Expo se bina Xcode/Android Studio ke apps develop kar sakte ho." },
+    { q: "React Native me styling ke liye kya use hota hai?", options: ["CSS files", "StyleSheet.create()", "SCSS", "LESS"], correct: 1, explain: "StyleSheet.create() se optimized styles bante hain." },
+    { q: "Expo Go app kya karta hai?", options: ["Build karta hai", "Phone pe app test karne deta hai", "Deploy karta hai", "Code compile karta hai"], correct: 1, explain: "Expo Go se development build phone pe instantly test hoti hai." },
+  ],
+  "APP-2": [
+    { q: "React Native me multi-screen navigation ke liye kya use hota hai?", options: ["<a> tags", "React Navigation / Expo Router", "window.location", "Link from Next.js"], correct: 1, explain: "React Navigation ya Expo Router se screens navigate hoti hain." },
+    { q: "Bottom tab navigation ke liye kaunsa component?", options: ["StackNavigator", "Tab.Navigator", "DrawerNavigator", "ModalStack"], correct: 1, explain: "Tab.Navigator se bottom tabs bante hain." },
+    { q: "Expo Router me file-based routing matlab?", options: ["Manual route config", "Folder structure se routes bante hain", "Database se routes", "API se routes"], correct: 1, explain: "app/ folder me files automatically routes ban jati hain." },
+    { q: "Stack navigation me back button kaise add hota hai?", options: ["Manual button chahiye", "Automatically header me aata hai", "URL parameter se", "Gesture se only"], correct: 1, explain: "Stack navigator automatically back button header me dikhata hai." },
+  ],
+  "APP-3": [
+    { q: "Long lists render karne ke liye best component?", options: ["ScrollView", "FlatList", "map() function", "View + map"], correct: 1, explain: "FlatList lazy rendering karta hai — sirf visible items render hote hain." },
+    { q: "FlatList me 'keyExtractor' ka kaam?", options: ["Styling", "Unique key dena har item ko", "Data fetch karna", "Animation"], correct: 1, explain: "keyExtractor se har item ko unique ID milti hai — React reconciliation ke liye." },
+    { q: "Pull-to-refresh implement karne ke liye?", options: ["ScrollView only", "RefreshControl component", "Gesture handler", "Swipe gesture"], correct: 1, explain: "RefreshControl component ScrollView/FlatList me wrap karte hain." },
+    { q: "NativeWind kya hai?", options: ["Native module", "Tailwind CSS for React Native", "Animation library", "State manager"], correct: 1, explain: "NativeWind se Tailwind classes React Native me use kar sakte ho." },
+  ],
+  "APP-4": [
+    { q: "React Native me data persist karne ke liye (localStorage equivalent)?", options: ["localStorage", "AsyncStorage", "cookies", "sessionStorage"], correct: 1, explain: "AsyncStorage mobile ka localStorage hai — key-value pairs." },
+    { q: "API call karne ke liye React Native me kya use hota hai?", options: ["XMLHttpRequest only", "fetch() ya axios", "jQuery.ajax", "WebSocket only"], correct: 1, explain: "fetch() built-in hai, axios popular alternative hai." },
+    { q: "Global state management ke liye simple solution?", options: ["Redux only", "Context API", "localStorage", "Props drilling"], correct: 1, explain: "Context API se prop drilling avoid hoti hai — simple cases ke liye perfect." },
+    { q: "AsyncStorage.getItem() kya return karta hai?", options: ["Direct value", "Promise", "Callback", "Sync value"], correct: 1, explain: "AsyncStorage async hai — Promise return karta hai, await karna padta hai." },
+  ],
+  "APP-5": [
+    { q: "Camera access ke liye pehle kya chahiye?", options: ["API key", "User permission", "Internet", "GPS"], correct: 1, explain: "Camera, location, notifications — sab ke liye user permission chahiye." },
+    { q: "Expo me camera use karne ke liye component?", options: ["<Camera>", "expo-camera ka <Camera>", "<Webcam>", "<Video>"], correct: 1, explain: "expo-camera package se <Camera> component import hota hai." },
+    { q: "Push notifications schedule karne ke liye?", options: ["setTimeout", "expo-notifications package", "Alert.alert", "console.log"], correct: 1, explain: "expo-notifications se local + push notifications schedule hote hain." },
+    { q: "GPS location get karne ka method?", options: ["navigator.geolocation", "Location.getCurrentPositionAsync()", "window.location", "GPS.get()"], correct: 1, explain: "expo-location me getCurrentPositionAsync() use hota hai." },
+  ],
+  "APP-6": [
+    { q: "Supabase realtime subscriptions ke liye kya use hota hai?", options: ["WebSockets manually", ".on('postgres_changes') method", "Polling", "REST API"], correct: 1, explain: "Supabase ka .on('postgres_changes') se realtime updates milte hain." },
+    { q: "EAS Build kya karta hai?", options: ["Code compile locally", "Cloud pe APK/IPA build karta hai", "Deploy karta hai", "Test karta hai"], correct: 1, explain: "EAS Build cloud pe Android APK aur iOS IPA build karta hai." },
+    { q: "Play Store pe app submit karne ke liye kya chahiye?", options: ["Free account", "Google Play Developer account ($25 one-time)", "Monthly subscription", "Nothing"], correct: 1, explain: "Google Play Developer account $25 one-time fee hai." },
+    { q: "React Native app ko production me le jaane ka best way?", options: ["Direct upload", "EAS Build + EAS Submit", "Manual APK", "GitHub only"], correct: 1, explain: "EAS Build se APK banao, EAS Submit se Play Store pe upload karo." },
+  ],
 };

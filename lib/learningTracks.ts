@@ -615,8 +615,136 @@ export const DSA_TRACK: LearningTrack = {
     },
   ],
 };
-
-export const TRACKS: LearningTrack[] = [WEB_DEV_TRACK, PYTHON_TRACK, CYBER_TRACK, DSA_TRACK];
+export const APP_DEV_TRACK: LearningTrack = {
+  id: "app-dev",
+  name: "App Development (React Native)",
+  tagline: "Zero se Play Store tak · 6 milestones · real mobile apps · AI coach",
+  language: "hinglish",
+  milestones: [
+    {
+      id: "APP-1", order: 1, title: "React Native + Expo Basics",
+      summary: "Mobile development ka gateway: Expo se bina native setup ke React Native apps banao. React aata hai toh 80% already aata hai.",
+      estimatedHours: 20, freshness: "version-sensitive",
+      videoHi: { title: "React Native Tutorial (Hindi)", channel: "CodeWithHarry", youtubeId: "FtaL0vzVpYI", minutes: 180 },
+      videoEn: { title: "React Native Full Course", channel: "freeCodeCamp", youtubeId: "ZBCUegTZF7M", minutes: 300 },
+      resources: [
+        { id: "APP-1-R1", title: "Expo Official Docs", provider: "Expo", lang: "english", type: "docs", url: "https://docs.expo.dev/", minutes: 120 },
+        { id: "APP-1-R2", title: "React Native Basics", provider: "reactnative.dev", lang: "english", type: "docs", url: "https://reactnative.dev/docs/getting-started", minutes: 90 },
+        { id: "APP-1-R3", title: "Expo Go App (test on phone)", provider: "Expo", lang: "english", type: "interactive", url: "https://expo.dev/go", minutes: 30 },
+      ],
+      project: {
+        title: "Hello Mobile World",
+        brief: "Simple counter app: 2 buttons (increment/decrement), number display, reset button. Phone pe run karo.",
+        acceptanceCriteria: ["Expo project initialized", "Runs on physical phone (Expo Go)", "State updates correctly"],
+      },
+      aiCoachPrompts: [
+        "React vs React Native — kya different hai aur kya same? Hinglish me 5 points batao.",
+        "Expo vs bare React Native — kab kaunsa use karein? Hinglish me samjhao with pros/cons.",
+      ],
+    },
+    {
+      id: "APP-2", order: 2, title: "Navigation & Multi-Screen Apps",
+      summary: "Real apps me multiple screens hote hain. Expo Router (file-based) ya React Navigation seekho — tab bars, stacks, modals.",
+      estimatedHours: 25, freshness: "version-sensitive",
+      videoHi: { title: "React Navigation (Hindi)", channel: "Chai aur Code", youtubeId: "PLu71SKxNbfoBsFgRsA3Jn6Z-2FbY9oQ0V", minutes: 240 },
+      videoEn: { title: "Expo Router Crash Course", channel: "Coding with Adam", youtubeId: "Ubf2fQOgQXk", minutes: 45 },
+      resources: [
+        { id: "APP-2-R1", title: "Expo Router Docs", provider: "Expo", lang: "english", type: "docs", url: "https://docs.expo.dev/router/introduction/", minutes: 90 },
+        { id: "APP-2-R2", title: "React Navigation Docs", provider: "React Navigation", lang: "english", type: "docs", url: "https://reactnavigation.org/docs/getting-started", minutes: 120 },
+      ],
+      project: {
+        title: "3-Tab Todo App",
+        brief: "Bottom tab navigation: Home (todos list), Add (form), Settings (theme toggle). Each tab separate screen.",
+        acceptanceCriteria: ["3 tabs kaam karte hain", "Navigation smooth hai", "State persists across tabs"],
+      },
+      aiCoachPrompts: [
+        "Stack navigation vs Tab navigation vs Drawer — kab kaunsa use karein? Hinglish me with examples.",
+        "Expo Router me file-based routing kaise kaam karta hai? Hinglish me folder structure explain karo.",
+      ],
+    },
+    {
+      id: "APP-3", order: 3, title: "UI Components & Styling",
+      summary: "Mobile-first UI: FlatList (performant lists), ScrollView, StyleSheet, responsive layouts. NativeWind (Tailwind for RN) bonus.",
+      estimatedHours: 20, freshness: "version-sensitive",
+      videoEn: { title: "React Native Styling Mastery", channel: "William Candillon", youtubeId: "sD1Ej0WMFiE", minutes: 60 },
+      resources: [
+        { id: "APP-3-R1", title: "React Native Core Components", provider: "reactnative.dev", lang: "english", type: "docs", url: "https://reactnative.dev/docs/components-and-apis", minutes: 120 },
+        { id: "APP-3-R2", title: "NativeWind (Tailwind for RN)", provider: "NativeWind", lang: "english", type: "docs", url: "https://www.nativewind.dev/", minutes: 60 },
+      ],
+      project: {
+        title: "E-commerce Product List",
+        brief: "FlatList se 50 products dikhao: image, title, price, rating. Pull-to-refresh + infinite scroll.",
+        acceptanceCriteria: ["FlatList performant (no lag)", "Images lazy load", "Pull-to-refresh works"],
+      },
+      aiCoachPrompts: [
+        "ScrollView vs FlatList vs FlashList — performance differences Hinglish me samjhao with when to use each.",
+        "StyleSheet.create() vs inline styles vs NativeWind — pros/cons Hinglish me batao.",
+      ],
+    },
+    {
+      id: "APP-4", order: 4, title: "APIs, State Management & Async Storage",
+      summary: "Real apps server se data lete hain. fetch/axios, Context API/Redux, AsyncStorage (localStorage ka mobile version).",
+      estimatedHours: 25, freshness: "evergreen",
+      videoHi: { title: "React Native API Calls (Hindi)", channel: "CodeWithHarry", youtubeId: "vGCHpHqz8wI", minutes: 120 },
+      videoEn: { title: "React Native State Management", channel: "Traversy Media", youtubeId: "9boMUdcZw3o", minutes: 90 },
+      resources: [
+        { id: "APP-4-R1", title: "AsyncStorage Docs", provider: "React Native Community", lang: "english", type: "docs", url: "https://react-native-async-storage.github.io/async-storage/", minutes: 60 },
+        { id: "APP-4-R2", title: "Context API Guide", provider: "react.dev", lang: "english", type: "docs", url: "https://react.dev/learn/passing-data-deeply-with-context", minutes: 45 },
+      ],
+      project: {
+        title: "Weather App (Mobile)",
+        brief: "OpenWeatherMap API se current weather fetch karo. Location permission leke GPS se auto-detect karo. AsyncStorage me last city save karo.",
+        acceptanceCriteria: ["API call successful", "GPS location permission handled", "Last city persists (AsyncStorage)"],
+      },
+      aiCoachPrompts: [
+        "Context API vs Redux vs Zustand — React Native me kab kaunsa use karein? Hinglish me comparison.",
+        "AsyncStorage vs SQLite vs MMKV — mobile data persistence options Hinglish me explain karo.",
+      ],
+    },
+    {
+      id: "APP-5", order: 5, title: "Device Features: Camera, Location, Notifications",
+      summary: "Mobile ka asli power: camera, GPS, push notifications, sensors. Expo SDK se sab easy hai.",
+      estimatedHours: 30, freshness: "version-sensitive",
+      videoEn: { title: "Expo Camera & Location Tutorial", channel: "Catalin Miron", youtubeId: "kR-Np8gXpLg", minutes: 75 },
+      resources: [
+        { id: "APP-5-R1", title: "Expo Camera Docs", provider: "Expo", lang: "english", type: "docs", url: "https://docs.expo.dev/versions/latest/sdk/camera/", minutes: 60 },
+        { id: "APP-5-R2", title: "Expo Location Docs", provider: "Expo", lang: "english", type: "docs", url: "https://docs.expo.dev/versions/latest/sdk/location/", minutes: 45 },
+        { id: "APP-5-R3", title: "Expo Notifications Docs", provider: "Expo", lang: "english", type: "docs", url: "https://docs.expo.dev/versions/latest/sdk/notifications/", minutes: 60 },
+      ],
+      project: {
+        title: "Photo Journal App",
+        brief: "Camera se photo lo, GPS location attach karo, caption add karo, gallery me save karo. Push notification daily reminder.",
+        acceptanceCriteria: ["Camera permission + photo capture", "GPS coordinates saved", "Local notification scheduled"],
+      },
+      aiCoachPrompts: [
+        "Mobile app permissions (camera, location, notifications) — best practices Hinglish me batao.",
+        "Background location tracking vs foreground — kab kaunsa use karein? Privacy concerns Hinglish me discuss karo.",
+      ],
+    },
+    {
+      id: "APP-6", order: 6, title: "Backend Integration + Publishing",
+      summary: "Supabase/Firebase se real-time data sync. EAS Build se APK banao aur Play Store pe publish karo.",
+      estimatedHours: 35, freshness: "version-sensitive",
+      videoHi: { title: "Supabase + React Native (Hindi)", channel: "Chai aur Code", youtubeId: "PLu71SKxNbfoB8R4Vq1pQ5KjQ5v5", minutes: 180 },
+      videoEn: { title: "EAS Build & Submit Tutorial", channel: "Expo", youtubeId: "pPQ3EjE8ygc", minutes: 30 },
+      resources: [
+        { id: "APP-6-R1", title: "Supabase JS Client", provider: "Supabase", lang: "english", type: "docs", url: "https://supabase.com/docs/reference/javascript/introduction", minutes: 90 },
+        { id: "APP-6-R2", title: "EAS Build Docs", provider: "Expo", lang: "english", type: "docs", url: "https://docs.expo.dev/build/introduction/", minutes: 60 },
+        { id: "APP-6-R3", title: "Play Store Publishing Guide", provider: "Google", lang: "english", type: "docs", url: "https://support.google.com/googleplay/android-developer/answer/113469", minutes: 45 },
+      ],
+      project: {
+        title: "Capstone: Real-Time Chat App",
+        brief: "Supabase backend: auth, real-time messages, image uploads. EAS Build se APK banao, Play Store pe submit karo (internal test track).",
+        acceptanceCriteria: ["Supabase auth + realtime sync", "APK built successfully", "Play Store listing created"],
+      },
+      aiCoachPrompts: [
+        "Supabase vs Firebase for React Native — Hinglish me comparison with use cases.",
+        "EAS Build vs local Android Studio build — kab kaunsa use karein? Hinglish me pros/cons.",
+      ],
+    },
+  ],
+};
+export const TRACKS: LearningTrack[] = [WEB_DEV_TRACK, PYTHON_TRACK, CYBER_TRACK, DSA_TRACK, APP_DEV_TRACK];
 
 export function getTrackById(id: string) {
   return TRACKS.find((t) => t.id === id);
