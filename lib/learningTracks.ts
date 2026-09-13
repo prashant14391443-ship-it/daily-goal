@@ -8,6 +8,13 @@ export interface TrackResource {
   minutes: number;
 }
 
+export interface TrackVideo {
+  title: string;
+  channel: string;
+  youtubeId: string; // video ID or playlist ID (starts with PL)
+  minutes: number;
+}
+
 export interface TrackProject {
   title: string;
   brief: string;
@@ -20,6 +27,9 @@ export interface TrackMilestone {
   title: string;
   summary: string;
   estimatedHours: number;
+  freshness: "evergreen" | "version-sensitive";
+  videoHi?: TrackVideo;
+  videoEn?: TrackVideo;
   resources: TrackResource[];
   project: TrackProject;
   aiCoachPrompts: string[];
@@ -40,13 +50,12 @@ export const WEB_DEV_TRACK: LearningTrack = {
   language: "hinglish",
   milestones: [
     {
-      id: "WD-1",
-      order: 1,
-      title: "HTML & CSS Foundations",
+      id: "WD-1", order: 1, title: "HTML & CSS Foundations",
       summary: "Web ka skeleton HTML hai aur skin CSS. Semantic tags, box model, Flexbox aur Grid — yeh base hai sab kuch ka.",
-      estimatedHours: 20,
+      estimatedHours: 20, freshness: "evergreen",
+      videoHi: { title: "HTML + CSS Full Course (Hindi)", channel: "CodeWithHarry", youtubeId: "BsDoLVMnmZs", minutes: 180 },
+      videoEn: { title: "HTML & CSS Full Course for Beginners", channel: "SuperSimpleDev", youtubeId: "G3e-cpL7ofc", minutes: 220 },
       resources: [
-        { id: "WD-1-R1", title: "HTML Full Course (Hindi)", provider: "CodeWithHarry", lang: "hindi", type: "video", url: "https://www.youtube.com/watch?v=BsDoLVMnmZs", minutes: 180 },
         { id: "WD-1-R2", title: "Responsive Web Design", provider: "freeCodeCamp", lang: "english", type: "interactive", url: "https://www.freecodecamp.org/learn/2022/responsive-web-design/", minutes: 240 },
         { id: "WD-1-R3", title: "Flexbox Froggy (game)", provider: "Froggy", lang: "english", type: "interactive", url: "https://flexboxfroggy.com/", minutes: 30 },
       ],
@@ -61,15 +70,13 @@ export const WEB_DEV_TRACK: LearningTrack = {
       ],
     },
     {
-      id: "WD-2",
-      order: 2,
-      title: "Tailwind CSS & Responsive Design",
+      id: "WD-2", order: 2, title: "Tailwind CSS & Responsive Design",
       summary: "Aaj ki industry utility-first CSS use karti hai. Tailwind se fast, consistent aur responsive UI banana seekho.",
-      estimatedHours: 10,
+      estimatedHours: 10, freshness: "version-sensitive",
+      videoHi: { title: "Tailwind CSS in Hinglish", channel: "Chai aur Code", youtubeId: "9rcRb3wYbWk", minutes: 120 },
+      videoEn: { title: "Learn Tailwind CSS in 15 Minutes", channel: "Web Dev Simplified", youtubeId: "lCxcTsOHrjo", minutes: 15 },
       resources: [
         { id: "WD-2-R1", title: "Official Tailwind Docs", provider: "Tailwind", lang: "english", type: "docs", url: "https://tailwindcss.com/docs", minutes: 60 },
-        { id: "WD-2-R2", title: "Tailwind in 15 minutes", provider: "Web Dev Simplified", lang: "english", type: "video", url: "https://www.youtube.com/watch?v=lCxcTsOHrjo", minutes: 15 },
-        { id: "WD-2-R3", title: "Tailwind Course (Hindi)", provider: "Chai aur Code", lang: "hindi", type: "video", url: "https://www.youtube.com/watch?v=9rcRb3wYbWk", minutes: 120 },
       ],
       project: {
         title: "Responsive Pricing Page",
@@ -82,13 +89,12 @@ export const WEB_DEV_TRACK: LearningTrack = {
       ],
     },
     {
-      id: "WD-3",
-      order: 3,
-      title: "JavaScript Fundamentals + DOM",
+      id: "WD-3", order: 3, title: "JavaScript Fundamentals + DOM",
       summary: "JS web ka dimaag hai. Variables se DOM manipulation tak — yahan se asli programming shuru hoti hai.",
-      estimatedHours: 30,
+      estimatedHours: 30, freshness: "evergreen",
+      videoHi: { title: "JavaScript Playlist (Hindi)", channel: "CodeWithHarry", youtubeId: "PLu0W_9lII9kV5fRIr8IjJsB9Pz6p1526C", minutes: 300 },
+      videoEn: { title: "JavaScript Full Course", channel: "freeCodeCamp", youtubeId: "PkZNo7MFNFg", minutes: 200 },
       resources: [
-        { id: "WD-3-R1", title: "JavaScript Playlist (Hindi)", provider: "CodeWithHarry", lang: "hindi", type: "video", url: "https://www.youtube.com/playlist?list=PLu0W_9lII9kV5fRIr8IjJsB9Pz6p1526C", minutes: 300 },
         { id: "WD-3-R2", title: "JavaScript First Steps", provider: "MDN", lang: "english", type: "docs", url: "https://developer.mozilla.org/en-US/docs/Learn/JavaScript/First_steps", minutes: 90 },
         { id: "WD-3-R3", title: "The Modern JS Tutorial", provider: "javascript.info", lang: "english", type: "docs", url: "https://javascript.info/", minutes: 180 },
       ],
@@ -103,13 +109,12 @@ export const WEB_DEV_TRACK: LearningTrack = {
       ],
     },
     {
-      id: "WD-4",
-      order: 4,
-      title: "Async JS, APIs & Fetch",
+      id: "WD-4", order: 4, title: "Async JS, APIs & Fetch",
       summary: "Real apps server se data maangte hain. Promises, async/await aur fetch — interviews ka favourite topic.",
-      estimatedHours: 20,
+      estimatedHours: 20, freshness: "evergreen",
+      videoHi: { title: "Namaste JavaScript", channel: "Akshay Saini", youtubeId: "PLlasXeu85E9cQ32gLCvAvr9vNaUccPVNP", minutes: 240 },
+      videoEn: { title: "Async/Await Crash Course", channel: "Web Dev Simplified", youtubeId: "V_Kr9OSfDeU", minutes: 20 },
       resources: [
-        { id: "WD-4-R1", title: "Namaste JavaScript (Hinglish)", provider: "Akshay Saini", lang: "hindi", type: "video", url: "https://www.youtube.com/playlist?list=PLlasXeu85E9cQ32gLCvAvr9vNaUccPVNP", minutes: 240 },
         { id: "WD-4-R2", title: "Using the Fetch API", provider: "MDN", lang: "english", type: "docs", url: "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch", minutes: 45 },
       ],
       project: {
@@ -123,14 +128,13 @@ export const WEB_DEV_TRACK: LearningTrack = {
       ],
     },
     {
-      id: "WD-5",
-      order: 5,
-      title: "React Foundations",
+      id: "WD-5", order: 5, title: "React Foundations",
       summary: "Components me sochna seekho. State, props aur hooks — modern frontend ka core.",
-      estimatedHours: 30,
+      estimatedHours: 30, freshness: "version-sensitive",
+      videoHi: { title: "Chai aur React", channel: "Chai aur Code", youtubeId: "PLu71SKxNbfoDqgPchmvIsL4hTnJIrtige", minutes: 300 },
+      videoEn: { title: "React Course for Beginners", channel: "freeCodeCamp", youtubeId: "bMknfKXIFA8", minutes: 180 },
       resources: [
         { id: "WD-5-R1", title: "Official React Course", provider: "react.dev", lang: "english", type: "interactive", url: "https://react.dev/learn", minutes: 180 },
-        { id: "WD-5-R2", title: "Chai aur React (Hinglish)", provider: "Chai aur Code", lang: "hindi", type: "video", url: "https://www.youtube.com/playlist?list=PLu71SKxNbfoDqgPchmvIsL4hTnJIrtige", minutes: 300 },
       ],
       project: {
         title: "Movie Search App",
@@ -143,14 +147,13 @@ export const WEB_DEV_TRACK: LearningTrack = {
       ],
     },
     {
-      id: "WD-6",
-      order: 6,
-      title: "Next.js & Routing",
+      id: "WD-6", order: 6, title: "Next.js & Routing",
       summary: "React ke upar production layer. App Router, server vs client components — jobs me yahi maanga jaata hai.",
-      estimatedHours: 20,
+      estimatedHours: 20, freshness: "version-sensitive",
+      videoHi: { title: "Chai aur Next.js", channel: "Chai aur Code", youtubeId: "PLu71SKxNbfoQ7BI8FzJ0MUHJsKKrG6GPD", minutes: 200 },
+      // English best = official interactive course (better than any video) — kept in resources
       resources: [
         { id: "WD-6-R1", title: "Official Next.js Learn", provider: "next.js", lang: "english", type: "interactive", url: "https://nextjs.org/learn", minutes: 240 },
-        { id: "WD-6-R2", title: "Chai aur Next.js (Hinglish)", provider: "Chai aur Code", lang: "hindi", type: "video", url: "https://www.youtube.com/playlist?list=PLu71SKxNbfoQ7BI8FzJ0MUHJsKKrG6GPD", minutes: 200 },
       ],
       project: {
         title: "Multi-page Blog",
@@ -163,14 +166,13 @@ export const WEB_DEV_TRACK: LearningTrack = {
       ],
     },
     {
-      id: "WD-7",
-      order: 7,
-      title: "Backend + Database (Supabase)",
+      id: "WD-7", order: 7, title: "Backend + Database (Supabase)",
       summary: "Full-stack bano: auth, database, CRUD. Supabase se bina server manage kiye backend chalao.",
-      estimatedHours: 25,
+      estimatedHours: 25, freshness: "version-sensitive",
+      // No high-quality Hindi Supabase video exists — docs + English video (quality-first policy)
+      videoEn: { title: "Supabase Crash Course", channel: "Traversy Media", youtubeId: "ZVsuKXcRwDo", minutes: 60 },
       resources: [
         { id: "WD-7-R1", title: "Supabase Docs", provider: "Supabase", lang: "english", type: "docs", url: "https://supabase.com/docs", minutes: 120 },
-        { id: "WD-7-R2", title: "Supabase Crash Course", provider: "Traversy Media", lang: "english", type: "video", url: "https://www.youtube.com/watch?v=ZVsuKXcRwDo", minutes: 60 },
       ],
       project: {
         title: "Full-Stack Habit Tracker",
@@ -183,11 +185,11 @@ export const WEB_DEV_TRACK: LearningTrack = {
       ],
     },
     {
-      id: "WD-8",
-      order: 8,
-      title: "Git, Deployment & Portfolio",
+      id: "WD-8", order: 8, title: "Git, Deployment & Portfolio",
       summary: "Code ko duniya tak pahuncho: GitHub workflow, Vercel deploy, aur portfolio jo interviews bulaye.",
-      estimatedHours: 15,
+      estimatedHours: 15, freshness: "evergreen",
+      videoHi: { title: "Git & GitHub in Hindi", channel: "CodeWithHarry", youtubeId: "gwS9ZQVJmAk", minutes: 90 },
+      videoEn: { title: "Git & GitHub Crash Course", channel: "Traversy Media", youtubeId: "SWYqp7iY_Tc", minutes: 40 },
       resources: [
         { id: "WD-8-R1", title: "Learn Git Branching (game)", provider: "Git", lang: "english", type: "interactive", url: "https://learngitbranching.js.org/", minutes: 90 },
         { id: "WD-8-R2", title: "Vercel Deployment Docs", provider: "Vercel", lang: "english", type: "docs", url: "https://vercel.com/docs", minutes: 30 },
@@ -215,11 +217,7 @@ export function trackTotalHours(t: LearningTrack) {
   return t.milestones.reduce((n, m) => n + m.estimatedHours, 0);
 }
 
-export interface ScheduleSlot {
-  milestone: TrackMilestone;
-  startDay: number;
-  endDay: number;
-}
+export interface ScheduleSlot { milestone: TrackMilestone; startDay: number; endDay: number; }
 
 export function buildSchedule(t: LearningTrack, hoursPerDay: number): ScheduleSlot[] {
   let day = 1;

@@ -1,20 +1,27 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, CheckCircle2, Circle, ExternalLink, Target,
-  ChevronDown, ChevronRight, Loader2, Rocket, Copy, Check, Bot, Sparkles
+  ChevronDown, ChevronRight, Loader2, Rocket, Copy, Check, X, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getTrackById, buildSchedule, dayNumber, type TrackMilestone } from "@/lib/learningTracks";
+import VideoPlayer from "@/components/VideoPlayer";
 
 type ProgressRow = {
   id: string; milestone_id: string; done_resources: string[];
-  project_url: string | null; status: string;
+  project_url: string | null; status: string; watch_seconds: number | null;
 };
 
 const HOURS_OPTIONS = [0.5, 1, 1.5, 2, 3, 4];
+
+function fmtSec(sec: number) {
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
 
 export default function TrackDashboard() {
   const params = useParams();
@@ -29,8 +36,10 @@ export default function TrackDashboard() {
   const [busy, setBusy] = useState<string | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
-  const [review, setReview] = useState<any>(null);
-  const [reviewFor, setReviewFor] = useState<string | null>(null);
+  const [playerFor, setPlayerFor] = useState<{ m: TrackMilestone; lang: "hi" | "en" } | null>(null);
+  const [todaySecs, setTodaySecs] = useState(0);
+  const [reported, setReported] = useState<Record<string, boolean>>({});
+  const watchBuf = useRef(0);
 
   useEffect(() => {
     const load = async () => {
@@ -48,11 +57,23 @@ export default function TrackDashboard() {
           (pr || []).forEach((r: any) => { map[r.milestone_id] = r; });
           setProgress(map);
         }
+        const day = new Date().toISOString().slice(0, 10);
+        const { data: dl } = await supabase.from("daily_study_log")
+          .select("video_seconds").eq("user_id", id).eq("day", day).maybeSingle();
+        setTodaySecs(dl?.video_seconds || 0);
       }
       setLoading(false);
     };
     load();
   }, [track?.id]);
+
+  // flush watch buffer every 30s while player open
+  useEffect(() => {
+    if (!playerFor) return;
+    const iv = setInterval(() => flushWatch(playerFor.m.id), 30000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerFor?.m.id]);
 
   if (!track) {
     return (
@@ -85,7 +106,7 @@ export default function TrackDashboard() {
     if (!uid) return null;
     if (progress[m.id]) return progress[m.id];
     const { data } = await supabase.from("learning_progress").insert({
-      user_id: uid, track_id: track.id, milestone_id: m.id, done_resources: [], status: "in_progress",
+      user_id: uid, track_id: track.id, milestone_id: m.id, done_resources: [], status: "in_progress", watch_seconds: 0,
     }).select().single();
     if (data) setProgress((p) => ({ ...p, [m.id]: data }));
     return data;
@@ -115,22 +136,41 @@ export default function TrackDashboard() {
     setBusy(null);
   };
 
-  const getReview = async (m: TrackMilestone) => {
-    const url = progress[m.id]?.project_url;
-    if (!url) return;
-    setReviewFor(m.id);
-    setReview({ loading: true });
-    try {
-      const res = await fetch("/api/learn/review", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ track_id: track.id, milestone_id: m.id, project_url: url }),
-      });
-      const d = await res.json();
-      setReview(res.ok ? d : { error: d.error || "Review failed" });
-    } catch (e: any) {
-      setReview({ error: e.message });
+  // save buffered watch seconds (milestone + daily log), batched
+  const flushWatch = async (mId: string) => {
+    const add = watchBuf.current;
+    if (!add || add <= 0 || !uid || !track) return;
+    watchBuf.current = 0;
+    const m = track.milestones.find((x) => x.id === mId);
+    if (!m) return;
+    const row = progress[mId] || (await ensureRow(m));
+    if (row) {
+      const next = (row.watch_seconds || 0) + add;
+      await supabase.from("learning_progress").update({ watch_seconds: next, updated_at: new Date().toISOString() }).eq("id", row.id);
+      setProgress((p) => ({ ...p, [mId]: { ...row, watch_seconds: next } }));
     }
+    const day = new Date().toISOString().slice(0, 10);
+    const { data: dl } = await supabase.from("daily_study_log")
+      .select("video_seconds").eq("user_id", uid).eq("day", day).maybeSingle();
+    const nv = (dl?.video_seconds || 0) + add;
+    await supabase.from("daily_study_log").upsert(
+      { user_id: uid, day, video_seconds: nv, updated_at: new Date().toISOString() },
+      { onConflict: "user_id,day" }
+    );
+    setTodaySecs(nv);
+  };
+
+  const closePlayer = () => {
+    if (playerFor) flushWatch(playerFor.m.id);
+    setPlayerFor(null);
+  };
+
+  const reportResource = async (mId: string, resId: string) => {
+    if (!uid || !track) return;
+    await supabase.from("resource_reports").insert({
+      user_id: uid, track_id: track.id, milestone_id: mId, resource_id: resId, note: "user reported broken/outdated",
+    });
+    setReported((r) => ({ ...r, [resId]: true }));
   };
 
   const copyPrompt = (text: string, id: string) => {
@@ -194,13 +234,14 @@ export default function TrackDashboard() {
             <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500 mt-0.5">per day</p>
           </div>
         </div>
+        <p className="mt-3 text-center text-[11px] font-bold text-teal-300">📺 Aaj ka in-app study time: {fmtSec(todaySecs)}</p>
       </div>
 
       <div className="rounded-2xl border border-teal-400/20 bg-teal-400/[0.05] p-4 mb-4">
         <p className="text-[10px] font-black uppercase tracking-widest text-teal-300 mb-1">Aaj ka target 🎯</p>
         <p className="text-[13px] font-bold text-white">{currentSlot.milestone.title}</p>
         <p className="text-[11px] text-slate-400 mt-0.5">
-          Next: {currentSlot.milestone.resources.find((r) => !(progress[currentSlot.milestone.id]?.done_resources || []).includes(r.id))?.title || "Project submit karo"}
+          Next: {currentSlot.milestone.resources.find((r) => !(progress[currentSlot.milestone.id]?.done_resources || []).includes(r.id))?.title || "Video dekho / project submit karo"}
         </p>
       </div>
 
@@ -219,18 +260,46 @@ export default function TrackDashboard() {
                 </span>
                 <span className="flex-1 min-w-0">
                   <span className="block text-[13px] font-bold text-slate-100 truncate">{m.title}</span>
-                  <span className="block text-[10px] text-slate-500 font-semibold mt-0.5">Day {s.startDay}–{s.endDay} · {m.estimatedHours}h · {doneRes.length}/{m.resources.length} done</span>
+                  <span className="block text-[10px] text-slate-500 font-semibold mt-0.5">
+                    Day {s.startDay}–{s.endDay} · {m.estimatedHours}h · {doneRes.length}/{m.resources.length} done
+                    {(row?.watch_seconds || 0) > 0 && ` · 📺 ${fmtSec(row!.watch_seconds!)}`}
+                  </span>
                 </span>
                 {open ? <ChevronDown size={15} className="text-slate-500" /> : <ChevronRight size={15} className="text-slate-600" />}
               </button>
 
               {open && (
                 <div className="px-4 pb-4">
-                  <p className="text-[12px] text-slate-300 leading-relaxed mb-4">{m.summary}</p>
+                  <p className="text-[12px] text-slate-300 leading-relaxed mb-3">{m.summary}</p>
+                  <p className="text-[10px] font-bold text-slate-500 mb-3">
+                    {m.freshness === "evergreen" ? "🌱 Evergreen content — kabhi purana nahi hoga" : "⚡ Version-sensitive — yearly review list me hai"}
+                  </p>
 
-                  {/* STEP 1: RESOURCES */}
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">1. Resources (finish & check off)</p>
-                  <div className="grid gap-1.5 mb-5">
+                  {/* 🎥 IN-APP VIDEOS */}
+                  {(m.videoHi || m.videoEn) && (
+                    <>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">1. Watch in-app (best teachers)</p>
+                      <div className="grid grid-cols-2 gap-2 mb-4">
+                        {m.videoHi && (
+                          <button onClick={() => setPlayerFor({ m, lang: "hi" })}
+                            className="rounded-xl border border-orange-400/25 bg-orange-500/10 p-3 text-left hover:bg-orange-500/15 transition-colors">
+                            <p className="text-[11px] font-black text-orange-200">🇮🇳 Hindi</p>
+                            <p className="text-[10px] text-orange-300/80 font-semibold mt-0.5 truncate">{m.videoHi.channel}</p>
+                          </button>
+                        )}
+                        {m.videoEn && (
+                          <button onClick={() => setPlayerFor({ m, lang: "en" })}
+                            className="rounded-xl border border-blue-400/25 bg-blue-500/10 p-3 text-left hover:bg-blue-500/15 transition-colors">
+                            <p className="text-[11px] font-black text-blue-200">🇬 English</p>
+                            <p className="text-[10px] text-blue-300/80 font-semibold mt-0.5 truncate">{m.videoEn.channel}</p>
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">2. Practice resources (check off)</p>
+                  <div className="grid gap-1.5 mb-4">
                     {m.resources.map((r) => {
                       const checked = doneRes.includes(r.id);
                       return (
@@ -243,16 +312,19 @@ export default function TrackDashboard() {
                             <span className={`shrink-0 px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${r.lang === "hindi" ? "bg-orange-500/10 text-orange-300 border border-orange-500/25" : "bg-blue-500/10 text-blue-300 border border-blue-500/25"}`}>{r.lang}</span>
                           </a>
                           <a href={r.url} target="_blank" rel="noreferrer" className="shrink-0 text-slate-500"><ExternalLink size={13} /></a>
+                          <button onClick={() => reportResource(m.id, r.id)} title="Report broken/outdated"
+                            className="shrink-0 text-slate-600 hover:text-amber-300 transition-colors">
+                            {reported[r.id] ? <CheckCircle2 size={12} className="text-emerald-400" /> : <AlertTriangle size={12} />}
+                          </button>
                         </div>
                       );
                     })}
                   </div>
 
-                  {/* STEP 2: AI COACH PROMPTS */}
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">
-                    2. AI Coach <span className="text-[9px] text-violet-300 font-normal normal-case">(copy → paste in ChatGPT / Gemini)</span>
+                    3. AI Coach Prompts <span className="text-[9px] text-violet-300 font-normal normal-case">(ChatGPT / Gemini me paste karo)</span>
                   </p>
-                  <div className="grid gap-2 mb-5">
+                  <div className="grid gap-2 mb-4">
                     {m.aiCoachPrompts.map((prompt, i) => (
                       <div key={i} className="relative rounded-xl bg-violet-500/5 border border-violet-500/20 p-3 pr-12">
                         <p className="text-[11px] text-violet-100 leading-relaxed">{prompt}</p>
@@ -264,9 +336,8 @@ export default function TrackDashboard() {
                     ))}
                   </div>
 
-                  {/* STEP 3: PROJECT + AI REVIEW */}
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">3. Build & ship project</p>
-                  <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3.5 mb-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">4. Build & Ship Project</p>
+                  <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3.5">
                     <p className="text-[12px] font-bold text-white mb-1">{m.project.title}</p>
                     <p className="text-[11px] text-slate-400 leading-relaxed mb-2">{m.project.brief}</p>
                     <ul className="grid gap-1 mb-3">
@@ -275,35 +346,10 @@ export default function TrackDashboard() {
                       ))}
                     </ul>
                     {row?.project_url ? (
-                      <>
-                        <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-3 py-2 mb-2">
-                          <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
-                          <a href={row.project_url} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-emerald-300 truncate">{row.project_url}</a>
-                        </div>
-                        <button onClick={() => getReview(m)}
-                          className="w-full py-2.5 rounded-lg bg-violet-500/15 border border-violet-500/30 text-[11px] font-black text-violet-300 flex items-center justify-center gap-1.5">
-                          <Bot size={13} /> Get AI Project Review (Hinglish)
-                        </button>
-                        {reviewFor === m.id && review && (
-                          <div className="mt-2 rounded-lg bg-slate-800/60 border border-slate-700 p-3 text-[11px]">
-                            {review.loading ? (
-                              <span className="flex items-center gap-2 text-slate-300"><Loader2 size={13} className="animate-spin" /> Senior dev review ho raha hai…</span>
-                            ) : review.error ? (
-                              <p className="text-rose-300">❌ {review.error}</p>
-                            ) : (
-                              <>
-                                <p className="font-black text-white mb-1.5">Score: {review.review?.score}/100 <span className="text-[9px] text-slate-500 font-bold">({review.source})</span></p>
-                                {(review.rule_checks || []).map((c: any, i: number) => (
-                                  <p key={i} className={c.ok ? "text-emerald-300" : "text-slate-500"}>{c.ok ? "✅" : "⬜"} {c.check}</p>
-                                ))}
-                                {(review.review?.strengths || []).map((x: string, i: number) => <p key={i} className="text-emerald-300 mt-1">💪 {x}</p>)}
-                                {(review.review?.fixes || []).map((x: string, i: number) => <p key={i} className="text-amber-300 mt-1">🔧 {x}</p>)}
-                                {review.review?.next_step && <p className="text-indigo-300 mt-1.5 font-bold">➡️ {review.review.next_step}</p>}
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </>
+                      <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-3 py-2">
+                        <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                        <a href={row.project_url} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-emerald-300 truncate">{row.project_url}</a>
+                      </div>
                     ) : (
                       <div className="flex gap-2">
                         <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="Paste GitHub / Vercel link"
@@ -315,18 +361,41 @@ export default function TrackDashboard() {
                       </div>
                     )}
                   </div>
-
-                  {/* STEP 4: QUIZ */}
-                  <Link href={`/learns/${track.id}/quiz/${m.id}`}
-                    className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-slate-800/60 border border-slate-700 text-[11px] font-black text-slate-200">
-                    <Sparkles size={13} className="text-cyan-400" /> 4. Practice Quiz — concept pakka karo
-                  </Link>
                 </div>
               )}
             </div>
           );
         })}
       </div>
+
+      {/* 🎥 VIDEO PLAYER MODAL */}
+      {playerFor && (() => {
+        const v = playerFor.lang === "hi" ? playerFor.m.videoHi : playerFor.m.videoEn;
+        if (!v) return null;
+        return (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4" onClick={closePlayer}>
+            <div className="w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-[12px] font-black text-white truncate pr-3">
+                  {playerFor.m.title} — {playerFor.lang === "hi" ? "🇮🇳 Hindi" : "🇬 English"} · {v.channel}
+                </p>
+                <button onClick={closePlayer} className="shrink-0 w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center">
+                  <X size={14} />
+                </button>
+              </div>
+              <VideoPlayer
+                youtubeId={v.youtubeId}
+                isPlaylist={v.youtubeId.startsWith("PL")}
+                onTick={(s) => { watchBuf.current += s; }}
+              />
+              <button onClick={() => reportResource(playerFor.m.id, playerFor.lang === "hi" ? "video-hi" : "video-en")}
+                className="mt-3 flex items-center gap-1.5 text-[10px] font-bold text-slate-500 hover:text-amber-300 transition-colors">
+                <AlertTriangle size={11} /> Report broken / outdated video
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </main>
   );
 }
