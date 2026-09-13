@@ -744,7 +744,135 @@ export const APP_DEV_TRACK: LearningTrack = {
     },
   ],
 };
-export const TRACKS: LearningTrack[] = [WEB_DEV_TRACK, PYTHON_TRACK, CYBER_TRACK, DSA_TRACK, APP_DEV_TRACK];
+export const DEVOPS_TRACK: LearningTrack = {
+  id: "devops-cloud",
+  name: "DevOps & Cloud (AWS)",
+  tagline: "Zero se cloud-ready · 6 milestones · Docker, K8s, CI/CD · AI coach",
+  language: "hinglish",
+  milestones: [
+    {
+      id: "DO-1", order: 1, title: "Linux & Shell Scripting",
+      summary: "DevOps ki neev: terminal comfort, file ops, permissions, aur automation ke liye bash scripts. Sab kuch yahan se shuru.",
+      estimatedHours: 20, freshness: "evergreen",
+      videoHi: { title: "Linux + Shell Scripting (Hinglish)", channel: "Kunal Kushwaha", youtubeId: "fKp63C5q0_0", minutes: 240 },
+      videoEn: { title: "Linux for DevOps (Full Course)", channel: "freeCodeCamp", youtubeId: "g2iZqHWwTFM", minutes: 180 },
+      resources: [
+        { id: "DO-1-R1", title: "Linux Journey (interactive)", provider: "LinuxJourney", lang: "english", type: "interactive", url: "https://linuxjourney.com/", minutes: 150 },
+        { id: "DO-1-R2", title: "Bash Guide", provider: "tldp", lang: "english", type: "docs", url: "https://tldp.org/LDP/Bash-Beginners-Guide/html/", minutes: 120 },
+      ],
+      project: {
+        title: "Automation Script Suite",
+        brief: "3 bash scripts: (1) backup folder to timestamped archive, (2) log cleanup older than 7 days, (3) system health report (disk/CPU/RAM).",
+        acceptanceCriteria: ["3 scripts executable", "Cron job scheduled", "Output logged to file"],
+      },
+      aiCoachPrompts: [
+        "Explain Linux permissions (rwx, chmod, chown) in Hinglish with numeric examples (755, 644).",
+        "Bash script me variables, loops, conditions kaise likhte hain? Hinglish me ek backup script example do.",
+      ],
+    },
+    {
+      id: "DO-2", order: 2, title: "Git Advanced + GitHub Actions (CI/CD)",
+      summary: "Branching strategies, rebase vs merge, aur GitHub Actions se automated build/test/deploy pipelines. CI/CD = DevOps ka dil.",
+      estimatedHours: 20, freshness: "version-sensitive",
+      videoHi: { title: "Git + GitHub Actions (Hinglish)", channel: "Kunal Kushwaha", youtubeId: "q8gdBn8tR3E", minutes: 180 },
+      videoEn: { title: "GitHub Actions CI/CD Course", channel: "freeCodeCamp", youtubeId: "R8_veQiYBjI", minutes: 150 },
+      resources: [
+        { id: "DO-2-R1", title: "GitHub Actions Docs", provider: "GitHub", lang: "english", type: "docs", url: "https://docs.github.com/en/actions", minutes: 90 },
+        { id: "DO-2-R2", title: "Learn Git Branching (game)", provider: "Git", lang: "english", type: "interactive", url: "https://learngitbranching.js.org/", minutes: 60 },
+      ],
+      project: {
+        title: "CI/CD Pipeline for a Web App",
+        brief: "GitHub Actions workflow: on push → run tests → build → deploy to Vercel/Netlify. Branch protection + PR checks.",
+        acceptanceCriteria: ["Workflow runs on push", "Tests gate the deploy", "Auto-deploy on main"],
+      },
+      aiCoachPrompts: [
+        "Git rebase vs merge — kab kaunsa use karein? Hinglish me with golden rule.",
+        "GitHub Actions workflow YAML structure Hinglish me samjhao: triggers, jobs, steps, secrets.",
+      ],
+    },
+    {
+      id: "DO-3", order: 3, title: "Docker & Containers",
+      summary: "'Works on my machine' ka ant. Images, containers, Dockerfile, volumes, networks, docker-compose. Packaging ka standard.",
+      estimatedHours: 25, freshness: "version-sensitive",
+      videoHi: { title: "Docker Complete (Hinglish)", channel: "TechWorld with Nisha", youtubeId: "fqMOX6JJhGo", minutes: 240 },
+      videoEn: { title: "Docker Tutorial for Beginners", channel: "freeCodeCamp", youtubeId: "fqMOX6JJhGo", minutes: 180 },
+      resources: [
+        { id: "DO-3-R1", title: "Play with Docker (hands-on)", provider: "Docker", lang: "english", type: "interactive", url: "https://labs.play-with-docker.com/", minutes: 90 },
+        { id: "DO-3-R2", title: "Docker Get Started", provider: "Docker", lang: "english", type: "docs", url: "https://docs.docker.com/get-started/", minutes: 120 },
+      ],
+      project: {
+        title: "Dockerize a Full-Stack App",
+        brief: "Apne Web Dev project ko Dockerize karo: multi-stage Dockerfile, docker-compose (app + db), .dockerignore, optimized image size.",
+        acceptanceCriteria: ["docker compose up works", "Multi-stage build (small image)", "DB persists via volume"],
+      },
+      aiCoachPrompts: [
+        "Docker image vs container vs Dockerfile — Hinglish me simple analogy ke saath samjhao.",
+        "Multi-stage Docker build kya hota hai aur image size kaise ghatata hai? Hinglish me example do.",
+      ],
+    },
+    {
+      id: "DO-4", order: 4, title: "Kubernetes & Orchestration",
+      summary: "Containers ko scale karo: Pods, Deployments, Services, ConfigMaps, Ingress. K8s = cloud ka operating system.",
+      estimatedHours: 30, freshness: "version-sensitive",
+      videoHi: { title: "Kubernetes (Hinglish)", channel: "TechWorld with Nisha", youtubeId: "X48VuDVv0do", minutes: 300 },
+      videoEn: { title: "Kubernetes Full Course", channel: "freeCodeCamp", youtubeId: "X48VuDVv0do", minutes: 240 },
+      resources: [
+        { id: "DO-4-R1", title: "Killercoda K8s (free labs)", provider: "Killercoda", lang: "english", type: "interactive", url: "https://killercoda.com/playground/scenario/kubernetes", minutes: 150 },
+        { id: "DO-4-R2", title: "K8s Basics Tutorial", provider: "kubernetes.io", lang: "english", type: "docs", url: "https://kubernetes.io/docs/tutorials/kubernetes-basics/", minutes: 120 },
+      ],
+      project: {
+        title: "Deploy App on Minikube/K3s",
+        brief: "Local cluster pe apna Dockerized app deploy karo: Deployment + Service + Ingress + ConfigMap. Scale to 3 replicas.",
+        acceptanceCriteria: ["App accessible via Ingress", "3 replicas running", "ConfigMap for env vars"],
+      },
+      aiCoachPrompts: [
+        "Pod vs Deployment vs Service — Hinglish me inka relation samjhao with diagram.",
+        "Kubernetes me ConfigMap vs Secret kab use karein? Hinglish me security ke saath explain karo.",
+      ],
+    },
+    {
+      id: "DO-5", order: 5, title: "AWS Core Services",
+      summary: "Cloud ka leader: EC2 (compute), S3 (storage), IAM (security), Lambda (serverless), VPC (network). Free tier se practice.",
+      estimatedHours: 30, freshness: "version-sensitive",
+      videoHi: { title: "AWS in Hindi (Full)", channel: "TechWorld with Nisha", youtubeId: "g2iZqHWwTFM", minutes: 300 },
+      videoEn: { title: "AWS Certified Cloud Practitioner", channel: "freeCodeCamp", youtubeId: "3hLmDS179YE", minutes: 240 },
+      resources: [
+        { id: "DO-5-R1", title: "AWS Skill Builder (free)", provider: "AWS", lang: "english", type: "interactive", url: "https://skillbuilder.aws/", minutes: 180 },
+        { id: "DO-5-R2", title: "AWS Free Tier Guide", provider: "AWS", lang: "english", type: "docs", url: "https://aws.amazon.com/free/", minutes: 60 },
+      ],
+      project: {
+        title: "Host App on AWS (Free Tier)",
+        brief: "EC2 instance pe app deploy karo, S3 pe static assets, IAM role for least-privilege, CloudWatch logs on.",
+        acceptanceCriteria: ["App live on EC2 public IP", "S3 bucket for images", "IAM role (no root keys)"],
+      },
+      aiCoachPrompts: [
+        "EC2 vs Lambda vs Fargate — kab kaunsa use karein? Hinglish me cost + use-case ke saath.",
+        "AWS IAM best practices (least privilege, roles vs users) Hinglish me samjhao.",
+      ],
+    },
+    {
+      id: "DO-6", order: 6, title: "Terraform + Monitoring + Capstone",
+      summary: "Infrastructure as Code (Terraform), observability (Prometheus/Grafana), aur full capstone: end-to-end automated pipeline.",
+      estimatedHours: 35, freshness: "version-sensitive",
+      videoHi: { title: "Terraform + Monitoring (Hinglish)", channel: "TechWorld with Nisha", youtubeId: "SLB_c_ayRMo", minutes: 240 },
+      videoEn: { title: "Terraform Course for Beginners", channel: "freeCodeCamp", youtubeId: "SLB_c_ayRMo", minutes: 180 },
+      resources: [
+        { id: "DO-6-R1", title: "Terraform Tutorials", provider: "HashiCorp", lang: "english", type: "docs", url: "https://developer.hashicorp.com/terraform/tutorials", minutes: 150 },
+        { id: "DO-6-R2", title: "Prometheus + Grafana Labs", provider: "Killercoda", lang: "english", type: "interactive", url: "https://killercoda.com/prometheus", minutes: 120 },
+      ],
+      project: {
+        title: "Capstone: Full IaC + Observability Pipeline",
+        brief: "Terraform se AWS infra provision karo (EC2+S3), CI/CD se deploy, Prometheus+Grafana se monitor. Sab kuch code me (no manual clicks).",
+        acceptanceCriteria: ["terraform apply creates infra", "CI/CD deploys app", "Grafana dashboard live", "All in Git repo"],
+      },
+      aiCoachPrompts: [
+        "Infrastructure as Code kya hai aur manual setup se behtar kyu? Hinglish me 4 reasons.",
+        "Terraform state file kya hota hai aur remote backend kyu use karein? Hinglish me samjhao.",
+      ],
+    },
+  ],
+};
+export const TRACKS: LearningTrack[] = [WEB_DEV_TRACK, PYTHON_TRACK, CYBER_TRACK, DSA_TRACK, APP_DEV_TRACK, DEVOPS_TRACK];
 
 export function getTrackById(id: string) {
   return TRACKS.find((t) => t.id === id);

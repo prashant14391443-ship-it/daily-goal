@@ -206,4 +206,40 @@ export const LOCAL_QUIZ: Record<string, LocalQuizQ[]> = {
     { q: "Play Store pe app submit karne ke liye kya chahiye?", options: ["Free account", "Google Play Developer account ($25 one-time)", "Monthly subscription", "Nothing"], correct: 1, explain: "Google Play Developer account $25 one-time fee hai." },
     { q: "React Native app ko production me le jaane ka best way?", options: ["Direct upload", "EAS Build + EAS Submit", "Manual APK", "GitHub only"], correct: 1, explain: "EAS Build se APK banao, EAS Submit se Play Store pe upload karo." },
   ],
+    "DO-1": [
+    { q: "Linux me file permissions 755 matlab?", options: ["rwxr-xr-x", "rw-r--r--", "rwxrwxrwx", "r--r--r--"], correct: 0, explain: "7=rwx (owner), 5=r-x (group), 5=r-x (others)." },
+    { q: "Bash script ko executable banane ka command?", options: ["chmod +x script.sh", "chown script.sh", "run script.sh", "exec script.sh"], correct: 0, explain: "chmod +x se execute permission milti hai." },
+    { q: "Current directory dekhne ka command?", options: ["cd", "pwd", "ls", "dir"], correct: 1, explain: "pwd = print working directory." },
+    { q: "Cron job kya karta hai?", options: ["Manual task", "Scheduled recurring task", "One-time task", "Background process only"], correct: 1, explain: "Cron se tasks time-based schedule hote hain." },
+  ],
+  "DO-2": [
+    { q: "CI/CD me 'CI' ka matlab?", options: ["Code Integration", "Continuous Integration", "Central Index", "Compiled Input"], correct: 1, explain: "Continuous Integration = auto build+test on every push." },
+    { q: "Git rebase ka main use?", options: ["Merge commits banane", "Linear history banane", "Delete branches", "Undo commits"], correct: 1, explain: "Rebase commits ko linear history me rewrite karta hai." },
+    { q: "GitHub Actions workflow kis file me hota hai?", options: [".github/workflows/*.yml", "package.json", "Dockerfile", "README"], correct: 0, explain: "Workflows .github/workflows/ me YAML files hote hain." },
+    { q: "Secrets (API keys) CI me kahan rakhte hain?", options: ["Code me hardcode", "GitHub Secrets / env vars", "README", "Public repo"], correct: 1, explain: "Secrets encrypted env vars me inject hote hain — code me kabhi nahi." },
+  ],
+  "DO-3": [
+    { q: "Docker image vs container?", options: ["Same cheez", "Image = blueprint, container = running instance", "Container = blueprint", "Image = running"], correct: 1, explain: "Image static template hai; container uska running instance." },
+    { q: "Dockerfile me 'FROM' kya karta hai?", options: ["File copy", "Base image set karta hai", "Port expose", "Command run"], correct: 1, explain: "FROM base image define karta hai jispe build hota hai." },
+    { q: "Multi-stage build ka fayda?", options: ["Faster runtime", "Smaller final image", "More layers", "Better logs"], correct: 1, explain: "Build tools final image me nahi jaate — image chhoti hoti hai." },
+    { q: "docker-compose kisliye?", options: ["Single container", "Multi-container apps define karne", "Image build", "Network delete"], correct: 1, explain: "compose se app+db jaise multiple services ek saath chalte hain." },
+  ],
+  "DO-4": [
+    { q: "Kubernetes me sabse chhota unit?", options: ["Node", "Pod", "Cluster", "Service"], correct: 1, explain: "Pod = smallest deployable unit (1+ containers)." },
+    { q: "Deployment ka kaam?", options: ["Network routing", "Replicas manage + rollout", "Storage", "Logging"], correct: 1, explain: "Deployment desired replicas + rolling updates handle karta hai." },
+    { q: "Service kya provide karta hai?", options: ["Stable network endpoint to Pods", "Storage volume", "Secrets", "CPU limits"], correct: 0, explain: "Service Pods ko stable IP/DNS deta hai (Pods ephemeral hain)." },
+    { q: "ConfigMap vs Secret?", options: ["Same", "Secret encrypted sensitive data ke liye", "ConfigMap encrypted", "Secret public data"], correct: 1, explain: "Secret base64/encrypted sensitive data; ConfigMap normal config." },
+  ],
+  "DO-5": [
+    { q: "AWS me serverless compute kaunsa?", options: ["EC2", "Lambda", "S3", "RDS"], correct: 1, explain: "Lambda = serverless functions, pay-per-invocation." },
+    { q: "S3 kisliye use hota hai?", options: ["Compute", "Object storage", "Database", "Networking"], correct: 1, explain: "S3 = scalable object storage (files, images, backups)." },
+    { q: "IAM ka kaam?", options: ["Storage", "Identity + access control", "Compute", "Monitoring"], correct: 1, explain: "IAM users/roles/permissions manage karta hai." },
+    { q: "Least privilege principle matlab?", options: ["Sabko full access", "Sirf zaroori minimum permissions", "No access", "Root access always"], correct: 1, explain: "Har identity ko sirf utna access jo kaam ke liye chahiye." },
+  ],
+  "DO-6": [
+    { q: "Infrastructure as Code (IaC) ka fayda?", options: ["Manual clicks", "Version-controlled reproducible infra", "Slower setup", "No documentation"], correct: 1, explain: "IaC se infra code me hota hai — repeatable + reviewable." },
+    { q: "Terraform state file kya store karta hai?", options: ["App code", "Current infra mapping", "Logs", "Secrets only"], correct: 1, explain: "State = Terraform ka record of what it created." },
+    { q: "Prometheus kya karta hai?", options: ["Deploys apps", "Metrics collect + alert", "Stores files", "Manages DNS"], correct: 1, explain: "Prometheus time-series metrics scrape karta hai + alerts." },
+    { q: "Grafana ka role?", options: ["Collect metrics", "Visualize dashboards", "Provision infra", "Run containers"], correct: 1, explain: "Grafana Prometheus data ko dashboards me dikhata hai." },
+  ],
 };
