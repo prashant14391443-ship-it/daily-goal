@@ -4,7 +4,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { addTopic } from "@/lib/srs";
 import { GraduationCap, Sparkles, Save, Download, Layers, Map as MapIcon, Hammer, BookOpen, Dumbbell, AlertTriangle, ListOrdered, Calendar, Lightbulb, Timer, Trash2, Pencil, Code2 } from "lucide-react";
-
+import { TRACKS } from "@/lib/learningTracks";
 type LearnBP = {
   title: string;
   goal: { meaning: string; time: string; skip: string[] };
@@ -194,9 +194,29 @@ export default function LearnPage() {
         <button onClick={generate} disabled={busy} className="press col-span-2 py-3 rounded-xl bg-violet-500/15 border border-violet-500/30 text-sm font-black text-violet-300 disabled:opacity-50 flex items-center justify-center gap-1.5">
           <Sparkles size={15} /> {busy ? "Building…" : "Build My Blueprint"}
         </button>
-<Link href="/learns/web-dev" className="...">
-  Structured Web Dev Track (Hinglish) — 8 milestones + projects
-</Link>      </div>
+      </div>
+
+      {/* 🎯 STRUCTURED TRACKS — curated paths with videos, projects & quizzes */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
+        <p className="text-xs font-black text-indigo-300 mb-3 flex items-center gap-1.5">
+          <Code2 size={14} /> STRUCTURED TRACKS — videos, projects, quizzes, AI coach
+        </p>
+        <div className="grid gap-2">
+          {TRACKS.map((t) => (
+            <Link
+              key={t.id}
+              href={`/learns/${t.id}`}
+              className="press w-full py-3 px-4 rounded-xl border border-indigo-400/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-sm font-black text-indigo-200 flex items-center justify-between gap-2 transition-colors"
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <Code2 size={15} className="shrink-0" />
+                <span className="truncate">{t.name}</span>
+              </span>
+              <span className="shrink-0 text-[10px] font-black text-indigo-400">{t.milestones.length} milestones →</span>
+            </Link>
+          ))}
+        </div>
+      </div>
       {msg && <p className="text-center text-xs font-bold text-violet-300 mb-3">{msg}</p>}
 
       {bp && (

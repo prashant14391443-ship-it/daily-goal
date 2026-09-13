@@ -11,7 +11,7 @@ export interface TrackResource {
 export interface TrackVideo {
   title: string;
   channel: string;
-  youtubeId: string; // video ID or playlist ID (starts with PL)
+  youtubeId: string;
   minutes: number;
 }
 
@@ -151,7 +151,6 @@ export const WEB_DEV_TRACK: LearningTrack = {
       summary: "React ke upar production layer. App Router, server vs client components — jobs me yahi maanga jaata hai.",
       estimatedHours: 20, freshness: "version-sensitive",
       videoHi: { title: "Chai aur Next.js", channel: "Chai aur Code", youtubeId: "PLu71SKxNbfoQ7BI8FzJ0MUHJsKKrG6GPD", minutes: 200 },
-      // English best = official interactive course (better than any video) — kept in resources
       resources: [
         { id: "WD-6-R1", title: "Official Next.js Learn", provider: "next.js", lang: "english", type: "interactive", url: "https://nextjs.org/learn", minutes: 240 },
       ],
@@ -169,7 +168,6 @@ export const WEB_DEV_TRACK: LearningTrack = {
       id: "WD-7", order: 7, title: "Backend + Database (Supabase)",
       summary: "Full-stack bano: auth, database, CRUD. Supabase se bina server manage kiye backend chalao.",
       estimatedHours: 25, freshness: "version-sensitive",
-      // No high-quality Hindi Supabase video exists — docs + English video (quality-first policy)
       videoEn: { title: "Supabase Crash Course", channel: "Traversy Media", youtubeId: "ZVsuKXcRwDo", minutes: 60 },
       resources: [
         { id: "WD-7-R1", title: "Supabase Docs", provider: "Supabase", lang: "english", type: "docs", url: "https://supabase.com/docs", minutes: 120 },
@@ -207,7 +205,248 @@ export const WEB_DEV_TRACK: LearningTrack = {
   ],
 };
 
-export const TRACKS: LearningTrack[] = [WEB_DEV_TRACK];
+export const PYTHON_TRACK: LearningTrack = {
+  id: "python-data",
+  name: "Python for Data Science",
+  tagline: "Zero se data-ready · 6 milestones · real datasets · AI coach",
+  language: "hinglish",
+  milestones: [
+    {
+      id: "PY-1", order: 1, title: "Python Foundations",
+      summary: "Syntax, variables, loops, functions — Python ki language yahan se shuru hoti hai. Sabse easy entry point.",
+      estimatedHours: 25, freshness: "evergreen",
+      videoHi: { title: "Python in 1 Video (Hindi)", channel: "CodeWithHarry", youtubeId: "GF-HFs2XUg", minutes: 240 },
+      videoEn: { title: "Python Full Course for Beginners", channel: "freeCodeCamp", youtubeId: "rfscVS01bw2", minutes: 264 },
+      resources: [
+        { id: "PY-1-R1", title: "Official Python Tutorial", provider: "python.org", lang: "english", type: "docs", url: "https://docs.python.org/3/tutorial/", minutes: 180 },
+        { id: "PY-1-R2", title: "Python Track (practice)", provider: "Exercism", lang: "english", type: "interactive", url: "https://exercism.org/tracks/python", minutes: 120 },
+      ],
+      project: {
+        title: "CLI Expense Tracker",
+        brief: "Terminal app: expenses input karo, file me save karo, total + average dikhao.",
+        acceptanceCriteria: ["Functions + loops use kiye", "File read/write hota hai", "Galat input pe crash nahi karta"],
+      },
+      aiCoachPrompts: [
+        "Explain Python lists vs tuples vs sets in Hinglish with 3 real examples, then give me 2 practice puzzles.",
+        "Review my Python script like a senior dev in Hinglish: [paste code]",
+      ],
+    },
+    {
+      id: "PY-2", order: 2, title: "OOP, Files & Exceptions",
+      summary: "Classes, objects, inheritance aur error handling — clean code ka base. Yahi cheez interviews me poochhi jaati hai.",
+      estimatedHours: 20, freshness: "evergreen",
+      resources: [
+        { id: "PY-2-R1", title: "OOP & Errors (official docs)", provider: "python.org", lang: "english", type: "docs", url: "https://docs.python.org/3/tutorial/classes.html", minutes: 90 },
+        { id: "PY-2-R2", title: "Python OOP exercises", provider: "Exercism", lang: "english", type: "interactive", url: "https://exercism.org/tracks/python/concepts", minutes: 120 },
+      ],
+      project: {
+        title: "Bank Account CLI (OOP)",
+        brief: "Account class: deposit/withdraw, custom exceptions, JSON me persistence.",
+        acceptanceCriteria: ["Class + methods sahi structured", "Custom exception raise hota hai", "JSON me save/load hota hai"],
+      },
+      aiCoachPrompts: [
+        "Explain __init__, self aur inheritance in Hinglish with one mini banking example.",
+        "Give me 3 OOP interview questions with model answers in Hinglish.",
+      ],
+    },
+    {
+      id: "PY-3", order: 3, title: "NumPy & Pandas",
+      summary: "Data ka asli toolbox. Arrays, DataFrames, cleaning, groupby — yahan se tum 'data' wale ban jaate ho.",
+      estimatedHours: 25, freshness: "version-sensitive",
+      videoEn: { title: "Data Analysis with Python (Full Course)", channel: "freeCodeCamp", youtubeId: "r-uOLxNrNk8", minutes: 300 },
+      resources: [
+        { id: "PY-3-R1", title: "Pandas in 10 minutes", provider: "pandas.pydata.org", lang: "english", type: "docs", url: "https://pandas.pydata.org/docs/user_guide/10min.html", minutes: 30 },
+        { id: "PY-3-R2", title: "Pandas course (hands-on)", provider: "Kaggle Learn", lang: "english", type: "interactive", url: "https://www.kaggle.com/learn/pandas", minutes: 180 },
+      ],
+      project: {
+        title: "CSV Cleanup + Insights",
+        brief: "Messy CSV lo: nulls handle karo, types fix karo, groupby se 5 insights nikaalo, summary export karo.",
+        acceptanceCriteria: ["Cleaning steps documented", "groupby/agg use hua", "Summary CSV export hui"],
+      },
+      aiCoachPrompts: [
+        "Explain loc vs iloc vs merge vs join in Pandas in Hinglish with tiny examples.",
+        "My Pandas code is slow. Suggest vectorized alternatives in Hinglish: [paste code]",
+      ],
+    },
+    {
+      id: "PY-4", order: 4, title: "Data Visualization",
+      summary: "Numbers ko story banao. Matplotlib + Seaborn se charts jo boss aur clients samajh sakein.",
+      estimatedHours: 15, freshness: "evergreen",
+      resources: [
+        { id: "PY-4-R1", title: "Matplotlib tutorials", provider: "matplotlib.org", lang: "english", type: "docs", url: "https://matplotlib.org/stable/tutorials/index.html", minutes: 90 },
+        { id: "PY-4-R2", title: "Data Visualization course", provider: "Kaggle Learn", lang: "english", type: "interactive", url: "https://www.kaggle.com/learn/data-visualization", minutes: 120 },
+      ],
+      project: {
+        title: "3-Chart Story",
+        brief: "Ek dataset, 3 charts (bar/line/heat) — titles, labels, colors sahi. PNG export karo.",
+        acceptanceCriteria: ["3 alag chart types", "Labels + titles present", "README me insight likha"],
+      },
+      aiCoachPrompts: [
+        "Which chart type fits which data story? Explain in Hinglish with 5 scenarios.",
+        "Improve this Matplotlib code's readability in Hinglish: [paste code]",
+      ],
+    },
+    {
+      id: "PY-5", order: 5, title: "SQL for Data People",
+      summary: "Har data job me SQL poochha jaata hai. Queries, joins, aggregates — database se seedha baat karna seekho.",
+      estimatedHours: 20, freshness: "evergreen",
+      videoEn: { title: "Supabase Crash Course", channel: "Traversy Media", youtubeId: "ZVsuKXcRwDo", minutes: 60 },
+      resources: [
+        { id: "PY-5-R1", title: "SQLBolt (interactive)", provider: "SQLBolt", lang: "english", type: "interactive", url: "https://sqlbolt.com/", minutes: 120 },
+        { id: "PY-5-R2", title: "Supabase docs", provider: "Supabase", lang: "english", type: "docs", url: "https://supabase.com/docs", minutes: 60 },
+      ],
+      project: {
+        title: "Query Playground",
+        brief: "Ek schema design karo (3 tables) + 10 business questions ke SQL answers likho.",
+        acceptanceCriteria: ["Schema diagram/SQL file", "10 queries with joins/agg", "Har query ka 1-line explain"],
+      },
+      aiCoachPrompts: [
+        "Explain INNER vs LEFT vs FULL JOIN in Hinglish with a Venn-diagram-in-text.",
+        "Optimize this slow SQL query and explain why: [paste query]",
+      ],
+    },
+    {
+      id: "PY-6", order: 6, title: "ML Intro + Capstone",
+      summary: "Scikit-learn se pehla model. Train, evaluate, samjhao — aur portfolio me publish karo.",
+      estimatedHours: 30, freshness: "version-sensitive",
+      videoEn: { title: "Machine Learning for Everybody", channel: "freeCodeCamp", youtubeId: "i_LwzRVP7bg", minutes: 240 },
+      resources: [
+        { id: "PY-6-R1", title: "scikit-learn getting started", provider: "scikit-learn.org", lang: "english", type: "docs", url: "https://scikit-learn.org/stable/getting_started.html", minutes: 90 },
+        { id: "PY-6-R2", title: "Intro to Machine Learning", provider: "Kaggle Learn", lang: "english", type: "interactive", url: "https://www.kaggle.com/learn/intro-to-machine-learning", minutes: 150 },
+      ],
+      project: {
+        title: "Capstone: Predict & Publish",
+        brief: "Kaggle dataset pe model train karo, results likho, notebook + README GitHub pe publish karo.",
+        acceptanceCriteria: ["Train/test split sahi", "Metrics reported (accuracy/RMSE)", "GitHub repo + README live"],
+      },
+      aiCoachPrompts: [
+        "Explain overfitting vs underfitting in Hinglish with a real-life analogy, then 3 ways to fix each.",
+        "Review my ML notebook structure like a senior data scientist in Hinglish: [paste outline]",
+      ],
+    },
+  ],
+};
+
+export const CYBER_TRACK: LearningTrack = {
+  id: "cyber-sec",
+  name: "Cybersecurity Foundations",
+  tagline: "Zero se security-ready · 6 milestones · real labs · AI coach",
+  language: "hinglish",
+  milestones: [
+    {
+      id: "CY-1", order: 1, title: "Internet & Network Foundations",
+      summary: "Security se pehle samjho internet kaam kaise karta hai: IP, DNS, HTTP, packets. Yeh base sab kuch support karta hai.",
+      estimatedHours: 20, freshness: "evergreen",
+      resources: [
+        { id: "CY-1-R1", title: "Pre-Security Path (labs)", provider: "TryHackMe", lang: "english", type: "interactive", url: "https://tryhackme.com/path/outline/presecurity", minutes: 240 },
+        { id: "CY-1-R2", title: "How the Web Works", provider: "Cloudflare Learning", lang: "english", type: "docs", url: "https://www.cloudflare.com/learning/", minutes: 60 },
+        { id: "CY-1-R3", title: "HTTP Overview", provider: "MDN", lang: "english", type: "docs", url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Overview", minutes: 30 },
+      ],
+      project: {
+        title: "Home Network Map",
+        brief: "Apne ghar ke devices + IPs list karo, 3 websites ka DNS→HTTP flow Hinglish me explain karo (1 page notes).",
+        acceptanceCriteria: ["Device/IP list bani", "DNS + HTTP flow explained", "Notes GitHub pe"],
+      },
+      aiCoachPrompts: [
+        "Explain DNS resolution step-by-step in Hinglish with a real example like instagram.com.",
+        "Quiz me: give me 5 questions on IP vs TCP vs HTTP in Hinglish.",
+      ],
+    },
+    {
+      id: "CY-2", order: 2, title: "Linux & Command Line",
+      summary: "Har security tool Linux pe chalta hai. Terminal comfort = superpower. Bandit wargame se hands-on practice.",
+      estimatedHours: 25, freshness: "evergreen",
+      resources: [
+        { id: "CY-2-R1", title: "Bandit Wargame (levels 0-15)", provider: "OverTheWire", lang: "english", type: "interactive", url: "https://overthewire.org/wargames/bandit/", minutes: 300 },
+        { id: "CY-2-R2", title: "Linux Fundamentals Module", provider: "TryHackMe", lang: "english", type: "interactive", url: "https://tryhackme.com/module/linux-fundamentals", minutes: 180 },
+      ],
+      project: {
+        title: "Bandit 0→10 Journal",
+        brief: "Levels 0-10 solve karo; har level ka command + 1-line seekh journal me likho.",
+        acceptanceCriteria: ["10 levels done", "Commands documented", "Journal GitHub pe"],
+      },
+      aiCoachPrompts: [
+        "Explain chmod, chown aur permissions (rwx) in Hinglish with examples.",
+        "Give me 10 Linux commands every security beginner must memorize, with Hinglish use-cases.",
+      ],
+    },
+    {
+      id: "CY-3", order: 3, title: "Web App Security & OWASP Top 10",
+      summary: "Asli hacking yahan shuru: SQLi, XSS, CSRF — attack karo, phir fix karna seekho. PortSwigger labs = gold.",
+      estimatedHours: 30, freshness: "version-sensitive",
+      videoEn: { title: "Full Ethical Hacking Course", channel: "freeCodeCamp", youtubeId: "3Kq1MIfTWCE", minutes: 300 },
+      resources: [
+        { id: "CY-3-R1", title: "Web Security Academy (labs)", provider: "PortSwigger", lang: "english", type: "interactive", url: "https://portswigger.net/web-security", minutes: 400 },
+        { id: "CY-3-R2", title: "OWASP Top 10", provider: "OWASP", lang: "english", type: "docs", url: "https://owasp.org/www-project-top-ten/", minutes: 60 },
+      ],
+      project: {
+        title: "OWASP Lab Notes (5 labs)",
+        brief: "SQLi + XSS ke 5 labs solve karo; har lab ka exploit steps + developer fix Hinglish me likho.",
+        acceptanceCriteria: ["5 labs solved", "Exploit + fix documented", "No real targets — labs only"],
+      },
+      aiCoachPrompts: [
+        "Explain SQL injection with a tiny example and 3 prevention techniques in Hinglish.",
+        "Difference between stored XSS aur reflected XSS? Hinglish me samjhao with fix code.",
+      ],
+    },
+    {
+      id: "CY-4", order: 4, title: "Reconnaissance & Scanning",
+      summary: "Attack surface pehle map karo: nmap, subdomains, ports. Recon = 80% real work. Sirf apne targets pe!",
+      estimatedHours: 20, freshness: "version-sensitive",
+      resources: [
+        { id: "CY-4-R1", title: "Nmap Room (labs)", provider: "TryHackMe", lang: "english", type: "interactive", url: "https://tryhackme.com/room/furthernmap", minutes: 150 },
+        { id: "CY-4-R2", title: "Nmap Official Guide", provider: "nmap.org", lang: "english", type: "docs", url: "https://nmap.org/book/", minutes: 120 },
+      ],
+      project: {
+        title: "Recon Report (own domain)",
+        brief: "Apni khud ki Vercel site/domain pe nmap + subdomain enumeration chalao; findings report banao.",
+        acceptanceCriteria: ["Scope = own assets only", "Open ports/services listed", "1-page report"],
+      },
+      aiCoachPrompts: [
+        "nmap ke top 5 flags (-sV, -sC etc.) Hinglish me explain karo with kab use karte hain.",
+        "Ethical recon ki boundaries kya hain? Legal vs illegal Hinglish me samjhao.",
+      ],
+    },
+    {
+      id: "CY-5", order: 5, title: "Blue Team: Defense & SOC Basics",
+      summary: "Sirf todna nahi, bachana bhi seekho: logs, SIEM, incident response. Jobs ka bada hissa blue team me hai.",
+      estimatedHours: 25, freshness: "evergreen",
+      resources: [
+        { id: "CY-5-R1", title: "SOC Level 1 Path", provider: "TryHackMe", lang: "english", type: "interactive", url: "https://tryhackme.com/path/outline/soclevel1", minutes: 300 },
+        { id: "CY-5-R2", title: "Wireshark Docs", provider: "wireshark.org", lang: "english", type: "docs", url: "https://www.wireshark.org/docs/", minutes: 90 },
+      ],
+      project: {
+        title: "PCAP Analysis",
+        brief: "Sample PCAP file Wireshark me kholo: 10 questions answer karo (top talkers, suspicious ports, HTTP requests).",
+        acceptanceCriteria: ["10 answers with filters used", "Screenshots included", "Summary Hinglish me"],
+      },
+      aiCoachPrompts: [
+        "SIEM kya hota hai aur SOC analyst ka din kaisa hota hai? Hinglish me explain karo.",
+        "Wireshark ke 5 essential filters Hinglish use-cases ke saath do.",
+      ],
+    },
+    {
+      id: "CY-6", order: 6, title: "Bug Bounty Basics + Capstone",
+      summary: "Legal hacking se paisa aur reputation: Hacker101, responsible disclosure, write-ups jo jobs laate hain.",
+      estimatedHours: 30, freshness: "version-sensitive",
+      resources: [
+        { id: "CY-6-R1", title: "Hacker101 (CTF + videos)", provider: "HackerOne", lang: "english", type: "interactive", url: "https://www.hacker101.com/", minutes: 240 },
+        { id: "CY-6-R2", title: "Disclosure Guidelines", provider: "HackerOne", lang: "english", type: "docs", url: "https://www.hackerone.com/disclosure-guidelines", minutes: 30 },
+      ],
+      project: {
+        title: "Capstone: 3 Write-ups + Policy",
+        brief: "3 solved labs ke public write-ups + ek responsible disclosure policy doc GitHub pe publish karo.",
+        acceptanceCriteria: ["3 write-ups live", "Policy doc included", "README me learning path"],
+      },
+      aiCoachPrompts: [
+        "Bug bounty write-up ka perfect structure kya hota hai? Hinglish me template do.",
+        "Beginner ke liye kaunse program types safe hain (VDP vs bounty)? Hinglish me samjhao.",
+      ],
+    },
+  ],
+};
+
+export const TRACKS: LearningTrack[] = [WEB_DEV_TRACK, PYTHON_TRACK, CYBER_TRACK];
 
 export function getTrackById(id: string) {
   return TRACKS.find((t) => t.id === id);
