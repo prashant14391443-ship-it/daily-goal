@@ -446,7 +446,177 @@ export const CYBER_TRACK: LearningTrack = {
   ],
 };
 
-export const TRACKS: LearningTrack[] = [WEB_DEV_TRACK, PYTHON_TRACK, CYBER_TRACK];
+export const DSA_TRACK: LearningTrack = {
+  id: "dsa-java",
+  name: "DSA in Java (Placements)",
+  tagline: "Zero se placement-ready · 8 milestones · LeetCode grind · AI coach",
+  language: "hinglish",
+  milestones: [
+    {
+      id: "DSA-1", order: 1, title: "Java Basics & Big-O",
+      summary: "Syntax, loops, functions, OOP basics ke saath Time/Space complexity. Yeh foundation hai — bina iske LeetCode mat chhuna.",
+      estimatedHours: 25, freshness: "evergreen",
+      videoHi: { title: "Java Placement Course (Hindi)", channel: "Kunal Kushwaha", youtubeId: "yp9yBr8aU4w", minutes: 300 },
+      videoEn: { title: "Data Structures Easy as 1-2-3", channel: "MyCodeSchool", youtubeId: "92S4zgXN17o", minutes: 60 },
+      resources: [
+        { id: "DSA-1-R1", title: "Big-O Cheatsheet", provider: "BigOCheatSheet", lang: "english", type: "docs", url: "https://www.bigocheatsheet.com/", minutes: 30 },
+        { id: "DSA-1-R2", title: "Java Docs (official)", provider: "Oracle", lang: "english", type: "docs", url: "https://docs.oracle.com/javase/tutorial/", minutes: 120 },
+        { id: "DSA-1-R3", title: "Java Track (practice)", provider: "Exercism", lang: "english", type: "interactive", url: "https://exercism.org/tracks/java", minutes: 180 },
+      ],
+      project: {
+        title: "Complexity Analyzer",
+        brief: "10 code snippets lo (loops, nested loops, recursion). Har ek ka time/space complexity Hinglish me likho.",
+        acceptanceCriteria: ["10 snippets analyzed", "O() notation sahi", "Explanations documented"],
+      },
+      aiCoachPrompts: [
+        "Explain Big-O notation (O(1), O(n), O(n²), O(log n)) in Hinglish with real code examples.",
+        "Java me ArrayList vs LinkedList kab use karein? Hinglish me samjhao with performance numbers.",
+      ],
+    },
+    {
+      id: "DSA-2", order: 2, title: "Arrays, Strings & Two Pointers",
+      summary: "Interviews me 30%+ questions arrays/strings se aate hain. Two pointers, sliding window, prefix sum master karo.",
+      estimatedHours: 30, freshness: "evergreen",
+      videoHi: { title: "Arrays & Strings (Hindi)", channel: "Apna College", youtubeId: "xPn5OQEk7ZA", minutes: 180 },
+      videoEn: { title: "Two Pointers Pattern", channel: "NeetCode", youtubeId: "On03HWe2tZM", minutes: 20 },
+      resources: [
+        { id: "DSA-2-R1", title: "NeetCode Arrays Roadmap", provider: "NeetCode", lang: "english", type: "interactive", url: "https://neetcode.io/roadmap", minutes: 60 },
+        { id: "DSA-2-R2", title: "LeetCode Arrays tag", provider: "LeetCode", lang: "english", type: "interactive", url: "https://leetcode.com/tag/array/", minutes: 300 },
+      ],
+      project: {
+        title: "Solve 20 Array Problems",
+        brief: "LeetCode Easy/Medium arrays: Two Sum, Container With Most Water, 3Sum, Sliding Window Maximum, etc.",
+        acceptanceCriteria: ["20 problems AC", "Optimal solutions only", "Complexity noted per problem"],
+      },
+      aiCoachPrompts: [
+        "Explain sliding window technique in Hinglish with Two Sum, Longest Substring without Repeating examples.",
+        "Two pointer pattern kab use karna hai? Hinglish me 5 scenarios ke saath explain karo.",
+      ],
+    },
+    {
+      id: "DSA-3", order: 3, title: "Linked Lists, Stacks & Queues",
+      summary: "Pointer manipulation seekho — reverse, detect cycle, merge. Stack/Queue ke patterns (monotonic stack) interviews me baar-baar aate hain.",
+      estimatedHours: 25, freshness: "evergreen",
+      videoHi: { title: "Linked List Playlist (Hindi)", channel: "Apna College", youtubeId: "q8gdBn8tR3E", minutes: 240 },
+      videoEn: { title: "Linked List Crash Course", channel: "William Fiset", youtubeId: "Hj_rA0dhr2I", minutes: 60 },
+      resources: [
+        { id: "DSA-3-R1", title: "Visualgo - LL visualization", provider: "Visualgo", lang: "english", type: "interactive", url: "https://visualgo.net/en/list", minutes: 60 },
+        { id: "DSA-3-R2", title: "LeetCode Linked List tag", provider: "LeetCode", lang: "english", type: "interactive", url: "https://leetcode.com/tag/linked-list/", minutes: 240 },
+      ],
+      project: {
+        title: "Build Your Own LRU Cache",
+        brief: "HashMap + Doubly Linked List se LRU Cache implement karo (LeetCode 146 level). Tests likho.",
+        acceptanceCriteria: ["O(1) get + put", "Tests pass (10+ cases)", "Code clean + commented"],
+      },
+      aiCoachPrompts: [
+        "Explain slow/fast pointer technique for cycle detection in Hinglish with a diagram.",
+        "Monotonic stack kya hai aur kab use hota hai? Hinglish me 3 problems ke saath explain karo.",
+      ],
+    },
+    {
+      id: "DSA-4", order: 4, title: "Hashing, Heaps & Greedy",
+      summary: "HashMap O(1) lookup superpower hai. Heaps top-k problems ke liye. Greedy — jab local optimal = global optimal.",
+      estimatedHours: 25, freshness: "evergreen",
+      videoHi: { title: "Hashing + Heaps (Hindi)", channel: "Kunal Kushwaha", youtubeId: "RRV2p47pYSo", minutes: 180 },
+      videoEn: { title: "Heap Data Structure", channel: "William Fiset", youtubeId: "t0Cq6tVNRBA", minutes: 45 },
+      resources: [
+        { id: "DSA-4-R1", title: "takeUforward Greedy", provider: "Striver", lang: "english", type: "docs", url: "https://takeuforward.org/strivers-a2z-dsa-course/strivers-a2z-dsa-course-sheet-2/", minutes: 90 },
+        { id: "DSA-4-R2", title: "LeetCode Heap tag", provider: "LeetCode", lang: "english", type: "interactive", url: "https://leetcode.com/tag/heap-priority-queue/", minutes: 240 },
+      ],
+      project: {
+        title: "Top-K Elements System",
+        brief: "Min-heap use karke top-k largest/smallest elements ka system banao (custom comparator support).",
+        acceptanceCriteria: ["O(n log k) time", "Generic type support", "10+ unit tests"],
+      },
+      aiCoachPrompts: [
+        "HashMap internal working (buckets, collisions, rehashing) Hinglish me samjhao.",
+        "Greedy algorithm proof kaise karte hain? Hinglish me Activity Selection example ke saath.",
+      ],
+    },
+    {
+      id: "DSA-5", order: 5, title: "Trees & BST",
+      summary: "Binary tree traversals (in/pre/post/level), BST properties, LCA — interviews ka favorite topic. 25%+ tree questions.",
+      estimatedHours: 30, freshness: "evergreen",
+      videoHi: { title: "Trees Complete (Hindi)", channel: "Kunal Kushwaha", youtubeId: "4r_XR9fUPhQ", minutes: 300 },
+      videoEn: { title: "Tree Traversal Crash Course", channel: "NeetCode", youtubeId: "q2ZmJ8R7RzQ", minutes: 30 },
+      resources: [
+        { id: "DSA-5-R1", title: "Visualgo - Tree visualization", provider: "Visualgo", lang: "english", type: "interactive", url: "https://visualgo.net/en/bst", minutes: 60 },
+        { id: "DSA-5-R2", title: "LeetCode Tree tag", provider: "LeetCode", lang: "english", type: "interactive", url: "https://leetcode.com/tag/tree/", minutes: 300 },
+      ],
+      project: {
+        title: "Build AVL Tree from Scratch",
+        brief: "Self-balancing BST implement karo: insert, delete, rotations, height maintenance. Visualize output.",
+        acceptanceCriteria: ["Insert/Delete with rotations", "Balanced after every op", "10+ test cases"],
+      },
+      aiCoachPrompts: [
+        "Tree traversals (in/pre/post/level) kab kaunsa use karein? Hinglish me with examples.",
+        "LCA (Lowest Common Ancestor) find karne ke 3 approaches Hinglish me explain karo.",
+      ],
+    },
+    {
+      id: "DSA-6", order: 6, title: "Graphs: BFS, DFS, Shortest Path",
+      summary: "Adjacency list, traversals, Dijkstra, Bellman-Ford, Topological sort. Connected components aur cycle detection bhi.",
+      estimatedHours: 35, freshness: "evergreen",
+      videoHi: { title: "Graphs Playlist (Hindi)", channel: "Striver/takeUforward", youtubeId: "LCa5kvd2YfE", minutes: 360 },
+      videoEn: { title: "Graph Algorithms Course", channel: "William Fiset", youtubeId: "LFKZLXVO-Dg", minutes: 120 },
+      resources: [
+        { id: "DSA-6-R1", title: "Visualgo - Graph algorithms", provider: "Visualgo", lang: "english", type: "interactive", url: "https://visualgo.net/en/graphds", minutes: 90 },
+        { id: "DSA-6-R2", title: "LeetCode Graph tag", provider: "LeetCode", lang: "english", type: "interactive", url: "https://leetcode.com/tag/graph/", minutes: 360 },
+      ],
+      project: {
+        title: "Path Finder Visualizer",
+        brief: "Grid pe BFS/DFS/Dijkstra chalao aur animated visualization banao (React ya simple HTML/Canvas).",
+        acceptanceCriteria: ["3 algorithms implemented", "Maze input support", "Live animation"],
+      },
+      aiCoachPrompts: [
+        "BFS vs DFS kab kaunsa use karein? Hinglish me 5 real scenarios ke saath.",
+        "Dijkstra negative weights pe fail kyu hota hai? Hinglish me samjhao + Bellman-Ford kyu chahiye.",
+      ],
+    },
+    {
+      id: "DSA-7", order: 7, title: "Dynamic Programming",
+      summary: "DP = overlapping subproblems + optimal substructure. 1D, 2D, subsequences, knapsack patterns — sabse hard but highest-paying topic.",
+      estimatedHours: 40, freshness: "evergreen",
+      videoHi: { title: "DP Playlist (Hindi)", channel: "takeUforward (Striver)", youtubeId: "yt190S1b9oY", minutes: 480 },
+      videoEn: { title: "DP Patterns Crash Course", channel: "NeetCode", youtubeId: "nqowUJzG-iM", minutes: 60 },
+      resources: [
+        { id: "DSA-7-R1", title: "DP Patterns Guide", provider: "LeetCode", lang: "english", type: "docs", url: "https://leetcode.com/discuss/general-discussion/458695/dynamic-programming-patterns", minutes: 60 },
+        { id: "DSA-7-R2", title: "LeetCode DP tag", provider: "LeetCode", lang: "english", type: "interactive", url: "https://leetcode.com/tag/dynamic-programming/", minutes: 480 },
+      ],
+      project: {
+        title: "Solve 30 DP Problems (Patterns)",
+        brief: "Cover all 7 DP patterns: 1D, 2D, knapsack, LCS, LIS, palindrome, digit DP. Patterns wise document karo.",
+        acceptanceCriteria: ["30+ AC problems", "7 patterns covered", "State + transition documented"],
+      },
+      aiCoachPrompts: [
+        "DP problem ko identify kaise karein? Hinglish me 5 signals batao.",
+        "Memoization vs tabulation — kab kaunsa? Hinglish me with Fibonacci + Knapsack examples.",
+      ],
+    },
+    {
+      id: "DSA-8", order: 8, title: "Mock Interviews + Capstone",
+      summary: "Final push: timed contests, mock interviews, system design basics. Portfolio build karo aur apply karo.",
+      estimatedHours: 30, freshness: "version-sensitive",
+      videoHi: { title: "Interview Prep Tips (Hindi)", channel: "Kunal Kushwaha", youtubeId: "2_iQ1Qv7qfE", minutes: 90 },
+      videoEn: { title: "System Design Primer", channel: "ByteByteGo", youtubeId: "s3t3klZkR-E", minutes: 60 },
+      resources: [
+        { id: "DSA-8-R1", title: "Pramp (free mock interviews)", provider: "Pramp", lang: "english", type: "interactive", url: "https://www.pramp.com/", minutes: 300 },
+        { id: "DSA-8-R2", title: "LeetCode Contests", provider: "LeetCode", lang: "english", type: "interactive", url: "https://leetcode.com/contest/", minutes: 240 },
+      ],
+      project: {
+        title: "Capstone: DSA Blog + 100 Problems",
+        brief: "100 solved problems ka GitHub repo + blog (Notion/GitHub Pages) with patterns, notes, solutions.",
+        acceptanceCriteria: ["100+ problems solved", "Public blog live", "Patterns documented", "Resume ready"],
+      },
+      aiCoachPrompts: [
+        "Technical interview me approach kaise explain karein? Hinglish me framework do.",
+        "System design basics for freshers — Hinglish me 3 concepts (load balancer, cache, DB sharding).",
+      ],
+    },
+  ],
+};
+
+export const TRACKS: LearningTrack[] = [WEB_DEV_TRACK, PYTHON_TRACK, CYBER_TRACK, DSA_TRACK];
 
 export function getTrackById(id: string) {
   return TRACKS.find((t) => t.id === id);

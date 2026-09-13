@@ -122,4 +122,52 @@ export const LOCAL_QUIZ: Record<string, LocalQuizQ[]> = {
     { q: "Responsible disclosure ka matlab?", options: ["Turant tweet", "Vendor ko time dena fix ke liye", "Exploit sell karna", "Silent rehna"], correct: 1, explain: "Vendor ko fix window dena ethical disclosure hai." },
     { q: "Write-up publish karne se pehle?", options: ["Hamesha turant", "Program policy check karo", "Kabhi nahi", "Sirf friends ko"], correct: 1, explain: "Kuch programs disclosure timeline/policy rakhte hain." },
   ],
+    "DSA-1": [
+    { q: "Nested loop (n × n) ki time complexity?", options: ["O(n)", "O(n log n)", "O(n²)", "O(2ⁿ)"], correct: 2, explain: "Outer n × inner n = n² operations." },
+    { q: "Binary search ki time complexity?", options: ["O(n)", "O(log n)", "O(n²)", "O(1)"], correct: 1, explain: "Har step me search space half hota hai." },
+    { q: "ArrayList ka random access time?", options: ["O(n)", "O(1)", "O(log n)", "O(n²)"], correct: 1, explain: "Array-backed hai, index se direct access." },
+    { q: "Space complexity kya measure karti hai?", options: ["Time", "Extra memory used", "Lines of code", "CPU usage"], correct: 1, explain: "Input ke alawa extra space jo algorithm use karta hai." },
+  ],
+  "DSA-2": [
+    { q: "Two Sum ka optimal approach?", options: ["Nested loops O(n²)", "HashMap O(n)", "Sorting O(n log n)", "Recursion"], correct: 1, explain: "HashMap me complements store karo — O(n) time." },
+    { q: "Sliding window kab use hota hai?", options: ["Sorted array pe", "Contiguous subarray problems", "Linked list pe", "Tree traversal"], correct: 1, explain: "Fixed/variable size window jab contiguous range chahiye." },
+    { q: "3Sum me duplicates skip karne ka best way?", options: ["HashSet use karo", "Sort + skip same values", "Map me store", "Impossible hai"], correct: 1, explain: "Sort karo aur same values ko skip karo pointers me." },
+    { q: "Kadane's algorithm kiske liye?", options: ["Shortest path", "Max subarray sum", "Sorting", "Tree height"], correct: 1, explain: "O(n) me max contiguous subarray sum find karta hai." },
+  ],
+  "DSA-3": [
+    { q: "Linked list cycle detect karne ka best method?", options: ["HashSet", "Floyd's slow/fast pointers", "Reverse list", "Count nodes"], correct: 1, explain: "Slow/fast pointers — O(1) space, O(n) time." },
+    { q: "Stack ka LIFO principle matlab?", options: ["First in first out", "Last in first out", "Random access", "Priority based"], correct: 1, explain: "Jo last push hua wohi pehle pop hota hai." },
+    { q: "Queue me dequeue kis end se hota hai?", options: ["Back/rear", "Front", "Middle", "Random"], correct: 1, explain: "FIFO — front se nikalta hai, rear se add hota hai." },
+    { q: "Monotonic stack kab useful hai?", options: ["Sorting", "Next greater/smaller element", "Tree traversal", "Graph BFS"], correct: 1, explain: "Next greater/smaller element O(n) me find karne ke liye." },
+  ],
+  "DSA-4": [
+    { q: "HashMap collision resolution ka tareeka?", options: ["Delete key", "Chaining ya open addressing", "Sort karo", "Error throw"], correct: 1, explain: "Linked list (chaining) ya probing (open addressing)." },
+    { q: "Min-heap me root element?", options: ["Maximum", "Minimum", "Random", "Median"], correct: 1, explain: "Min-heap me root hamesha minimum element hota hai." },
+    { q: "Greedy algorithm kab fail hota hai?", options: ["Kabhi nahi", "Jab local optimal != global optimal", "Always fails", "Sirf graphs me"], correct: 1, explain: "Greedy tabhi kaam karta hai jab locally optimal choice globally bhi optimal ho." },
+    { q: "Top-K largest elements efficiently nikalne ke liye?", options: ["Sort O(n log n)", "Min-heap of size K — O(n log K)", "Bubble sort", "Linear scan"], correct: 1, explain: "K-size min-heap rakho, har element compare karo — O(n log K)." },
+  ],
+  "DSA-5": [
+    { q: "BST me left child parent se?", options: ["Bada hota hai", "Chhota hota hai", "Equal hota hai", "Random"], correct: 1, explain: "BST property: left < parent < right." },
+    { q: "Inorder traversal BST pe kya deta hai?", options: ["Reverse order", "Sorted order", "Random order", "Level order"], correct: 1, explain: "Inorder (L-Root-R) BST pe sorted sequence deta hai." },
+    { q: "Tree ki height find karne ka approach?", options: ["BFS only", "Recursion — max(left, right) + 1", "Count nodes", "Sort karo"], correct: 1, explain: "Recursive: height = max(leftHeight, rightHeight) + 1." },
+    { q: "LCA (Lowest Common Ancestor) kya hai?", options: ["Root node", "Deepest node jo dono ka ancestor", "Leaf node", "Parent of root"], correct: 1, explain: "Woh deepest node jiske subtree me dono target nodes hain." },
+  ],
+  "DSA-6": [
+    { q: "BFS kis data structure use karta hai?", options: ["Stack", "Queue", "Heap", "Array"], correct: 1, explain: "BFS level-by-level chalta hai — queue FIFO perfect fit hai." },
+    { q: "DFS kis data structure use karta hai (iterative)?", options: ["Queue", "Stack", "Heap", "HashMap"], correct: 1, explain: "DFS depth-first jaata hai — stack LIFO use hota hai." },
+    { q: "Dijkstra negative weights handle kar sakta hai?", options: ["Haan, always", "Nahi — Bellman-Ford chahiye", "Kabhi kabhi", "Sirf directed me"], correct: 1, explain: "Dijkstra greedy hai — negative edges pe galat answer de sakta hai." },
+    { q: "Topological sort kis graph pe possible hai?", options: ["Undirected", "Directed Acyclic Graph (DAG)", "Cyclic graph", "Complete graph"], correct: 1, explain: "Topological sort sirf DAG pe possible hai (cycles allowed nahi)." },
+  ],
+  "DSA-7": [
+    { q: "DP problem identify karne ka pehla signal?", options: ["Sorting chahiye", "Overlapping subproblems + optimal substructure", "Graph hai", "String hai"], correct: 1, explain: "Agar subproblems repeat ho rahe hain aur optimal solution sub-solutions se banta hai → DP." },
+    { q: "Memoization ka matlab?", options: ["Bottom-up", "Top-down + caching", "Greedy choice", "Brute force"], correct: 1, explain: "Recursive calls ke results cache karo — duplicate compute bachao." },
+    { q: "0/1 Knapsack ki time complexity?", options: ["O(n)", "O(n × W) where W = capacity", "O(2ⁿ)", "O(n log n)"], correct: 1, explain: "Pseudo-polynomial: items × capacity states." },
+    { q: "LCS (Longest Common Subsequence) approach?", options: ["Greedy", "2D DP table", "Sorting", "Hashing"], correct: 1, explain: "2D table jaha dp[i][j] = LCS of prefixes i,j." },
+  ],
+  "DSA-8": [
+    { q: "Mock interview me sabse pehle kya karo?", options: ["Code likho", "Problem clarify + approach explain", "Ask for answer", "Jump to solution"], correct: 1, explain: "Clarify karo, edge cases pucho, approach discuss karo — phir code." },
+    { q: "Stuck ho to interviewer se kya pucho?", options: ["Give me answer", "Hint or direction for X approach?", "I quit", "Next question"], correct: 1, explain: "Specific hint maango — shows problem-solving maturity." },
+    { q: "System design interview freshers se expect kya?", options: ["Full production system", "High-level components + tradeoffs", "Code only", "No expectations"], correct: 1, explain: "Freshers se high-level understanding + basic tradeoffs expected hain." },
+    { q: "Resume me DSA projects kaise dikhao?", options: ["Sirf problem count", "Links + patterns covered + impact", "Certificates only", "Mat dikhao"], correct: 1, explain: "Public repo + blog + patterns = proof of depth." },
+  ],
 };
