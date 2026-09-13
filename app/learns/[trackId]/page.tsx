@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getTrackById, buildSchedule, dayNumber, type TrackMilestone } from "@/lib/learningTracks";
-import VideoPlayer from "@/components/VideoPlayer";
+import VideoPlayer from "@/app/components/VideoPlayer";
 
 type ProgressRow = {
   id: string; milestone_id: string; done_resources: string[];

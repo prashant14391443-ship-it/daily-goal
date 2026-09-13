@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
 import Link from "next/link";
-import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass, Sparkle, Lightbulb, Volume2, Check, RefreshCw, Footprints, GraduationCap, ArrowRight } from "lucide-react";
+import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass, Sparkle, Lightbulb, Volume2, Check, RefreshCw, Footprints, GraduationCap, ArrowRight, Code2 } from "lucide-react";
 import { TIPS, categoryIcons, categoryColors, localISO, dayNum } from "@/app/components/tipsData";
 import CoinPill from "@/app/CoinPill";
 import DraggableAIBubble from "@/app/components/DraggableAIBubble";
@@ -113,6 +113,11 @@ export default function Dashboard() {
   const router = useRouter();
   const [moveStreak, setMoveStreak] = useState(boot?.moveStreak ?? 0);
 
+  const [learnXp, setLearnXp] = useState(boot?.learnXp ?? 0);
+  const [learnStreak, setLearnStreak] = useState(boot?.learnStreak ?? 0);
+  const [learnPct, setLearnPct] = useState(boot?.learnPct ?? 0);
+  const [learnLabel, setLearnLabel] = useState(boot?.learnLabel ?? "Start a track");
+
   const [loading, setLoading] = useState(true);
 
   const [tipOffset, setTipOffset] = useState(0);
@@ -194,7 +199,7 @@ export default function Dashboard() {
     const name = (meta.display_name || (data.session?.user.email || "friend").split("@")[0]);
     const nameCap = name.charAt(0).toUpperCase() + name.slice(1);
     const weekStart = addDays(today, -6);
-    const [study, studyW, gym, gymW, habits, habitLogs, tasksRes, goalsRes, cdRes, todoRes, studyDoneRes, gymDoneRes, todoDoneRes, todoWeekRes, runRes, nutritionRes, summariesRes, cardsRes] = await Promise.all([
+    const [study, studyW, gym, gymW, habits, habitLogs, tasksRes, goalsRes, cdRes, todoRes, studyDoneRes, gymDoneRes, todoDoneRes, todoWeekRes, runRes, nutritionRes, summariesRes, cardsRes, learnRes, learnLogsRes] = await Promise.all([
       supabase.from("study_sessions").select("duration_minutes").eq("user_id", userId).eq("session_date", today).eq("completed", true),
       supabase.from("study_sessions").select("duration_minutes, session_date").eq("user_id", userId).gte("session_date", weekStart),
       supabase.from("gym_logs").select("id").eq("user_id", userId).eq("session_date", today).eq("completed", true),
@@ -213,6 +218,8 @@ export default function Dashboard() {
       supabase.from("nutrition_logs").select("log_date, calories").eq("user_id", userId).gte("log_date", weekStart),
       supabase.from("summaries").select("created_at").eq("user_id", userId).gte("created_at", weekStart),
       supabase.from("flashcards").select("created_at").eq("user_id", userId).gte("created_at", weekStart),
+      supabase.from("learning_progress").select("done_resources, watch_seconds, quiz_best, status").eq("user_id", userId),
+      supabase.from("daily_study_log").select("day, video_seconds, actions").eq("user_id", userId).order("day", { ascending: false }).limit(400),
     ]);
 
     const studyMin = (study.data || []).reduce((s, r) => s + r.duration_minutes, 0);
@@ -243,7 +250,28 @@ export default function Dashboard() {
     (nutritionRes.data || []).forEach((n) => { calByDay[n.log_date] = (calByDay[n.log_date] || 0) + (n.calories || 0); });
     const calDays = Object.values(calByDay).filter((v) => v > 0);
     setWeekAvgCal(calDays.length ? Math.round(calDays.reduce((s, v) => s + v, 0) / calDays.length) : 0);
+
+    // Learn & Build Stats
+    const learnRows = learnRes.data || [];
+    let lx = 0, milestonesDone = 0;
+    for (const r of learnRows as any[]) {
+      lx += (r.done_resources?.length || 0) * 10;
+      lx += Math.floor((r.watch_seconds || 0) / 60);
+      if ((r.quiz_best || 0) >= 3) lx += 25;
+      if (r.status === "completed") { lx += 150; milestonesDone++; }
+    }
+    setLearnXp(lx);
     
+    const learnDays = new Set((learnLogsRes.data || []).filter((d: any) => (d.actions > 0 || d.video_seconds > 0)).map((d: any) => d.day));
+    let ls = 0; const lcursor = new Date();
+    if (!learnDays.has(toLocalISO(lcursor))) lcursor.setDate(lcursor.getDate() - 1);
+    while (learnDays.has(toLocalISO(lcursor))) { ls++; lcursor.setDate(lcursor.getDate() - 1); }
+    setLearnStreak(ls);
+    
+    const lpct = Math.min(100, Math.round((milestonesDone / 8) * 100));
+    setLearnPct(lpct);
+    setLearnLabel(learnRows.length > 0 ? `Lvl ${Math.floor(lx / 300) + 1} · ${milestonesDone} done` : "Start a track");
+
     setWeekLearnItems((summariesRes.data || []).length + (cardsRes.data || []).length);
 
     setUserName(nameCap); setStudyMinutes(studyMin); setWorkouts(wk); setGoals(gObj);
@@ -262,6 +290,7 @@ export default function Dashboard() {
         studyStreak: sStreak, gymStreak: gStreak, todoStreak: tStreak, studyBroken: sBroken, gymBroken: gBroken, todoBroken: tBroken,
         habitBroken: hBroken, goals: gObj, habitStreaks: hStreaks, studyWeekData: sw, gymWeekData: gw, habitsWeekData: hw,
         todoWeekData: tw, todoWeekTotals: twt, tasks: taskList, countdowns: cdList, moveStreak,
+        learnXp: lx, learnStreak: ls, learnPct: lpct, learnLabel: learnRows.length > 0 ? `Lvl ${Math.floor(lx / 300) + 1} · ${milestonesDone} done` : "Start a track",
       }));
     } catch {}
   };
@@ -331,6 +360,7 @@ export default function Dashboard() {
         <StatCard href="/routine-habits" icon={ListChecks} tint="bg-violet-500/10 text-violet-400" bar="bg-violet-500" label="Habits" value={`${habitsDone}/${goals.habits_target}`} sub={habitsDone === 0 ? "Pick one easy habit" : "completed today"} streak={habitStreaks.reduce((m, h) => Math.max(m, h.streak), 0)} pct={habitsPct} />
         <StatCard href="/todo" icon={ListTodo} tint="bg-amber-500/10 text-amber-400" bar="bg-amber-500" label="To-do" value={`${todoDone}/${todoTotal}`} sub={todoDone === 0 ? "One small task" : "done today"} streak={todoStreak} pct={todoPct} />
         <StatCard href="/english" icon={Mic} tint="bg-teal-500/10 text-teal-400" bar="bg-teal-500" label="English" value="Speak Live + AI" sub="Practice with AI & real people" streak={0} pct={0} />
+        <StatCard href="/learns" icon={Code2} tint="bg-indigo-500/10 text-indigo-400" bar="bg-indigo-500" label="Tech Track" value={String(learnXp)} sub={learnLabel} streak={learnStreak} pct={learnPct} />
 
         <Link href="/streaks" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <div className="flex items-start justify-between mb-4">
