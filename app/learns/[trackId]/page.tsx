@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, CheckCircle2, Circle, ExternalLink, Clock, Target,
-  ChevronDown, ChevronRight, Loader2, Rocket, Sparkles, Code2,
+  ArrowLeft, CheckCircle2, Circle, ExternalLink, Target,
+  ChevronDown, ChevronRight, Loader2, Rocket, Copy, Check
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getTrackById, buildSchedule, dayNumber, trackTotalHours, type TrackMilestone } from "@/lib/learningTracks";
@@ -16,7 +16,7 @@ type ProgressRow = {
 
 const HOURS_OPTIONS = [0.5, 1, 1.5, 2, 3, 4];
 
-export default function TrackPage() {
+export default function TrackDashboard() {
   const params = useParams();
   const track = getTrackById(params.trackId as string);
 
@@ -28,8 +28,7 @@ export default function TrackPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [urlInput, setUrlInput] = useState("");
-  const [review, setReview] = useState<any>(null);
-  const [reviewFor, setReviewFor] = useState<string | null>(null);
+  const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -58,7 +57,7 @@ export default function TrackPage() {
       <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
         <div className="text-center">
           <p className="text-sm font-bold mb-3">Track not found</p>
-          <Link href="/learns" className="text-xs text-indigo-300 underline">Back to Learn</Link>
+          <Link href="/learns" className="text-xs text-indigo-300 underline">Back to Hub</Link>
         </div>
       </main>
     );
@@ -114,7 +113,12 @@ export default function TrackPage() {
     setBusy(null);
   };
 
-  // ── SETUP SCREEN ──
+  const copyPrompt = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedPrompt(id);
+    setTimeout(() => setCopiedPrompt(null), 2000);
+  };
+
   if (loading) {
     return <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center"><Loader2 className="animate-spin" /></main>;
   }
@@ -122,16 +126,10 @@ export default function TrackPage() {
   if (!enrollment) {
     return (
       <main className="min-h-screen bg-slate-950 text-white px-4 pt-8 pb-24 max-w-2xl mx-auto">
-        <Link href="/learns" className="flex items-center gap-1.5 text-xs text-slate-400 mb-5"><ArrowLeft size={13} /> Back to Learn</Link>
+        <Link href="/learns" className="flex items-center gap-1.5 text-xs text-slate-400 mb-5"><ArrowLeft size={13} /> Back to Hub</Link>
         <div className="rounded-3xl border border-indigo-400/20 bg-gradient-to-br from-indigo-950/70 via-slate-900 to-slate-950 p-6 mb-5">
-          <span className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center mb-4"><Code2 size={22} /></span>
           <h1 className="text-xl font-black">{track.name}</h1>
           <p className="text-[12px] text-slate-400 mt-1">{track.tagline}</p>
-          <div className="flex gap-2 mt-4 flex-wrap">
-            <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] font-black text-slate-300">{trackTotalHours(track)} hrs total</span>
-            <span className="px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] font-black text-slate-300">{track.milestones.length} milestones</span>
-            <span className="px-2.5 py-1 rounded-lg bg-violet-500/10 border border-violet-500/25 text-[10px] font-black text-violet-300">HINGLISH</span>
-          </div>
         </div>
 
         <div className="rounded-3xl border border-white/5 bg-white/[0.02] p-6">
@@ -145,18 +143,6 @@ export default function TrackPage() {
               </button>
             ))}
           </div>
-          <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-4 mb-5">
-            <p className="text-[11px] font-bold text-slate-400 mb-2">Tumhara plan ({hoursPick}h/day):</p>
-            <div className="grid gap-1.5">
-              {schedule.slice(0, 4).map((s) => (
-                <div key={s.milestone.id} className="flex justify-between text-[11px]">
-                  <span className="text-slate-300 font-semibold">{s.milestone.title}</span>
-                  <span className="text-slate-500 font-bold">Day {s.startDay}–{s.endDay}</span>
-                </div>
-              ))}
-              <p className="text-[10px] text-slate-600">…total {schedule[schedule.length - 1].endDay} days</p>
-            </div>
-          </div>
           <button onClick={startTrack} disabled={busy !== null}
             className="w-full py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 text-sm font-black flex items-center justify-center gap-2 disabled:opacity-50">
             {busy ? <Loader2 size={16} className="animate-spin" /> : <Rocket size={16} />} Start My Track
@@ -166,10 +152,9 @@ export default function TrackPage() {
     );
   }
 
-  // ── DASHBOARD ──
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-8 pb-24 max-w-2xl mx-auto">
-      <Link href="/learns" className="flex items-center gap-1.5 text-xs text-slate-400 mb-5"><ArrowLeft size={13} /> Back to Learn</Link>
+      <Link href="/learns" className="flex items-center gap-1.5 text-xs text-slate-400 mb-5"><ArrowLeft size={13} /> Back to Hub</Link>
 
       <div className="rounded-3xl border border-white/5 bg-gradient-to-br from-indigo-950/70 via-slate-900 to-slate-950 p-5 mb-4">
         <div className="flex items-center justify-between mb-3">
@@ -192,7 +177,6 @@ export default function TrackPage() {
         </div>
       </div>
 
-      {/* Today card */}
       <div className="rounded-2xl border border-teal-400/20 bg-teal-400/[0.05] p-4 mb-4">
         <p className="text-[10px] font-black uppercase tracking-widest text-teal-300 mb-1">Aaj ka target 🎯</p>
         <p className="text-[13px] font-bold text-white">{currentSlot.milestone.title}</p>
@@ -201,7 +185,6 @@ export default function TrackPage() {
         </p>
       </div>
 
-      {/* Milestones */}
       <div className="grid gap-2.5">
         {schedule.map((s) => {
           const m = s.milestone;
@@ -217,17 +200,17 @@ export default function TrackPage() {
                 </span>
                 <span className="flex-1 min-w-0">
                   <span className="block text-[13px] font-bold text-slate-100 truncate">{m.title}</span>
-                  <span className="block text-[10px] text-slate-500 font-semibold mt-0.5">Day {s.startDay}–{s.endDay} · {m.estimatedHours}h · {doneRes.length}/{m.resources.length} resources</span>
+                  <span className="block text-[10px] text-slate-500 font-semibold mt-0.5">Day {s.startDay}–{s.endDay} · {m.estimatedHours}h · {doneRes.length}/{m.resources.length} done</span>
                 </span>
                 {open ? <ChevronDown size={15} className="text-slate-500" /> : <ChevronRight size={15} className="text-slate-600" />}
               </button>
 
               {open && (
                 <div className="px-4 pb-4">
-                  <p className="text-[12px] text-slate-300 leading-relaxed mb-3">{m.summary}</p>
+                  <p className="text-[12px] text-slate-300 leading-relaxed mb-4">{m.summary}</p>
 
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Resources</p>
-                  <div className="grid gap-1.5 mb-4">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">1. Resources (Check off as you finish)</p>
+                  <div className="grid gap-1.5 mb-5">
                     {m.resources.map((r) => {
                       const checked = doneRes.includes(r.id);
                       return (
@@ -239,19 +222,37 @@ export default function TrackPage() {
                             <span className={`text-[11px] font-bold truncate ${checked ? "text-slate-500 line-through" : "text-slate-200"}`}>{r.title}</span>
                             <span className={`shrink-0 px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${r.lang === "hindi" ? "bg-orange-500/10 text-orange-300 border border-orange-500/25" : "bg-blue-500/10 text-blue-300 border border-blue-500/25"}`}>{r.lang}</span>
                           </a>
-                          <span className="shrink-0 text-[9px] font-bold text-slate-600">{r.minutes}m</span>
                           <a href={r.url} target="_blank" rel="noreferrer" className="shrink-0 text-slate-500"><ExternalLink size={13} /></a>
                         </div>
                       );
                     })}
                   </div>
 
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Project: {m.project.title}</p>
-                  <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3.5 mb-3">
-                    <p className="text-[12px] text-slate-300 leading-relaxed mb-2">{m.project.brief}</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-1.5">
+                    2. AI Coach Prompts <span className="text-[9px] text-violet-300 font-normal normal-case">(Copy & paste into ChatGPT / Gemini)</span>
+                  </p>
+                  <div className="grid gap-2 mb-5">
+                    {m.aiCoachPrompts.map((prompt, i) => (
+                      <div key={i} className="relative rounded-xl bg-violet-500/5 border border-violet-500/20 p-3 pr-12">
+                        <p className="text-[11px] text-violet-100 leading-relaxed">{prompt}</p>
+                        <button 
+                          onClick={() => copyPrompt(prompt, `${m.id}-${i}`)}
+                          className="absolute top-2 right-2 p-1.5 rounded-lg bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 transition-colors"
+                          title="Copy prompt"
+                        >
+                          {copiedPrompt === `${m.id}-${i}` ? <Check size={12} /> : <Copy size={12} />}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">3. Build & Ship Project</p>
+                  <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3.5 mb-2">
+                    <p className="text-[12px] font-bold text-white mb-1">{m.project.title}</p>
+                    <p className="text-[11px] text-slate-400 leading-relaxed mb-2">{m.project.brief}</p>
                     <ul className="grid gap-1 mb-3">
                       {m.project.acceptanceCriteria.map((c, i) => (
-                        <li key={i} className="text-[11px] text-slate-400 flex gap-1.5"><Target size={11} className="text-indigo-400 shrink-0 mt-0.5" /> {c}</li>
+                        <li key={i} className="text-[10px] text-slate-500 flex gap-1.5"><Target size={10} className="text-indigo-400 shrink-0 mt-0.5" /> {c}</li>
                       ))}
                     </ul>
                     {row?.project_url ? (
@@ -261,7 +262,7 @@ export default function TrackPage() {
                       </div>
                     ) : (
                       <div className="flex gap-2">
-                        <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="GitHub / Vercel link paste karo"
+                        <input value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="Paste GitHub / Vercel link"
                           className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-[11px] outline-none focus:border-indigo-500" />
                         <button onClick={() => submitProject(m)} disabled={busy !== null}
                           className="shrink-0 px-3 py-2 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-[11px] font-black text-indigo-300 disabled:opacity-50">
@@ -270,47 +271,6 @@ export default function TrackPage() {
                       </div>
                     )}
                   </div>
-
-                  {/* AI Project Review Button */}
-                  {row?.project_url && (
-                    <button
-                      onClick={async () => {
-                        const url = progress[m.id]?.project_url;
-                        if (!url) return;
-                        setReviewFor(m.id);
-                        setReview({ loading: true });
-                        try {
-                          const res = await fetch("/api/learn/review", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ track_id: track.id, milestone_id: m.id, project_url: url }),
-                          });
-                          const d = await res.json();
-                          setReview(res.ok ? d : { error: d.error });
-                        } catch (e: any) { setReview({ error: e.message }); }
-                      }}
-                      className="w-full py-2.5 rounded-lg bg-violet-500/15 border border-violet-500/30 text-[11px] font-black text-violet-300 mb-2"
-                    >
-                      🤖 Get AI Project Review
-                    </button>
-                  )}
-                  {review && reviewFor === m.id && (
-                    <div className="rounded-lg bg-slate-800/60 border border-slate-700 p-3 text-[11px] text-slate-300 mb-2">
-                      {review.loading ? <Loader2 size={14} className="animate-spin" /> : review.error ? <p className="text-rose-300">{review.error}</p> : (
-                        <>
-                          <p className="font-black text-white mb-1">Score: {review.review?.score}/100</p>
-                          {(review.review?.strengths || []).map((s: string, i: number) => <p key={i} className="text-emerald-300">✅ {s}</p>)}
-                          {(review.review?.fixes || []).map((s: string, i: number) => <p key={i} className="text-amber-300">🔧 {s}</p>)}
-                          <p className="text-indigo-300 mt-1">➡️ {review.review?.next_step}</p>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  <Link href={`/learns/quiz?track_id=${track.id}&milestone_id=${m.id}&ai=1`}
-                    className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-slate-800/60 border border-slate-700 text-[11px] font-black text-slate-200">
-                    <Sparkles size={13} className="text-cyan-400" /> Practice Quiz (free bank + cached AI)
-                  </Link>
                 </div>
               )}
             </div>
