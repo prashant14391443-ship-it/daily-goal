@@ -4,15 +4,14 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
-
 import Link from "next/link";
 import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass, Sparkle, Lightbulb, Volume2, Check, RefreshCw, Footprints, GraduationCap, ArrowRight, Code2 } from "lucide-react";
 import { TIPS, categoryIcons, categoryColors, localISO, dayNum } from "@/app/components/tipsData";
 import CoinPill from "@/app/CoinPill";
 import DraggableAIBubble from "@/app/components/DraggableAIBubble";
-
 import TodayLoop from "@/app/components/TodayLoop";
 import Onboarding from "@/app/components/Onboarding";
+
 type Task = { id: string; title: string; completed: boolean };
 type DayStat = { date: string; value: number };
 type Goals = { study_target: number; workout_target: number; habits_target: number };
@@ -91,6 +90,13 @@ export default function Dashboard() {
   const [studyStreak, setStudyStreak] = useState(boot?.studyStreak ?? 0);
   const [gymStreak, setGymStreak] = useState(boot?.gymStreak ?? 0);
   const [todoStreak, setTodoStreak] = useState(boot?.todoStreak ?? 0);
+  const [moveStreak, setMoveStreak] = useState(boot?.moveStreak ?? 0);
+  const [englishStreak, setEnglishStreak] = useState(0);
+  const [learnXp, setLearnXp] = useState(boot?.learnXp ?? 0);
+  const [learnStreak, setLearnStreak] = useState(boot?.learnStreak ?? 0);
+  const [learnPct, setLearnPct] = useState(boot?.learnPct ?? 0);
+  const [learnLabel, setLearnLabel] = useState(boot?.learnLabel ?? "Start a track");
+
   const [studyBroken, setStudyBroken] = useState(boot?.studyBroken ?? 0);
   const [gymBroken, setGymBroken] = useState(boot?.gymBroken ?? 0);
   const [todoBroken, setTodoBroken] = useState(boot?.todoBroken ?? 0);
@@ -114,12 +120,6 @@ export default function Dashboard() {
   const [cdDate, setCdDate] = useState("");
   const [cdEmoji, setCdEmoji] = useState("📚");
   const router = useRouter();
-  const [moveStreak, setMoveStreak] = useState(boot?.moveStreak ?? 0);
-
-  const [learnXp, setLearnXp] = useState(boot?.learnXp ?? 0);
-  const [learnStreak, setLearnStreak] = useState(boot?.learnStreak ?? 0);
-  const [learnPct, setLearnPct] = useState(boot?.learnPct ?? 0);
-  const [learnLabel, setLearnLabel] = useState(boot?.learnLabel ?? "Start a track");
 
   const [loading, setLoading] = useState(true);
 
@@ -191,6 +191,25 @@ export default function Dashboard() {
       setMoveStreak(streak);
     };
     loadMove();
+  }, []);
+
+  useEffect(() => {
+    const loadEn = async () => {
+      const { data } = await supabase.auth.getSession();
+      const uid = data.session?.user.id;
+      if (!uid) return;
+      const EN_TABLE = "english_logs";
+      const EN_DATE = "session_date";
+      const { data: rows } = await supabase.from(EN_TABLE).select(EN_DATE).eq("user_id", uid);
+      if (!rows || rows.length === 0) return;
+      const days = new Set(rows.map((r: any) => r[EN_DATE]));
+      const isDay = (d: Date) => days.has(toLocalISO(d));
+      let streak = 0; const cursor = new Date();
+      if (!isDay(cursor)) cursor.setDate(cursor.getDate() - 1);
+      while (isDay(cursor)) { streak++; cursor.setDate(cursor.getDate() - 1); }
+      setEnglishStreak(streak);
+    };
+    loadEn();
   }, []);
 
   const load = async () => {
@@ -318,7 +337,7 @@ export default function Dashboard() {
   const todoPct = todoAllTotal > 0 ? Math.min(100, Math.round((todoAllDone / todoAllTotal) * 100)) : 0;
   const overallPct = Math.round((studyPct + gymPct + habitsPct + todoPct) / 4);
   const motivation = overallPct >= 100 ? "⚡ BATMAN MODE: COMPLETE!" : overallPct >= 75 ? "Keep it up, champion!" : overallPct >= 50 ? "Better than yesterday!" : overallPct >= 25 ? "Good start, keep pushing!" : "Rise, hero — start NOW!";
-  const maxStreak = Math.max(studyStreak, gymStreak, moveStreak, todoStreak);
+  const maxStreak = Math.max(studyStreak, gymStreak, moveStreak, todoStreak, englishStreak, learnStreak);
   const maxBroken = Math.max(studyBroken, gymBroken, todoBroken, ...habitBroken.map((b) => b.broken), 0);
   const weekData = chartMode === "study" ? studyWeekData : chartMode === "gym" ? gymWeekData : chartMode === "todo" ? todoWeekData : habitsWeekData;
   const barColor = chartMode === "study" ? "from-blue-600 to-blue-400" : chartMode === "gym" ? "from-green-600 to-green-400" : chartMode === "todo" ? "from-amber-600 to-amber-400" : "from-violet-600 to-violet-400";
@@ -356,18 +375,18 @@ export default function Dashboard() {
       </div>
 
       <DraggableAIBubble />
-            <TodayLoop />
-            <Onboarding />
+      <TodayLoop />
+      <Onboarding />
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
         <StatCard href="/study-tracker" icon={BookOpen} tint="bg-blue-500/10 text-blue-400" bar="bg-blue-500" label="Study" value={`${Math.floor(studyMinutes / 60)}h ${studyMinutes % 60}m`} sub={studyMinutes === 0 ? "Start with 25 min" : "studied today"} streak={studyStreak} pct={studyPct} />
         <StatCard href="/gym-log" icon={Dumbbell} tint="bg-green-500/10 text-green-400" bar="bg-green-500" label="Gym" value={String(workouts)} sub={workouts === 0 ? "Crush a workout" : "workouts today"} streak={gymStreak} pct={gymPct} />
         <StatCard href="/routine-habits" icon={ListChecks} tint="bg-violet-500/10 text-violet-400" bar="bg-violet-500" label="Habits" value={`${habitsDone}/${goals.habits_target}`} sub={habitsDone === 0 ? "Pick one easy habit" : "completed today"} streak={habitStreaks.reduce((m, h) => Math.max(m, h.streak), 0)} pct={habitsPct} />
         <StatCard href="/todo" icon={ListTodo} tint="bg-amber-500/10 text-amber-400" bar="bg-amber-500" label="To-do" value={`${todoDone}/${todoTotal}`} sub={todoDone === 0 ? "One small task" : "done today"} streak={todoStreak} pct={todoPct} />
-        <StatCard href="/english" icon={Mic} tint="bg-teal-500/10 text-teal-400" bar="bg-teal-500" label="English" value="Speak Live + AI" sub="Practice with AI & real people" streak={0} pct={0} />
+        <StatCard href="/english" icon={Mic} tint="bg-teal-500/10 text-teal-400" bar="bg-teal-500" label="English" value="Speak Live + AI" sub="Practice with AI & real people" streak={englishStreak} pct={0} />
         <StatCard href="/learns" icon={Code2} tint="bg-indigo-500/10 text-indigo-400" bar="bg-indigo-500" label="Tech Track" value={String(learnXp)} sub={learnLabel} streak={learnStreak} pct={learnPct} />
 
-              <Link href="/streaks" className="press col-span-2 md:col-span-3 bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
+        <Link href="/streaks" className="press col-span-2 md:col-span-3 bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
           <div className="flex items-center gap-4 mb-3">
             <span className="w-11 h-11 shrink-0 rounded-xl bg-orange-500/10 text-orange-400 flex items-center justify-center"><Flame size={22} strokeWidth={2.2} /></span>
             <div className="flex-1 min-w-0">
@@ -386,6 +405,8 @@ export default function Dashboard() {
               { icon: Footprints, label: "Move", v: moveStreak },
               { icon: ListTodo, label: "ToDo", v: todoStreak },
               { icon: ListChecks, label: "Habits", v: habitStreaks.reduce((m, h) => Math.max(m, h.streak), 0) },
+              { icon: Mic, label: "English", v: englishStreak },
+              { icon: Code2, label: "Track", v: learnStreak },
             ].map((s) => {
               const Icon = s.icon;
               return (
@@ -429,7 +450,6 @@ export default function Dashboard() {
             </Link>
           </div>
           
-          {/* Weekly Summary Badges */}
           {(weekRunKm > 0 || weekAvgCal > 0 || weekLearnItems > 0) && (
             <div className="flex flex-wrap gap-1.5 mb-3">
               {weekRunKm > 0 && (
