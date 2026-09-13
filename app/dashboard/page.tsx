@@ -4,11 +4,14 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
+
 import Link from "next/link";
 import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass, Sparkle, Lightbulb, Volume2, Check, RefreshCw, Footprints, GraduationCap, ArrowRight, Code2 } from "lucide-react";
 import { TIPS, categoryIcons, categoryColors, localISO, dayNum } from "@/app/components/tipsData";
 import CoinPill from "@/app/CoinPill";
 import DraggableAIBubble from "@/app/components/DraggableAIBubble";
+
+import TodayLoop from "@/app/components/TodayLoop";
 
 type Task = { id: string; title: string; completed: boolean };
 type DayStat = { date: string; value: number };
@@ -353,6 +356,7 @@ export default function Dashboard() {
       </div>
 
       <DraggableAIBubble />
+            <TodayLoop />
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
         <StatCard href="/study-tracker" icon={BookOpen} tint="bg-blue-500/10 text-blue-400" bar="bg-blue-500" label="Study" value={`${Math.floor(studyMinutes / 60)}h ${studyMinutes % 60}m`} sub={studyMinutes === 0 ? "Start with 25 min" : "studied today"} streak={studyStreak} pct={studyPct} />
