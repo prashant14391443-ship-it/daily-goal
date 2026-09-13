@@ -242,4 +242,40 @@ export const LOCAL_QUIZ: Record<string, LocalQuizQ[]> = {
     { q: "Prometheus kya karta hai?", options: ["Deploys apps", "Metrics collect + alert", "Stores files", "Manages DNS"], correct: 1, explain: "Prometheus time-series metrics scrape karta hai + alerts." },
     { q: "Grafana ka role?", options: ["Collect metrics", "Visualize dashboards", "Provision infra", "Run containers"], correct: 1, explain: "Grafana Prometheus data ko dashboards me dikhata hai." },
   ],
+    "GD-1": [
+    { q: "Unity me game logic kis language me likhte hain?", options: ["Java", "C#", "Python", "JavaScript"], correct: 1, explain: "Unity ka primary scripting language C# hai." },
+    { q: "Start() method kab chalta hai?", options: ["Har frame", "Ek baar object enable hone pe", "Physics step pe", "Editor me"], correct: 1, explain: "Start() ek baar chalta hai, pehle frame se pehle." },
+    { q: "Update() method kab chalta hai?", options: ["Ek baar", "Har frame", "Sirf physics pe", "Build time"], correct: 1, explain: "Update() har frame call hota hai — input/logic yahan." },
+    { q: "Console me debug message ke liye?", options: ["print()", "Debug.Log()", "console.log()", "echo"], correct: 1, explain: "Unity me Debug.Log() use hota hai." },
+  ],
+  "GD-2": [
+    { q: "Unity me har scene object ko kya kehte hain?", options: ["Component", "GameObject", "Prefab", "Asset"], correct: 1, explain: "GameObject = base entity; components ispe attach hote hain." },
+    { q: "Behaviour/feature kis cheez se aata hai?", options: ["GameObject", "Component", "Scene", "Tag"], correct: 1, explain: "Components (scripts, Rigidbody, Collider) behaviour dete hain." },
+    { q: "Prefab ka fayda?", options: ["Fast rendering", "Reusable configured object template", "Smaller build", "Better audio"], correct: 1, explain: "Prefab = pre-configured GameObject jo baar-baar reuse hota hai." },
+    { q: "[SerializeField] ka kaam?", options: ["Private field Inspector me dikhana", "Public banana", "Save karna", "Delete karna"], correct: 0, explain: "[SerializeField] se private variable Inspector me editable hota hai." },
+  ],
+  "GD-3": [
+    { q: "Physics ke liye kaunsa update use karein?", options: ["Update()", "FixedUpdate()", "LateUpdate()", "Start()"], correct: 1, explain: "FixedUpdate() fixed timestep pe chalta hai — physics consistent rehti hai." },
+    { q: "Solid collision detect karne ka callback?", options: ["OnTriggerEnter", "OnCollisionEnter", "OnMouseOver", "OnEnable"], correct: 1, explain: "OnCollisionEnter = physical (non-trigger) collisions." },
+    { q: "Trigger (ghost) collision ke liye?", options: ["OnCollisionEnter", "OnTriggerEnter", "OnParticleCollision", "OnGUI"], correct: 1, explain: "IsTrigger=true pe OnTriggerEnter fire hota hai (no physics push)." },
+    { q: "Time-based delay / async game logic ke liye?", options: ["Thread", "Coroutine (IEnumerator)", "while loop", "Invoke only"], correct: 1, explain: "Coroutines se bina block kiye wait/steps chalte hain." },
+  ],
+  "GD-4": [
+    { q: "Unity me UI banane ka system?", options: ["Canvas (uGUI)", "HTML", "OnGUI only", "ImGui"], correct: 0, explain: "Canvas + uGUI components (Text, Button) se UI banta hai." },
+    { q: "Button click handle karne ke liye?", options: ["OnMouseDown", "Button.onClick.AddListener", "Update check", "Raycast only"], correct: 1, explain: "Button component ka onClick event listener leta hai." },
+    { q: "Game states (menu/playing/gameover) manage karne ka clean way?", options: ["Booleans everywhere", "Enum + state machine", "Strings compare", "No management"], correct: 1, explain: "Enum-based state machine readable + maintainable hota hai." },
+    { q: "Scene reload / restart ke liye?", options: ["SceneManager.LoadScene", "Application.quit", "Destroy all", "Reset()"], correct: 0, explain: "SceneManager.LoadScene(sceneName) se restart/reload hota hai." },
+  ],
+  "GD-5": [
+    { q: "'Game feel' / juice matlab?", options: ["Graphics quality", "Feedback jo game ko satisfying banata hai", "Frame rate", "File size"], correct: 1, explain: "Juice = shake, particles, SFX, squash — satisfying feedback." },
+    { q: "Character animation states manage karne ka tool?", options: ["Animator + state machine", "Timeline only", "Coroutine", "Prefab"], correct: 0, explain: "Animator window me states + transitions bante hain." },
+    { q: "Particle effects (explosion, spark) ke liye?", options: ["Mesh Renderer", "Particle System", "Sprite Renderer", "Light"], correct: 1, explain: "Particle System se effects bante hain." },
+    { q: "Smooth camera follow ke liye common technique?", options: ["Direct assign", "Lerp / SmoothDamp in LateUpdate", "Physics push", "Random offset"], correct: 1, explain: "LateUpdate me Lerp/SmoothDamp se smooth follow hota hai." },
+  ],
+  "GD-6": [
+    { q: "Browser me khelne layak build kaunsa?", options: ["APK", "WebGL", "EXE", "IPA"], correct: 1, explain: "WebGL build browser me chalta hai — itch.io pe easy share." },
+    { q: "Android build ka output format?", options: ["EXE", "APK / AAB", "DMG", "ZIP"], correct: 1, explain: "Android ke liye APK (test) / AAB (Play Store)." },
+    { q: "Free me game host/share karne ki popular site?", options: ["Steam (paid)", "itch.io", "App Store only", "GitHub Pages only"], correct: 1, explain: "itch.io free + indie-friendly hai." },
+    { q: "Play Store ke liye recommended build format?", options: ["APK", "AAB (Android App Bundle)", "EXE", "WebGL"], correct: 1, explain: "Google Play ab AAB prefer karta hai." },
+  ],
 };

@@ -872,7 +872,129 @@ export const DEVOPS_TRACK: LearningTrack = {
     },
   ],
 };
-export const TRACKS: LearningTrack[] = [WEB_DEV_TRACK, PYTHON_TRACK, CYBER_TRACK, DSA_TRACK, APP_DEV_TRACK, DEVOPS_TRACK];
+export const GAME_DEV_TRACK: LearningTrack = {
+  id: "game-dev",
+  name: "Game Development (Unity + C#)",
+  tagline: "Zero se playable game · 6 milestones · Unity + C# · publish your game",
+  language: "hinglish",
+  milestones: [
+    {
+      id: "GD-1", order: 1, title: "C# Basics + Unity Setup",
+      summary: "Game dev ki language C# hai. Variables, methods, classes, OOP basics — phir Unity install karke pehla scene banao.",
+      estimatedHours: 20, freshness: "version-sensitive",
+      videoEn: { title: "C# for Beginners (Unity path)", channel: "Unity", youtubeId: "pSiTI4cQMHg", minutes: 180 },
+      resources: [
+        { id: "GD-1-R1", title: "Unity Learn (official, free)", provider: "Unity", lang: "english", type: "interactive", url: "https://learn.unity.com/", minutes: 240 },
+        { id: "GD-1-R2", title: "C# Docs (Microsoft)", provider: "Microsoft", lang: "english", type: "docs", url: "https://learn.microsoft.com/en-us/dotnet/csharp/tour-of-csharp/", minutes: 120 },
+      ],
+      project: {
+        title: "First Unity Scene",
+        brief: "Unity install karo, new 3D/2D project banao, ek cube + light + camera set karo, Play mode me chalao. Screenshot lo.",
+        acceptanceCriteria: ["Unity Hub + Editor installed", "Scene runs in Play mode", "One C# script attached & logging"],
+      },
+      aiCoachPrompts: [
+        "C# ke basics (variables, methods, classes) Hinglish me samjhao with Unity context.",
+        "Unity me script kaise attach hoti hai aur Start()/Update() kab chalte hain? Hinglish me explain karo.",
+      ],
+    },
+    {
+      id: "GD-2", order: 2, title: "Unity Core: GameObjects, Components, Prefabs",
+      summary: "Unity ka mental model: har cheez GameObject hai, behaviour Components se aata hai. Prefabs = reusable templates. Scenes organize karte hain.",
+      estimatedHours: 20, freshness: "version-sensitive",
+      videoEn: { title: "Unity Core Concepts", channel: "Brackeys", youtubeId: "Q6M3b4hXKPo", minutes: 120 },
+      resources: [
+        { id: "GD-2-R1", title: "Unity Manual (GameObjects)", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/GameObjects.html", minutes: 90 },
+        { id: "GD-2-R2", title: "Prefabs guide", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/Prefabs.html", minutes: 60 },
+      ],
+      project: {
+        title: "Prefab Playground",
+        brief: "Ek enemy prefab banao, scene me 10 instances spawn karo, ek property change karke sab update karo. Parent-child hierarchy use karo.",
+        acceptanceCriteria: ["Prefab created + reused", "Hierarchy organized", "Component values tweaked via Inspector"],
+      },
+      aiCoachPrompts: [
+        "GameObject vs Component vs Prefab — Hinglish me simple analogy ke saath samjhao.",
+        "Unity Inspector me serialized fields kaise kaam karte hain ([SerializeField])? Hinglish me example do.",
+      ],
+    },
+    {
+      id: "GD-3", order: 3, title: "C# Gameplay Scripting",
+      summary: "Asli game logic: MonoBehaviour lifecycle, Input system, Rigidbody physics, collisions, coroutines. Yahan game 'zinda' hota hai.",
+      estimatedHours: 30, freshness: "version-sensitive",
+      videoEn: { title: "Unity Scripting Deep Dive", channel: "Brackeys", youtubeId: "X48VuDVv0do", minutes: 150 },
+      resources: [
+        { id: "GD-3-R1", title: "Unity Scripting Manual", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/ScriptingSection.html", minutes: 120 },
+        { id: "GD-3-R2", title: "Input System guide", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/UnityInput.html", minutes: 60 },
+      ],
+      project: {
+        title: "Ball Physics Toy",
+        brief: "Ball ko keyboard/mouse se move karo, Rigidbody + gravity se bounce karo, OnCollisionEnter se color change karo, coroutine se 2s baad reset.",
+        acceptanceCriteria: ["Input moves the ball", "Physics collision works", "Coroutine resets after delay"],
+      },
+      aiCoachPrompts: [
+        "Update() vs FixedUpdate() — physics ke liye kaunsa aur kyu? Hinglish me samjhao.",
+        "OnCollisionEnter vs OnTriggerEnter — kab kaunsa use karein? Hinglish me with isTrigger example.",
+      ],
+    },
+    {
+      id: "GD-4", order: 4, title: "Game Mechanics + UI (Canvas)",
+      summary: "Player controller, scoring, health, win/lose states, aur UI: Canvas, Text, Buttons, sliders. Game ko 'khelne layak' banao.",
+      estimatedHours: 30, freshness: "version-sensitive",
+      videoEn: { title: "Unity UI (Canvas) Tutorial", channel: "Brackeys", youtubeId: "V4bZdPl7hKo", minutes: 120 },
+      resources: [
+        { id: "GD-4-R1", title: "Unity UI Manual", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/UIMenu.html", minutes: 90 },
+        { id: "GD-4-R2", title: "Unity Learn: Micro-games", provider: "Unity", lang: "english", type: "interactive", url: "https://learn.unity.com/project/2d-beginner", minutes: 240 },
+      ],
+      project: {
+        title: "Complete Mini-Game (Pong / Flappy)",
+        brief: "Full playable loop: player control, score UI, health/lives, game-over screen with Restart button, win condition.",
+        acceptanceCriteria: ["Playable loop complete", "Score + health UI live", "Restart works without reload"],
+      },
+      aiCoachPrompts: [
+        "Game state machine (menu/playing/gameover) Hinglish me design karo with enum example.",
+        "Unity Canvas + EventSystem kaise kaam karta hai? Button click handle karna Hinglish me sikhao.",
+      ],
+    },
+    {
+      id: "GD-5", order: 5, title: "Game Feel: Animation, Audio, Particles, Camera",
+      summary: "Good vs GREAT game = 'game feel'. Animator, sound effects, particle bursts, screen shake, camera follow. Polish jo players ko hook karta hai.",
+      estimatedHours: 25, freshness: "version-sensitive",
+      videoEn: { title: "Game Feel & Juice", channel: "Brackeys", youtubeId: "2XoQd1qQ2Dw", minutes: 120 },
+      resources: [
+        { id: "GD-5-R1", title: "Unity Animation Manual", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/AnimationSection.html", minutes: 90 },
+        { id: "GD-5-R2", title: "Particle System guide", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/PartSysMainModule.html", minutes: 60 },
+      ],
+      project: {
+        title: "Juice Your Mini-Game",
+        brief: "Pichle game me add karo: player animation, jump/collect SFX, particle burst on score, camera smooth-follow, subtle screen shake.",
+        acceptanceCriteria: ["Animation plays on action", "Audio triggers correctly", "Particles + camera follow added"],
+      },
+      aiCoachPrompts: [
+        "'Game feel' / juice kya hota hai? Hinglish me 5 techniques batao (squash, shake, particles, SFX, hit-stop).",
+        "Unity Animator state machine Hinglish me samjhao: parameters, transitions, blend trees basics.",
+      ],
+    },
+    {
+      id: "GD-6", order: 6, title: "Build & Publish Your Game",
+      summary: "Game ko duniya tak: Android APK / PC build, itch.io pe publish, Play Store basics, trailer + page design. Portfolio me add karo.",
+      estimatedHours: 25, freshness: "version-sensitive",
+      videoEn: { title: "Publishing to itch.io / Stores", channel: "Brackeys", youtubeId: "V4bZdPl7hKo", minutes: 90 },
+      resources: [
+        { id: "GD-6-R1", title: "Unity Build Settings", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/PublishingBuilds.html", minutes: 60 },
+        { id: "GD-6-R2", title: "itch.io creator docs", provider: "itch.io", lang: "english", type: "docs", url: "https://itch.io/docs/creators/", minutes: 45 },
+      ],
+      project: {
+        title: "Capstone: Publish on itch.io",
+        brief: "Apna best game build karo (WebGL ya Android), itch.io pe publish karo with page art + trailer/GIF. Link portfolio me daalo.",
+        acceptanceCriteria: ["Build runs outside Editor", "Live itch.io page", "Page has art + description + GIF"],
+      },
+      aiCoachPrompts: [
+        "Unity build settings (platform, compression, IL2CPP vs Mono) Hinglish me samjhao.",
+        "itch.io page ko attractive kaise banayein (cover, GIF, description)? Hinglish me checklist do.",
+      ],
+    },
+  ],
+};
+export const TRACKS: LearningTrack[] = [WEB_DEV_TRACK, PYTHON_TRACK, CYBER_TRACK, DSA_TRACK, APP_DEV_TRACK, DEVOPS_TRACK, GAME_DEV_TRACK];
 
 export function getTrackById(id: string) {
   return TRACKS.find((t) => t.id === id);
