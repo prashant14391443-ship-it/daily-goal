@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, CheckCircle2, Circle, ExternalLink, Target,
   ChevronDown, ChevronRight, Loader2, Rocket, Copy, Check, X, AlertTriangle,
+  Settings, RotateCcw, Trash2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getTrackById, buildSchedule, dayNumber, type TrackMilestone } from "@/lib/learningTracks";
@@ -25,6 +26,7 @@ function fmtSec(sec: number) {
 
 export default function TrackDashboard() {
   const params = useParams();
+  const router = useRouter();
   const track = getTrackById(params.trackId as string);
 
   const [uid, setUid] = useState<string | null>(null);
@@ -39,6 +41,7 @@ export default function TrackDashboard() {
   const [playerFor, setPlayerFor] = useState<{ m: TrackMilestone; lang: "hi" | "en" } | null>(null);
   const [todaySecs, setTodaySecs] = useState(0);
   const [reported, setReported] = useState<Record<string, boolean>>({});
+  const [showManage, setShowManage] = useState(false);
   const watchBuf = useRef(0);
 
   useEffect(() => {
@@ -67,7 +70,6 @@ export default function TrackDashboard() {
     load();
   }, [track?.id]);
 
-  // flush watch buffer every 30s while player open
   useEffect(() => {
     if (!playerFor) return;
     const iv = setInterval(() => flushWatch(playerFor.m.id), 30000);
@@ -100,6 +102,32 @@ export default function TrackDashboard() {
     }, { onConflict: "user_id,track_id" });
     if (!error) setEnrollment({ hours_per_day: hoursPick, start_date: today });
     setBusy(null);
+  };
+
+  const updateHours = async (h: number) => {
+    if (!uid || !track) return;
+    const { error } = await supabase.from("learning_enrollments")
+      .update({ hours_per_day: h }).eq("user_id", uid).eq("track_id", track.id);
+    if (!error) setEnrollment((e) => (e ? { ...e, hours_per_day: h } : e));
+  };
+
+  const resetTrack = async () => {
+    if (!uid || !track) return;
+    if (!confirm("Reset ALL progress for this track? (XP + milestones for this track reset)")) return;
+    await supabase.from("learning_progress").delete().eq("user_id", uid).eq("track_id", track.id);
+    const today = new Date().toISOString().split("T")[0];
+    await supabase.from("learning_enrollments").update({ start_date: today }).eq("user_id", uid).eq("track_id", track.id);
+    setProgress({});
+    setEnrollment((e) => (e ? { ...e, start_date: today } : e));
+    setShowManage(false);
+  };
+
+  const leaveTrack = async () => {
+    if (!uid || !track) return;
+    if (!confirm("Leave this track and delete ALL its progress? Cannot be undone.")) return;
+    await supabase.from("learning_progress").delete().eq("user_id", uid).eq("track_id", track.id);
+    await supabase.from("learning_enrollments").delete().eq("user_id", uid).eq("track_id", track.id);
+    router.push("/learns");
   };
 
   const ensureRow = async (m: TrackMilestone): Promise<ProgressRow | null> => {
@@ -136,7 +164,6 @@ export default function TrackDashboard() {
     setBusy(null);
   };
 
-  // save buffered watch seconds (milestone + daily log), batched
   const flushWatch = async (mId: string) => {
     const add = watchBuf.current;
     if (!add || add <= 0 || !uid || !track) return;
@@ -237,6 +264,34 @@ export default function TrackDashboard() {
         <p className="mt-3 text-center text-[11px] font-bold text-teal-300">📺 Aaj ka in-app study time: {fmtSec(todaySecs)}</p>
       </div>
 
+      {/* ⚙️ MANAGE PANEL: Edit hours / Reset / Leave */}
+      <div className="flex justify-end mb-2">
+        <button onClick={() => setShowManage(!showManage)} className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 hover:text-white transition-colors">
+          <Settings size={13} /> {showManage ? "Close" : "Edit plan"}
+        </button>
+      </div>
+      {showManage && (
+        <div className="rounded-2xl border border-white/10 bg-slate-900 p-4 mb-4">
+          <p className="text-[11px] font-black text-slate-300 mb-2">Hours per day</p>
+          <div className="grid grid-cols-6 gap-1.5 mb-4">
+            {HOURS_OPTIONS.map((h) => (
+              <button key={h} onClick={() => updateHours(h)}
+                className={`py-2 rounded-lg border text-[11px] font-black ${enrollment?.hours_per_day === h ? "border-indigo-400/50 bg-indigo-500/15 text-indigo-200" : "border-white/5 bg-slate-800 text-slate-400"}`}>
+                {h}h
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={resetTrack} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] font-black text-amber-300">
+              <RotateCcw size={13} /> Reset progress
+            </button>
+            <button onClick={leaveTrack} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-[11px] font-black text-rose-300">
+              <Trash2 size={13} /> Leave track
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-2xl border border-teal-400/20 bg-teal-400/[0.05] p-4 mb-4">
         <p className="text-[10px] font-black uppercase tracking-widest text-teal-300 mb-1">Aaj ka target 🎯</p>
         <p className="text-[13px] font-bold text-white">{currentSlot.milestone.title}</p>
@@ -275,7 +330,6 @@ export default function TrackDashboard() {
                     {m.freshness === "evergreen" ? "🌱 Evergreen content — kabhi purana nahi hoga" : "⚡ Version-sensitive — yearly review list me hai"}
                   </p>
 
-                  {/* 🎥 IN-APP VIDEOS */}
                   {(m.videoHi || m.videoEn) && (
                     <>
                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">1. Watch in-app (best teachers)</p>
@@ -368,7 +422,6 @@ export default function TrackDashboard() {
         })}
       </div>
 
-      {/* 🎥 VIDEO PLAYER MODAL */}
       {playerFor && (() => {
         const v = playerFor.lang === "hi" ? playerFor.m.videoHi : playerFor.m.videoEn;
         if (!v) return null;
