@@ -13,7 +13,7 @@ const GRADS: Record<string, string> = {
   "web-dev": "from-indigo-500 to-violet-600", "python-data": "from-emerald-500 to-teal-600",
   "cyber-sec": "from-rose-500 to-red-600", "dsa-java": "from-amber-500 to-orange-600",
   "app-dev": "from-sky-500 to-blue-600", "devops-cloud": "from-cyan-500 to-teal-600",
-  "game-dev": "from-fuchsia-500 to-purple-600",
+  "game-dev": "from-violet-500 to-indigo-600",
 };
 
 export default function LearnsHub() {

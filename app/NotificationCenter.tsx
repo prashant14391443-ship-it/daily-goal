@@ -83,7 +83,7 @@ export default function NotificationCenter() {
     >
       <button
         onClick={toggle}
-        className="relative w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white flex items-center justify-center text-lg shadow-lg shadow-violet-900/50 ring-2 ring-white/10 hover:scale-105 transition-all"
+        className="relative w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-violet-600 to-violet-600 hover:from-violet-500 hover:to-violet-500 text-white flex items-center justify-center text-lg shadow-lg shadow-violet-900/50 ring-2 ring-white/10 hover:scale-105 transition-all"
       >
         🔔
         {unread > 0 && (

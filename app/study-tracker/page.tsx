@@ -90,7 +90,7 @@ export default function StudyHub() {
         </Link>
 
         <Link href="/learn" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4 hover:border-slate-700 transition-colors">
-          <span className="w-9 h-9 rounded-lg bg-fuchsia-500/10 text-fuchsia-400 flex items-center justify-center mb-4">
+          <span className="w-9 h-9 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center mb-4">
             <GraduationCap size={18} strokeWidth={2.2} />
           </span>
           <p className="font-black text-sm text-white">Learn Anything</p>

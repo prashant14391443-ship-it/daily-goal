@@ -248,7 +248,7 @@ export default function DailyChallenge({ onExit }: { onExit: () => void }) {
   if (stage === "done") {
     return (
       <div className="bg-slate-900 border border-amber-500/40 rounded-2xl p-8 text-center max-w-sm mx-auto mt-10">
-        {leveledUp && <p className="text-sm font-black text-fuchsia-400 mb-2 animate-bounce">🎉 LEVEL UP! You're Level {newLevel}!</p>}
+        {leveledUp && <p className="text-sm font-black text-violet-400 mb-2 animate-bounce">🎉 LEVEL UP! You're Level {newLevel}!</p>}
         <p className="text-6xl mb-3">🏆</p>
         <p className="text-2xl font-black text-amber-400">Challenge Complete!</p>
         <p className="text-lg font-black text-yellow-400 mt-2">+{starsEarned} ⭐ earned</p>

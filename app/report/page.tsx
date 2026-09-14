@@ -313,13 +313,13 @@ export default function ReportPage() {
   const stats = [
     { key: "Study", emoji: "📚", gradient: "from-blue-500 to-indigo-600", value: `${Math.floor(studyMin / 60)}h ${studyMin % 60}m`, sub: `${activeStudyDays}/7 days` },
     { key: "Gym", emoji: "🏋️", gradient: "from-green-500 to-emerald-600", value: `${gymCount} + ${runDistWeek}km`, sub: `${gymDays} workouts, ${runDays} runs` },
-    { key: "Habits", emoji: "✅", gradient: "from-violet-500 to-purple-600", value: String(habitsCount), sub: "habit-days this week" },
+    { key: "Habits", emoji: "✅", gradient: "from-violet-500 to-indigo-600", value: String(habitsCount), sub: "habit-days this week" },
     { key: "Tasks", emoji: "📝", gradient: "from-amber-500 to-orange-600", value: String(todoCount), sub: "tasks completed" },
   ];
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-fuchsia-600 to-amber-500 p-5 shadow-2xl shadow-fuchsia-900/30">
+      <div className="relative mb-5 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-600 via-violet-600 to-amber-500 p-5 shadow-2xl shadow-violet-900/30">
         <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
         <div className="absolute -right-4 -bottom-4 w-32 h-32 bg-amber-400/20 rounded-full blur-3xl" />
         <div className="relative flex items-center gap-3">
@@ -430,7 +430,7 @@ export default function ReportPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            <GradButton onClick={() => makeImage(true)} gradient="from-violet-600 to-fuchsia-600" disabled={sharing} className="py-3.5 text-sm">{sharing ? "..." : "📸 Share"}</GradButton>
+            <GradButton onClick={() => makeImage(true)} gradient="from-violet-600 to-violet-600" disabled={sharing} className="py-3.5 text-sm">{sharing ? "..." : "📸 Share"}</GradButton>
             <button onClick={() => makeImage(false)} disabled={sharing} className="press py-3.5 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-sm font-black disabled:opacity-50">{sharing ? "..." : "📥 Download"}</button>
           </div>
         </>

@@ -20,7 +20,7 @@ const typeStyle: Record<string, { icon: any; color: string; tint: string }> = {
   Study: { icon: BookOpen, color: "text-blue-400", tint: "bg-blue-500/10 border-blue-500/20" },
   Gym: { icon: Dumbbell, color: "text-orange-400", tint: "bg-orange-500/10 border-orange-500/20" },
   Habit: { icon: ListChecks, color: "text-green-400", tint: "bg-green-500/10 border-green-500/20" },
-  ToDo: { icon: ListTodo, color: "text-pink-400", tint: "bg-pink-500/10 border-pink-500/20" },
+  ToDo: { icon: ListTodo, color: "text-rose-400", tint: "bg-rose-500/10 border-rose-500/20" },
 };
 
 export default function DailyGoalsPage() {

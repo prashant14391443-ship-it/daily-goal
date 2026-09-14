@@ -137,7 +137,7 @@ export default function CommunityPage() {
       </Link>
 
       {/* 🌆 CALM HERO */}
-      <div className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-pink-600 via-fuchsia-600 to-violet-600 p-5 shadow-xl shadow-fuchsia-900/20">
+      <div className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-rose-600 via-violet-600 to-violet-600 p-5 shadow-xl shadow-violet-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
           <div className="flex items-center justify-between gap-3 mb-3">
@@ -215,7 +215,7 @@ export default function CommunityPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search communities..."
-          className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-900 border border-slate-700 focus:border-pink-500 focus:outline-none text-sm"
+          className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-900 border border-slate-700 focus:border-rose-500 focus:outline-none text-sm"
         />
       </div>
 
@@ -238,9 +238,9 @@ export default function CommunityPage() {
             >
               <div className="flex items-start gap-3 mb-3">
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                  c.joined ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-pink-500/10 border border-pink-500/20"
+                  c.joined ? "bg-emerald-500/10 border border-emerald-500/20" : "bg-rose-500/10 border border-rose-500/20"
                 }`}>
-                  <Users size={22} className={c.joined ? "text-emerald-400" : "text-pink-400"} />
+                  <Users size={22} className={c.joined ? "text-emerald-400" : "text-rose-400"} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm text-white leading-tight truncate mb-1">
@@ -277,7 +277,7 @@ export default function CommunityPage() {
                 ) : (
                   <button 
                     onClick={() => requestJoin(c.id)} 
-                    className="flex-1 py-2.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+                    className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-sm font-semibold transition-colors flex items-center justify-center gap-2"
                   >
                     <UserPlus size={14} />
                     Request

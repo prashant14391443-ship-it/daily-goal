@@ -241,7 +241,7 @@ export default function CommunityRoomPage() {
         <p className="text-6xl mb-4 animate-pulse">⏳</p>
         <p className="font-black text-xl text-white mb-2">Waiting for approval</p>
         <p className="text-sm text-slate-400 mb-6">The admin will approve your request soon</p>
-        <Link href="/community" className="press text-sm text-pink-400 font-bold">← Back to Communities</Link>
+        <Link href="/community" className="press text-sm text-rose-400 font-bold">← Back to Communities</Link>
       </main>
     );
 
@@ -249,14 +249,14 @@ export default function CommunityRoomPage() {
     return (
       <main className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center">
         <p className="text-slate-400 mb-4">You are not a member of this community.</p>
-        <Link href="/community" className="press text-sm text-pink-400 font-bold underline">Go to Communities</Link>
+        <Link href="/community" className="press text-sm text-rose-400 font-bold underline">Go to Communities</Link>
       </main>
     );
 
   return (
     <main className="fixed inset-0 overflow-hidden bg-slate-950 text-white p-3 md:p-4 flex flex-col z-[100]">
-      {/* 🌆 PINK HERO HEADER */}
-      <div className="relative mb-3 overflow-hidden rounded-2xl bg-gradient-to-br from-pink-600 via-fuchsia-600 to-violet-600 p-4 shadow-xl shadow-pink-900/30 shrink-0">
+      {/* 🌆 rose HERO HEADER */}
+      <div className="relative mb-3 overflow-hidden rounded-2xl bg-gradient-to-br from-rose-600 via-violet-600 to-violet-600 p-4 shadow-xl shadow-rose-900/30 shrink-0">
         <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
           <div className="flex items-center justify-between gap-3 mb-2">
@@ -353,7 +353,7 @@ export default function CommunityRoomPage() {
                   <div
                     className={`rounded-2xl px-3.5 py-2.5 shadow-md ${
                       own
-                        ? "bg-gradient-to-br from-pink-600 to-fuchsia-600 rounded-br-sm"
+                        ? "bg-gradient-to-br from-rose-600 to-violet-600 rounded-br-sm"
                         : "bg-slate-800 border border-slate-700 rounded-bl-sm"
                     }`}
                   >
@@ -435,13 +435,13 @@ export default function CommunityRoomPage() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={file ? "Add a message..." : editingId ? "Edit your message..." : "Type a message..."}
-          className="flex-1 h-12 px-4 rounded-xl bg-slate-900 border border-slate-800 focus:border-pink-500 text-sm outline-none transition-all"
+          className="flex-1 h-12 px-4 rounded-xl bg-slate-900 border border-slate-800 focus:border-rose-500 text-sm outline-none transition-all"
           disabled={sending}
         />
 
         <button
           disabled={sending || (!text.trim() && !file)}
-          className="press w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-pink-500 to-fuchsia-600 font-black text-white disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-pink-900/30 flex items-center justify-center text-lg"
+          className="press w-12 h-12 shrink-0 rounded-xl bg-gradient-to-br from-rose-500 to-violet-600 font-black text-white disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-rose-900/30 flex items-center justify-center text-lg"
         >
           {sending ? "⏳" : (editingId ? "💾" : "➤")}
         </button>

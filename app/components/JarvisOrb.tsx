@@ -14,7 +14,7 @@ export function JarvisOrb({ state, onClick }: JarvisOrbProps) {
       case "listening":
         return "bg-gradient-to-br from-red-500 to-rose-600 shadow-[0_0_14px_rgba(239,68,68,0.45)]";
       case "thinking":
-        return "bg-gradient-to-br from-violet-500 to-fuchsia-600 shadow-[0_0_14px_rgba(139,92,246,0.45)]";
+        return "bg-gradient-to-br from-violet-500 to-violet-600 shadow-[0_0_14px_rgba(139,92,246,0.45)]";
       case "speaking":
         return "bg-gradient-to-br from-emerald-500 to-green-600 shadow-[0_0_14px_rgba(16,185,129,0.45)]";
       case "error":

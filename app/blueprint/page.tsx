@@ -160,7 +160,7 @@ export default function BlueprintPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-500 via-violet-600 to-purple-600 p-5 shadow-xl shadow-violet-900/20">
+      <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-500 via-violet-600 to-indigo-600 p-5 shadow-xl shadow-violet-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative flex items-center gap-4">
           <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center"><ScrollText size={22} className="text-white" /></span>
@@ -193,7 +193,7 @@ export default function BlueprintPage() {
         <select value={diet} onChange={(e) => setDiet(e.target.value)} className={inputCls}>
           {["Vegetarian","Non-vegetarian","Vegan"].map((d) => <option key={d}>{d}</option>)}
         </select>
-        <button onClick={() => setUseAI(!useAI)} className={`press col-span-2 py-2.5 rounded-xl text-xs font-black border ${useAI ? "bg-fuchsia-600/20 border-fuchsia-500/30 text-fuchsia-300" : "bg-slate-800 border-slate-700 text-slate-300"}`}>
+        <button onClick={() => setUseAI(!useAI)} className={`press col-span-2 py-2.5 rounded-xl text-xs font-black border ${useAI ? "bg-violet-600/20 border-violet-500/30 text-violet-300" : "bg-slate-800 border-slate-700 text-slate-300"}`}>
           {useAI ? "✨ AI research: ON (recommended)" : "📘 Built-in plan: ON"}
         </button>
         <button onClick={generate} disabled={busy} className="press col-span-2 py-3 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-sm font-black text-indigo-300 disabled:opacity-50 flex items-center justify-center gap-1.5">

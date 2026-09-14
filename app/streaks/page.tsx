@@ -44,7 +44,7 @@ export default function StreaksPage() {
       ]);
       setHabits((h.data || []).map((x) => {
         const dates = new Set((hl.data || []).filter((l) => l.habit_id === x.id).map((l) => l.log_date));
-        return { id: x.id, name: x.habit_name, icon: "✅", grad: "from-violet-500 to-purple-600", border: "border-violet-500/30", ...mk(dates) };
+        return { id: x.id, name: x.habit_name, icon: "✅", grad: "from-violet-500 to-indigo-600", border: "border-violet-500/30", ...mk(dates) };
       }));
       setLoading(false);
     };

@@ -208,7 +208,7 @@ export default function VoiceCall({
             )}
             <div className={`max-w-[80%] p-3 rounded-2xl text-sm whitespace-pre-wrap shadow-md leading-relaxed ${
               m.role === "user"
-                ? "bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white rounded-br-sm"
+                ? "bg-gradient-to-br from-violet-600 to-violet-600 text-white rounded-br-sm"
                 : "bg-slate-800/80 backdrop-blur text-slate-100 rounded-bl-sm border border-slate-700/50"
             }`}>
               {m.content}
@@ -259,7 +259,7 @@ export default function VoiceCall({
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="shrink-0 w-11 h-11 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white disabled:opacity-40 shadow-lg shadow-violet-900/30 transition-all active:scale-95 flex items-center justify-center"
+            className="shrink-0 w-11 h-11 rounded-full bg-gradient-to-r from-violet-600 to-violet-600 text-white disabled:opacity-40 shadow-lg shadow-violet-900/30 transition-all active:scale-95 flex items-center justify-center"
           >
             <Send className="w-4 h-4" />
           </button>

@@ -65,7 +65,7 @@ export default function DraggableAIBubble() {
         touchAction: "none",
         ...(pos ? { left: pos.x, top: pos.y } : {}),
       }}
-      className={`fixed z-[75] w-16 h-16 rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-xl shadow-violet-900/40 flex items-center justify-center text-3xl select-none hover:scale-105 transition-transform ${
+      className={`fixed z-[75] w-16 h-16 rounded-full bg-gradient-to-br from-violet-600 to-violet-600 shadow-xl shadow-violet-900/40 flex items-center justify-center text-3xl select-none hover:scale-105 transition-transform ${
         pos ? "" : "right-4 bottom-24"
       }`}
       title="Hold & drag to move • Tap to open AI"

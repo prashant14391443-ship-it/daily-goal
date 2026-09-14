@@ -303,7 +303,7 @@ function Inner() {
                 )}
                 {/* Coin/Likes label */}
                 <div className="absolute bottom-1.5 left-1.5 bg-black/70 px-2 py-0.5 rounded-full flex items-center gap-1.5 text-[11px] font-bold">
-                    <span className="text-pink-400">❤️</span> {p.likes}
+                    <span className="text-rose-400">❤️</span> {p.likes}
                 </div>
                 {/* delete button overlay (used from your grid specific deletion logic) */}
                 {userId === me && (

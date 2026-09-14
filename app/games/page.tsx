@@ -79,8 +79,8 @@ export default function GamesPage() {
     { id: "quiz" as GameId, icon: Zap, title: "Speed Quiz", desc: "60 sec • combo • 4 options", best: bests.quiz ? `${bests.quiz}` : null, tint: "bg-blue-500/10 border-blue-500/20", color: "text-blue-400" },
     { id: "match" as GameId, icon: Layers, title: "Match Pairs", desc: "word ↔ meaning • beat time", best: bests.match ? `${bests.match}s` : null, tint: "bg-violet-500/10 border-violet-500/20", color: "text-violet-400" },
     { id: "scramble" as GameId, icon: Puzzle, title: "Word Scramble", desc: "build words from letters", best: bests.scramble ? `${bests.scramble}/5` : null, tint: "bg-green-500/10 border-green-500/20", color: "text-green-400" },
-    { id: "sayit" as GameId, icon: Mic, title: "Say-It Race", desc: "speak • get % • pass 70%", best: bests.sayit ? `${bests.sayit}%` : null, tint: "bg-pink-500/10 border-pink-500/20", color: "text-pink-400" },
-    { id: "swipe" as GameId, icon: ArrowLeftRight, title: "Synonym Swipe", desc: "swipe ✓ same / ✗ different", best: bests.swipe ? `${bests.swipe}` : null, tint: "bg-fuchsia-500/10 border-fuchsia-500/20", color: "text-fuchsia-400" },
+    { id: "sayit" as GameId, icon: Mic, title: "Say-It Race", desc: "speak • get % • pass 70%", best: bests.sayit ? `${bests.sayit}%` : null, tint: "bg-rose-500/10 border-rose-500/20", color: "text-rose-400" },
+    { id: "swipe" as GameId, icon: ArrowLeftRight, title: "Synonym Swipe", desc: "swipe ✓ same / ✗ different", best: bests.swipe ? `${bests.swipe}` : null, tint: "bg-violet-500/10 border-violet-500/20", color: "text-violet-400" },
     { id: "ear" as GameId, icon: Ear, title: "Ear Race", desc: "hear it → type it fast", best: bests.ear ? `${bests.ear}` : null, tint: "bg-cyan-500/10 border-cyan-500/20", color: "text-cyan-400" },
     { id: "chain" as GameId, icon: Link2, title: "Word Chain", desc: "last letter → next word", best: bests.chain ? `${bests.chain}` : null, tint: "bg-orange-500/10 border-orange-500/20", color: "text-orange-400" },
     { id: "story" as GameId, icon: BookOpen, title: "Story Mode", desc: "listen + read + answer", best: bests.story ? `${bests.story}/4` : null, tint: "bg-indigo-500/10 border-indigo-500/20", color: "text-indigo-400" },
@@ -90,8 +90,8 @@ export default function GamesPage() {
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-fuchsia-500/10 border border-fuchsia-500/20 flex items-center justify-center">
-            <Gamepad2 size={22} className="text-fuchsia-400" />
+          <div className="w-11 h-11 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
+            <Gamepad2 size={22} className="text-violet-400" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-white">Game Zone</h1>
@@ -137,7 +137,7 @@ export default function GamesPage() {
               <Zap size={11} className="text-blue-400" />{cfg.quiz}
               <Layers size={11} className="text-violet-400" />{cfg.match}
               <Puzzle size={11} className="text-green-400" />{cfg.scram}
-              <Mic size={11} className="text-pink-400" />{cfg.say}
+              <Mic size={11} className="text-rose-400" />{cfg.say}
               {li.level >= 3 ? "• HARD MODE" : "• grows every level!"}
             </p>
           </div>

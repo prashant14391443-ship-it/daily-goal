@@ -166,7 +166,7 @@ export default function LearnPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 via-purple-600 to-fuchsia-600 p-5 shadow-xl shadow-purple-900/20">
+      <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 via-indigo-600 to-violet-600 p-5 shadow-xl shadow-indigo-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative flex items-center gap-4">
           <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center"><GraduationCap size={22} className="text-white" /></span>
@@ -246,7 +246,7 @@ export default function LearnPage() {
           </Card>
 
           {(bp.stages || []).length > 0 && (
-            <Card icon={ListOrdered} color="text-purple-400" title="🧾 FULL SYLLABUS / SELECTION STAGES">
+            <Card icon={ListOrdered} color="text-indigo-400" title="🧾 FULL SYLLABUS / SELECTION STAGES">
               <ol className="list-decimal list-inside">{bp.stages!.map((s, i) => <li key={i} className="text-xs text-slate-300 mb-1">{s}</li>)}</ol>
             </Card>
           )}

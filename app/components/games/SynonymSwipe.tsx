@@ -104,7 +104,7 @@ export default function SynonymSwipe({ onExit }: { onExit?: () => void }) {
         <>
           <div className="flex justify-between text-xs font-black text-slate-400 mb-4">
             <span className="flex items-center gap-1"><Trophy size={12} className="text-amber-400" /> {best}</span>
-            <span className="text-fuchsia-400">∞ endless</span>
+            <span className="text-violet-400">∞ endless</span>
             <span>{"❤️".repeat(lives)}{"🖤".repeat(3 - lives)}</span>
           </div>
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl px-3 py-2 mb-4 text-center">
@@ -134,7 +134,7 @@ export default function SynonymSwipe({ onExit }: { onExit?: () => void }) {
           <p className="text-xl font-black mb-1">Score: {score}</p>
           <p className="text-xs text-slate-500 mb-1">{score >= best && score > 0 ? "New personal best!" : `Best: ${best}`}</p>
           <p className="text-xs text-slate-500 mb-6">Endless mode — can you beat this?</p>
-          <button onClick={restart} className="w-full py-3 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 font-black">Play again</button>
+          <button onClick={restart} className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 font-black">Play again</button>
         </div>
       )}
     </div>

@@ -218,7 +218,7 @@ export default function EvaluatePage() {
               </div>
               <div className="flex-1 grid gap-2">
                 <Bar label="Accuracy" val={s?.accuracy || 0} max={30} color="bg-emerald-500" />
-                <Bar label="Pronun." val={s?.pronunciation || 0} max={20} color="bg-pink-500" />
+                <Bar label="Pronun." val={s?.pronunciation || 0} max={20} color="bg-rose-500" />
                 <Bar label="Expression" val={s?.expression || 0} max={25} color="bg-blue-500" />
                 <Bar label="Fluency" val={s?.fluency || 0} max={25} color="bg-amber-500" />
               </div>

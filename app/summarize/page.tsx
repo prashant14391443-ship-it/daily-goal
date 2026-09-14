@@ -256,7 +256,7 @@ export default function SummarizePage() {
               <button onClick={startQuiz} className="press py-2.5 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 text-xs font-black flex items-center justify-center gap-1.5"><HelpCircle size={14} /> Quiz</button>
               <button onClick={copyPoints} className="press py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-black flex items-center justify-center gap-1.5"><Copy size={14} /> Copy</button>
               <button onClick={saveSummary} className="press py-2.5 rounded-xl bg-amber-600/20 border border-amber-500/30 text-amber-300 text-xs font-black flex items-center justify-center gap-1.5"><Save size={14} /> Save</button>
-              <button onClick={toggleMemo} disabled={memoBusy} className="press py-2.5 rounded-xl bg-fuchsia-600/20 border border-fuchsia-500/30 text-fuchsia-300 text-xs font-black flex items-center justify-center gap-1.5 disabled:opacity-50"><Lightbulb size={14} /> {memoBusy ? "Thinking…" : memo && memoVisible ? "Hide" : "Memorize"}</button>
+              <button onClick={toggleMemo} disabled={memoBusy} className="press py-2.5 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-300 text-xs font-black flex items-center justify-center gap-1.5 disabled:opacity-50"><Lightbulb size={14} /> {memoBusy ? "Thinking…" : memo && memoVisible ? "Hide" : "Memorize"}</button>
             </div>
             {confirm && <p className="text-center text-xs font-bold text-cyan-300 mt-3">{confirm}</p>}
 
@@ -279,20 +279,20 @@ export default function SummarizePage() {
 
           {/* MEMORIZE (toggle + editable) */}
           {memo && memoVisible && (
-            <div className="bg-slate-900 border border-fuchsia-500/30 rounded-2xl p-4">
+            <div className="bg-slate-900 border border-violet-500/30 rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-3">
-                <span className="w-8 h-8 rounded-lg bg-fuchsia-500/10 text-fuchsia-400 flex items-center justify-center"><Lightbulb size={15} /></span>
+                <span className="w-8 h-8 rounded-lg bg-violet-500/10 text-violet-400 flex items-center justify-center"><Lightbulb size={15} /></span>
                 <h3 className="font-black text-base text-white flex-1">Memorize It</h3>
                 <button onClick={speakMemo} className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 flex items-center justify-center" title="Hear it"><Volume2 size={14} /></button>
               </div>
               <p className="text-[10px] font-black text-slate-500 mb-1">✏️ MEMORY WORD — tap to type your own</p>
-              <input value={memo.acronym || ""} onChange={(e) => setMemo({ ...memo, acronym: e.target.value.toUpperCase() })} placeholder="Your own word" className="w-full bg-transparent text-2xl font-black tracking-widest text-fuchsia-300 outline-none border-b border-fuchsia-500/30 mb-3" />
+              <input value={memo.acronym || ""} onChange={(e) => setMemo({ ...memo, acronym: e.target.value.toUpperCase() })} placeholder="Your own word" className="w-full bg-transparent text-2xl font-black tracking-widest text-violet-300 outline-none border-b border-violet-500/30 mb-3" />
               <p className="text-[10px] font-black text-slate-500">🎬 STORY — edit to make it yours</p>
-              <textarea value={memo.story || ""} onChange={(e) => setMemo({ ...memo, story: e.target.value })} rows={3} className="w-full bg-slate-800/60 border border-slate-700 rounded-xl p-2 text-sm text-slate-200 outline-none focus:border-fuchsia-500 mb-2 resize-none" />
+              <textarea value={memo.story || ""} onChange={(e) => setMemo({ ...memo, story: e.target.value })} rows={3} className="w-full bg-slate-800/60 border border-slate-700 rounded-xl p-2 text-sm text-slate-200 outline-none focus:border-violet-500 mb-2 resize-none" />
               <p className="text-[10px] font-black text-slate-500">🎵 RHYME</p>
-              <textarea value={memo.rhyme || ""} onChange={(e) => setMemo({ ...memo, rhyme: e.target.value })} rows={2} className="w-full bg-slate-800/60 border border-slate-700 rounded-xl p-2 text-sm text-slate-200 outline-none focus:border-fuchsia-500 mb-2 resize-none" />
+              <textarea value={memo.rhyme || ""} onChange={(e) => setMemo({ ...memo, rhyme: e.target.value })} rows={2} className="w-full bg-slate-800/60 border border-slate-700 rounded-xl p-2 text-sm text-slate-200 outline-none focus:border-violet-500 mb-2 resize-none" />
               <p className="text-[10px] font-black text-slate-500">🏰 MEMORY PALACE — each point in a real place</p>
-              <textarea value={memo.palace || ""} onChange={(e) => setMemo({ ...memo, palace: e.target.value })} rows={3} className="w-full bg-slate-800/60 border border-slate-700 rounded-xl p-2 text-sm text-slate-200 outline-none focus:border-fuchsia-500 resize-none" />
+              <textarea value={memo.palace || ""} onChange={(e) => setMemo({ ...memo, palace: e.target.value })} rows={3} className="w-full bg-slate-800/60 border border-slate-700 rounded-xl p-2 text-sm text-slate-200 outline-none focus:border-violet-500 resize-none" />
             </div>
           )}
 

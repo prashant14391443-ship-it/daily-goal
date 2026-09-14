@@ -167,14 +167,14 @@ export const SSC_CGL_TIER1: ExamPattern = {
     { id: "CGL-REAS", name: "General Intelligence & Reasoning", shortName: "Reasoning", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "blue", sortOrder: 1, topics: SSC_REAS },
     { id: "CGL-GK", name: "General Awareness", shortName: "GK", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "emerald", sortOrder: 2, topics: GK_GS },
     { id: "CGL-MATH", name: "Quantitative Aptitude", shortName: "Quant", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "orange", sortOrder: 3, topics: SSC_MATH },
-    { id: "CGL-ENG", name: "English Comprehension", shortName: "English", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "purple", sortOrder: 4, topics: ENGLISH },
+    { id: "CGL-ENG", name: "English Comprehension", shortName: "English", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "indigo", sortOrder: 4, topics: ENGLISH },
   ],
 };
 
 export const SSC_CHSL_TIER1: ExamPattern = {
   id: "SSC-CHSL-T1", name: "SSC CHSL Tier 1", shortName: "SSC CHSL", description: "Combined Higher Secondary Level (10+2)", totalMarks: 200, totalQuestions: 100, durationMin: 60, negativeMarking: 0.5, allowedOptionCounts: [4],
   sections: [
-    { id: "CHSL-ENG", name: "English Language", shortName: "English", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "purple", sortOrder: 1, topics: ENGLISH },
+    { id: "CHSL-ENG", name: "English Language", shortName: "English", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "indigo", sortOrder: 1, topics: ENGLISH },
     { id: "CHSL-REAS", name: "General Intelligence", shortName: "Reasoning", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "blue", sortOrder: 2, topics: SSC_REAS },
     { id: "CHSL-MATH", name: "Quantitative Aptitude", shortName: "Quant", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "orange", sortOrder: 3, topics: SSC_MATH },
     { id: "CHSL-GK", name: "General Awareness", shortName: "GK", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "emerald", sortOrder: 4, topics: GK_GS },
@@ -184,7 +184,7 @@ export const SSC_CHSL_TIER1: ExamPattern = {
 export const BANK_PO_PRELIMS: ExamPattern = {
   id: "BANK-PO-PRE", name: "IBPS / SBI PO Prelims", shortName: "Bank PO", description: "Probationary Officer Preliminary Exam", totalMarks: 100, totalQuestions: 100, durationMin: 60, negativeMarking: 0.25, allowedOptionCounts: [5],
   sections: [
-    { id: "PO-ENG", name: "English Language", shortName: "English", questionCount: 30, marksPerQ: 1, timeLimitMin: 20, color: "purple", sortOrder: 1, topics: ENGLISH },
+    { id: "PO-ENG", name: "English Language", shortName: "English", questionCount: 30, marksPerQ: 1, timeLimitMin: 20, color: "indigo", sortOrder: 1, topics: ENGLISH },
     { id: "PO-QUANT", name: "Quantitative Aptitude", shortName: "Quant", questionCount: 35, marksPerQ: 1, timeLimitMin: 20, color: "orange", sortOrder: 2, topics: BANK_QUANT },
     { id: "PO-REAS", name: "Reasoning Ability", shortName: "Reasoning", questionCount: 35, marksPerQ: 1, timeLimitMin: 20, color: "blue", sortOrder: 3, topics: BANK_REAS },
   ],
@@ -193,7 +193,7 @@ export const BANK_PO_PRELIMS: ExamPattern = {
 export const BANK_CLERK_PRELIMS: ExamPattern = {
   id: "BANK-CLERK-PRE", name: "IBPS / SBI Clerk Prelims", shortName: "Bank Clerk", description: "Clerical Cadre Preliminary Exam", totalMarks: 100, totalQuestions: 100, durationMin: 60, negativeMarking: 0.25, allowedOptionCounts: [5],
   sections: [
-    { id: "CLK-ENG", name: "English Language", shortName: "English", questionCount: 30, marksPerQ: 1, timeLimitMin: 20, color: "purple", sortOrder: 1, topics: ENGLISH },
+    { id: "CLK-ENG", name: "English Language", shortName: "English", questionCount: 30, marksPerQ: 1, timeLimitMin: 20, color: "indigo", sortOrder: 1, topics: ENGLISH },
     { id: "CLK-QUANT", name: "Numerical Ability", shortName: "Quant", questionCount: 35, marksPerQ: 1, timeLimitMin: 20, color: "orange", sortOrder: 2, topics: BANK_QUANT },
     { id: "CLK-REAS", name: "Reasoning Ability", shortName: "Reasoning", questionCount: 35, marksPerQ: 1, timeLimitMin: 20, color: "blue", sortOrder: 3, topics: BANK_REAS },
   ],
@@ -214,7 +214,7 @@ export const RRB_GROUP_D: ExamPattern = {
     { id: "RRB-SCI", name: "General Science", shortName: "Science", questionCount: 25, marksPerQ: 1, timeLimitMin: null, color: "emerald", sortOrder: 1, topics: GENERAL_SCIENCE },
     { id: "RRB-MATH", name: "Mathematics", shortName: "Math", questionCount: 25, marksPerQ: 1, timeLimitMin: null, color: "orange", sortOrder: 2, topics: SSC_MATH },
     { id: "RRB-REAS", name: "General Intelligence & Reasoning", shortName: "Reasoning", questionCount: 30, marksPerQ: 1, timeLimitMin: null, color: "blue", sortOrder: 3, topics: SSC_REAS },
-    { id: "RRB-GK", name: "General Awareness", shortName: "GK", questionCount: 20, marksPerQ: 1, timeLimitMin: null, color: "purple", sortOrder: 4, topics: GK_GS },
+    { id: "RRB-GK", name: "General Awareness", shortName: "GK", questionCount: 20, marksPerQ: 1, timeLimitMin: null, color: "indigo", sortOrder: 4, topics: GK_GS },
   ],
 };
 
@@ -235,7 +235,7 @@ export const STATE_PSC_PRELIMS: ExamPattern = {
 export const CTET_PAPER_1: ExamPattern = {
   id: "CTET-P1", name: "CTET Paper 1", shortName: "CTET P1", description: "Central Teacher Eligibility Test (Primary)", totalMarks: 150, totalQuestions: 150, durationMin: 150, negativeMarking: 0, allowedOptionCounts: [4],
   sections: [
-    { id: "CTET-CDP", name: "Child Development & Pedagogy", shortName: "CDP", questionCount: 30, marksPerQ: 1, timeLimitMin: null, color: "purple", sortOrder: 1, topics: CDP_TOPICS },
+    { id: "CTET-CDP", name: "Child Development & Pedagogy", shortName: "CDP", questionCount: 30, marksPerQ: 1, timeLimitMin: null, color: "indigo", sortOrder: 1, topics: CDP_TOPICS },
     { id: "CTET-MATH", name: "Mathematics", shortName: "Math", questionCount: 30, marksPerQ: 1, timeLimitMin: null, color: "orange", sortOrder: 2, topics: SSC_MATH },
     { id: "CTET-EVS", name: "Environmental Studies", shortName: "EVS", questionCount: 30, marksPerQ: 1, timeLimitMin: null, color: "emerald", sortOrder: 3, topics: GENERAL_SCIENCE },
     { id: "CTET-ENG", name: "Language I (English)", shortName: "English", questionCount: 30, marksPerQ: 1, timeLimitMin: null, color: "blue", sortOrder: 4, topics: ENGLISH },
@@ -250,7 +250,7 @@ export const SSC_MTS: ExamPattern = {
     { id: "MTS-MATH", name: "Numerical & Mathematical Ability", shortName: "Math", questionCount: 20, marksPerQ: 2, timeLimitMin: null, color: "orange", sortOrder: 1, topics: SSC_MATH },
     { id: "MTS-REAS", name: "Reasoning Ability & Problem Solving", shortName: "Reasoning", questionCount: 20, marksPerQ: 2, timeLimitMin: null, color: "blue", sortOrder: 2, topics: SSC_REAS },
     { id: "MTS-GK", name: "General Awareness", shortName: "GK", questionCount: 25, marksPerQ: 3, timeLimitMin: null, color: "emerald", sortOrder: 3, topics: GK_GS },
-    { id: "MTS-ENG", name: "English Language & Comprehension", shortName: "English", questionCount: 25, marksPerQ: 3, timeLimitMin: null, color: "purple", sortOrder: 4, topics: ENGLISH },
+    { id: "MTS-ENG", name: "English Language & Comprehension", shortName: "English", questionCount: 25, marksPerQ: 3, timeLimitMin: null, color: "indigo", sortOrder: 4, topics: ENGLISH },
   ],
 };
 
@@ -263,7 +263,7 @@ export const SSC_CPO_SI: ExamPattern = {
     { id: "CPO-REAS", name: "General Intelligence & Reasoning", shortName: "Reasoning", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "blue", sortOrder: 1, topics: SSC_REAS },
     { id: "CPO-GK", name: "General Knowledge & Awareness", shortName: "GK", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "emerald", sortOrder: 2, topics: GK_GS },
     { id: "CPO-MATH", name: "Quantitative Aptitude", shortName: "Quant", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "orange", sortOrder: 3, topics: SSC_MATH },
-    { id: "CPO-ENG", name: "English Comprehension", shortName: "English", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "purple", sortOrder: 4, topics: ENGLISH },
+    { id: "CPO-ENG", name: "English Comprehension", shortName: "English", questionCount: 25, marksPerQ: 2, timeLimitMin: null, color: "indigo", sortOrder: 4, topics: ENGLISH },
   ],
 };
 
@@ -276,7 +276,7 @@ export const RRB_ALP: ExamPattern = {
     { id: "ALP-MATH", name: "Mathematics", shortName: "Math", questionCount: 20, marksPerQ: 1, timeLimitMin: null, color: "orange", sortOrder: 1, topics: SSC_MATH },
     { id: "ALP-REAS", name: "General Intelligence & Reasoning", shortName: "Reasoning", questionCount: 25, marksPerQ: 1, timeLimitMin: null, color: "blue", sortOrder: 2, topics: SSC_REAS },
     { id: "ALP-SCI", name: "General Science", shortName: "Science", questionCount: 20, marksPerQ: 1, timeLimitMin: null, color: "emerald", sortOrder: 3, topics: GENERAL_SCIENCE },
-    { id: "ALP-GK", name: "General Awareness & Current Affairs", shortName: "GK", questionCount: 10, marksPerQ: 1, timeLimitMin: null, color: "purple", sortOrder: 4, topics: GK_GS },
+    { id: "ALP-GK", name: "General Awareness & Current Affairs", shortName: "GK", questionCount: 10, marksPerQ: 1, timeLimitMin: null, color: "indigo", sortOrder: 4, topics: GK_GS },
   ],
 };
 
@@ -286,7 +286,7 @@ export const UPSC_CSAT: ExamPattern = {
   totalMarks: 200, totalQuestions: 80, durationMin: 120, negativeMarking: 0.83,
   allowedOptionCounts: [4],
   sections: [
-    { id: "CSAT-RC", name: "Reading Comprehension", shortName: "RC", questionCount: 30, marksPerQ: 2.5, timeLimitMin: null, color: "purple", sortOrder: 1, topics: CSAT_RC },
+    { id: "CSAT-RC", name: "Reading Comprehension", shortName: "RC", questionCount: 30, marksPerQ: 2.5, timeLimitMin: null, color: "indigo", sortOrder: 1, topics: CSAT_RC },
     { id: "CSAT-REAS", name: "Logical Reasoning & Analytical Ability", shortName: "Reasoning", questionCount: 35, marksPerQ: 2.5, timeLimitMin: null, color: "blue", sortOrder: 2, topics: CSAT_REASON },
     { id: "CSAT-MATH", name: "Quantitative & Mental Ability", shortName: "Numeracy", questionCount: 15, marksPerQ: 2.5, timeLimitMin: null, color: "orange", sortOrder: 3, topics: CSAT_MATH },
   ],
@@ -298,7 +298,7 @@ export const CDS_COMBINED: ExamPattern = {
   totalMarks: 90, totalQuestions: 90, durationMin: 120, negativeMarking: 0.33,
   allowedOptionCounts: [4],
   sections: [
-    { id: "CDS-ENG", name: "English", shortName: "English", questionCount: 30, marksPerQ: 1, timeLimitMin: null, color: "purple", sortOrder: 1, topics: ENGLISH },
+    { id: "CDS-ENG", name: "English", shortName: "English", questionCount: 30, marksPerQ: 1, timeLimitMin: null, color: "indigo", sortOrder: 1, topics: ENGLISH },
     { id: "CDS-GK", name: "General Knowledge", shortName: "GK", questionCount: 30, marksPerQ: 1, timeLimitMin: null, color: "emerald", sortOrder: 2, topics: GK_GS },
     { id: "CDS-MATH", name: "Elementary Mathematics", shortName: "Math", questionCount: 30, marksPerQ: 1, timeLimitMin: null, color: "orange", sortOrder: 3, topics: SSC_MATH },
   ],
@@ -313,7 +313,7 @@ export const CUET_GENERAL: ExamPattern = {
     { id: "CUET-GK", name: "General Awareness & Current Affairs", shortName: "GK", questionCount: 25, marksPerQ: 5, timeLimitMin: null, color: "emerald", sortOrder: 1, topics: CUET_GEN },
     { id: "CUET-REAS", name: "Logical & Numerical Reasoning", shortName: "Reasoning", questionCount: 20, marksPerQ: 5, timeLimitMin: null, color: "blue", sortOrder: 2, topics: SSC_REAS },
     { id: "CUET-MATH", name: "Quantitative Aptitude", shortName: "Quant", questionCount: 15, marksPerQ: 5, timeLimitMin: null, color: "orange", sortOrder: 3, topics: SSC_MATH },
-    { id: "CUET-ENG", name: "English & Comprehension", shortName: "English", questionCount: 15, marksPerQ: 5, timeLimitMin: null, color: "purple", sortOrder: 4, topics: ENGLISH },
+    { id: "CUET-ENG", name: "English & Comprehension", shortName: "English", questionCount: 15, marksPerQ: 5, timeLimitMin: null, color: "indigo", sortOrder: 4, topics: ENGLISH },
   ],
 };
 export const JEE_MAIN: ExamPattern = {
@@ -338,7 +338,7 @@ export const NEET_UG: ExamPattern = {
   sections: [
     { id: "NEET-PHY", name: "Physics", shortName: "Physics", questionCount: 45, marksPerQ: 4, timeLimitMin: 50, color: "blue", sortOrder: 1, topics: NEET_PHY },
     { id: "NEET-CHEM", name: "Chemistry", shortName: "Chemistry", questionCount: 45, marksPerQ: 4, timeLimitMin: 50, color: "emerald", sortOrder: 2, topics: NEET_CHEM },
-    { id: "NEET-BIO", name: "Biology (Botany & Zoology)", shortName: "Biology", questionCount: 90, marksPerQ: 4, timeLimitMin: 100, color: "purple", sortOrder: 3, topics: NEET_BIO },
+    { id: "NEET-BIO", name: "Biology (Botany & Zoology)", shortName: "Biology", questionCount: 90, marksPerQ: 4, timeLimitMin: 100, color: "indigo", sortOrder: 3, topics: NEET_BIO },
   ],
 };
 

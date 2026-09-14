@@ -185,8 +185,8 @@ export default function RandomTalkPage() {
           >
             <ArrowLeft size={18} className="text-slate-300" />
           </Link>
-          <div className="w-10 h-10 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center shrink-0">
-            <Dices size={20} className="text-pink-400" />
+          <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
+            <Dices size={20} className="text-rose-400" />
           </div>
           <div className="min-w-0">
             <h1 className="text-base md:text-lg font-bold text-white leading-tight truncate">Talk to a Stranger</h1>
@@ -214,8 +214,8 @@ export default function RandomTalkPage() {
       {state === "idle" && (
         <div className="flex-1 flex flex-col justify-center">
           <div className="bg-slate-900/70 backdrop-blur border border-slate-800 rounded-3xl p-8 text-center max-w-md w-full mx-auto">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-pink-500/10 border border-pink-500/20 flex items-center justify-center">
-              <Dices size={36} className="text-pink-400" />
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
+              <Dices size={36} className="text-rose-400" />
             </div>
             <p className="text-xl font-bold text-white mb-2">Meet someone new</p>
             <p className="text-sm text-slate-400 mb-6 leading-relaxed">
@@ -232,7 +232,7 @@ export default function RandomTalkPage() {
 
             <button
               onClick={start}
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 font-bold text-base shadow-lg shadow-pink-900/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              className="w-full py-4 rounded-xl bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 font-bold text-base shadow-lg shadow-rose-900/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
             >
               <Mic size={18} />
               Find Me a Partner
@@ -245,8 +245,8 @@ export default function RandomTalkPage() {
       {state === "waiting" && (
         <div className="flex-1 flex flex-col justify-center">
           <div className="bg-slate-900/70 backdrop-blur border border-slate-800 rounded-3xl p-8 text-center max-w-md w-full mx-auto">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-pink-500/10 border border-pink-500/20 flex items-center justify-center">
-              <Loader2 size={32} className="text-pink-400 animate-spin" />
+            <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
+              <Loader2 size={32} className="text-rose-400 animate-spin" />
             </div>
             <p className="text-xl font-bold text-white mb-2">Finding a partner...</p>
             <p className="text-sm text-slate-400 mb-8 leading-relaxed">

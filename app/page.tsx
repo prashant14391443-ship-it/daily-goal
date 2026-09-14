@@ -43,7 +43,7 @@ export default function Home() {
       <div className="flex gap-3 w-full max-w-xs">
         <Link
           href="/login"
-          className="flex-1 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-5 py-3 font-bold text-center hover:opacity-90 transition-opacity press shadow-lg shadow-violet-500/20"
+          className="flex-1 rounded-xl bg-gradient-to-r from-violet-600 to-violet-600 px-5 py-3 font-bold text-center hover:opacity-90 transition-opacity press shadow-lg shadow-violet-500/20"
         >
           Login
         </Link>

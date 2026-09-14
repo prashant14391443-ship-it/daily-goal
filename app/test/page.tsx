@@ -13,7 +13,7 @@ function metaFor(id: string): { tag: string; icon: any; grad: string } {
   if (id.startsWith("BANK")) return { tag: "Banking", icon: Wallet, grad: "from-emerald-500 to-teal-600" };
   if (id.startsWith("RRB")) return { tag: "Railway", icon: Train, grad: "from-green-500 to-emerald-600" };
   if (id.startsWith("UPSC")) return { tag: "UPSC", icon: ScrollText, grad: "from-amber-500 to-orange-600" };
-  if (id.startsWith("CTET")) return { tag: "Teaching", icon: GraduationCap, grad: "from-purple-500 to-fuchsia-600" };
+  if (id.startsWith("CTET")) return { tag: "Teaching", icon: GraduationCap, grad: "from-indigo-500 to-violet-600" };
   if (id.startsWith("CDS") || id.startsWith("NDA")) return { tag: "Defence", icon: Shield, grad: "from-red-500 to-rose-600" };
   if (id.startsWith("CUET")) return { tag: "University", icon: School, grad: "from-cyan-500 to-blue-600" };
   if (id.startsWith("JEE")) return { tag: "Engineering", icon: Sigma, grad: "from-indigo-500 to-violet-600" };

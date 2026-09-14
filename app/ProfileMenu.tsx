@@ -627,7 +627,7 @@ export default function ProfileMenu() {
           <Link
             href="/feed"
             onClick={() => setOpen(false)}
-            className="text-sm bg-gradient-to-r from-fuchsia-600 to-pink-600 hover:from-fuchsia-500 hover:to-pink-500 transition-all p-3 rounded-xl font-bold flex items-center gap-2 shadow-md"
+            className="text-sm bg-gradient-to-r from-violet-600 to-rose-600 hover:from-violet-500 hover:to-rose-500 transition-all p-3 rounded-xl font-bold flex items-center gap-2 shadow-md"
           >
             📰 Friend Feed
           </Link>

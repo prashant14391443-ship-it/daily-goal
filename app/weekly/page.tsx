@@ -89,7 +89,7 @@ export default function WeeklyPage() {
         { type: "Gym", icon: Dumbbell, color: "text-orange-400", pct: pctDays((d) => d.gymTotal > 0) },
         { type: "Running", icon: Footprints, color: "text-green-400", pct: pctDays((d) => d.runTotal > 0) },
         { type: "Habits", icon: ListChecks, color: "text-emerald-400", pct: pctDays((d) => d.habitNames.length > 0) },
-        { type: "ToDo", icon: ListTodo, color: "text-pink-400", pct: pctDays((d) => d.todoDone.length > 0) },
+        { type: "ToDo", icon: ListTodo, color: "text-rose-400", pct: pctDays((d) => d.todoDone.length > 0) },
       ]);
       const lp = (learns.data || []) as any[];
       setLearnPct(lp.length ? Math.round(lp.reduce((s, l) => s + Math.round(((l.data?.done || []).length / (l.data?.roadmap || [1]).length) * 100), 0) / lp.length) : 0);
@@ -197,7 +197,7 @@ export default function WeeklyPage() {
                   <p className="text-green-400 flex items-center justify-end gap-1.5"><Footprints size={11} />{d.runDist}km</p>
                   <p className="text-amber-400 flex items-center justify-end gap-1.5"><Flame size={11} />{d.calTotal}</p>
                   <p className="text-emerald-400 flex items-center justify-end gap-1.5"><ListChecks size={11} />{d.habitNames.length}</p>
-                  <p className="text-pink-400 flex items-center justify-end gap-1.5"><ListTodo size={11} />{d.todoDone.length}</p>
+                  <p className="text-rose-400 flex items-center justify-end gap-1.5"><ListTodo size={11} />{d.todoDone.length}</p>
                 </div>
               </div>
               {open && (
@@ -209,7 +209,7 @@ export default function WeeklyPage() {
                   {d.runRows.length > 0 && (<div><div className="flex items-center gap-2 text-xs font-semibold text-green-400 mb-2"><Footprints size={13} />RUNNING — {d.runDist} km • {d.runTotal} min</div>{d.runRows.map((r, i) => (<p key={i} className="text-sm text-slate-300 pl-5 py-0.5">• {r.workout} — {r.dist} km, {r.minutes} min</p>))}</div>)}
                   {d.calTotal > 0 && (<div><div className="flex items-center gap-2 text-xs font-semibold text-amber-400 mb-2"><Flame size={13} />CALORIES — {d.calTotal} kcal {calTarget ? `of ${calTarget} target` : ""}</div></div>)}
                   {d.habitNames.length > 0 && (<div><div className="flex items-center gap-2 text-xs font-semibold text-emerald-400 mb-2"><ListChecks size={13} />HABITS DONE</div>{d.habitNames.map((n, i) => (<p key={i} className="text-sm text-slate-300 pl-5 py-0.5">• {n}</p>))}</div>)}
-                  {d.todoTotal > 0 && (<div><div className="flex items-center gap-2 text-xs font-semibold text-pink-400 mb-2"><ListTodo size={13} />TODO — {d.todoDone.length}/{d.todoTotal} done</div>{d.todoDone.map((t, i) => (<p key={i} className="text-sm text-slate-300 pl-5 py-0.5">• {t}</p>))}</div>)}
+                  {d.todoTotal > 0 && (<div><div className="flex items-center gap-2 text-xs font-semibold text-rose-400 mb-2"><ListTodo size={13} />TODO — {d.todoDone.length}/{d.todoTotal} done</div>{d.todoDone.map((t, i) => (<p key={i} className="text-sm text-slate-300 pl-5 py-0.5">• {t}</p>))}</div>)}
                 </div>
               )}
             </button>

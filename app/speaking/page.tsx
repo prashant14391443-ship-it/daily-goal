@@ -12,23 +12,23 @@ const TOPICS = [
   { emoji: "🛒", title: "Buying Groceries", grad: "from-green-500 to-emerald-600", border: "border-green-500/30" },
   { emoji: "👔", title: "Job Interview", grad: "from-blue-500 to-indigo-600", border: "border-blue-500/30" },
   { emoji: "🏠", title: "Your Hometown", grad: "from-amber-500 to-orange-600", border: "border-amber-500/30" },
-  { emoji: "🎉", title: "Festivals & Culture", grad: "from-pink-500 to-rose-600", border: "border-pink-500/30" },
-  { emoji: "🧑‍🤝‍🧑", title: "Describing a Friend", grad: "from-violet-500 to-purple-600", border: "border-violet-500/30" },
+  { emoji: "🎉", title: "Festivals & Culture", grad: "from-rose-500 to-rose-600", border: "border-rose-500/30" },
+  { emoji: "🧑‍🤝‍🧑", title: "Describing a Friend", grad: "from-violet-500 to-indigo-600", border: "border-violet-500/30" },
   { emoji: "🗺️", title: "Famous Places", grad: "from-cyan-500 to-teal-600", border: "border-cyan-500/30" },
   { emoji: "🍕", title: "Food & Restaurants", grad: "from-red-500 to-orange-600", border: "border-red-500/30" },
   { emoji: "📚", title: "Studies & Exams", grad: "from-indigo-500 to-blue-600", border: "border-indigo-500/30" },
   { emoji: "🏏", title: "Sports & Fitness", grad: "from-emerald-500 to-green-600", border: "border-emerald-500/30" },
-  { emoji: "🎬", title: "Movies & Music", grad: "from-fuchsia-500 to-pink-600", border: "border-fuchsia-500/30" },
+  { emoji: "🎬", title: "Movies & Music", grad: "from-violet-500 to-rose-600", border: "border-violet-500/30" },
 ];
 
 const MODES = [
   { id: "topic", emoji: "🗣️", title: "Talk AI — Topic", desc: "Pick a topic & call", grad: "from-emerald-500 to-green-600", border: "border-emerald-500/30", href: null },
   { id: "anything", emoji: "💬", title: "Talk AI — Anything", desc: "Free conversation call", grad: "from-blue-500 to-indigo-600", border: "border-blue-500/30", href: null },
-  { id: "evaluate", emoji: "📊", title: "Record & Analyse", desc: "Score + full report", grad: "from-violet-500 to-purple-600", border: "border-violet-500/30", href: "/evaluate" },
+  { id: "evaluate", emoji: "📊", title: "Record & Analyse", desc: "Score + full report", grad: "from-violet-500 to-indigo-600", border: "border-violet-500/30", href: "/evaluate" },
   { id: "sentences", emoji: "🎯", title: "Sentence Practice", desc: "Fix mistakes + say & score", grad: "from-amber-500 to-orange-600", border: "border-amber-500/30", href: "/sentences" },
   { id: "vocab", emoji: "📚", title: "Vocabulary", desc: "5 words/day + Hindi meanings", grad: "from-emerald-500 to-teal-600", border: "border-emerald-500/30", href: "/vocab" },
   { id: "tips", emoji: "🎓", title: "English Tips", desc: "Speaking • Reading • Writing • Listening", grad: "from-teal-500 to-cyan-600", border: "border-teal-500/30", href: "/english-tips" },
-  { id: "games", emoji: "🎮", title: "Game Zone", desc: "4 games • beat your best", grad: "from-pink-500 to-rose-600", border: "border-pink-500/30", href: "/games" },
+  { id: "games", emoji: "🎮", title: "Game Zone", desc: "4 games • beat your best", grad: "from-rose-500 to-rose-600", border: "border-rose-500/30", href: "/games" },
 ];
 
 const DRILLS = [

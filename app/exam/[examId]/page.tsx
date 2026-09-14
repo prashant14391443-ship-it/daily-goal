@@ -222,7 +222,7 @@ export default function ExamDashboard() {
         {/* ── 2. AI PATTERN PAPERS ── */}
         <div className="rounded-2xl border border-white/5 bg-white/[0.02] overflow-hidden">
           <button onClick={() => toggle("ai")} className="w-full flex items-center gap-3 p-4 text-left">
-            <span className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg">
+            <span className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg">
               <Sparkles size={18} className="text-white" />
             </span>
             <span className="flex-1 min-w-0">

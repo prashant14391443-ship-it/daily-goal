@@ -43,15 +43,15 @@ export default function EnglishHub() {
         </Link>
 
         {/* 2️⃣ TALK TO A STRANGER */}
-        <Link href="/random-talk" className="group bg-slate-900 border border-slate-700 hover:border-pink-500/40 rounded-2xl p-4 flex items-center gap-3 transition-colors">
-          <div className="w-11 h-11 rounded-xl bg-pink-500/10 border border-pink-500/20 flex items-center justify-center shrink-0">
-            <Globe size={20} className="text-pink-400" />
+        <Link href="/random-talk" className="group bg-slate-900 border border-slate-700 hover:border-rose-500/40 rounded-2xl p-4 flex items-center gap-3 transition-colors">
+          <div className="w-11 h-11 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
+            <Globe size={20} className="text-rose-400" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm text-white">Talk to a Stranger</p>
             <p className="text-xs text-slate-400 mt-0.5">1-on-1 voice • practice with real people</p>
           </div>
-          <ArrowRight size={18} className="text-slate-500 group-hover:text-pink-400 transition-colors shrink-0" />
+          <ArrowRight size={18} className="text-slate-500 group-hover:text-rose-400 transition-colors shrink-0" />
         </Link>
 
         {/* 3️⃣ COMMUNITY */}

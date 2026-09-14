@@ -27,7 +27,7 @@ export default function GuestBanner() {
         <p className="text-[10px] text-amber-200/70">Nothing is kept. Create a free account to save your progress.</p>
       </div>
       <button onClick={() => { setHidden(true); router.push("/login"); }}
-        className="shrink-0 px-3 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-[10px] font-black text-white">
+        className="shrink-0 px-3 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-violet-600 text-[10px] font-black text-white">
         Save progress
       </button>
       <button onClick={async () => { await leaveGuest(); router.push("/login"); }}

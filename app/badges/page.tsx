@@ -70,8 +70,8 @@ const SECTIONS = [
   {
     title: "Tasks",
     icon: Target,
-    color: "text-pink-400",
-    tint: "bg-pink-500/10 border-pink-500/20",
+    color: "text-rose-400",
+    tint: "bg-rose-500/10 border-rose-500/20",
     items: [
       { id: "t1", icon: "🎯", name: "Task Starter", desc: "First task done" },
       { id: "t2", icon: "⚡", name: "Task Climber", desc: "10 tasks done" },

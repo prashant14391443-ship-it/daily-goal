@@ -27,11 +27,11 @@ function compressAvatar(f: File): Promise<File> {
 }
 
 const BGS = [
-  "from-violet-600/40 via-slate-900 to-fuchsia-600/30", "from-blue-600/40 via-slate-900 to-cyan-500/30",
+  "from-violet-600/40 via-slate-900 to-violet-600/30", "from-blue-600/40 via-slate-900 to-cyan-500/30",
   "from-green-600/40 via-slate-900 to-emerald-500/30", "from-orange-600/40 via-slate-900 to-amber-500/30",
-  "from-pink-600/40 via-slate-900 to-rose-500/30", "from-red-600/40 via-slate-900 to-orange-500/30",
+  "from-rose-600/40 via-slate-900 to-rose-500/30", "from-red-600/40 via-slate-900 to-orange-500/30",
   "from-teal-600/40 via-slate-900 to-green-500/30", "from-indigo-600/40 via-slate-900 to-blue-500/30",
-  "from-fuchsia-600/40 via-slate-900 to-pink-500/30", "from-slate-700/60 via-slate-900 to-slate-600/40",
+  "from-violet-600/40 via-slate-900 to-rose-500/30", "from-slate-700/60 via-slate-900 to-slate-600/40",
 ];
 
 const EARN = [
@@ -240,7 +240,7 @@ function Inner() {
       {/* 🌆 HERO — clean Instagram style: NO banner, NO boxes */}
       <div className="px-4">
         <div className="flex items-center gap-5">
-          <span className="rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-600 p-[3px] shrink-0 shadow-xl">
+          <span className="rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-violet-600 p-[3px] shrink-0 shadow-xl">
             {prof?.avatar_url ? (
               <img src={prof.avatar_url} className="w-20 h-20 rounded-full object-cover border-4 border-slate-950" alt="" />
             ) : (
@@ -287,7 +287,7 @@ function Inner() {
             <span>{lvl.next ? `${lvl.next.need - coins} 🪙 to ${lvl.next.icon} ${lvl.next.name}` : "🎓 CHAMPION"} • ⏳ {daysLeft}d</span>
           </div>
           <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-amber-400 to-fuchsia-500 rounded-full" style={{ width: `${lvl.next ? Math.min(100, ((coins - lvl.need) / (lvl.next.need - lvl.need)) * 100) : 100}%` }} />
+            <div className="h-full bg-gradient-to-r from-amber-400 to-violet-500 rounded-full" style={{ width: `${lvl.next ? Math.min(100, ((coins - lvl.need) / (lvl.next.need - lvl.need)) * 100) : 100}%` }} />
           </div>
         </button>
       </div>
@@ -313,7 +313,7 @@ function Inner() {
             ) : sentReq ? (
               <span className="flex-1 py-2.5 rounded-xl bg-slate-800 text-xs font-black text-center text-slate-400">Requested</span>
             ) : (
-              <button onClick={addFriend} className="press flex-1 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-xs font-black text-white">Add Friend</button>
+              <button onClick={addFriend} className="press flex-1 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-violet-600 text-xs font-black text-white">Add Friend</button>
             )}
             {(!prof?.is_private || isFriend) && (
               <Link href={`/chat?user=${userId}`} className="press flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-black text-center text-white transition-colors">Message</Link>
@@ -377,7 +377,7 @@ function Inner() {
           <p className="text-xl font-black">Create your first post</p>
           <p className="text-sm text-slate-400 mt-1">Make this space your own.</p>
           {userId === me && (
-            <Link href="/newpost" className="press inline-block mt-4 px-8 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 font-black text-sm">Create</Link>
+            <Link href="/newpost" className="press inline-block mt-4 px-8 py-3 rounded-xl bg-gradient-to-r from-violet-600 to-violet-600 font-black text-sm">Create</Link>
           )}
         </div>
       ) : (
@@ -486,13 +486,13 @@ function Inner() {
               {lvl.next ? (
                 <>
                   <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-gradient-to-r from-amber-400 to-fuchsia-500" style={{ width: `${Math.min(100, ((coins - lvl.need) / (lvl.next.need - lvl.need)) * 100)}%` }} />
+                    <div className="h-full bg-gradient-to-r from-amber-400 to-violet-500" style={{ width: `${Math.min(100, ((coins - lvl.need) / (lvl.next.need - lvl.need)) * 100)}%` }} />
                   </div>
                   <p className="text-[10px] text-slate-500">{lvl.next.need - coins} 🪙 to {lvl.next.icon} {lvl.next.name} • ⏳ resets in {daysLeft}d</p>
                 </>
               ) : (<p className="text-[10px] text-amber-400 font-black">🎓 SEASON CHAMPION!</p>)}
             </div>
-            <div className="rounded-2xl bg-slate-950 border border-fuchsia-500/30 p-4 grid gap-2">
+            <div className="rounded-2xl bg-slate-950 border border-violet-500/30 p-4 grid gap-2">
               <p className="text-[10px] font-black text-slate-400">🌟 LIFETIME (never resets)</p>
               <div className="flex items-center gap-3">
                 <span className="text-4xl">{life >= LIFETIME_LEVELS[0].need ? lifeLvl.icon : "🌱"}</span>
@@ -517,8 +517,8 @@ function Inner() {
                 <p className="text-lg font-black text-amber-400">{coins}</p>
                 <p className="text-[10px] text-slate-400">🏁 this season</p>
               </div>
-              <div className="rounded-2xl bg-slate-950 border border-fuchsia-500/30 p-3 text-center">
-                <p className="text-lg font-black text-fuchsia-400">{life.toLocaleString()}</p>
+              <div className="rounded-2xl bg-slate-950 border border-violet-500/30 p-3 text-center">
+                <p className="text-lg font-black text-violet-400">{life.toLocaleString()}</p>
                 <p className="text-[10px] text-slate-400">🌟 lifetime</p>
               </div>
             </div>
@@ -543,7 +543,7 @@ function Inner() {
             <div className="rounded-2xl bg-slate-950 border border-slate-800 p-4 grid gap-1.5">
               <p className="text-[10px] font-black text-slate-400">🌟 LIFETIME TITLES (forever)</p>
               {LIFETIME_LEVELS.map((l) => (
-                <div key={l.name} className={`flex items-center justify-between text-sm rounded-lg px-2 py-1 ${life >= LIFETIME_LEVELS[0].need && lifeLvl.name === l.name ? "bg-fuchsia-600/20 border border-fuchsia-500/40" : ""}`}>
+                <div key={l.name} className={`flex items-center justify-between text-sm rounded-lg px-2 py-1 ${life >= LIFETIME_LEVELS[0].need && lifeLvl.name === l.name ? "bg-violet-600/20 border border-violet-500/40" : ""}`}>
                   <span>{l.icon} {l.name}</span>
                   <span className="text-xs text-slate-400">{l.need.toLocaleString()} 🪙</span>
                 </div>

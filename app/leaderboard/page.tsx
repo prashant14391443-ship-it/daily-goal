@@ -14,7 +14,7 @@ function Avatar({ url, name, size = "w-10 h-10", ring = "" }: { url: string; nam
   const [err, setErr] = useState(false);
   if (!url || err)
     return (
-      <span className={`${size} ${ring} shrink-0 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center font-black text-white shadow-lg`}>
+      <span className={`${size} ${ring} shrink-0 rounded-full bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center font-black text-white shadow-lg`}>
         {(name || "?").charAt(0).toUpperCase()}
       </span>
     );
@@ -170,7 +170,7 @@ export default function LeaderboardPage() {
 
           {/* 🎯 YOUR RACE TO TOP 10 */}
           {myRow && myIndex >= 10 && (
-            <div className="mb-4 bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 border-2 border-violet-500/40 rounded-2xl p-4 shadow-lg">
+            <div className="mb-4 bg-gradient-to-r from-violet-600/20 to-violet-600/20 border-2 border-violet-500/40 rounded-2xl p-4 shadow-lg">
               <p className="text-[10px] font-black text-violet-300 mb-2">🎯 YOUR RACE TO TOP 10</p>
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div>
@@ -182,7 +182,7 @@ export default function LeaderboardPage() {
                   <p className="text-[9px] font-black text-slate-500 mt-1">TO ENTER TOP 10</p>
                 </div>
                 <div>
-                  <p className="text-lg font-black text-fuchsia-400 leading-none">{gapAbove} 🪙</p>
+                  <p className="text-lg font-black text-violet-400 leading-none">{gapAbove} 🪙</p>
                   <p className="text-[9px] font-black text-slate-500 mt-1">TO PASS {above?.name.split(" ")[0].toUpperCase()}</p>
                 </div>
               </div>

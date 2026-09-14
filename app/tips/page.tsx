@@ -89,7 +89,7 @@ const categoryIcons: Record<string, any> = {
 
 const categoryColors: Record<string, string> = {
   Speaking: "from-blue-500 to-cyan-600",
-  Pronunciation: "from-purple-500 to-pink-600",
+  Pronunciation: "from-indigo-500 to-rose-600",
   Vocabulary: "from-green-500 to-emerald-600",
   Writing: "from-amber-500 to-orange-600",
   Interview: "from-slate-600 to-gray-700",

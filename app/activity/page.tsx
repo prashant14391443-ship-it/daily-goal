@@ -29,9 +29,9 @@ const TYPE_STYLES: Record<string, { emoji: string; grad: string; border: string 
   friend_request: { emoji: "🤝", grad: "from-green-500 to-emerald-600", border: "border-green-500/40" },
   friend_accepted: { emoji: "✅", grad: "from-emerald-500 to-teal-600", border: "border-emerald-500/40" },
   message: { emoji: "💬", grad: "from-blue-500 to-indigo-600", border: "border-blue-500/40" },
-  like: { emoji: "❤️", grad: "from-pink-500 to-rose-600", border: "border-pink-500/40" },
+  like: { emoji: "❤️", grad: "from-rose-500 to-rose-600", border: "border-rose-500/40" },
   streak: { emoji: "🔥", grad: "from-orange-500 to-red-600", border: "border-orange-500/40" },
-  system: { emoji: "🔔", grad: "from-violet-500 to-fuchsia-600", border: "border-violet-500/40" },
+  system: { emoji: "🔔", grad: "from-violet-500 to-violet-600", border: "border-violet-500/40" },
   coin: { emoji: "🪙", grad: "from-amber-500 to-orange-600", border: "border-amber-500/40" },
   default: { emoji: "📬", grad: "from-slate-500 to-slate-700", border: "border-slate-500/40" },
 };
@@ -177,7 +177,7 @@ export default function ActivityPage() {
           <p className="text-5xl mb-3">🤝</p>
           <p className="text-lg font-black text-white mb-1">All quiet here</p>
           <p className="text-xs text-slate-400 mb-4">Make some friends to see activity!</p>
-          <Link href="/search" className="press inline-block px-6 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-xs font-black shadow-lg shadow-violet-900/30">
+          <Link href="/search" className="press inline-block px-6 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-violet-600 text-xs font-black shadow-lg shadow-violet-900/30">
             🔍 Find friends
           </Link>
         </div>

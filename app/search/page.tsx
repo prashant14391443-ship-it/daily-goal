@@ -7,8 +7,8 @@ import Link from "next/link";
 type P = { user_id: string; display_name: string; avatar_url: string; is_private: boolean };
 
 const GRADS = [
-  "from-violet-500 to-fuchsia-600", "from-blue-500 to-indigo-600", "from-green-500 to-emerald-600",
-  "from-amber-500 to-orange-600", "from-pink-500 to-rose-600", "from-cyan-500 to-teal-600",
+  "from-violet-500 to-violet-600", "from-blue-500 to-indigo-600", "from-green-500 to-emerald-600",
+  "from-amber-500 to-orange-600", "from-rose-500 to-rose-600", "from-cyan-500 to-teal-600",
 ];
 function gradFor(s: string) {
   let h = 0;
@@ -72,7 +72,7 @@ export default function SearchPage() {
     if (sentReqs.has(uid))
       return <span className="shrink-0 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-[10px] font-black text-slate-400">⏳ Sent</span>;
     return (
-      <button onClick={() => addFriend(uid)} className="press shrink-0 px-4 py-1.5 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-[10px] font-black text-white shadow-lg shadow-violet-900/30">
+      <button onClick={() => addFriend(uid)} className="press shrink-0 px-4 py-1.5 rounded-full bg-gradient-to-r from-violet-600 to-violet-600 text-[10px] font-black text-white shadow-lg shadow-violet-900/30">
         + Add
       </button>
     );

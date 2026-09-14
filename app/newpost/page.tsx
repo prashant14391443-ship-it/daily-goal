@@ -6,15 +6,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 const BGS = [
-  "from-violet-600/40 via-slate-900 to-fuchsia-600/30",
+  "from-violet-600/40 via-slate-900 to-violet-600/30",
   "from-blue-600/40 via-slate-900 to-cyan-500/30",
   "from-green-600/40 via-slate-900 to-emerald-500/30",
   "from-orange-600/40 via-slate-900 to-amber-500/30",
-  "from-pink-600/40 via-slate-900 to-rose-500/30",
+  "from-rose-600/40 via-slate-900 to-rose-500/30",
   "from-red-600/40 via-slate-900 to-orange-500/30",
   "from-teal-600/40 via-slate-900 to-green-500/30",
   "from-indigo-600/40 via-slate-900 to-blue-500/30",
-  "from-fuchsia-600/40 via-slate-900 to-pink-500/30",
+  "from-violet-600/40 via-slate-900 to-rose-500/30",
   "from-slate-700/60 via-slate-900 to-slate-600/40",
 ];
 
@@ -203,7 +203,7 @@ export default function NewPostPage() {
             className={`press flex-1 py-3.5 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all ${
               posting || (!text.trim() && !photo)
                 ? "bg-slate-900 border border-slate-800 text-slate-600"
-                : "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-violet-900/30"
+                : "bg-gradient-to-r from-violet-600 to-violet-600 text-white shadow-lg shadow-violet-900/30"
             }`}
           >
             {posting ? "⏳ Posting..." : "🚀 Post"}

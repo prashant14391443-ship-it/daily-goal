@@ -152,7 +152,7 @@ export default function HabitStatsPage() {
                 {/* 📈 PROGRESS BAR */}
                 <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-full"
+                    className="h-full bg-gradient-to-r from-violet-500 to-violet-500 rounded-full"
                     style={{ width: `${s.pct}%` }}
                   />
                 </div>

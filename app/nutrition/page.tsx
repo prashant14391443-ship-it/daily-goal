@@ -43,7 +43,7 @@ const MEALS = [
   { key: "breakfast", icon: "🌅", label: "Breakfast", grad: "from-amber-500 to-orange-600", border: "border-amber-500/30" },
   { key: "lunch", icon: "☀️", label: "Lunch", grad: "from-orange-500 to-red-600", border: "border-orange-500/30" },
   { key: "dinner", icon: "🌙", label: "Dinner", grad: "from-indigo-500 to-violet-600", border: "border-indigo-500/30" },
-  { key: "snacks", icon: "🍿", label: "Snacks", grad: "from-pink-500 to-rose-600", border: "border-pink-500/30" },
+  { key: "snacks", icon: "🍿", label: "Snacks", grad: "from-rose-500 to-rose-600", border: "border-rose-500/30" },
   { key: "extra", icon: "➕", label: "Extra Meals", grad: "from-slate-500 to-slate-700", border: "border-slate-500/30" },
 ];
 
@@ -238,7 +238,7 @@ export default function NutritionPage() {
         </div>
         <div className="bg-slate-900 border border-violet-500/30 rounded-2xl p-3 shadow-lg shadow-black/30">
           <div className="flex items-center gap-2 mb-2">
-            <IconTile emoji="🎯" gradient="bg-gradient-to-br from-violet-500 to-fuchsia-600" size="sm" />
+            <IconTile emoji="🎯" gradient="bg-gradient-to-br from-violet-500 to-violet-600" size="sm" />
             <p className="text-[10px] font-black text-slate-400">TARGETS</p>
           </div>
           <button
@@ -257,7 +257,7 @@ export default function NutritionPage() {
           <input type="number" value={gPro} onChange={(e) => setGPro(e.target.value)} placeholder="protein g" className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
           <input type="number" value={gCarb} onChange={(e) => setGCarb(e.target.value)} placeholder="carbs g" className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
           <input type="number" value={gFat} onChange={(e) => setGFat(e.target.value)} placeholder="fat g" className="p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
-          <GradButton type="submit" gradient="from-violet-600 to-fuchsia-600" className="col-span-2 py-3 text-sm">
+          <GradButton type="submit" gradient="from-violet-600 to-violet-600" className="col-span-2 py-3 text-sm">
             💾 Save Targets
           </GradButton>
         </form>

@@ -63,7 +63,7 @@ const CHIPS = [
   { label: "📅 Plan my day", grad: "from-blue-500 to-indigo-600" },
   { label: "💪 Motivate me", grad: "from-orange-500 to-red-600" },
   { label: "🍽️ What should I eat?", grad: "from-green-500 to-emerald-600" },
-  { label: "📚 Study tip", grad: "from-violet-500 to-fuchsia-600" },
+  { label: "📚 Study tip", grad: "from-violet-500 to-violet-600" },
   { label: "🗂️ Summarize my week", grad: "from-teal-500 to-cyan-600" },
 ];
 
@@ -295,7 +295,7 @@ export default function AIPage() {
 
       <div className="relative mb-3 flex items-center justify-between shrink-0 z-10">
         <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-lg bg-gradient-to-br from-violet-600 to-fuchsia-600 shadow-lg shadow-violet-900/30">
+          <div className="p-1.5 rounded-lg bg-gradient-to-br from-violet-600 to-violet-600 shadow-lg shadow-violet-900/30">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div>
@@ -327,13 +327,13 @@ export default function AIPage() {
         {msgs.map((m, i) => (
           <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             {m.role === "assistant" && (
-              <div className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg self-end">
+              <div className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center shadow-lg self-end">
                 <Sparkles className="w-3.5 h-3.5 text-white" />
               </div>
             )}
             <div className={`max-w-[80%] p-3 rounded-2xl text-sm whitespace-pre-wrap shadow-md leading-relaxed ${
               m.role === "user"
-                ? "bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white rounded-br-sm"
+                ? "bg-gradient-to-br from-violet-600 to-violet-600 text-white rounded-br-sm"
                 : "bg-slate-800/80 backdrop-blur text-slate-100 rounded-bl-sm border border-slate-700/50"
             }`}>
               {m.content}
@@ -343,7 +343,7 @@ export default function AIPage() {
 
         {loading && voiceState !== "speaking" && (
           <div className="flex gap-2 justify-start">
-            <div className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center shadow-lg">
+            <div className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-violet-500 to-violet-600 flex items-center justify-center shadow-lg">
               <Sparkles className="w-3.5 h-3.5 text-white animate-pulse" />
             </div>
             <div className="bg-slate-800/80 border border-slate-700/50 p-3 rounded-2xl rounded-bl-sm shadow-md flex items-center gap-1">
@@ -399,7 +399,7 @@ export default function AIPage() {
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="shrink-0 w-11 h-11 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white disabled:opacity-40 shadow-lg shadow-violet-900/30 transition-all active:scale-95 flex items-center justify-center"
+            className="shrink-0 w-11 h-11 rounded-full bg-gradient-to-r from-violet-600 to-violet-600 text-white disabled:opacity-40 shadow-lg shadow-violet-900/30 transition-all active:scale-95 flex items-center justify-center"
           >
             <Send className="w-4 h-4" />
           </button>

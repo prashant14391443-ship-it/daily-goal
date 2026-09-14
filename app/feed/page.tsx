@@ -27,11 +27,11 @@ const BANNED = ["fuck", "shit", "bitch", "asshole", "dick", "pussy", "nigga", "n
 const bad = (t: string) => BANNED.some((w) => t.toLowerCase().includes(w));
 
 const BGS = [
-  "from-violet-600/40 via-slate-900 to-fuchsia-600/30", "from-blue-600/40 via-slate-900 to-cyan-500/30",
+  "from-violet-600/40 via-slate-900 to-violet-600/30", "from-blue-600/40 via-slate-900 to-cyan-500/30",
   "from-green-600/40 via-slate-900 to-emerald-500/30", "from-orange-600/40 via-slate-900 to-amber-500/30",
-  "from-pink-600/40 via-slate-900 to-rose-500/30", "from-red-600/40 via-slate-900 to-orange-500/30",
+  "from-rose-600/40 via-slate-900 to-rose-500/30", "from-red-600/40 via-slate-900 to-orange-500/30",
   "from-teal-600/40 via-slate-900 to-green-500/30", "from-indigo-600/40 via-slate-900 to-blue-500/30",
-  "from-fuchsia-600/40 via-slate-900 to-pink-500/30", "from-slate-700/60 via-slate-900 to-slate-600/40",
+  "from-violet-600/40 via-slate-900 to-rose-500/30", "from-slate-700/60 via-slate-900 to-slate-600/40",
 ];
 
 const rankOf = (c: number) => levelOf(SEASON_LEVELS, c).icon;
@@ -110,13 +110,13 @@ function Avatar({ p, size = "w-9 h-9", ring = false }: { p?: Profile; size?: str
   const inner = p?.avatar_url && !err ? (
     <img src={p.avatar_url} onError={() => setErr(true)} className={`${size} rounded-full object-cover border-2 border-slate-950`} alt="" />
   ) : (
-    <span className={`${size} rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 border-2 border-slate-950 flex items-center justify-center font-black text-white shadow-md`}>
+    <span className={`${size} rounded-full bg-gradient-to-br from-violet-500 to-violet-600 border-2 border-slate-950 flex items-center justify-center font-black text-white shadow-md`}>
       {letter}
     </span>
   );
   if (!ring) return inner;
   return (
-    <span className="rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-600 p-[2px] inline-block hover:scale-105 transition-transform cursor-pointer">
+    <span className="rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-violet-600 p-[2px] inline-block hover:scale-105 transition-transform cursor-pointer">
       {inner}
     </span>
   );
@@ -350,7 +350,7 @@ export default function FeedPage() {
         {/* 🌆 CALM TOP BAR */}
         <div className="sticky top-0 z-10 bg-slate-950/95 backdrop-blur-xl flex items-center justify-between px-4 py-3 border-b border-slate-800/60">
           <p className="font-black text-xl tracking-tight cursor-pointer hover:opacity-80 transition-opacity">
-            🎯 Daily<span className="text-fuchsia-400">Goal</span>
+            🎯 Daily<span className="text-violet-400">Goal</span>
           </p>
           <div className="flex items-center gap-2">
             <Link href="/leaderboard" className="press w-9 h-9 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-amber-400 hover:border-amber-500/40 transition-colors">
@@ -372,7 +372,7 @@ export default function FeedPage() {
             <span className="relative inline-block">
               <span
                 onClick={() => (storyMap.has(me) ? setViewStory({ user: me, index: 0 }) : setCreatingStory(true))}
-                className={storyMap.has(me) ? "rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-fuchsia-600 p-[2px] inline-block hover:scale-105 transition-transform" : "inline-block group-hover:scale-105 transition-transform"}
+                className={storyMap.has(me) ? "rounded-full bg-gradient-to-tr from-amber-400 via-rose-500 to-violet-600 p-[2px] inline-block hover:scale-105 transition-transform" : "inline-block group-hover:scale-105 transition-transform"}
               >
                 <Avatar p={myProf} size="w-16 h-16" />
               </span>
@@ -614,7 +614,7 @@ export default function FeedPage() {
               <label className="press px-5 py-3.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-violet-500/40 text-lg cursor-pointer flex items-center justify-center">
                 📷<input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setSPhoto(f); setSPreview(URL.createObjectURL(f)); setSPos({ x: 50, y: 50 }); } }} className="hidden" />
               </label>
-              <button onClick={shareStory} className="press flex-1 py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-sm font-black">Share story</button>
+              <button onClick={shareStory} className="press flex-1 py-3.5 rounded-xl bg-gradient-to-r from-violet-600 to-violet-600 text-sm font-black">Share story</button>
             </div>
           </div>
         </div>
