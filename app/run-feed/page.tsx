@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { ArrowLeft, Trash2, Flag, MapPin } from "lucide-react";
 
-// 👉 change this if your public profile route is different (e.g. /friend?id= or /u/[id])
-const profileHref = (id: string) => `/u/${id}`;
+// 👉 If your profile page folder is NOT app/profile, change this (e.g. "/u" or "/me")
+const PROFILE_ROUTE = "/profile";
 
 type RoutePt = { lat: number; lon: number; alt: number | null };
 function routePoints(route: RoutePt[] | null): string {
@@ -27,13 +27,23 @@ export default function RunFeedPage() {
   const router = useRouter();
   const [uid, setUid] = useState("");
   const [posts, setPosts] = useState<any[]>([]);
+  const [profMap, setProfMap] = useState<Record<string, { name: string; avatar: string }>>({});
 
   const load = async () => {
     const { data } = await supabase.auth.getSession();
     const id = data.session?.user.id || "";
     setUid(id);
     const { data: rows } = await supabase.from("move_posts").select("*").order("created_at", { ascending: false }).limit(50);
-    setPosts(rows || []);
+    const list = rows || [];
+    setPosts(list);
+    // fetch REAL names + photos from profiles table
+    const ids = Array.from(new Set(list.map((r) => r.user_id).filter(Boolean)));
+    if (ids.length) {
+      const { data: profs } = await supabase.from("profiles").select("user_id, display_name, avatar_url").in("user_id", ids);
+      const map: Record<string, { name: string; avatar: string }> = {};
+      (profs || []).forEach((p: any) => { map[p.user_id] = { name: p.display_name || "", avatar: p.avatar_url || "" }; });
+      setProfMap(map);
+    }
   };
   useEffect(() => { load(); }, []);
 
@@ -58,30 +68,35 @@ export default function RunFeedPage() {
         </div>
       ) : (
         <div className="grid gap-3">
-          {posts.map((f) => (
-            <div key={f.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex items-center gap-3">
-              {/* clickable profile (photo + name + data) */}
-              <button onClick={() => router.push(profileHref(f.user_id))} className="flex items-center gap-3 flex-1 min-w-0 text-left">
-                {f.avatar_url ? (
-                  <img src={f.avatar_url} alt={f.display_name} className="w-11 h-11 rounded-full object-cover border-2 border-slate-700 shrink-0" />
-                ) : (
-                  <span className="w-11 h-11 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-base font-black shrink-0">{(f.display_name || "?").charAt(0).toUpperCase()}</span>
-                )}
-                <span className="flex-1 min-w-0">
-                  <span className="block text-[13px] font-bold text-white truncate">{f.display_name} · {f.mode}</span>
-                  <span className="block text-[10px] text-slate-500">{f.distance_km} km · {fmtTime(f.duration_sec || 0)} · {f.calories} kcal</span>
-                  <span className="block text-[9px] text-slate-600 mt-0.5">{new Date(f.created_at).toLocaleDateString()}</span>
-                </span>
-              </button>
-              <RouteMap route={f.route} size={48} />
-              <div className="shrink-0 text-right flex flex-col items-end gap-1">
-                <span className="text-[11px] font-black text-amber-300">+{f.coins} 🪙</span>
-                {f.user_id === uid && (
-                  <button onClick={() => del(f.id)} className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 flex items-center justify-center"><Trash2 size={13} /></button>
-                )}
+          {posts.map((f) => {
+            const prof = profMap[f.user_id];
+            const name = prof?.name || f.display_name || "Athlete";
+            const avatar = prof?.avatar || f.avatar_url || "";
+            return (
+              <div key={f.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-3 flex items-center gap-3">
+                {/* clickable → THEIR real profile */}
+                <button onClick={() => router.push(`${PROFILE_ROUTE}?user=${f.user_id}`)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                  {avatar ? (
+                    <img src={avatar} alt={name} className="w-11 h-11 rounded-full object-cover border-2 border-slate-700 shrink-0" />
+                  ) : (
+                    <span className="w-11 h-11 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-base font-black shrink-0">{name.charAt(0).toUpperCase()}</span>
+                  )}
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-[13px] font-bold text-white truncate">{name} · {f.mode}</span>
+                    <span className="block text-[10px] text-slate-500">{f.distance_km} km · {fmtTime(f.duration_sec || 0)} · {f.calories} kcal</span>
+                    <span className="block text-[9px] text-slate-600 mt-0.5">{new Date(f.created_at).toLocaleDateString()}</span>
+                  </span>
+                </button>
+                <RouteMap route={f.route} size={48} />
+                <div className="shrink-0 flex flex-col items-end gap-1">
+                  <span className="text-[11px] font-black text-amber-300">+{f.coins} 🪙</span>
+                  {f.user_id === uid && (
+                    <button onClick={() => del(f.id)} className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 flex items-center justify-center"><Trash2 size={13} /></button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </main>
