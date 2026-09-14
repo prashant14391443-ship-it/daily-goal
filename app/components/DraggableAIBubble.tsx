@@ -70,7 +70,7 @@ export default function DraggableAIBubble() {
       }`}
       title="Hold & drag to move • Tap to open AI"
     >
-      🤖
+      ✨
     </button>
   );
 }
