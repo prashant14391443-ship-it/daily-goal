@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ListChecks, BarChart3, Snowflake, Sunrise, Ban, HeartHandshake } from "lucide-react";
+import { ListChecks, BarChart3, Snowflake, Sunrise, Ban, GraduationCap } from "lucide-react";
 
 export default function HabitsHub() {
   return (
@@ -58,13 +58,12 @@ export default function HabitsHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Quit list, clean streaks & money saved</p>
         </Link>
 
-        {/* ✅ NEW: 6th square card — Self-Care */}
-        <Link href="/self-care" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
-          <span className="w-9 h-9 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center mb-4">
-            <HeartHandshake size={18} strokeWidth={2.2} />
+        <Link href="/skill-lab" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <span className="w-9 h-9 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center mb-4">
+            <GraduationCap size={18} strokeWidth={2.2} />
           </span>
-          <p className="font-black text-sm text-white">Self-Care</p>
-          <p className="text-[10px] text-slate-500 mt-0.5">Ancient rituals, modern science</p>
+          <p className="font-black text-sm text-white">Skill Lab</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">7-day paths • real mental models</p>
         </Link>
       </div>
     </main>
