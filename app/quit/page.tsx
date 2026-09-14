@@ -16,7 +16,6 @@ function toLocalISO(d: Date) {
 }
 
 const REMIND_TIMES = ["06:00", "07:00", "08:00", "12:00", "17:00", "19:00", "20:00", "21:00", "22:00"];
-const TIME_OPTIONS = Array.from({ length: 38 }, (_, i) => { const m = 300 + i * 30; return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; });
 
 const TEMPLATES = [
   { emoji: "📱", name: "Reels / short videos", cost: 0, time: 30, reason: "Steals my focus & sleep", replacement: "10 push-ups or read 1 page", remind: "21:00" },
@@ -31,6 +30,7 @@ const Label = ({ t }: { t: string }) => <span className="text-[10px] font-black 
 
 export default function QuitPage() {
   const today = toLocalISO(new Date());
+  const [view, setView] = useState<"today" | "add" | "review">("today");
   const [uid, setUid] = useState("");
   const [habits, setHabits] = useState<Bad[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
@@ -77,6 +77,7 @@ export default function QuitPage() {
 
   const todayLog = (id: string) => logs.find((l) => l.bad_habit_id === id && l.log_date === today);
 
+  /* daily check-in nudge at each habit's reminder_time */
   useEffect(() => {
     const check = () => {
       const now = new Date();
@@ -142,21 +143,23 @@ export default function QuitPage() {
       reminder_time: finalRemind,
     }).select().single();
     if (!error && data) setHabits([...habits, data as Bad]);
-    setName(""); setReason(""); setReplacement(""); setCost(""); setTime(""); setEmoji("🚫"); setRemTime("");
+    setName(""); setReason(""); setReplacement(""); setCost(""); setTime(""); setEmoji("🚫"); setRemTime(""); setView("today");
   };
 
   const del = async (id: string) => { await supabase.from("bad_habits").delete().eq("id", id); setHabits(habits.filter((h) => h.id !== id)); };
 
   const fmtTime = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
   const inputCls = "w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-rose-500";
+  const timeCls = inputCls + " [color-scheme:dark] text-slate-200";
 
-  const TimeSelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
-      <option value="">No time</option>
-      {TIME_OPTIONS.map((t) => (<option key={t} value={t}>{t}</option>))}
-      {value && !TIME_OPTIONS.includes(value) && (<option value={value}>{value} (custom)</option>)}
-    </select>
-  );
+  const last7 = Array.from({ length: 7 }, (_, i) => toLocalISO(new Date(Date.now() - (6 - i) * 86400000)));
+  const isClean = (hid: string, d: string) => logs.some((l) => l.bad_habit_id === hid && l.log_date === d && l.clean);
+  const isSlip = (hid: string, d: string) => logs.some((l) => l.bad_habit_id === hid && l.log_date === d && !l.clean);
+
+  const cleanToday = habits.filter((h) => todayLog(h.id)?.clean).length;
+  const totalClean = logs.filter((l) => l.clean).length;
+  const savedRs = habits.reduce((a, h) => a + statsFor(h.id).total * h.cost_per, 0);
+  const savedMin = habits.reduce((a, h) => a + statsFor(h.id).total * h.time_per, 0);
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
@@ -166,93 +169,152 @@ export default function QuitPage() {
           <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center"><Ban size={22} className="text-white" /></span>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Bad Habit Breaker</h1>
-            <p className="text-[11px] text-white/75 font-semibold mt-0.5">Don&apos;t just remove — replace. Track clean days & money saved.</p>
+            <p className="text-[11px] text-white/75 font-semibold mt-0.5">Today: tap once. Add and review only when needed.</p>
           </div>
         </div>
       </div>
 
-      {/* ✅ CARDS NOW MIRROR THE HABIT LOG CARD LAYOUT: tile left, text middle, icon right */}
-      <div className="grid gap-3 mb-5">
-        {habits.map((h) => {
-          const stats = statsFor(h.id);
-          const tLog = todayLog(h.id);
-          return (
-            <div key={h.id} className="rounded-2xl p-4 border bg-slate-900 border-slate-800">
-              <div className="flex items-center gap-3">
-                <span className="w-12 h-12 shrink-0 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-2xl">{h.emoji}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-black text-sm truncate">{h.name}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">Why: {h.reason} → <span className="text-emerald-400 font-bold">{h.replacement}</span></p>
-                  <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-orange-400"><Flame size={11} /> {stats.cur}</span>
-                    <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-yellow-400"><Trophy size={11} /> {stats.best}</span>
-                    {h.cost_per > 0 && <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-emerald-400"><Coins size={11} /> ₹{stats.total * h.cost_per}</span>}
-                    {h.time_per > 0 && <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-blue-400"><Clock size={11} /> {fmtTime(stats.total * h.time_per)}</span>}
-                    {h.reminder_time && <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-rose-400"><Clock size={11} /> {h.reminder_time}</span>}
+      {/* ✅ SAME 3-TAB SYSTEM AS HABIT LOG */}
+      <div className="grid grid-cols-3 gap-2 mb-5">
+        {(["today", "add", "review"] as const).map((v) => (
+          <button key={v} onClick={() => setView(v)} className={`press py-2.5 rounded-xl text-xs font-black border ${view === v ? "bg-rose-500/15 border-rose-500/30 text-rose-300" : "bg-slate-900 border-slate-800 text-slate-400"}`}>
+            {v === "today" ? "✅ Today" : v === "add" ? "➕ Add" : "📊 Review"}
+          </button>
+        ))}
+      </div>
+
+      {view === "today" && (
+        <>
+          {habits.length > 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
+              <div className="flex justify-between text-xs font-black mb-2"><span className="text-slate-400">TODAY</span><span className="text-emerald-400">{cleanToday}/{habits.length} clean</span></div>
+              <div className="h-2 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${habits.length ? (cleanToday / habits.length) * 100 : 0}%` }} /></div>
+            </div>
+          )}
+
+          <div className="grid gap-3 mb-5">
+            {habits.map((h) => {
+              const stats = statsFor(h.id);
+              const tLog = todayLog(h.id);
+              return (
+                <div key={h.id} className={`rounded-2xl p-4 border transition-all ${tLog?.clean ? "bg-emerald-500/10 border-emerald-500/40" : "bg-slate-900 border-slate-800"}`}>
+                  <div className="flex items-center gap-3">
+                    <span className="w-12 h-12 shrink-0 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-2xl">{h.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-sm truncate">{h.name}</p>
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">Why: {h.reason} → <span className="text-emerald-400 font-bold">{h.replacement}</span></p>
+                      <p className="text-[10px] text-slate-400 mt-0.5 flex flex-wrap gap-x-2">
+                        <span className="flex items-center gap-0.5 text-orange-400 font-black"><Flame size={10} />{stats.cur}</span>
+                        <span className="flex items-center gap-0.5 text-yellow-400 font-black"><Trophy size={10} />{stats.best}</span>
+                        {h.cost_per > 0 && <span className="flex items-center gap-0.5 text-emerald-400 font-black"><Coins size={10} />₹{stats.total * h.cost_per}</span>}
+                        {h.time_per > 0 && <span className="flex items-center gap-0.5 text-blue-400 font-black"><Clock size={10} />{fmtTime(stats.total * h.time_per)}</span>}
+                        {h.reminder_time && <span className="flex items-center gap-0.5 text-rose-400 font-black"><Clock size={10} />{h.reminder_time}</span>}
+                      </p>
+                    </div>
+                    <button onClick={() => del(h.id)} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={13} /></button>
+                  </div>
+                  <div className="mt-3">
+                    {tLog ? (
+                      <div className="flex items-center justify-between bg-slate-950 rounded-xl p-2 border border-slate-800">
+                        <span className={`text-xs font-bold ${tLog.clean ? "text-emerald-400" : "text-rose-400"}`}>
+                          {tLog.clean ? "✅ Clean today" : "❌ Relapsed today"}
+                        </span>
+                        <button onClick={() => undo(h)} className="press text-[10px] text-slate-400 hover:text-white flex items-center gap-1"><RefreshCw size={10} /> Undo</button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => mark(h, true)} className="press py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-black hover:bg-emerald-500/20">I stayed clean</button>
+                        <button onClick={() => mark(h, false)} className="press py-2 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-black hover:bg-rose-500/20">I slipped up</button>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <button onClick={() => del(h.id)} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={13} /></button>
-              </div>
-              <div className="mt-3">
-                {tLog ? (
-                  <div className="flex items-center justify-between bg-slate-950 rounded-xl p-2 border border-slate-800">
-                    <span className={`text-xs font-bold ${tLog.clean ? "text-emerald-400" : "text-rose-400"}`}>
-                      {tLog.clean ? "✅ Clean today" : "❌ Relapsed today"}
-                    </span>
-                    <button onClick={() => undo(h)} className="press text-[10px] text-slate-400 hover:text-white flex items-center gap-1"><RefreshCw size={10} /> Undo</button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => mark(h, true)} className="press py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-black hover:bg-emerald-500/20">I stayed clean</button>
-                    <button onClick={() => mark(h, false)} className="press py-2 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-black hover:bg-rose-500/20">I slipped up</button>
-                  </div>
-                )}
+              );
+            })}
+
+            {habits.length === 0 && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center"><p className="text-3xl mb-2">❤️‍🩹</p><p className="text-sm text-slate-400">No bad habits yet — check the Add tab to start!</p></div>
+            )}
+          </div>
+        </>
+      )}
+
+      {view === "add" && (
+        <>
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid gap-2 mb-4">
+            <p className="text-xs font-black text-slate-400 mb-1 flex items-center gap-1.5"><Plus size={13} className="text-rose-400" /> CREATE CUSTOM HABIT</p>
+            <div className="grid grid-cols-4 gap-2">
+              <div className="grid gap-1"><Label t="EMOJI" /><input value={emoji} onChange={(e) => setEmoji(e.target.value)} maxLength={4} className={inputCls} /></div>
+              <div className="col-span-3 grid gap-1"><Label t="HABIT NAME" /><input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Nail biting" className={inputCls} /></div>
+            </div>
+            <div className="grid gap-1"><Label t="WHY QUIT?" /><input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Health" className={inputCls} /></div>
+            <div className="grid gap-1"><Label t="REPLACE WITH" /><input value={replacement} onChange={(e) => setReplacement(e.target.value)} placeholder="e.g. Chew gum" className={inputCls} /></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="grid gap-1"><Label t="₹ EACH TIME" /><input type="number" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0" className={inputCls} /></div>
+              <div className="grid gap-1"><Label t="MIN EACH TIME" /><input type="number" value={time} onChange={(e) => setTime(e.target.value)} placeholder="0" className={inputCls} /></div>
+            </div>
+            {/* ✅ CLOCK SYSTEM — pick any exact time easily */}
+            <div className="grid gap-1"><Label t="⏰ TIME (OPTIONAL)" /><input type="time" value={remTime} onChange={(e) => setRemTime(e.target.value)} className={timeCls} /></div>
+            <button onClick={() => addHabit()} className="press w-full py-3 rounded-xl bg-rose-600 text-sm font-black mt-1">Add to Quit List</button>
+          </div>
+
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
+            <p className="text-xs font-black text-slate-400 mb-1">QUICK START TEMPLATES</p>
+            <p className="text-[10px] text-slate-500 font-bold mb-2">Tap → set check-in time → done</p>
+            <div className="grid grid-cols-2 gap-2">
+              {TEMPLATES.map((t, i) => (
+                <button key={i} onClick={() => { setPendingTime(t.remind || "21:00"); setPendingT(t); }} className="press text-left bg-slate-800/60 border border-slate-700 rounded-xl p-2.5 hover:border-rose-500/40">
+                  <p className="text-xs font-bold text-white">{t.emoji} {t.name}</p>
+                  <p className="text-[9px] text-slate-500 mt-0.5">Rep: {t.replacement}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {view === "review" && (
+        <>
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 text-center">
+              <p className="text-xl font-black text-emerald-400">{totalClean}</p>
+              <p className="text-[9px] text-slate-500 font-black mt-1">CLEAN DAYS</p>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 text-center">
+              <p className="text-xl font-black text-yellow-400">₹{savedRs}</p>
+              <p className="text-[9px] text-slate-500 font-black mt-1">SAVED</p>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 text-center">
+              <p className="text-xl font-black text-blue-400">{fmtTime(savedMin)}</p>
+              <p className="text-[9px] text-slate-500 font-black mt-1">TIME BACK</p>
+            </div>
+          </div>
+
+          {habits.length > 0 && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4 overflow-x-auto">
+              <p className="text-xs font-black text-slate-400 mb-2">📜 Clean grid — last 7 days</p>
+              <div className="min-w-[420px]">
+                <div className="grid" style={{ gridTemplateColumns: "1fr repeat(7, 28px)" }}>
+                  <div />
+                  {last7.map((d) => (<div key={d} className="text-[9px] text-slate-500 font-black text-center">{d.slice(8)}</div>))}
+                  {habits.map((h) => (
+                    <div key={h.id} className="contents">
+                      <div className="text-[10px] text-slate-300 font-bold truncate pr-2 py-1">{h.emoji} {h.name}</div>
+                      {last7.map((d) => (
+                        <div key={d} className="flex items-center justify-center py-1">
+                          <span className={`w-3.5 h-3.5 rounded-full ${isClean(h.id, d) ? "bg-emerald-500" : isSlip(h.id, d) ? "bg-rose-500" : "bg-slate-800"}`} />
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          );
-        })}
-        {habits.length === 0 && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
-            <p className="text-3xl mb-2">❤️‍</p>
-            <p className="text-sm text-slate-400">Ready to quit a bad habit? Start below.</p>
-          </div>
-        )}
-      </div>
+          )}
+        </>
+      )}
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
-        <p className="text-xs font-black text-slate-400 mb-2 flex items-center"><Plus size={12} className="mr-1 text-rose-400" /> CREATE CUSTOM HABIT</p>
-        <div className="grid gap-2 mb-6">
-          <div className="grid grid-cols-4 gap-2">
-            <div className="grid gap-1"><Label t="EMOJI" /><input value={emoji} onChange={(e) => setEmoji(e.target.value)} maxLength={4} className={inputCls} /></div>
-            <div className="col-span-3 grid gap-1"><Label t="HABIT NAME" /><input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Nail biting" className={inputCls} /></div>
-          </div>
-          <div className="grid gap-1"><Label t="WHY QUIT?" /><input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Health" className={inputCls} /></div>
-          <div className="grid gap-1"><Label t="REPLACE WITH" /><input value={replacement} onChange={(e) => setReplacement(e.target.value)} placeholder="e.g. Chew gum" className={inputCls} /></div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="grid gap-1"><Label t="₹ EACH TIME" /><input type="number" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0" className={inputCls} /></div>
-            <div className="grid gap-1"><Label t="MIN EACH TIME" /><input type="number" value={time} onChange={(e) => setTime(e.target.value)} placeholder="0" className={inputCls} /></div>
-          </div>
-          <div className="grid gap-1"><Label t="⏰ TIME (OPTIONAL)" /><TimeSelect value={remTime} onChange={setRemTime} /></div>
-          <button onClick={() => addHabit()} className="press w-full py-3 rounded-xl bg-rose-600 text-sm font-black mt-1">Add to Quit List</button>
-        </div>
-
-        <p className="text-xs font-black text-slate-400 mb-1">QUICK START TEMPLATES</p>
-        <p className="text-[10px] text-slate-500 font-bold mb-2">Tap → pick check-in time → done</p>
-        <div className="grid grid-cols-2 gap-2">
-          {TEMPLATES.map((t, i) => (
-            <button
-              key={i}
-              onClick={() => { setPendingTime(t.remind || "21:00"); setPendingT(t); }}
-              className="press text-left bg-slate-800/60 border border-slate-700 rounded-xl p-2.5 hover:border-rose-500/40"
-            >
-              <p className="text-xs font-bold text-white">{t.emoji} {t.name}</p>
-              <p className="text-[9px] text-slate-500 mt-0.5">Rep: {t.replacement}</p>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* TEMPLATE TIME SHEET */}
+      {/* ✅ TEMPLATE SHEET: quick picks + CLOCK for any exact time */}
       {pendingT && (
         <div className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm flex items-end justify-center">
           <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-t-3xl p-5 pb-8">
@@ -266,7 +328,7 @@ export default function QuitPage() {
                 <button key={t} onClick={() => setPendingTime(t)} className={`press py-2.5 rounded-xl text-xs font-black border ${pendingTime === t ? "bg-rose-500/15 border-rose-500/40 text-rose-300" : "bg-slate-800 border-slate-700 text-slate-300"}`}>{t}</button>
               ))}
             </div>
-            <div className="grid gap-1 mb-3"><Label t="OR PICK EXACT" /><TimeSelect value={pendingTime} onChange={setPendingTime} /></div>
+            <div className="grid gap-1 mb-3"><Label t="OR PICK ANY TIME (CLOCK)" /><input type="time" value={pendingTime} onChange={(e) => setPendingTime(e.target.value)} className={timeCls} /></div>
             <div className="flex gap-2">
               <button onClick={() => { addHabit(pendingT, pendingTime || null); setPendingT(null); }} className="flex-1 press py-3 rounded-xl bg-rose-600 text-sm font-black">Add with {pendingTime || "no time"}</button>
               <button onClick={() => { addHabit(pendingT, null); setPendingT(null); }} className="press px-4 py-3 rounded-xl bg-slate-800 text-slate-400 text-xs font-black">Skip time</button>
@@ -285,7 +347,7 @@ export default function QuitPage() {
         </div>
       )}
 
-      <Link href="/routine-habits" className="inline-block mt-4 text-sm text-slate-500 hover:text-white press font-bold">← Back to Habits</Link>
+      <Link href="/routine-habits" className="inline-block mt-6 text-sm text-slate-500 hover:text-white press font-bold">← Back to Habits</Link>
     </main>
   );
 }

@@ -22,8 +22,6 @@ function shiftDate(dateStr: string, days: number) { const d = new Date(dateStr +
 
 const ANCHORS = ["I wake up", "I brush my teeth", "I pour my morning tea/coffee", "I eat breakfast", "I eat lunch", "I eat dinner", "I finish work/school", "I get into bed"];
 const REMIND_TIMES = ["06:00", "07:00", "08:00", "12:00", "17:00", "19:00", "20:00", "21:00", "22:00"];
-/* ✅ every 30 min from 05:00 to 23:30 — used by the time selects */
-const TIME_OPTIONS = Array.from({ length: 38 }, (_, i) => { const m = 300 + i * 30; return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; });
 const ANCHOR_TIME: Record<string, string> = {
   "I wake up": "07:00",
   "I brush my teeth": "07:00",
@@ -217,15 +215,8 @@ export default function HabitLogPage() {
   const isDone = (hid: string, d: string) => logs.some((l) => l.habit_id === hid && l.log_date === d);
   const doneCount = doneView.length;
   const inputCls = "w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500";
-
-  /* ✅ TIME SELECT: always shows a value → the blank chevron box can never happen again */
-  const TimeSelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
-      <option value="">No time</option>
-      {TIME_OPTIONS.map((t) => (<option key={t} value={t}>{t}</option>))}
-      {value && !TIME_OPTIONS.includes(value) && (<option value={value}>{value} (custom)</option>)}
-    </select>
-  );
+  /* ✅ CLOCK SYSTEM: native time picker, visible on dark theme */
+  const timeCls = inputCls + " [color-scheme:dark] text-slate-200";
 
   const AnchorSelect = ({ value, onChange, custom, onCustom }: { value: string; onChange: (v: string) => void; custom: string; onCustom: (v: string) => void }) => (
     <>
@@ -278,7 +269,7 @@ export default function HabitLogPage() {
 
           {viewDate === today && atRisk.length > 0 && (
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 mb-4">
-              <p className="text-xs font-black text-amber-300">️ Missed yesterday: {atRisk.map((h) => h.emoji + " " + h.habit_name).join(", ")} — do the 2-min version now!</p>
+              <p className="text-xs font-black text-amber-300">⚠️ Missed yesterday: {atRisk.map((h) => h.emoji + " " + h.habit_name).join(", ")} — do the 2-min version now!</p>
             </div>
           )}
 
@@ -293,7 +284,7 @@ export default function HabitLogPage() {
                     <AnchorSelect value={eAnchor} onChange={setEAnchor} custom={eAnchorCustom} onCustom={setEAnchorCustom} />
                     <div className="grid grid-cols-2 gap-2">
                       <input type="number" min="2" value={eTarget} onChange={(e) => setETarget(e.target.value)} className={inputCls} placeholder="Target mins" />
-                      <TimeSelect value={eTime} onChange={setETime} />
+                      <input type="time" value={eTime} onChange={(e) => setETime(e.target.value)} className={timeCls} />
                     </div>
                     <input value={ePlace} onChange={(e) => setEPlace(e.target.value)} className={inputCls} placeholder="Place cue" />
                     <div className="flex gap-2">
@@ -348,7 +339,7 @@ export default function HabitLogPage() {
               <div className="grid gap-1"><Label t="GOAL (MIN)" /><input type="number" min="2" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="10" className={inputCls} /></div>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <div className="grid gap-1"><Label t="⏰ TIME (OPTIONAL)" /><TimeSelect value={cueTime} onChange={setCueTime} /></div>
+              <div className="grid gap-1"><Label t="⏰ TIME (OPTIONAL)" /><input type="time" value={cueTime} onChange={(e) => setCueTime(e.target.value)} className={timeCls} /></div>
               <div className="grid gap-1"><Label t="📍 PLACE (OPTIONAL)" /><input value={cuePlace} onChange={(e) => setCuePlace(e.target.value)} placeholder="e.g. desk" className={inputCls} /></div>
             </div>
             <button onClick={() => addHabit()} className="press py-2.5 rounded-xl bg-violet-600 text-sm font-black mt-1">Add custom habit</button>
@@ -418,7 +409,7 @@ export default function HabitLogPage() {
         </>
       )}
 
-      {/* REMINDER SHEET */}
+      {/* 🔔 REMINDER SHEET: toggle + quick picks + clock */}
       {showRemSheet && (
         <div className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm flex items-end justify-center" onClick={() => setShowRemSheet(false)}>
           <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-t-3xl p-5 pb-8" onClick={(e) => e.stopPropagation()}>
@@ -437,25 +428,28 @@ export default function HabitLogPage() {
                     <button key={t} onClick={() => setRemindTimeLocal(t)} className={`press py-2.5 rounded-xl text-xs font-black border ${remindTime === t ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-slate-800 border-slate-700 text-slate-300"}`}>{t}</button>
                   ))}
                 </div>
-                <div className="grid gap-1"><Label t="OR PICK EXACT" /><TimeSelect value={remindTime} onChange={setRemindTimeLocal} /></div>
+                <div className="grid gap-1"><Label t="OR PICK ANY TIME (CLOCK)" /><input type="time" value={remindTime} onChange={(e) => setRemindTimeLocal(e.target.value)} className={timeCls} /></div>
               </>
             )}
           </div>
         </div>
       )}
 
-      {/* TEMPLATE TIME SHEET */}
+      {/* ⏰ TEMPLATE TIME SHEET: quick picks + clock */}
       {pendingT && (
         <div className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm flex items-end justify-center">
           <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-t-3xl p-5 pb-8">
-            <p className="text-sm font-black text-white mb-1">⏰ Set reminder time</p>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-sm font-black text-white">⏰ Set reminder time</p>
+              <button onClick={() => setPendingT(null)} className="text-slate-500 press"><X size={16} /></button>
+            </div>
             <p className="text-[11px] text-slate-400 font-bold mb-4">{pendingT.emoji} {pendingT.name} — when should we remind you daily?</p>
             <div className="grid grid-cols-3 gap-2 mb-3">
               {REMIND_TIMES.map((t) => (
                 <button key={t} onClick={() => setPendingTime(t)} className={`press py-2.5 rounded-xl text-xs font-black border ${pendingTime === t ? "bg-violet-500/15 border-violet-500/40 text-violet-300" : "bg-slate-800 border-slate-700 text-slate-300"}`}>{t}</button>
               ))}
             </div>
-            <div className="grid gap-1 mb-3"><Label t="OR PICK EXACT" /><TimeSelect value={pendingTime} onChange={setPendingTime} /></div>
+            <div className="grid gap-1 mb-3"><Label t="OR PICK ANY TIME (CLOCK)" /><input type="time" value={pendingTime} onChange={(e) => setPendingTime(e.target.value)} className={timeCls} /></div>
             <div className="flex gap-2">
               <button onClick={() => { addHabit(pendingT, pendingTime || null); setPendingT(null); }} className="flex-1 press py-3 rounded-xl bg-violet-600 text-sm font-black">Add with {pendingTime || "no time"}</button>
               <button onClick={() => { addHabit(pendingT, null); setPendingT(null); }} className="press px-4 py-3 rounded-xl bg-slate-800 text-slate-400 text-xs font-black">Skip time</button>
