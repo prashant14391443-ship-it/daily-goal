@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-
+import { Bell } from "lucide-react";
 type Notif = {
   id: number;
   title: string;
@@ -85,7 +85,7 @@ export default function NotificationCenter() {
         onClick={toggle}
         className="relative w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-violet-600 to-violet-600 hover:from-violet-500 hover:to-violet-500 text-white flex items-center justify-center text-lg shadow-lg shadow-violet-900/50 ring-2 ring-white/10 hover:scale-105 transition-all"
       >
-        🔔
+           <Bell size={18} className="text-violet-200" />
         {unread > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 ring-2 ring-slate-950">
             {unread}
@@ -93,9 +93,9 @@ export default function NotificationCenter() {
         )}
       </button>
       {open && (
-        <div className="fixed top-14 right-0 w-80  bg-slate-900/90 backdrop-blur border border-white/10 rounded-2xl p-4 grid gap-2 shadow-2xl max-h-[80vh] overflow-y-auto">
+        <div className="fixed top-14 right-0 w-80     bg-slate-900/90 backdrop-blur border border-violet-500/30 rounded-2xl p-4 grid gap-2 shadow-2xl max-h-[80vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-2">
-            <p className="font-bold text-white text-sm">🔔 Notifications</p>
+            <p className="font-bold text-white text-sm">   <Bell size={18} className="text-violet-200" /> Notifications</p>
             <button
               onClick={clearAll}
               className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded hover:bg-slate-800 transition-colors"

@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-
+import { Sparkles } from "lucide-react";
 export default function DraggableAIBubble() {
   const router = useRouter();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
@@ -70,7 +70,7 @@ export default function DraggableAIBubble() {
       }`}
       title="Hold & drag to move • Tap to open AI"
     >
-      ✨
+         <Sparkles size={20} className="text-violet-300" />
     </button>
   );
 }

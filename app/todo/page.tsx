@@ -44,7 +44,7 @@ export default function TodoHub() {
     { href: "/tasklog", icon: ListTodo, title: "Task Log", desc: "All tasks, reminders & dates", tint: "bg-amber-500/10 text-amber-400" },
     { href: "/myday", icon: Star, title: "My Day — Top 3", desc: "Pick 3 stars → beat overwhelm", tint: "bg-violet-500/10 text-violet-400" },
     { href: "/repeat", icon: Repeat, title: "Repeat Tasks", desc: "Daily / weekly auto-copies", tint: "bg-blue-500/10 text-blue-400" },
-    { href: "/breakdown", icon: Sparkles, title: "AI Breakdown", desc: "Big task → small steps in 3 sec", tint: "bg-pink-500/10 text-pink-400" },
+    { href: "/breakdown", icon: Sparkles, title: "AI Breakdown", desc: "Big task → small steps in 3 sec", tint: "bg-rose-500/10 text-rose-400" },
   ];
 
   return (

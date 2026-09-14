@@ -106,7 +106,7 @@ export default function HabitLogPage() {
       const key = "daily-" + today;
       if (fired.keys.includes(key)) return;
       const left = habits.length - logs.filter((l) => l.log_date === today).length;
-      if (left > 0) { fired.keys.push(key); localStorage.setItem("dg-habit-rem-fired", JSON.stringify(fired)); recordNotification("🔔 Habit reminder", `${left} habit(s) left today — don't miss twice!`); }
+      if (left > 0) { fired.keys.push(key); localStorage.setItem("dg-habit-rem-fired", JSON.stringify(fired)); recordNotification("   <Bell size={18} className="text-violet-200" /> Habit reminder", `${left} habit(s) left today — don't miss twice!`); }
     };
     check();
     const id = setInterval(check, 30000);

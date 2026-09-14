@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
-
+import { Bell } from "lucide-react";
 function ago(iso: string) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
   if (s < 60) return "just now";
@@ -31,7 +31,7 @@ const TYPE_STYLES: Record<string, { emoji: string; grad: string; border: string 
   message: { emoji: "💬", grad: "from-blue-500 to-indigo-600", border: "border-blue-500/40" },
   like: { emoji: "❤️", grad: "from-rose-500 to-rose-600", border: "border-rose-500/40" },
   streak: { emoji: "🔥", grad: "from-orange-500 to-red-600", border: "border-orange-500/40" },
-  system: { emoji: "🔔", grad: "from-violet-500 to-violet-600", border: "border-violet-500/40" },
+  system: { emoji: "   <Bell size={18} className="text-violet-200" />", grad: "from-violet-500 to-violet-600", border: "border-violet-500/40" },
   coin: { emoji: "🪙", grad: "from-amber-500 to-orange-600", border: "border-amber-500/40" },
   default: { emoji: "📬", grad: "from-slate-500 to-slate-700", border: "border-slate-500/40" },
 };
