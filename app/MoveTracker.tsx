@@ -102,6 +102,19 @@ async function makeShareCard(o: { label: string; km: number; sec: number; pace: 
   return await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
 }
 
+function MoveTrackerGuide() {
+  return (
+    <div className="mb-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-3 text-[11px] font-semibold text-slate-300">
+      <p className="mb-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Quick guide</p>
+      <ul className="list-disc space-y-1 pl-4">
+        <li>Start tracking, then keep your phone on you while walking, running, or riding.</li>
+        <li>GPS needs a moment to warm up, so stay near a window or outside if possible.</li>
+        <li>Pause or stop when you are done; the run summary and save card are shown afterward.</li>
+      </ul>
+    </div>
+  );
+}
+
 export default function MoveTracker() {
   const [mode, setMode] = useState(MODES[0]);
   const [tracking, setTracking] = useState(false);
