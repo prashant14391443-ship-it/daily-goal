@@ -375,7 +375,7 @@ export default function MoveTracker() {
         <div className="relative flex items-center justify-between mb-2">
           <span className="w-9 h-9 shrink-0 rounded-xl bg-white/15 flex items-center justify-center"><ModeIcon size={18} strokeWidth={2.2} className="text-white" /></span>
           <div className="flex items-center gap-2">
-            <button onClick={() => router.push("/run-feed")} title="See others' runs" className="w-9 h-9 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center"><Users size={16} className="text-white" /></button>
+            <button onClick={() => router.push("/run-feed")} className="flex items-center gap-1.5 bg-white/15 border border-white/20 rounded-full px-3 py-1.5 text-[11px] font-black text-white"><Users size={14} /> Feed</button>
             <span className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-[11px] font-black border border-white/20 flex items-center gap-1.5"><Timer size={11} /> {fmtTime(sec)}</span>
           </div>
         </div>
@@ -445,6 +445,25 @@ export default function MoveTracker() {
         </div>
       )}
 
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-black text-slate-400 flex items-center gap-2"><TrendingUp size={14} className="text-green-400" /> TOTALS</p>
+          <div className="flex gap-1">
+            {(["week", "month", "year"] as const).map((p) => (
+              <button key={p} onClick={() => setPeriod(p)} className={`px-3 py-1.5 rounded-lg text-[11px] font-black border ${period === p ? "bg-green-500/15 border-green-500/30 text-green-300" : "bg-slate-800 border-slate-700 text-slate-400"}`}>
+                {p === "week" ? "Week" : p === "month" ? "Month" : "Year"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="bg-slate-800/60 rounded-xl p-2"><p className="text-base font-black text-green-400">{totals.km}</p><p className="text-[8px] font-black text-slate-500">KM</p></div>
+          <div className="bg-slate-800/60 rounded-xl p-2"><p className="text-base font-black text-blue-400">{Math.floor(totals.min / 60)}h{totals.min % 60}m</p><p className="text-[8px] font-black text-slate-500">TIME</p></div>
+          <div className="bg-slate-800/60 rounded-xl p-2"><p className="text-base font-black text-amber-400">{totals.n}</p><p className="text-[8px] font-black text-slate-500">RUNS</p></div>
+          <div className="bg-slate-800/60 rounded-xl p-2"><p className="text-base font-black text-red-400">{totals.cal}</p><p className="text-[8px] font-black text-slate-500">KCAL</p></div>
+        </div>
+      </div>
+
       {history.length > 0 && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 mb-4">
           <p className="text-xs font-black text-slate-400 mb-2 flex items-center gap-2"><TrendingUp size={14} className="text-blue-400" /> RECENT ACTIVITIES</p>
@@ -459,23 +478,6 @@ export default function MoveTracker() {
           </div>
         </div>
       )}
-
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-black text-slate-400 flex items-center gap-2"><TrendingUp size={14} className="text-green-400" /> TOTALS</p>
-          <div className="flex gap-1">
-            {(["week", "month", "year"] as const).map((p) => (
-              <button key={p} onClick={() => setPeriod(p)} className={`px-2 py-1 rounded-lg text-[9px] font-black border ${period === p ? "bg-green-500/15 border-green-500/30 text-green-300" : "bg-slate-800 border-slate-700 text-slate-500"}`}>{p === "week" ? "Wk" : p === "month" ? "Mo" : "Yr"}</button>
-            ))}
-          </div>
-        </div>
-        <div className="grid grid-cols-4 gap-2 text-center">
-          <div className="bg-slate-800/60 rounded-xl p-2"><p className="text-base font-black text-green-400">{totals.km}</p><p className="text-[8px] font-black text-slate-500">KM</p></div>
-          <div className="bg-slate-800/60 rounded-xl p-2"><p className="text-base font-black text-blue-400">{Math.floor(totals.min / 60)}h{totals.min % 60}m</p><p className="text-[8px] font-black text-slate-500">TIME</p></div>
-          <div className="bg-slate-800/60 rounded-xl p-2"><p className="text-base font-black text-amber-400">{totals.n}</p><p className="text-[8px] font-black text-slate-500">RUNS</p></div>
-          <div className="bg-slate-800/60 rounded-xl p-2"><p className="text-base font-black text-red-400">{totals.cal}</p><p className="text-[8px] font-black text-slate-500">KCAL</p></div>
-        </div>
-      </div>
 
       {/* 📌 STICKY CONTROLS — always visible, no scrolling */}
       <div className="fixed bottom-20 left-0 right-0 z-40 px-4">

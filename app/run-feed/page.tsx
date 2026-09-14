@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { ArrowLeft, Trash2, Flag, MapPin } from "lucide-react";
 
 // 👉 change this if your public profile route is different (e.g. /friend?id= or /u/[id])
-const profileHref = (id: string) => `/profile?id=${id}`;
+const profileHref = (id: string) => `/u/${id}`;
 
 type RoutePt = { lat: number; lon: number; alt: number | null };
 function routePoints(route: RoutePt[] | null): string {
