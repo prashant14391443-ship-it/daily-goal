@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BarChart3, Calendar, Trophy, Flame, Check, Ban } from "lucide-react";
-import { ProgressRing, EmptyState } from "@/app/components/ui";
+import { BarChart3, Calendar, Trophy, Flame, Check, TrendingUp } from "lucide-react";
+import { ProgressRing } from "@/app/components/ui";
 
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -50,7 +50,7 @@ export default function HabitStatsPage() {
   const stats = habits.map((h) => {
     const mine = logs.filter((l) => l.habit_id === h.id);
     const done = new Set(mine.map((l) => l.log_date));
-    const pct = Math.round((mine.length / 30) * 100);
+    const pct = Math.min(100, Math.round((mine.length / 30) * 100)); // ✅ clamped at 100
     const done14 = days14.filter((d) => done.has(d)).length;
     return { ...h, done, pct, done14 };
   });
@@ -81,8 +81,16 @@ export default function HabitStatsPage() {
       {loading ? (
         <p className="text-slate-500 text-sm font-bold">Reading your habits...</p>
       ) : stats.length === 0 ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl">
-          <EmptyState emoji="📈" text="No habits yet — create some in Habit Log!" />
+        /* ✅ NEW empty state: icon + CTA instead of 📈 emoji */
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
+          <span className="mx-auto w-12 h-12 rounded-xl bg-violet-500/10 text-violet-400 flex items-center justify-center mb-3">
+            <TrendingUp size={22} strokeWidth={2.2} />
+          </span>
+          <p className="text-sm font-black text-white mb-1">No habits yet</p>
+          <p className="text-xs text-slate-500 font-bold mb-4">Create your first tiny habit and your 14-day heatmap will appear here.</p>
+          <Link href="/habitslog" className="inline-block press px-5 py-2.5 rounded-xl bg-violet-600 text-xs font-black text-white">
+            + Create first habit
+          </Link>
         </div>
       ) : (
         <>
@@ -134,7 +142,6 @@ export default function HabitStatsPage() {
                   </div>
                 </div>
 
-                {/* 🔥 HEATMAP GRID */}
                 <div className="flex gap-1 flex-wrap mb-3">
                   {days14.map((d) => (
                     <div
@@ -149,7 +156,6 @@ export default function HabitStatsPage() {
                   ))}
                 </div>
 
-                {/* 📈 PROGRESS BAR */}
                 <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-violet-500 to-violet-500 rounded-full"
@@ -178,16 +184,8 @@ export default function HabitStatsPage() {
         </>
       )}
 
-      {/* FOOTER NAVIGATION */}
+      {/* ✅ FOOTER: rose banner REMOVED — Break a Bad Habit now lives on the Habits hub */}
       <div className="mt-8 flex flex-col gap-4">
-        {/* NEW: Link to Bad Habits Page */}
-        <Link 
-          href="/quit" 
-          className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-sm font-black text-rose-400 hover:bg-rose-500/20 transition-all press"
-        >
-          <Ban size={16} /> Break a Bad Habit
-        </Link>
-
         <Link href="/routine-habits" className="inline-block text-center text-sm text-slate-500 hover:text-white press font-bold">
           ← Back to Habits
         </Link>

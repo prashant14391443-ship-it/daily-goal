@@ -22,6 +22,19 @@ function shiftDate(dateStr: string, days: number) { const d = new Date(dateStr +
 
 const ANCHORS = ["I wake up", "I brush my teeth", "I pour my morning tea/coffee", "I eat breakfast", "I eat lunch", "I eat dinner", "I finish work/school", "I get into bed"];
 const REMIND_TIMES = ["06:00", "07:00", "08:00", "12:00", "17:00", "19:00", "20:00", "21:00", "22:00"];
+
+/* ✅ NEW: smart prefill for the template time prompt */
+const ANCHOR_TIME: Record<string, string> = {
+  "I wake up": "07:00",
+  "I brush my teeth": "07:00",
+  "I pour my morning tea/coffee": "08:00",
+  "I eat breakfast": "08:00",
+  "I eat lunch": "12:00",
+  "I eat dinner": "19:00",
+  "I finish work/school": "17:00",
+  "I get into bed": "21:00",
+};
+
 const TEMPLATES = [
   { emoji: "💧", name: "Drink a glass of water", anchor: "I wake up", target: 2, identity: "I fuel my body" },
   { emoji: "🛏️", name: "Make my bed", anchor: "I wake up", target: 2, identity: "I am disciplined" },
@@ -42,11 +55,12 @@ export default function HabitLogPage() {
   const [viewDate, setViewDate] = useState(today);
   const [remindersOn, setRemindersOn] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("dg-habit-rem") === "1" : false));
   const [remindTime, setRemindTime] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("dg-habit-rem-time") || "20:00" : "20:00"));
+  const [showRemTime, setShowRemTime] = useState(false);
   const [uid, setUid] = useState("");
   const [habits, setHabits] = useState<Habit[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [streaks, setStreaks] = useState<Record<string, number>>({});
-  
+
   const [name, setName] = useState("");
   const [anchor, setAnchor] = useState(ANCHORS[0]);
   const [anchorCustom, setAnchorCustom] = useState("");
@@ -54,19 +68,24 @@ export default function HabitLogPage() {
   const [identity, setIdentity] = useState("");
   const [cueTime, setCueTime] = useState("");
   const [cuePlace, setCuePlace] = useState("");
-  
+
   const [editId, setEditId] = useState<string | null>(null);
-  const [eName, setEName] = useState(""); 
-  const [eAnchor, setEAnchor] = useState(ANCHORS[0]); 
-  const [eAnchorCustom, setEAnchorCustom] = useState(""); 
+  const [eName, setEName] = useState("");
+  const [eAnchor, setEAnchor] = useState(ANCHORS[0]);
+  const [eAnchorCustom, setEAnchorCustom] = useState("");
   const [eTarget, setETarget] = useState("10");
-  const [eTime, setETime] = useState(""); 
-  const [ePlace, setEPlace] = useState(""); 
+  const [eTime, setETime] = useState("");
+  const [ePlace, setEPlace] = useState("");
   const [eIdentity, setEIdentity] = useState("");
-  
+
+  /* ✅ NEW: template time-prompt state */
+  const [pendingT, setPendingT] = useState<(typeof TEMPLATES)[number] | null>(null);
+  const [pendingTime, setPendingTime] = useState("07:00");
+  const [pendingCustom, setPendingCustom] = useState(false);
+
   const [celebrate, setCelebrate] = useState<{ name: string; coins: number } | null>(null);
-  const [reflWent, setReflWent] = useState(""); 
-  const [reflImprove, setReflImprove] = useState(""); 
+  const [reflWent, setReflWent] = useState("");
+  const [reflImprove, setReflImprove] = useState("");
   const [reflGrateful, setReflGrateful] = useState("");
   const [reflSaved, setReflSaved] = useState(false);
 
@@ -114,6 +133,8 @@ export default function HabitLogPage() {
   }, [remindersOn, remindTime, habits, logs, today]);
 
   const toggleReminders = () => { const v = !remindersOn; setRemindersOn(v); localStorage.setItem("dg-habit-rem", v ? "1" : "0"); };
+  /* ✅ NEW: persist reminder time changes */
+  const setRemindTimeLocal = (v: string) => { setRemindTime(v); localStorage.setItem("dg-habit-rem-time", v); };
 
   const doneToday = logs.filter((l) => l.log_date === today).map((l) => l.habit_id);
   const doneYesterday = logs.filter((l) => l.log_date === yesterday).map((l) => l.habit_id);
@@ -155,13 +176,15 @@ export default function HabitLogPage() {
     }
   };
 
-  const addHabit = async (t?: { emoji: string; name: string; anchor: string; target: number; identity?: string }) => {
+  /* ✅ FIXED: templates can now receive a time via the prompt modal */
+  const addHabit = async (t?: { emoji: string; name: string; anchor: string; target: number; identity?: string }, timeOverride?: string | null) => {
     const n = (t?.name || name).trim(); if (!n) return;
     const finalAnchor = t ? t.anchor : (anchor === "__custom" ? (anchorCustom.trim() || "I wake up") : anchor);
+    const finalTime = t ? (timeOverride || null) : (cueTime || null);
     const { data, error } = await supabase.from("habits").insert({
       user_id: uid, habit_name: n, emoji: t?.emoji || "✅", anchor: finalAnchor,
       target_minutes: t?.target || Number(target) || 10, identity: t?.identity || identity,
-      cue_time: (t ? null : cueTime) || null, cue_place: (t ? null : cuePlace) || null,
+      cue_time: finalTime, cue_place: (t ? null : cuePlace) || null,
     }).select().single();
     if (!error && data) setHabits([...habits, data as Habit]);
     setName(""); setIdentity(""); setCueTime(""); setCuePlace(""); setAnchorCustom(""); setView("today");
@@ -172,7 +195,7 @@ export default function HabitLogPage() {
     setETime(h.cue_time || ""); setEPlace(h.cue_place || ""); setEIdentity(h.identity || "");
     if (ANCHORS.includes(h.anchor)) { setEAnchor(h.anchor); setEAnchorCustom(""); } else { setEAnchor("__custom"); setEAnchorCustom(h.anchor); }
   };
-  
+
   const saveEdit = async () => {
     if (!editId) return;
     const finalAnchor = eAnchor === "__custom" ? (eAnchorCustom.trim() || "I wake up") : eAnchor;
@@ -181,7 +204,7 @@ export default function HabitLogPage() {
     setHabits(habits.map((h) => (h.id === editId ? { ...h, ...patch } : h)));
     setEditId(null);
   };
-  
+
   const del = async (id: string) => { await supabase.from("habits").delete().eq("id", id); setHabits(habits.filter((h) => h.id !== id)); };
 
   const saveReflection = async () => {
@@ -196,6 +219,8 @@ export default function HabitLogPage() {
   const isDone = (hid: string, d: string) => logs.some((l) => l.habit_id === hid && l.log_date === d);
   const doneCount = doneView.length;
   const inputCls = "w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500";
+  /* ✅ FIX: color-scheme dark makes native time/date pickers visible on dark UI */
+  const timeCls = inputCls + " [color-scheme:dark] text-slate-200";
 
   const AnchorSelect = ({ value, onChange, custom, onCustom }: { value: string; onChange: (v: string) => void; custom: string; onCustom: (v: string) => void }) => (
     <>
@@ -221,11 +246,31 @@ export default function HabitLogPage() {
         <button onClick={toggleReminders} className={`press flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border ${remindersOn ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-slate-900 border-slate-800 text-slate-500"}`}>
           {remindersOn ? <Bell size={13} /> : <BellOff size={13} />} {remindersOn ? "Reminders ON" : "Reminders OFF"}
         </button>
+        {/* ✅ NEW: reminder time chip — finally user-controllable */}
+        {remindersOn && (
+          <button onClick={() => setShowRemTime(!showRemTime)} className={`press flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border ${showRemTime ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-slate-900 border-slate-800 text-slate-300"}`}>
+            <Clock size={13} /> {remindTime || "—"}
+          </button>
+        )}
         <div className="flex-1" />
         <button onClick={() => setViewDate(shiftDate(viewDate, -1))} className="press w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 flex items-center justify-center"><ChevronLeft size={15} /></button>
-        <input type="date" value={viewDate} onChange={(e) => setViewDate(e.target.value || today)} className="bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-xs font-bold text-slate-300 outline-none" />
+        <input type="date" value={viewDate} onChange={(e) => setViewDate(e.target.value || today)} className="bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-xs font-bold text-slate-300 outline-none [color-scheme:dark]" />
         <button onClick={() => setViewDate(shiftDate(viewDate, 1))} className="press w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 flex items-center justify-center"><ChevronRight size={15} /></button>
       </div>
+
+      {/* ✅ NEW: reminder time picker panel */}
+      {showRemTime && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 mb-3 grid gap-2">
+          <p className="text-[10px] font-black text-slate-400 flex items-center gap-1"><Clock size={11} className="text-emerald-400" /> DAILY REMINDER TIME</p>
+          <div className="flex flex-wrap gap-1.5">
+            {REMIND_TIMES.map((t) => (
+              <button key={t} onClick={() => setRemindTimeLocal(t)} className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black border press ${remindTime === t ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-slate-800 border-slate-700 text-slate-300"}`}>{t}</button>
+            ))}
+          </div>
+          <input type="time" value={remindTime} onChange={(e) => setRemindTimeLocal(e.target.value)} className={timeCls} />
+        </div>
+      )}
+
       {viewDate !== today && (<p className="text-center text-[10px] text-amber-300 font-black mb-3">📅 Viewing {viewDate} — tap ✓ to log for that day</p>)}
 
       <div className="grid grid-cols-3 gap-2 mb-5">
@@ -244,10 +289,10 @@ export default function HabitLogPage() {
               <div className="h-2 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${habits.length ? (doneCount / habits.length) * 100 : 0}%` }} /></div>
             </div>
           )}
-          
+
           {viewDate === today && atRisk.length > 0 && (
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 mb-4">
-              <p className="text-sm font-black text-amber-300 mb-1">⚠️ Don't miss twice!</p>
+              <p className="text-sm font-black text-amber-300 mb-1">⚠️ Don&apos;t miss twice!</p>
               <p className="text-xs text-amber-200/90">You missed {atRisk.map((h) => h.emoji + " " + h.habit_name).join(", ")} yesterday. One miss is an accident — two is a new habit. Do the 2-min version now!</p>
             </div>
           )}
@@ -263,7 +308,7 @@ export default function HabitLogPage() {
                     <AnchorSelect value={eAnchor} onChange={setEAnchor} custom={eAnchorCustom} onCustom={setEAnchorCustom} />
                     <div className="grid grid-cols-2 gap-2">
                       <input type="number" min="2" value={eTarget} onChange={(e) => setETarget(e.target.value)} className={inputCls} placeholder="Target mins" />
-                      <input type="time" value={eTime} onChange={(e) => setETime(e.target.value)} className={inputCls} />
+                      <input type="time" value={eTime} onChange={(e) => setETime(e.target.value)} className={timeCls} />
                     </div>
                     <input value={ePlace} onChange={(e) => setEPlace(e.target.value)} className={inputCls} placeholder="Place cue" />
                     <div className="flex gap-2">
@@ -301,7 +346,7 @@ export default function HabitLogPage() {
                 </div>
               );
             })}
-            
+
             {habits.length === 0 && (
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center"><p className="text-3xl mb-2">🌱</p><p className="text-sm text-slate-400">No habits yet — check the Add tab to start tiny!</p></div>
             )}
@@ -319,18 +364,30 @@ export default function HabitLogPage() {
               <AnchorSelect value={anchor} onChange={setAnchor} custom={anchorCustom} onCustom={setAnchorCustom} />
               <input type="number" min="2" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Goal min" className={inputCls} />
             </div>
+            {/* ✅ FIX: labeled, visible time field (was an invisible empty box) */}
             <div className="grid grid-cols-2 gap-2">
-              <input type="time" value={cueTime} onChange={(e) => setCueTime(e.target.value)} className={inputCls} />
-              <input value={cuePlace} onChange={(e) => setCuePlace(e.target.value)} placeholder="Place (e.g. desk)" className={inputCls} />
+              <div className="grid gap-1">
+                <span className="text-[10px] font-black text-slate-500 flex items-center gap-1"><Clock size={10} /> TIME CUE (OPTIONAL)</span>
+                <input type="time" value={cueTime} onChange={(e) => setCueTime(e.target.value)} className={timeCls} />
+              </div>
+              <div className="grid gap-1">
+                <span className="text-[10px] font-black text-slate-500 flex items-center gap-1"><MapPin size={10} /> PLACE</span>
+                <input value={cuePlace} onChange={(e) => setCuePlace(e.target.value)} placeholder="Place (e.g. desk)" className={inputCls} />
+              </div>
             </div>
             <button onClick={() => addHabit()} className="press py-2.5 rounded-xl bg-violet-600 text-sm font-black mt-1">Add custom habit</button>
           </div>
-          
+
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
             <p className="text-xs font-black text-slate-400 mb-2 flex items-center gap-1.5"><Sparkles size={13} className="text-violet-400" /> ONE-TAP START (2-min version)</p>
             <div className="grid grid-cols-2 gap-2">
               {TEMPLATES.map((t, i) => (
-                <button key={i} onClick={() => addHabit(t)} className="press text-left bg-slate-800/60 border border-slate-700 rounded-xl p-2.5 hover:border-violet-500/40">
+                <button
+                  key={i}
+                  /* ✅ FIX: template tap now opens the time prompt instead of silent save */
+                  onClick={() => { setPendingTime(ANCHOR_TIME[t.anchor] || "20:00"); setPendingCustom(false); setPendingT(t); }}
+                  className="press text-left bg-slate-800/60 border border-slate-700 rounded-xl p-2.5 hover:border-violet-500/40"
+                >
                   <p className="text-xs font-bold text-white">{t.emoji} {t.name}</p>
                   <p className="text-[9px] text-slate-500 mt-0.5">After {t.anchor} • 🪪 {t.identity}</p>
                 </button>
@@ -383,6 +440,37 @@ export default function HabitLogPage() {
             )}
           </div>
         </>
+      )}
+
+      {/* ✅ NEW: template time-prompt bottom sheet */}
+      {pendingT && (
+        <div className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm flex items-end justify-center">
+          <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-t-3xl p-5 pb-8">
+            <p className="text-sm font-black text-white mb-1">⏰ Set reminder time</p>
+            <p className="text-[11px] text-slate-400 font-bold mb-4">{pendingT.emoji} {pendingT.name} — when should we remind you daily?</p>
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {REMIND_TIMES.map((t) => (
+                <button key={t} onClick={() => { setPendingTime(t); setPendingCustom(false); }} className={`press py-2.5 rounded-xl text-xs font-black border ${!pendingCustom && pendingTime === t ? "bg-violet-500/15 border-violet-500/40 text-violet-300" : "bg-slate-800 border-slate-700 text-slate-300"}`}>
+                  {t}
+                </button>
+              ))}
+              <button onClick={() => setPendingCustom(true)} className={`press py-2.5 rounded-xl text-xs font-black border ${pendingCustom ? "bg-violet-500/15 border-violet-500/40 text-violet-300" : "bg-slate-800 border-slate-700 text-slate-300"}`}>
+                Custom…
+              </button>
+            </div>
+            {pendingCustom && (
+              <input type="time" value={pendingTime} onChange={(e) => setPendingTime(e.target.value)} className={timeCls + " mb-3"} />
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => { addHabit(pendingT, pendingTime || null); setPendingT(null); }} className="flex-1 press py-3 rounded-xl bg-violet-600 text-sm font-black">
+                Add with {pendingTime || "no time"}
+              </button>
+              <button onClick={() => { addHabit(pendingT, null); setPendingT(null); }} className="press px-4 py-3 rounded-xl bg-slate-800 text-slate-400 text-xs font-black">
+                Skip time
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {celebrate && (
