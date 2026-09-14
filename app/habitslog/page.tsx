@@ -93,7 +93,7 @@ export default function HabitLogPage() {
     const { data } = await supabase.auth.getSession();
     const id = data.session?.user.id; if (!id) return; setUid(id);
     const [h, lg, ref] = await Promise.all([
-      supabase.from("habits").select("*").eq("user_id", id).order("created_at"),
+      supabase.from("habits").select("*").eq("user_id", id).or("category.eq.habit,category.is.null").order("created_at"),
       supabase.from("habit_logs").select("*").eq("user_id", id).eq("completed", true),
       supabase.from("reflections").select("*").eq("user_id", id).eq("log_date", today).maybeSingle(),
     ]);

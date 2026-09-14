@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ListChecks, BarChart3, Snowflake, Sunrise, Ban } from "lucide-react";
+import { ListChecks, BarChart3, Snowflake, Sunrise, Ban, HeartHandshake } from "lucide-react";
 
 export default function HabitsHub() {
   return (
@@ -50,7 +50,6 @@ export default function HabitsHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Morning & evening habit chains</p>
         </Link>
 
-        {/* ✅ NEW: 5th square card — was a banner inside Habit Stats before */}
         <Link href="/quit" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
           <span className="w-9 h-9 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center mb-4">
             <Ban size={18} strokeWidth={2.2} />
@@ -59,12 +58,14 @@ export default function HabitsHub() {
           <p className="text-[10px] text-slate-500 mt-0.5">Quit list, clean streaks & money saved</p>
         </Link>
 
-        {/* Optional 6th slot teaser for your Self-Care idea — delete if you don't like it
-        <div className="bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-4 flex flex-col justify-center">
-          <p className="font-black text-sm text-slate-600">Self-Care</p>
-          <p className="text-[10px] text-slate-700 mt-0.5">Coming soon</p>
-        </div>
-        */}
+        {/* ✅ NEW: 6th square card — Self-Care */}
+        <Link href="/self-care" className="press bg-slate-900 border border-slate-800 rounded-2xl p-4">
+          <span className="w-9 h-9 rounded-lg bg-teal-500/10 text-teal-400 flex items-center justify-center mb-4">
+            <HeartHandshake size={18} strokeWidth={2.2} />
+          </span>
+          <p className="font-black text-sm text-white">Self-Care</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">Ancient rituals, modern science</p>
+        </Link>
       </div>
     </main>
   );
