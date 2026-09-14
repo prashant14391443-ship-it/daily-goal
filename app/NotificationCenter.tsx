@@ -93,7 +93,7 @@ export default function NotificationCenter() {
         )}
       </button>
       {open && (
-        <div className="fixed top-14 right-0 w-80 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-2xl p-4 grid gap-2 shadow-2xl max-h-[80vh] overflow-y-auto">
+        <div className="fixed top-14 right-0 w-80    bg-slate-900/90 backdrop-blur border border-violet-500/30 rounded-2xl p-4 grid gap-2 shadow-2xl max-h-[80vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-2">
             <p className="font-bold text-white text-sm">🔔 Notifications</p>
             <button

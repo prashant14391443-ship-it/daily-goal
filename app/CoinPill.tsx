@@ -31,7 +31,7 @@ export default function CoinPill() {
     coins >= 1000 ? "🦸 Hero" : coins >= 500 ? "🥇 Gold" : coins >= 100 ? "🥈 Silver" : "🥉 Bronze";
 
   return (
-    <span className="bg-violet-600/40 border border-violet-400/50 text-violet-100 px-3 py-1 rounded-lg text-xs font-bold">
+    <span className="   bg-slate-900/80 backdrop-blur border border-amber-400/30 px-3 py-1 rounded-lg text-xs font-bold">
       🪙 {coins} • {rank}
     </span>
   );
