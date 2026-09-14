@@ -209,7 +209,7 @@ export default function HabitLogPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 via-indigo-600 to-violet-600 p-5 shadow-xl shadow-indigo-900/20">
+      <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 via-purple-600 to-violet-600 p-5 shadow-xl shadow-purple-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
           <h1 className="text-lg font-black text-white leading-tight">Habit Log</h1>

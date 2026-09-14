@@ -78,24 +78,27 @@ export default function NotificationCenter() {
   return (
     <div
       ref={boxRef}
-      data-version="v8-bell-violet"
+      data-version="v9-bell-glass"
       style={{ position: "absolute", top: 22, right: 76, zIndex: 60 }}
     >
       <button
         onClick={toggle}
-        className="relative w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-violet-600 to-violet-600 hover:from-violet-500 hover:to-violet-500 text-white flex items-center justify-center text-lg shadow-lg shadow-violet-900/50 ring-2 ring-white/10 hover:scale-105 transition-all"
+        className="relative w-10 h-10 md:w-12 md:h-12 rounded-full bg-slate-900/90 backdrop-blur border border-violet-500/30 text-violet-200 flex items-center justify-center shadow-[0_0_20px_rgba(139,92,246,0.25)] hover:border-violet-400/50 hover:scale-105 transition-all"
       >
-           <Bell size={18} className="text-violet-200" />
+        <Bell size={18} strokeWidth={2.2} />
         {unread > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 ring-2 ring-slate-950">
+          <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 ring-2 ring-slate-950">
             {unread}
           </span>
         )}
       </button>
       {open && (
-        <div className="fixed top-14 right-0 w-80     bg-slate-900/90 backdrop-blur border border-violet-500/30 rounded-2xl p-4 grid gap-2 shadow-2xl max-h-[80vh] overflow-y-auto">
+        <div className="fixed top-14 right-0 w-80 bg-slate-900/95 backdrop-blur-xl border border-violet-500/30 rounded-2xl p-4 grid gap-2 shadow-2xl max-h-[80vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-2">
-            <p className="font-bold text-white text-sm">   <Bell size={18} className="text-violet-200" /> Notifications</p>
+            <p className="font-bold text-white text-sm flex items-center gap-2">
+              <Bell size={14} className="text-violet-300" />
+              Notifications
+            </p>
             <button
               onClick={clearAll}
               className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded hover:bg-slate-800 transition-colors"
@@ -107,7 +110,7 @@ export default function NotificationCenter() {
             <p className="text-xs text-slate-500 text-center py-4">No notifications yet.</p>
           )}
           {items.map((n) => (
-            <div key={n.id} className="bg-slate-800 rounded-xl p-3 border border-slate-700">
+            <div key={n.id} className="bg-slate-800/60 rounded-xl p-3 border border-slate-700">
               <p className="text-sm font-semibold text-white">{n.title}</p>
               <p className="text-xs text-slate-300 mt-1">{n.body}</p>
               <p className="text-[10px] text-slate-500 mt-2">{timeLabel(n.time)}</p>
