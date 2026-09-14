@@ -16,6 +16,7 @@ function toLocalISO(d: Date) {
 }
 
 const REMIND_TIMES = ["06:00", "07:00", "08:00", "12:00", "17:00", "19:00", "20:00", "21:00", "22:00"];
+const TIME_OPTIONS = Array.from({ length: 38 }, (_, i) => { const m = 300 + i * 30; return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; });
 
 const TEMPLATES = [
   { emoji: "📱", name: "Reels / short videos", cost: 0, time: 30, reason: "Steals my focus & sleep", replacement: "10 push-ups or read 1 page", remind: "21:00" },
@@ -42,7 +43,6 @@ export default function QuitPage() {
   const [remTime, setRemTime] = useState("");
   const [pendingT, setPendingT] = useState<(typeof TEMPLATES)[number] | null>(null);
   const [pendingTime, setPendingTime] = useState("21:00");
-  const [pendingCustom, setPendingCustom] = useState(false);
   const [celebrate, setCelebrate] = useState<string | null>(null);
 
   useEffect(() => { load(); }, []);
@@ -77,7 +77,6 @@ export default function QuitPage() {
 
   const todayLog = (id: string) => logs.find((l) => l.bad_habit_id === id && l.log_date === today);
 
-  /* ✅ NEW: daily clean check-in nudge at each habit's reminder_time */
   useEffect(() => {
     const check = () => {
       const now = new Date();
@@ -150,7 +149,14 @@ export default function QuitPage() {
 
   const fmtTime = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
   const inputCls = "w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-rose-500";
-  const timeCls = inputCls + " [color-scheme:dark] text-slate-200";
+
+  const TimeSelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+      <option value="">No time</option>
+      {TIME_OPTIONS.map((t) => (<option key={t} value={t}>{t}</option>))}
+      {value && !TIME_OPTIONS.includes(value) && (<option value={value}>{value} (custom)</option>)}
+    </select>
+  );
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
@@ -165,54 +171,54 @@ export default function QuitPage() {
         </div>
       </div>
 
+      {/* ✅ CARDS NOW MIRROR THE HABIT LOG CARD LAYOUT: tile left, text middle, icon right */}
       <div className="grid gap-3 mb-5">
         {habits.map((h) => {
           const stats = statsFor(h.id);
           const tLog = todayLog(h.id);
           return (
-            <div key={h.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
-              <div className="flex justify-between items-start mb-2">
-                <div className="min-w-0">
-                  <h3 className="font-black text-white text-sm truncate">{h.emoji} {h.name}</h3>
-                  {/* ✅ merged why/replace into compact lines */}
-                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">Why: {h.reason} → Replace: <span className="text-emerald-400 font-bold">{h.replacement}</span></p>
+            <div key={h.id} className="rounded-2xl p-4 border bg-slate-900 border-slate-800">
+              <div className="flex items-center gap-3">
+                <span className="w-12 h-12 shrink-0 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-2xl">{h.emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-black text-sm truncate">{h.name}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">Why: {h.reason} → <span className="text-emerald-400 font-bold">{h.replacement}</span></p>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-orange-400"><Flame size={11} /> {stats.cur}</span>
+                    <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-yellow-400"><Trophy size={11} /> {stats.best}</span>
+                    {h.cost_per > 0 && <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-emerald-400"><Coins size={11} /> ₹{stats.total * h.cost_per}</span>}
+                    {h.time_per > 0 && <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-blue-400"><Clock size={11} /> {fmtTime(stats.total * h.time_per)}</span>}
+                    {h.reminder_time && <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-rose-400"><Clock size={11} /> {h.reminder_time}</span>}
+                  </div>
                 </div>
                 <button onClick={() => del(h.id)} className="text-slate-600 hover:text-red-400 p-1"><Trash2 size={13} /></button>
               </div>
-
-              <div className="flex flex-wrap gap-2 mb-3">
-                <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-orange-400"><Flame size={12} /> {stats.cur}</span>
-                <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-yellow-400"><Trophy size={12} /> {stats.best}</span>
-                {h.cost_per > 0 && <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-emerald-400"><Coins size={12} /> ₹{stats.total * h.cost_per}</span>}
-                {h.time_per > 0 && <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-blue-400"><Clock size={12} /> {fmtTime(stats.total * h.time_per)}</span>}
-                {h.reminder_time && <span className="flex items-center gap-1 bg-slate-800 px-2 py-1 rounded-lg text-[10px] font-black text-rose-400"><Clock size={12} /> {h.reminder_time}</span>}
+              <div className="mt-3">
+                {tLog ? (
+                  <div className="flex items-center justify-between bg-slate-950 rounded-xl p-2 border border-slate-800">
+                    <span className={`text-xs font-bold ${tLog.clean ? "text-emerald-400" : "text-rose-400"}`}>
+                      {tLog.clean ? "✅ Clean today" : "❌ Relapsed today"}
+                    </span>
+                    <button onClick={() => undo(h)} className="press text-[10px] text-slate-400 hover:text-white flex items-center gap-1"><RefreshCw size={10} /> Undo</button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => mark(h, true)} className="press py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-black hover:bg-emerald-500/20">I stayed clean</button>
+                    <button onClick={() => mark(h, false)} className="press py-2 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-black hover:bg-rose-500/20">I slipped up</button>
+                  </div>
+                )}
               </div>
-
-              {tLog ? (
-                <div className="flex items-center justify-between bg-slate-950 rounded-xl p-2 border border-slate-800">
-                  <span className={`text-xs font-bold ${tLog.clean ? "text-emerald-400" : "text-rose-400"}`}>
-                    {tLog.clean ? "✅ Clean today" : "❌ Relapsed today"}
-                  </span>
-                  <button onClick={() => undo(h)} className="press text-[10px] text-slate-400 hover:text-white flex items-center gap-1"><RefreshCw size={10} /> Undo</button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => mark(h, true)} className="press py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-black hover:bg-emerald-500/20">I stayed clean</button>
-                  <button onClick={() => mark(h, false)} className="press py-2 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-black hover:bg-rose-500/20">I slipped up</button>
-                </div>
-              )}
             </div>
           );
         })}
         {habits.length === 0 && (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
-            <p className="text-3xl mb-2">❤️‍🩹</p>
+            <p className="text-3xl mb-2">❤️‍</p>
             <p className="text-sm text-slate-400">Ready to quit a bad habit? Start below.</p>
           </div>
         )}
       </div>
 
-      {/* ✅ SIMPLIFIED + LABELED custom form, with the same ⏰ clock as Habit Log */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
         <p className="text-xs font-black text-slate-400 mb-2 flex items-center"><Plus size={12} className="mr-1 text-rose-400" /> CREATE CUSTOM HABIT</p>
         <div className="grid gap-2 mb-6">
@@ -223,10 +229,10 @@ export default function QuitPage() {
           <div className="grid gap-1"><Label t="WHY QUIT?" /><input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Health" className={inputCls} /></div>
           <div className="grid gap-1"><Label t="REPLACE WITH" /><input value={replacement} onChange={(e) => setReplacement(e.target.value)} placeholder="e.g. Chew gum" className={inputCls} /></div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="grid gap-1"><Label t="₹ COST / TIME" /><input type="number" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0" className={inputCls} /></div>
-            <div className="grid gap-1"><Label t="⏱ MIN LOST / TIME" /><input type="number" value={time} onChange={(e) => setTime(e.target.value)} placeholder="0" className={inputCls} /></div>
+            <div className="grid gap-1"><Label t="₹ EACH TIME" /><input type="number" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0" className={inputCls} /></div>
+            <div className="grid gap-1"><Label t="MIN EACH TIME" /><input type="number" value={time} onChange={(e) => setTime(e.target.value)} placeholder="0" className={inputCls} /></div>
           </div>
-          <div className="grid gap-1"><Label t="⏰ DAILY CHECK-IN AT (OPTIONAL)" /><input type="time" value={remTime} onChange={(e) => setRemTime(e.target.value)} className={timeCls} /></div>
+          <div className="grid gap-1"><Label t="⏰ TIME (OPTIONAL)" /><TimeSelect value={remTime} onChange={setRemTime} /></div>
           <button onClick={() => addHabit()} className="press w-full py-3 rounded-xl bg-rose-600 text-sm font-black mt-1">Add to Quit List</button>
         </div>
 
@@ -236,7 +242,7 @@ export default function QuitPage() {
           {TEMPLATES.map((t, i) => (
             <button
               key={i}
-              onClick={() => { setPendingTime(t.remind || "21:00"); setPendingCustom(false); setPendingT(t); }}
+              onClick={() => { setPendingTime(t.remind || "21:00"); setPendingT(t); }}
               className="press text-left bg-slate-800/60 border border-slate-700 rounded-xl p-2.5 hover:border-rose-500/40"
             >
               <p className="text-xs font-bold text-white">{t.emoji} {t.name}</p>
@@ -246,22 +252,21 @@ export default function QuitPage() {
         </div>
       </div>
 
-      {/* ✅ TEMPLATE TIME SHEET (same pattern as Habit Log, rose accent) */}
+      {/* TEMPLATE TIME SHEET */}
       {pendingT && (
         <div className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm flex items-end justify-center">
           <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-t-3xl p-5 pb-8">
             <div className="flex items-center justify-between mb-1">
-              <p className="text-sm font-black text-white">⏰ Daily check-in time</p>
+              <p className="text-sm font-black text-white">⏰ Check-in time</p>
               <button onClick={() => setPendingT(null)} className="text-slate-500 press"><X size={16} /></button>
             </div>
             <p className="text-[11px] text-slate-400 font-bold mb-4">{pendingT.emoji} {pendingT.name} — when should we ask "did you stay clean?"</p>
             <div className="grid grid-cols-3 gap-2 mb-3">
               {REMIND_TIMES.map((t) => (
-                <button key={t} onClick={() => { setPendingTime(t); setPendingCustom(false); }} className={`press py-2.5 rounded-xl text-xs font-black border ${!pendingCustom && pendingTime === t ? "bg-rose-500/15 border-rose-500/40 text-rose-300" : "bg-slate-800 border-slate-700 text-slate-300"}`}>{t}</button>
+                <button key={t} onClick={() => setPendingTime(t)} className={`press py-2.5 rounded-xl text-xs font-black border ${pendingTime === t ? "bg-rose-500/15 border-rose-500/40 text-rose-300" : "bg-slate-800 border-slate-700 text-slate-300"}`}>{t}</button>
               ))}
-              <button onClick={() => setPendingCustom(true)} className={`press py-2.5 rounded-xl text-xs font-black border ${pendingCustom ? "bg-rose-500/15 border-rose-500/40 text-rose-300" : "bg-slate-800 border-slate-700 text-slate-300"}`}>Custom…</button>
             </div>
-            {pendingCustom && (<input type="time" value={pendingTime} onChange={(e) => setPendingTime(e.target.value)} className={timeCls + " mb-3"} />)}
+            <div className="grid gap-1 mb-3"><Label t="OR PICK EXACT" /><TimeSelect value={pendingTime} onChange={setPendingTime} /></div>
             <div className="flex gap-2">
               <button onClick={() => { addHabit(pendingT, pendingTime || null); setPendingT(null); }} className="flex-1 press py-3 rounded-xl bg-rose-600 text-sm font-black">Add with {pendingTime || "no time"}</button>
               <button onClick={() => { addHabit(pendingT, null); setPendingT(null); }} className="press px-4 py-3 rounded-xl bg-slate-800 text-slate-400 text-xs font-black">Skip time</button>
