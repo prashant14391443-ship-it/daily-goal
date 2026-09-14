@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Target, Mail, Lock, Eye, EyeOff, Sparkles, Flame, Trophy, ArrowRight, Check } from "lucide-react";
-
+import { guestLogin } from "@/lib/guest";
 export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -13,7 +13,12 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
-
+  
+  const continueAsGuest = async () => {
+    const { error } = await guestLogin();
+    if (error) { alert("Guest mode unavailable: " + error); return; }
+    window.location.href = "/";
+  };
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -145,6 +150,11 @@ export default function Signup() {
               </>
             )}
           </button>
+                  <button onClick={continueAsGuest}
+          className="w-full py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-sm font-black text-slate-200 flex items-center justify-center gap-2 transition-colors mt-3">
+          👻 Continue as Guest
+        </button>
+        <p className="text-[10px] text-slate-500 text-center mt-1">Explore everything — no signup, data auto-deletes</p>
 
           {/* Login link */}
           <p className="text-center text-sm text-slate-400 mt-5">
