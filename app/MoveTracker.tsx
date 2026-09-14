@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
+import MoveTrackerGuide from "@/app/MoveTrackerGuide";
 import { Activity, PersonStanding, Bike, Mountain, Trophy, Ruler, Rocket, TrendingUp, Flag, Footprints, Timer, Radio, Pause, Square, Play, Coins, Share2, Send, MapPin } from "lucide-react";
 
 const MODES = [
@@ -20,6 +21,11 @@ const MIN_SPEED = 0.8;
 const STEP_MAG = 12;
 const STEP_GAP = 300;
 
+// 💾 STORAGE SAVERS
+const ROUTE_MIN_SPACING = 6;   // save a path point only every ~6m
+const ROUTE_MAX_POINTS = 250;  // hard cap per run
+const ROUTE_KEEP_RECENT = 15;  // only last 15 runs keep their map
+
 const GEO_OPTS: PositionOptions = { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 };
 
 function hav(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -32,6 +38,7 @@ function hav(lat1: number, lon1: number, lat2: number, lon2: number) {
 function fmtTime(s: number) { const m = Math.floor(s / 60); const ss = Math.floor(s % 60); return `${m}m ${ss.toString().padStart(2, "0")}s`; }
 function fmtPace(s: number) { const m = Math.floor(s / 60); const ss = Math.round(s % 60); return `${m}:${String(ss).padStart(2, "0")}`; }
 function todayStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+function isoDate(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 type WeekBar = { label: string; speed: number };
 type RoutePt = { lat: number; lon: number; alt: number | null };
 
@@ -51,6 +58,49 @@ function RouteMap({ route, size = 90 }: { route: RoutePt[] | null; size?: number
       <polyline points={pts} fill="none" stroke="#22c55e" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
+}
+
+async function makeShareCard(o: { label: string; km: number; sec: number; pace: string; cal: number; coins: number; route: RoutePt[]; name: string }): Promise<Blob | null> {
+  const W = 1080, H = 1080;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const ctx = c.getContext("2d");
+  if (!ctx) return null;
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, "#052e16"); g.addColorStop(0.5, "#0f172a"); g.addColorStop(1, "#020617");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#22c55e"; ctx.font = "900 44px system-ui, sans-serif"; ctx.fillText("DAILYGOAL", 60, 100);
+  ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.font = "700 30px system-ui, sans-serif";
+  ctx.fillText(`${o.label.toUpperCase()} · ${new Date().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}`, 60, 150);
+  const bx = 60, by = 200, bw = W - 120, bh = 520;
+  ctx.fillStyle = "rgba(255,255,255,0.04)"; ctx.strokeStyle = "rgba(255,255,255,0.12)"; ctx.lineWidth = 2;
+  ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx, by, bw, bh);
+  if (o.route && o.route.length > 1) {
+    const lats = o.route.map((p) => p.lat), lons = o.route.map((p) => p.lon);
+    const minLa = Math.min(...lats), maxLa = Math.max(...lats), minLo = Math.min(...lons), maxLo = Math.max(...lons);
+    const dLa = maxLa - minLa || 1e-6, dLo = maxLo - minLo || 1e-6, pad = 50;
+    const xs = o.route.map((p) => bx + pad + ((p.lon - minLo) / dLo) * (bw - pad * 2));
+    const ys = o.route.map((p) => by + bh - pad - ((p.lat - minLa) / dLa) * (bh - pad * 2));
+    ctx.strokeStyle = "#fb923c"; ctx.lineWidth = 10; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.beginPath(); xs.forEach((x, i) => (i === 0 ? ctx.moveTo(x, ys[i]) : ctx.lineTo(x, ys[i]))); ctx.stroke();
+    ctx.fillStyle = "#22c55e"; ctx.beginPath(); ctx.arc(xs[0], ys[0], 14, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#ef4444"; ctx.beginPath(); ctx.arc(xs[xs.length - 1], ys[ys.length - 1], 14, 0, Math.PI * 2); ctx.fill();
+  } else {
+    ctx.fillStyle = "rgba(255,255,255,0.25)"; ctx.font = "700 34px system-ui, sans-serif"; ctx.textAlign = "center";
+    ctx.fillText("No GPS route captured", W / 2, by + bh / 2); ctx.textAlign = "left";
+  }
+  ctx.fillStyle = "#ffffff"; ctx.font = "900 120px system-ui, sans-serif"; ctx.fillText(`${o.km.toFixed(2)} km`, 60, 860);
+  const t = Math.floor(o.sec / 60), s2 = o.sec % 60;
+  const cols = [ { v: `${t}m ${String(s2).padStart(2, "0")}s`, l: "TIME" }, { v: `${o.pace}/km`, l: "PACE" }, { v: `${o.cal}`, l: "KCAL" } ];
+  let x = 60;
+  cols.forEach((col) => {
+    ctx.fillStyle = "#ffffff"; ctx.font = "900 46px system-ui, sans-serif"; ctx.fillText(col.v, x, 950);
+    ctx.fillStyle = "#64748b"; ctx.font = "800 26px system-ui, sans-serif"; ctx.fillText(col.l, x, 990);
+    x += 330;
+  });
+  ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.font = "700 28px system-ui, sans-serif";
+  ctx.fillText(`${o.name} · +${o.coins} coins · DailyGoal`, 60, 1040);
+  return await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
 }
 
 export default function MoveTracker() {
@@ -73,8 +123,15 @@ export default function MoveTracker() {
   const [history, setHistory] = useState<any[]>([]);
   const [feed, setFeed] = useState<any[]>([]);
   const [posted, setPosted] = useState(false);
+  const [period, setPeriod] = useState<"week" | "month" | "year">("week");
+  const [totals, setTotals] = useState({ km: 0, min: 0, n: 0, cal: 0 });
+  const [perm, setPerm] = useState("unknown");
+  const [persisted, setPersisted] = useState(false);
+  const [wakeOn, setWakeOn] = useState(false);
+  const [uidReady, setUidReady] = useState(false);
 
   const uidRef = useRef("");
+  const nameRef = useRef("Athlete");
   const lastStepRef = useRef(0);
   const lastMoveRef = useRef(0);
   const watchRef = useRef<number | null>(null);
@@ -84,8 +141,6 @@ export default function MoveTracker() {
   const secRef = useRef(0);
   const speedRef = useRef(0);
   const movingRef = useRef(false);
-
-  // ✅ NEW refs for wake-lock, timestamp timing, route/elev/max
   const wakeRef = useRef<any>(null);
   const startTsRef = useRef(0);
   const pausedMsRef = useRef(0);
@@ -94,17 +149,17 @@ export default function MoveTracker() {
   const elevRef = useRef(0);
   const maxSpeedRef = useRef(0);
 
-  // ✅ Screen Wake Lock helpers
   const requestWake = async () => {
     try {
       if (typeof navigator !== "undefined" && "wakeLock" in navigator) {
         wakeRef.current = await (navigator as any).wakeLock.request("screen");
+        setWakeOn(true);
+        wakeRef.current?.addEventListener?.("release", () => setWakeOn(false));
       }
-    } catch {}
+    } catch { setWakeOn(false); }
   };
-  const releaseWake = () => { try { wakeRef.current?.release(); } catch {} wakeRef.current = null; };
+  const releaseWake = () => { try { wakeRef.current?.release(); } catch {} wakeRef.current = null; setWakeOn(false); };
 
-  // ✅ re-acquire wake lock when tab becomes visible again
   useEffect(() => {
     const onVis = () => { if (document.visibilityState === "visible" && tracking && !paused) requestWake(); };
     document.addEventListener("visibilitychange", onVis);
@@ -112,11 +167,34 @@ export default function MoveTracker() {
   }, [tracking, paused]);
 
   useEffect(() => {
+    const check = async () => {
+      try {
+        if (navigator.permissions && (navigator.permissions as any).query) {
+          const st = await (navigator.permissions as any).query({ name: "geolocation" });
+          setPerm(st.state);
+          st.onchange = () => setPerm(st.state);
+        }
+      } catch {}
+      try {
+        if (navigator.storage?.persisted) {
+          let p = await navigator.storage.persisted();
+          if (!p && navigator.storage.persist) p = await navigator.storage.persist();
+          setPersisted(!!p);
+        }
+      } catch {}
+    };
+    check();
+  }, []);
+
+  useEffect(() => {
     const load = async () => {
       const { data } = await supabase.auth.getSession();
       const uid = data.session?.user.id;
       if (!uid) return;
       uidRef.current = uid;
+      setUidReady(true);
+      const nm = (data.session?.user.user_metadata as any)?.display_name;
+      if (nm) nameRef.current = nm;
       const { data: pb } = await supabase.from("personal_bests").select("*").eq("user_id", uid).maybeSingle();
       setPbs({ pace: pb?.best_pace_sec || null, dist: pb?.best_distance_km || null });
       const from = new Date(Date.now() - 42 * 86400000).toISOString().slice(0, 10);
@@ -130,8 +208,6 @@ export default function MoveTracker() {
       });
       const labels = ["5w", "4w", "3w", "2w", "Last", "Now"];
       setWeekChart(buckets.map((b, i) => ({ label: labels[i], speed: b.d > 0.05 ? Math.round((b.d / (b.t / 60)) * 10) / 10 : 0 })));
-
-      // ✅ history + community feed
       const { data: hist } = await supabase.from("gym_logs")
         .select("id, session_date, workout_type, duration_minutes, distance_km, calories, avg_speed, activity_type, route, elevation_gain_m, max_speed, steps_count")
         .eq("user_id", uid).not("activity_type", "is", null).eq("completed", true)
@@ -143,7 +219,28 @@ export default function MoveTracker() {
     load();
   }, []);
 
-  // ✅ timestamp-based timer (accurate even if OS throttles)
+  useEffect(() => {
+    const loadTotals = async () => {
+      const uid = uidRef.current; if (!uid) return;
+      const now = new Date();
+      let from: string;
+      if (period === "week") { const d = new Date(now); d.setDate(d.getDate() - 6); from = isoDate(d); }
+      else if (period === "month") from = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+      else from = `${now.getFullYear()}-01-01`;
+      const { data } = await supabase.from("gym_logs")
+        .select("distance_km, duration_minutes, calories")
+        .eq("user_id", uid).not("activity_type", "is", null).eq("completed", true).gte("session_date", from);
+      const rows = data || [];
+      setTotals({
+        km: Math.round(rows.reduce((s, r) => s + (r.distance_km || 0), 0) * 100) / 100,
+        min: rows.reduce((s, r) => s + (r.duration_minutes || 0), 0),
+        n: rows.length,
+        cal: rows.reduce((s, r) => s + (r.calories || 0), 0),
+      });
+    };
+    if (uidReady) loadTotals();
+  }, [period, uidReady]);
+
   useEffect(() => {
     if (!tracking || paused) return;
     const id = setInterval(() => {
@@ -189,9 +286,13 @@ export default function MoveTracker() {
     }
     prevRef.current = { lat: latitude, lon: longitude };
 
-    // ✅ capture route + elevation
+    // 💾 downsampled + capped route (small storage)
     const lp = routeRef.current[routeRef.current.length - 1];
-    if (!lp || hav(lp.lat, lp.lon, latitude, longitude) > 4) routeRef.current.push({ lat: latitude, lon: longitude, alt: altitude ?? null });
+    if (routeRef.current.length < ROUTE_MAX_POINTS) {
+      if (!lp || hav(lp.lat, lp.lon, latitude, longitude) > ROUTE_MIN_SPACING) {
+        routeRef.current.push({ lat: +latitude.toFixed(5), lon: +longitude.toFixed(5), alt: altitude != null ? +altitude.toFixed(1) : null });
+      }
+    }
     if (lp && altitude != null && lp.alt != null) {
       const dAlt = altitude - lp.alt;
       if (dAlt > 1) elevRef.current += dAlt;
@@ -224,6 +325,16 @@ export default function MoveTracker() {
     watchRef.current = navigator.geolocation.watchPosition(onPos, onErr, GEO_OPTS);
   };
 
+  // 💾 auto-delete old route maps: keep only the most recent N
+  const pruneOldRoutes = async (uid: string) => {
+    const { data: rows } = await supabase.from("gym_logs")
+      .select("id").eq("user_id", uid).not("activity_type", "is", null).eq("completed", true).not("route", "is", null)
+      .order("session_date", { ascending: false }).limit(60);
+    const keep = new Set((rows || []).slice(0, ROUTE_KEEP_RECENT).map((r) => r.id));
+    const toNull = (rows || []).filter((r) => !keep.has(r.id)).map((r) => r.id);
+    if (toNull.length) await supabase.from("gym_logs").update({ route: null }).in("id", toNull);
+  };
+
   const awardPB = async (uid: string, key: string, label: string) => {
     const { error } = await supabase.from("coin_log").insert({ user_id: uid, action_key: key, coins: 50 });
     if (!error) {
@@ -248,7 +359,7 @@ export default function MoveTracker() {
     setWarming(true);
     prevRef.current = null; lastMoveRef.current = Date.now();
     setTracking(true); setPaused(false);
-    requestWake(); // ✅ keep screen on
+    requestWake();
     startWatch();
   };
 
@@ -265,7 +376,7 @@ export default function MoveTracker() {
     setPaused(false);
     prevRef.current = null; pendingRef.current = 0; lastMoveRef.current = Date.now();
     setHint("");
-    requestWake(); // ✅ keep screen on again
+    requestWake();
     startWatch();
   };
 
@@ -275,7 +386,6 @@ export default function MoveTracker() {
     releaseWake();
     setTracking(false); setPaused(false); setMoving(false);
 
-    // ✅ accurate elapsed from timestamps
     const now = Date.now();
     const elapsedMs = (paused ? pauseStartRef.current : now) - startTsRef.current - pausedMsRef.current;
     const secs = Math.max(0, Math.floor(elapsedMs / 1000));
@@ -298,6 +408,7 @@ export default function MoveTracker() {
         avg_speed: secs > 0 ? Math.round((km / (secs / 3600)) * 10) / 10 : 0,
         route, elevation_gain_m: elev, max_speed: maxSp, steps_count: steps,
       });
+      pruneOldRoutes(uid); // 💾 auto-delete old maps
       setLast({ dist: km, sec: secs, cal, label: mode.label, coins: earnedCoins, route, elev, maxSpeed: maxSp, steps });
       if (km >= 0.5) {
         const paceSec = Math.round(secs / km);
@@ -324,7 +435,6 @@ export default function MoveTracker() {
           setCoachTip(d.reply || "Keep going — consistency beats speed! 🏃");
         } catch { setCoachTip(""); }
       }
-      // refresh history
       const { data: hist } = await supabase.from("gym_logs")
         .select("id, session_date, workout_type, duration_minutes, distance_km, calories, avg_speed, activity_type, route, elevation_gain_m, max_speed, steps_count")
         .eq("user_id", uid).not("activity_type", "is", null).eq("completed", true)
@@ -333,22 +443,32 @@ export default function MoveTracker() {
     } else if (secs < 10) setHint("⏱️ Too short — track at least 10 seconds!");
   };
 
-  // ✅ Share via native share sheet / clipboard fallback
   const shareRun = async () => {
     if (!last) return;
     const pace = last.dist > 0 ? fmtPace(Math.round(last.sec / last.dist)) : "—";
     const text = `🏃 I just ${last.label}ed ${last.dist.toFixed(2)} km in ${fmtTime(last.sec)} (pace ${pace}/km) · ${last.cal} kcal · +${last.coins} 🪙 on DailyGoal!`;
-    if (typeof navigator !== "undefined" && (navigator as any).share) {
-      try { await (navigator as any).share({ title: "My Run", text }); return; } catch {}
+    const blob = await makeShareCard({ label: last.label, km: last.dist, sec: last.sec, pace, cal: last.cal, coins: last.coins, route: last.route, name: nameRef.current });
+    const nav: any = navigator;
+    if (blob) {
+      const file = new File([blob], "dailygoal-run.png", { type: "image/png" });
+      if (nav.canShare && nav.canShare({ files: [file] })) {
+        try { await nav.share({ files: [file], title: "My Run", text }); return; } catch { return; }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = "dailygoal-run.png"; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 5000); // 💾 free memory
+      try { await navigator.clipboard.writeText(text); } catch {}
+      alert("🖼️ Run card saved to Downloads + text copied — share it anywhere!");
+      return;
     }
-    try { await navigator.clipboard.writeText(text); alert("Copied! Paste it anywhere 📋"); } catch {}
+    if (nav.share) { try { await nav.share({ title: "My Run", text }); return; } catch {} }
+    try { await navigator.clipboard.writeText(text); alert("Copied! Paste anywhere 📋"); } catch {}
   };
 
-  // ✅ Post to community Run Feed
   const postRun = async () => {
     const uid = uidRef.current; if (!uid || !last) return;
     const { data: sess } = await supabase.auth.getSession();
-    const name = (sess.session?.user.user_metadata as any)?.display_name || "Athlete";
+    const name = (sess.session?.user.user_metadata as any)?.display_name || nameRef.current;
     await supabase.from("move_posts").insert({
       user_id: uid, display_name: name, mode: last.label,
       distance_km: Math.round(last.dist * 100) / 100, duration_sec: last.sec,
@@ -358,6 +478,10 @@ export default function MoveTracker() {
     const { data: fd } = await supabase.from("move_posts").select("*").order("created_at", { ascending: false }).limit(10);
     setFeed(fd || []);
     setPosted(true);
+  };
+
+  const askLocation = () => {
+    navigator.geolocation.getCurrentPosition(() => setPerm("granted"), () => setPerm("denied"), GEO_OPTS);
   };
 
   const km = dist / 1000;
@@ -388,8 +512,28 @@ export default function MoveTracker() {
             </span>
           </div>
           <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Auto Tracker</h1>
-          <p className="text-[11px] text-white/75 font-semibold mt-0.5">GPS + steps + calories · screen stays on</p>
+          <p className="text-[11px] text-white/75 font-semibold mt-0.5">GPS + steps + calories · screen stays on · low storage</p>
         </div>
+      </div>
+
+      <MoveTrackerGuide />
+
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        <span className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold ${perm === "granted" ? "bg-green-500/10 border-green-500/30 text-green-300" : perm === "denied" ? "bg-red-500/10 border-red-500/30 text-red-300" : "bg-slate-800/60 border-slate-700 text-slate-400"}`}>
+          📍 Location: {perm === "granted" ? "on" : perm === "denied" ? "blocked" : "not set"}
+        </span>
+        <span className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold ${wakeOn ? "bg-green-500/10 border-green-500/30 text-green-300" : "bg-slate-800/60 border-slate-700 text-slate-400"}`}>
+          🔆 Screen stay-on: {wakeOn ? "active" : "idle"}
+        </span>
+        <span className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold ${persisted ? "bg-green-500/10 border-green-500/30 text-green-300" : "bg-slate-800/60 border-slate-700 text-slate-400"}`}>
+          💾 Data safe: {persisted ? "yes" : "standard"}
+        </span>
+        {perm === "prompt" || perm === "unknown" ? (
+          <button onClick={askLocation} className="px-2.5 py-1.5 rounded-lg bg-blue-500/15 border border-blue-500/30 text-[10px] font-black text-blue-300">Enable GPS</button>
+        ) : null}
+        {perm === "denied" && (
+          <span className="px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-[10px] font-bold text-red-300">Fix: browser site settings → allow location</span>
+        )}
       </div>
 
       <div className="flex justify-center gap-4 mb-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 text-[11px] font-black">
@@ -490,7 +634,6 @@ export default function MoveTracker() {
         </button>
       )}
 
-      {/* LAST RUN + share/post */}
       {last && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5 mt-5">
           <div className="flex justify-between items-center text-sm font-black mb-3">
@@ -525,7 +668,6 @@ export default function MoveTracker() {
         </div>
       )}
 
-      {/* HISTORY */}
       {history.length > 0 && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
           <p className="text-xs font-black text-slate-400 mb-3 flex items-center gap-2"><TrendingUp size={14} className="text-blue-400" /> YOUR RECENT ACTIVITIES</p>
@@ -547,7 +689,6 @@ export default function MoveTracker() {
         </div>
       )}
 
-      {/* COMMUNITY RUN FEED */}
       {feed.length > 0 && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
           <p className="text-xs font-black text-slate-400 mb-3 flex items-center gap-2"><Flag size={14} className="text-green-400" /> COMMUNITY RUN FEED</p>
@@ -566,7 +707,38 @@ export default function MoveTracker() {
         </div>
       )}
 
-      {/* WEEKLY CHART */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5 mt-5">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-black text-slate-400 flex items-center gap-2"><TrendingUp size={14} className="text-green-400" /> YOUR TOTALS</p>
+          <div className="flex gap-1">
+            {(["week", "month", "year"] as const).map((p) => (
+              <button key={p} onClick={() => setPeriod(p)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-black border ${period === p ? "bg-green-500/15 border-green-500/30 text-green-300" : "bg-slate-800 border-slate-700 text-slate-500"}`}>
+                {p === "week" ? "Week" : p === "month" ? "Month" : "Year"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="bg-slate-800/60 rounded-xl p-3">
+            <p className="text-lg font-black text-green-400">{totals.km}</p>
+            <p className="text-[9px] font-black text-slate-500">KM</p>
+          </div>
+          <div className="bg-slate-800/60 rounded-xl p-3">
+            <p className="text-lg font-black text-blue-400">{Math.floor(totals.min / 60)}h {totals.min % 60}m</p>
+            <p className="text-[9px] font-black text-slate-500">TIME</p>
+          </div>
+          <div className="bg-slate-800/60 rounded-xl p-3">
+            <p className="text-lg font-black text-amber-400">{totals.n}</p>
+            <p className="text-[9px] font-black text-slate-500">RUNS</p>
+          </div>
+          <div className="bg-slate-800/60 rounded-xl p-3">
+            <p className="text-lg font-black text-red-400">{totals.cal}</p>
+            <p className="text-[9px] font-black text-slate-500">KCAL</p>
+          </div>
+        </div>
+      </div>
+
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mt-5 mb-5">
         <div className="flex items-center gap-2 mb-4">
           <span className="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center"><TrendingUp size={14} strokeWidth={2.2} /></span>
