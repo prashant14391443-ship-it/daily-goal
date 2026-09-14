@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { Bell } from "lucide-react";
+
 function ago(iso: string) {
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
   if (s < 60) return "just now";
@@ -17,6 +18,7 @@ function isToday(iso: string) {
   const now = new Date();
   return d.toDateString() === now.toDateString();
 }
+
 function isYesterday(iso: string) {
   const d = new Date(iso);
   const y = new Date();
@@ -24,14 +26,13 @@ function isYesterday(iso: string) {
   return d.toDateString() === y.toDateString();
 }
 
-// 🎯 Icon + color per notification type
 const TYPE_STYLES: Record<string, { emoji: string; grad: string; border: string }> = {
   friend_request: { emoji: "🤝", grad: "from-green-500 to-emerald-600", border: "border-green-500/40" },
   friend_accepted: { emoji: "✅", grad: "from-emerald-500 to-teal-600", border: "border-emerald-500/40" },
   message: { emoji: "💬", grad: "from-blue-500 to-indigo-600", border: "border-blue-500/40" },
   like: { emoji: "❤️", grad: "from-rose-500 to-rose-600", border: "border-rose-500/40" },
   streak: { emoji: "🔥", grad: "from-orange-500 to-red-600", border: "border-orange-500/40" },
-  system: { emoji: "   <Bell size={18} className="text-violet-200" />", grad: "from-violet-500 to-violet-600", border: "border-violet-500/40" },
+  system: { emoji: "📢", grad: "from-violet-500 to-violet-600", border: "border-violet-500/40" },
   coin: { emoji: "🪙", grad: "from-amber-500 to-orange-600", border: "border-amber-500/40" },
   default: { emoji: "📬", grad: "from-slate-500 to-slate-700", border: "border-slate-500/40" },
 };
@@ -76,7 +77,6 @@ export default function ActivityPage() {
     await supabase.from("notifications").delete().eq("user_id", userId);
   };
 
-  // 📅 Group by Today / Yesterday / Earlier
   const today: any[] = [], yesterday: any[] = [], earlier: any[] = [];
   items.forEach((n) => {
     if (isToday(n.created_at)) today.push(n);
@@ -138,7 +138,6 @@ export default function ActivityPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-2xl mx-auto">
-      {/* 🌆 HERO */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
           <Link href="/feed" className="press w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-lg">←</Link>
@@ -154,7 +153,6 @@ export default function ActivityPage() {
         </div>
       </div>
 
-      {/* 🎯 QUICK ACTIONS (only show if items exist) */}
       {items.length > 0 && (
         <div className="flex gap-2 mb-4">
           <button onClick={markAll} className="press flex-1 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-black text-slate-300 hover:bg-slate-800">
@@ -166,7 +164,6 @@ export default function ActivityPage() {
         </div>
       )}
 
-      {/* 📋 CONTENT */}
       {loading ? (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
           <p className="text-4xl mb-2 animate-bounce">❤️</p>

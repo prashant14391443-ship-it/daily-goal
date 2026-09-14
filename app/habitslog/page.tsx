@@ -106,7 +106,7 @@ export default function HabitLogPage() {
       const key = "daily-" + today;
       if (fired.keys.includes(key)) return;
       const left = habits.length - logs.filter((l) => l.log_date === today).length;
-      if (left > 0) { fired.keys.push(key); localStorage.setItem("dg-habit-rem-fired", JSON.stringify(fired)); recordNotification("   <Bell size={18} className="text-violet-200" /> Habit reminder", `${left} habit(s) left today — don't miss twice!`); }
+      if (left > 0) { fired.keys.push(key); localStorage.setItem("dg-habit-rem-fired", JSON.stringify(fired)); recordNotification("🔔 Habit reminder", `${left} habit(s) left today — don't miss twice!`); }
     };
     check();
     const id = setInterval(check, 30000);
@@ -209,7 +209,7 @@ export default function HabitLogPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 via-purple-600 to-violet-600 p-5 shadow-xl shadow-purple-900/20">
+      <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 via-purple-600 to-fuchsia-600 p-5 shadow-xl shadow-purple-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
           <h1 className="text-lg font-black text-white leading-tight">Habit Log</h1>
@@ -217,12 +217,10 @@ export default function HabitLogPage() {
         </div>
       </div>
 
-      {/* Reminders + Date picker */}
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <button onClick={toggleReminders} className={`press flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border ${remindersOn ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-slate-900 border-slate-800 text-slate-500"}`}>
           {remindersOn ? <Bell size={13} /> : <BellOff size={13} />} {remindersOn ? "Reminders ON" : "Reminders OFF"}
         </button>
-        {/* Removed time dropdown here */}
         <div className="flex-1" />
         <button onClick={() => setViewDate(shiftDate(viewDate, -1))} className="press w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 flex items-center justify-center"><ChevronLeft size={15} /></button>
         <input type="date" value={viewDate} onChange={(e) => setViewDate(e.target.value || today)} className="bg-slate-900 border border-slate-800 rounded-xl px-2 py-2 text-xs font-bold text-slate-300 outline-none" />
@@ -238,7 +236,6 @@ export default function HabitLogPage() {
         ))}
       </div>
 
-      {/* ===== TODAY ===== */}
       {view === "today" && (
         <>
           {habits.length > 0 && (
@@ -283,7 +280,7 @@ export default function HabitLogPage() {
                     <button onClick={() => toggle(h)} className={`w-12 h-12 shrink-0 rounded-xl border-2 flex items-center justify-center text-2xl press ${done ? "bg-emerald-600 border-emerald-500" : "bg-slate-800 border-slate-700"}`}>{done ? "✓" : h.emoji}</button>
                     <div className="flex-1 min-w-0">
                       <p className={`font-black text-sm ${done ? "text-emerald-300 line-through" : "text-white"}`}>{h.habit_name}</p>
-                      {h.identity && <p className="text-[10px] text-violet-300 font-bold mt-0.5">🪪 I am someone who {h.identity}</p>}
+                      {h.identity && <p className="text-[10px] text-fuchsia-300 font-bold mt-0.5">🪪 I am someone who {h.identity}</p>}
                       {h.anchor && <p className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5"><Anchor size={10} /> After {h.anchor}</p>}
                       {(h.cue_time || h.cue_place) && (
                         <p className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
@@ -312,14 +309,12 @@ export default function HabitLogPage() {
         </>
       )}
 
-      {/* ===== ADD HABITS ===== */}
       {view === "add" && (
         <>
-          {/* Custom Habit First */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid gap-2 mb-4">
             <p className="text-xs font-black text-slate-400 mb-1 flex items-center gap-1.5"><Plus size={13} className="text-violet-400" /> CREATE CUSTOM HABIT</p>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Habit (e.g. Read 1 page)" className={inputCls} />
-            <input value={identity} onChange={(e) => setIdentity(e.target.value)} placeholder="Identity: I am someone who... (e.g. reads daily)" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
+            <input value={identity} onChange={(e) => setIdentity(e.target.value)} placeholder="Identity: I am someone who... (e.g. reads daily)" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-fuchsia-500" />
             <div className="grid grid-cols-2 gap-2">
               <AnchorSelect value={anchor} onChange={setAnchor} custom={anchorCustom} onCustom={setAnchorCustom} />
               <input type="number" min="2" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Goal min" className={inputCls} />
@@ -331,7 +326,6 @@ export default function HabitLogPage() {
             <button onClick={() => addHabit()} className="press py-2.5 rounded-xl bg-violet-600 text-sm font-black mt-1">Add custom habit</button>
           </div>
           
-          {/* Templates Second */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
             <p className="text-xs font-black text-slate-400 mb-2 flex items-center gap-1.5"><Sparkles size={13} className="text-violet-400" /> ONE-TAP START (2-min version)</p>
             <div className="grid grid-cols-2 gap-2">
@@ -346,7 +340,6 @@ export default function HabitLogPage() {
         </>
       )}
 
-      {/* ===== EVENING REVIEW ===== */}
       {view === "review" && (
         <>
           {habits.length > 0 && (
@@ -384,7 +377,7 @@ export default function HabitLogPage() {
               <div className="grid gap-2">
                 <input value={reflWent} onChange={(e) => setReflWent(e.target.value)} placeholder="What went well today?" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-emerald-500" />
                 <input value={reflImprove} onChange={(e) => setReflImprove(e.target.value)} placeholder="What to improve tomorrow?" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-amber-500" />
-                <input value={reflGrateful} onChange={(e) => setReflGrateful(e.target.value)} placeholder="One thing you're grateful for" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500" />
+                <input value={reflGrateful} onChange={(e) => setReflGrateful(e.target.value)} placeholder="One thing you're grateful for" className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-fuchsia-500" />
                 <button onClick={saveReflection} className="press py-2.5 rounded-xl bg-amber-600 text-sm font-black">Save review</button>
               </div>
             )}
