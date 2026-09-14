@@ -151,7 +151,7 @@ export default function MoveTracker() {
       if (meta.display_name) nameRef.current = meta.display_name;
       avatarRef.current = meta.avatar_url || "";
       if (!avatarRef.current) {
-        const { data: pr } = await supabase.from("profiles").select("avatar_url").eq("id", uid).maybeSingle();
+        const { data: pr } = await supabase.from("profiles").select("avatar_url").eq("user_id", uid).maybeSingle();
         avatarRef.current = pr?.avatar_url || "";
       }
       const { data: pb } = await supabase.from("personal_bests").select("*").eq("user_id", uid).maybeSingle();
@@ -318,8 +318,8 @@ export default function MoveTracker() {
         if (!pb) { await supabase.from("personal_bests").insert({ user_id: uid, best_pace_sec: km >= 1 ? paceSec : null, best_distance_km: Math.round(km * 100) / 100 }); setPbs({ pace: km >= 1 ? paceSec : null, dist: km }); flash = "🚀 First records saved!"; await awardPB(uid, `pb-first-${uid}`, "First running record set"); }
         else {
           const up: { best_pace_sec?: number; best_distance_km?: number } = {};
-          if (km >= 1 && paceSec < (pb.best_pace_sec || 999999)) { up.best_pace_sec = paceSec; flash += `🚀 NEW FASTEST PACE ${fmtPace(paceSec)}/km! `; await awardPB(uid, `pb-pace-${uid}-${paceSec}`, `New fastest pace`); }
-          if (km > (pb.best_distance_km || 0)) { up.best_distance_km = Math.round(km * 100) / 100; flash += `📏 NEW LONGEST ${km.toFixed(2)} km!`; await awardPB(uid, `pb-dist-${uid}-${Math.round(km * 100)}`, `New longest run`); }
+          if (km >= 1 && paceSec < (pb.best_pace_sec || 999999)) { up.best_pace_sec = paceSec; flash += `🚀 NEW FASTEST PACE ${fmtPace(paceSec)}/km! `; await awardPB(uid, `pb-pace-${uid}-${paceSec}`, "New fastest pace"); }
+          if (km > (pb.best_distance_km || 0)) { up.best_distance_km = Math.round(km * 100) / 100; flash += `📏 NEW LONGEST ${km.toFixed(2)} km!`; await awardPB(uid, `pb-dist-${uid}-${Math.round(km * 100)}`, "New longest run"); }
           if (Object.keys(up).length) { await supabase.from("personal_bests").update(up).eq("user_id", uid); setPbs({ pace: up.best_pace_sec ?? pb.best_pace_sec, dist: up.best_distance_km ?? pb.best_distance_km }); }
         }
         if (flash) setPbFlash(flash + " (+50 🪙)");
@@ -369,18 +369,18 @@ export default function MoveTracker() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white px-4 pt-4 pb-44 max-w-4xl mx-auto">
-      {/* compact hero with see-others inside */}
-      <div className="relative mb-3 overflow-hidden rounded-2xl bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 p-4 shadow-lg shadow-emerald-900/20">
+      {/* 🟩 HERO (big) */}
+      <div className="relative mb-3 overflow-hidden rounded-2xl bg-gradient-to-br from-green-600 via-emerald-600 to-teal-600 p-5 shadow-lg shadow-emerald-900/20">
         <div className="absolute -right-8 -top-8 w-28 h-28 bg-white/10 rounded-full blur-2xl" />
         <div className="relative flex items-center justify-between mb-2">
-          <span className="w-9 h-9 shrink-0 rounded-xl bg-white/15 flex items-center justify-center"><ModeIcon size={18} strokeWidth={2.2} className="text-white" /></span>
+          <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center"><ModeIcon size={22} strokeWidth={2.2} className="text-white" /></span>
           <div className="flex items-center gap-2">
-            <button onClick={() => router.push("/run-feed")} className="flex items-center gap-1.5 bg-white/15 border border-white/20 rounded-full px-3 py-1.5 text-[11px] font-black text-white"><Users size={14} /> Feed</button>
-            <span className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-[11px] font-black border border-white/20 flex items-center gap-1.5"><Timer size={11} /> {fmtTime(sec)}</span>
+            <button onClick={() => router.push("/run-feed")} className="flex items-center gap-1.5 bg-white/15 border border-white/20 rounded-full px-3 py-1.5 text-[11px] font-black text-white"><Users size={14} /> See other run</button>
+            <span className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-[12px] font-black border border-white/20 flex items-center gap-1.5"><Timer size={12} /> {fmtTime(sec)}</span>
           </div>
         </div>
-        <h1 className="text-base font-black text-white leading-tight">Auto Tracker</h1>
-        <p className="text-[10px] text-white/75 font-semibold">GPS + steps + calories · screen stays on</p>
+        <h1 className="text-xl font-black text-white leading-tight">Auto Tracker</h1>
+        <p className="text-[11px] text-white/75 font-semibold">GPS + steps + calories · screen stays on</p>
       </div>
 
       <div className="flex justify-center gap-4 mb-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-2.5 text-[11px] font-black">
@@ -390,25 +390,26 @@ export default function MoveTracker() {
 
       <div className="grid grid-cols-4 gap-2 mb-3">
         {MODES.map((m) => { const Icon = m.icon; return (
-          <button key={m.id} onClick={() => !tracking && setMode(m)} className={`press py-2.5 rounded-xl text-[10px] font-black border transition-all flex flex-col items-center gap-1 ${mode.id === m.id ? "bg-green-500/15 border-green-500/30 text-green-300" : "bg-slate-900 border-slate-800 text-slate-400"}`}>
-            <Icon size={15} strokeWidth={2.2} /> {m.label}
+          <button key={m.id} onClick={() => !tracking && setMode(m)} className={`press py-3 rounded-xl text-[10px] font-black border transition-all flex flex-col items-center gap-1 ${mode.id === m.id ? "bg-green-500/15 border-green-500/30 text-green-300" : "bg-slate-900 border-slate-800 text-slate-400"}`}>
+            <Icon size={16} strokeWidth={2.2} /> {m.label}
           </button> ); })}
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 mb-3 flex items-center justify-between">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-3 flex items-center justify-between">
         <span className="text-sm font-bold text-slate-400">Body Weight (kg)</span>
-        <input type="number" min="20" max="300" value={weight} onChange={(e) => setWeight(e.target.value)} disabled={tracking} placeholder="kg" className="bg-slate-800 border border-slate-700 rounded-xl w-20 text-center text-white py-1.5 text-sm outline-none focus:border-green-500 disabled:opacity-50" />
+        <input type="number" min="20" max="300" value={weight} onChange={(e) => setWeight(e.target.value)} disabled={tracking} placeholder="kg" className="bg-slate-800 border border-slate-800 border border-slate-700 rounded-xl w-20 text-center text-white py-1.5 text-sm outline-none focus:border-green-500 disabled:opacity-50" />
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 grid gap-2 mb-3">
-        <div className="grid grid-cols-2 gap-2 text-center">
-          <div className="bg-slate-800/60 rounded-xl p-3"><p className="text-[9px] font-black text-slate-500">STEPS</p><p className="text-xl font-black text-white mt-0.5">{steps}</p></div>
-          <div className="bg-slate-800/60 rounded-xl p-3"><p className="text-[9px] font-black text-slate-500">DISTANCE</p><p className="text-xl font-black text-white mt-0.5">{km.toFixed(2)} <span className="text-xs text-slate-500">km</span></p></div>
+      {/* 📊 STATS (big) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid gap-3 mb-3">
+        <div className="grid grid-cols-2 gap-3 text-center">
+          <div className="bg-slate-800/60 rounded-xl p-5"><p className="text-[10px] font-black text-slate-500">STEPS</p><p className="text-3xl font-black text-white mt-1">{steps}</p></div>
+          <div className="bg-slate-800/60 rounded-xl p-5"><p className="text-[10px] font-black text-slate-500">DISTANCE</p><p className="text-3xl font-black text-white mt-1">{km.toFixed(2)} <span className="text-sm text-slate-500">km</span></p></div>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="bg-slate-800/60 rounded-xl p-2"><p className="text-[9px] font-black text-slate-500">SPEED</p><p className="text-lg font-black text-orange-400">{speed || "0.0"}</p><p className="text-[9px] text-slate-500">km/h</p></div>
-          <div className="bg-slate-800/60 rounded-xl p-2"><p className="text-[9px] font-black text-slate-500">PACE</p><p className="text-lg font-black text-green-400">{paceStr}</p><p className="text-[9px] text-slate-500">min/km</p></div>
-          <div className="bg-slate-800/60 rounded-xl p-2"><p className="text-[9px] font-black text-slate-500">BURNED</p><p className="text-lg font-black text-red-400">{cal}</p><p className="text-[9px] text-slate-500">kcal</p></div>
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="bg-slate-800/60 rounded-xl p-4"><p className="text-[10px] font-black text-slate-500">SPEED</p><p className="text-2xl font-black text-orange-400 mt-1">{speed || "0.0"}</p><p className="text-[10px] text-slate-500">km/h</p></div>
+          <div className="bg-slate-800/60 rounded-xl p-4"><p className="text-[10px] font-black text-slate-500">PACE</p><p className="text-2xl font-black text-green-400 mt-1">{paceStr}</p><p className="text-[10px] text-slate-500">min/km</p></div>
+          <div className="bg-slate-800/60 rounded-xl p-4"><p className="text-[10px] font-black text-slate-500">BURNED</p><p className="text-2xl font-black text-red-400 mt-1">{cal}</p><p className="text-[10px] text-slate-500">kcal</p></div>
         </div>
         {tracking && (paused ? (
           <div className="text-center text-[10px] font-black py-1.5 rounded-lg bg-amber-500/15 text-amber-300">⏸ PAUSED</div>
@@ -420,6 +421,13 @@ export default function MoveTracker() {
       </div>
 
       {hint && <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-2 mb-3 text-center"><p className="text-[11px] text-amber-300 font-bold">{hint}</p></div>}
+
+      {/* ▶️ START right under stats (not fixed) */}
+      {!tracking && (
+        <button onClick={start} className="press w-full py-5 rounded-2xl text-lg font-black flex items-center justify-center gap-2 border transition-all bg-green-600 border-green-500 text-white shadow-lg mb-4">
+          <Play size={20} fill="currentColor" /> START TRACKING
+        </button>
+      )}
 
       {last && (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 mb-4">
@@ -445,7 +453,22 @@ export default function MoveTracker() {
         </div>
       )}
 
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 mb-4">
+      {history.length > 0 && (
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 mb-4">
+          <p className="text-xs font-black text-slate-400 mb-2 flex items-center gap-2"><TrendingUp size={14} className="text-blue-400" /> RECENT ACTIVITIES</p>
+          <div className="grid gap-2">
+            {history.map((h) => (
+              <div key={h.id} className="flex items-center gap-2 bg-slate-800/50 rounded-xl p-2">
+                <RouteMap route={h.route} size={44} />
+                <div className="flex-1 min-w-0"><p className="text-[11px] font-bold text-white truncate">{h.workout_type}</p><p className="text-[9px] text-slate-500">{h.session_date} · {h.duration_minutes} min</p></div>
+                <p className="text-[12px] font-black text-green-400 shrink-0">{(h.distance_km || 0).toFixed(2)} km</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 mb-4">
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs font-black text-slate-400 flex items-center gap-2"><TrendingUp size={14} className="text-green-400" /> TOTALS</p>
           <div className="flex gap-1">
@@ -464,40 +487,19 @@ export default function MoveTracker() {
         </div>
       </div>
 
-      {history.length > 0 && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 mb-4">
-          <p className="text-xs font-black text-slate-400 mb-2 flex items-center gap-2"><TrendingUp size={14} className="text-blue-400" /> RECENT ACTIVITIES</p>
-          <div className="grid gap-2">
-            {history.map((h) => (
-              <div key={h.id} className="flex items-center gap-2 bg-slate-800/50 rounded-xl p-2">
-                <RouteMap route={h.route} size={44} />
-                <div className="flex-1 min-w-0"><p className="text-[11px] font-bold text-white truncate">{h.workout_type}</p><p className="text-[9px] text-slate-500">{h.session_date} · {h.duration_minutes} min</p></div>
-                <p className="text-[12px] font-black text-green-400 shrink-0">{(h.distance_km || 0).toFixed(2)} km</p>
-              </div>
-            ))}
+      {/* 📌 PAUSE/STOP pinned ONLY while tracking */}
+      {tracking && (
+        <div className="fixed bottom-20 left-0 right-0 z-40 px-4">
+          <div className="max-w-4xl mx-auto grid grid-cols-2 gap-2">
+            <button onClick={paused ? resume : pause} className={`press w-full py-4 rounded-2xl text-base font-black flex items-center justify-center gap-2 border shadow-lg ${paused ? "bg-green-600 border-green-500 text-white" : "bg-amber-600 border-amber-500 text-white"}`}>
+              {paused ? <><Play size={18} fill="currentColor" /> RESUME</> : <><Pause size={18} /> PAUSE</>}
+            </button>
+            <button onClick={stop} className="press w-full py-4 rounded-2xl text-base font-black flex items-center justify-center gap-2 border shadow-lg bg-red-600 border-red-500 text-white">
+              <Square size={18} /> STOP & SAVE
+            </button>
           </div>
         </div>
       )}
-
-      {/* 📌 STICKY CONTROLS — always visible, no scrolling */}
-      <div className="fixed bottom-20 left-0 right-0 z-40 px-4">
-        <div className="max-w-4xl mx-auto">
-          {tracking ? (
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={paused ? resume : pause} className={`press w-full py-4 rounded-2xl text-base font-black flex items-center justify-center gap-2 border shadow-lg ${paused ? "bg-green-600 border-green-500 text-white" : "bg-amber-600 border-amber-500 text-white"}`}>
-                {paused ? <><Play size={18} fill="currentColor" /> RESUME</> : <><Pause size={18} /> PAUSE</>}
-              </button>
-              <button onClick={stop} className="press w-full py-4 rounded-2xl text-base font-black flex items-center justify-center gap-2 border shadow-lg bg-red-600 border-red-500 text-white">
-                <Square size={18} /> STOP & SAVE
-              </button>
-            </div>
-          ) : (
-            <button onClick={start} className="press w-full py-4 rounded-2xl text-base font-black flex items-center justify-center gap-2 border shadow-lg bg-green-600 border-green-500 text-white">
-              <Play size={18} fill="currentColor" /> START TRACKING
-            </button>
-          )}
-        </div>
-      </div>
 
       {pbFlash && (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
