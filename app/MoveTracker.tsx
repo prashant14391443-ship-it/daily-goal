@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
-import MoveTrackerGuide from "@/app/MoveTrackerGuide";
 import { Activity, PersonStanding, Bike, Mountain, Trophy, Ruler, Rocket, TrendingUp, Flag, Footprints, Timer, Radio, Pause, Square, Play, Coins, Share2, Send, MapPin } from "lucide-react";
 
 const MODES = [
