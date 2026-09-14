@@ -140,9 +140,9 @@ export default function AIPage() {
         setCtx({ name, studyMin, workouts, habits: `${habitsDone}/${habitsTotal}`, todo: `${todoDone}/${todoTotal}`, cal });
 
         let tl = "not enrolled in a track";
-        const enrollment = en?.data;
-        if (enrollment?.track_id) {
-          const tr = getTrackById(enrollment.track_id);
+        const trackId = en?.data?.track_id;
+        if (trackId) {
+          const tr = getTrackById(trackId);
           if (tr) {
             const done = (lp.data || []).filter((p: any) => p.status === "completed").length;
             tl = `${tr.name} — ${done}/${tr.milestones.length} milestones done`;
