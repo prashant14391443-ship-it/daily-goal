@@ -9,7 +9,7 @@ import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3
 import { TIPS, categoryIcons, categoryColors, localISO, dayNum } from "@/app/components/tipsData";
 import CoinPill from "@/app/CoinPill";
 import DraggableAIBubble from "@/app/components/DraggableAIBubble";
-import GuestBanner from "@/app/components/GuestBanner";
+
 import { cleanupOldGuest } from "@/lib/guest";
 
 type Task = { id: string; title: string; completed: boolean };
@@ -346,7 +346,7 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-20 pb-24 max-w-4xl mx-auto">
-           <GuestBanner />
+     
       <div className="relative mb-3 overflow-hidden rounded-3xl bg-slate-900 border border-violet-500/20 p-5 shadow-[0_0_50px_-12px_rgba(139,92,246,0.35)]">
         <div className="absolute -right-16 -top-16 w-48 h-48 bg-violet-600/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -left-16 -bottom-16 w-48 h-48 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
