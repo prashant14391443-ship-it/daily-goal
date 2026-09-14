@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
-import { Activity, PersonStanding, Bike, Mountain, Trophy, Ruler, Rocket, TrendingUp, Flag, Footprints, Timer, Radio, Pause, Square, Play, Coins, Share2, Send, MapPin } from "lucide-react";
+import { Activity, PersonStanding, Bike, Mountain, Trophy, Ruler, Rocket, TrendingUp, Flag, Footprints, Timer, Radio, Pause, Square, Play, Coins, Share2, Send, MapPin, Download, Copy, Users } from "lucide-react";
 
 const MODES = [
   { id: "walk", icon: PersonStanding, label: "Walk", met: 3.5 },
@@ -13,19 +14,19 @@ const MODES = [
 ];
 
 const MIN_ACCURACY = 65;
-const NOISE_FLOOR = 1;
-const MIN_COMMIT = 5;
 const MAX_JUMP = 150;
+const MIN_COMMIT = 5;
 const MIN_SPEED = 0.8;
 const STEP_MAG = 12;
 const STEP_GAP = 300;
+const MOVE_GATE = 0.3; // m/s — real movement threshold
 
-// 💾 STORAGE SAVERS
-const ROUTE_MIN_SPACING = 6;   // save a path point only every ~6m
-const ROUTE_MAX_POINTS = 250;  // hard cap per run
-const ROUTE_KEEP_RECENT = 15;  // only last 15 runs keep their map
+// 💾 storage savers
+const ROUTE_MIN_SPACING = 6;
+const ROUTE_MAX_POINTS = 250;
+const ROUTE_KEEP_RECENT = 15;
 
-const GEO_OPTS: PositionOptions = { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 };
+const GEO_OPTS: PositionOptions = { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 };
 
 function hav(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371000;
@@ -48,7 +49,6 @@ function routePoints(route: RoutePt[] | null): string {
   const dLa = maxLa - minLa || 1e-6, dLo = maxLo - minLo || 1e-6;
   return route.map((p) => `${((p.lon - minLo) / dLo) * 100},${100 - ((p.lat - minLa) / dLa) * 100}`).join(" ");
 }
-
 function RouteMap({ route, size = 90 }: { route: RoutePt[] | null; size?: number }) {
   const pts = routePoints(route);
   if (!pts) return <div style={{ width: size, height: size }} className="rounded-xl bg-slate-800/60 flex items-center justify-center"><MapPin size={16} className="text-slate-600" /></div>;
@@ -102,20 +102,8 @@ async function makeShareCard(o: { label: string; km: number; sec: number; pace: 
   return await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
 }
 
-function MoveTrackerGuide() {
-  return (
-    <div className="mb-4 rounded-2xl border border-slate-800 bg-slate-900/80 p-3 text-[11px] font-semibold text-slate-300">
-      <p className="mb-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">Quick guide</p>
-      <ul className="list-disc space-y-1 pl-4">
-        <li>Start tracking, then keep your phone on you while walking, running, or riding.</li>
-        <li>GPS needs a moment to warm up, so stay near a window or outside if possible.</li>
-        <li>Pause or stop when you are done; the run summary and save card are shown afterward.</li>
-      </ul>
-    </div>
-  );
-}
-
 export default function MoveTracker() {
+  const router = useRouter();
   const [mode, setMode] = useState(MODES[0]);
   const [tracking, setTracking] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -133,13 +121,10 @@ export default function MoveTracker() {
   const [pbs, setPbs] = useState<{ pace: number | null; dist: number | null }>({ pace: null, dist: null });
   const [weekChart, setWeekChart] = useState<WeekBar[]>([]);
   const [history, setHistory] = useState<any[]>([]);
-  const [feed, setFeed] = useState<any[]>([]);
   const [posted, setPosted] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [period, setPeriod] = useState<"week" | "month" | "year">("week");
   const [totals, setTotals] = useState({ km: 0, min: 0, n: 0, cal: 0 });
-  const [perm, setPerm] = useState("unknown");
-  const [persisted, setPersisted] = useState(false);
-  const [wakeOn, setWakeOn] = useState(false);
   const [uidReady, setUidReady] = useState(false);
 
   const uidRef = useRef("");
@@ -160,17 +145,18 @@ export default function MoveTracker() {
   const routeRef = useRef<RoutePt[]>([]);
   const elevRef = useRef(0);
   const maxSpeedRef = useRef(0);
+  const shareBlobRef = useRef<Blob | null>(null);
 
+  // 🔆 silent screen keep-on
   const requestWake = async () => {
     try {
       if (typeof navigator !== "undefined" && "wakeLock" in navigator) {
         wakeRef.current = await (navigator as any).wakeLock.request("screen");
-        setWakeOn(true);
-        wakeRef.current?.addEventListener?.("release", () => setWakeOn(false));
+        wakeRef.current?.addEventListener?.("release", () => { wakeRef.current = null; });
       }
-    } catch { setWakeOn(false); }
+    } catch {}
   };
-  const releaseWake = () => { try { wakeRef.current?.release(); } catch {} wakeRef.current = null; setWakeOn(false); };
+  const releaseWake = () => { try { wakeRef.current?.release(); } catch {} wakeRef.current = null; };
 
   useEffect(() => {
     const onVis = () => { if (document.visibilityState === "visible" && tracking && !paused) requestWake(); };
@@ -178,25 +164,7 @@ export default function MoveTracker() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [tracking, paused]);
 
-  useEffect(() => {
-    const check = async () => {
-      try {
-        if (navigator.permissions && (navigator.permissions as any).query) {
-          const st = await (navigator.permissions as any).query({ name: "geolocation" });
-          setPerm(st.state);
-          st.onchange = () => setPerm(st.state);
-        }
-      } catch {}
-      try {
-        if (navigator.storage?.persisted) {
-          let p = await navigator.storage.persisted();
-          if (!p && navigator.storage.persist) p = await navigator.storage.persist();
-          setPersisted(!!p);
-        }
-      } catch {}
-    };
-    check();
-  }, []);
+  useEffect(() => { try { (navigator as any).storage?.persist?.(); } catch {} }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -225,8 +193,6 @@ export default function MoveTracker() {
         .eq("user_id", uid).not("activity_type", "is", null).eq("completed", true)
         .order("session_date", { ascending: false }).limit(8);
       setHistory(hist || []);
-      const { data: fd } = await supabase.from("move_posts").select("*").order("created_at", { ascending: false }).limit(10);
-      setFeed(fd || []);
     };
     load();
   }, []);
@@ -286,19 +252,23 @@ export default function MoveTracker() {
     const now = Date.now();
     setWarming(false);
 
+    // ✅ ACCURATE: count real movement only (speed-gated), ignore standing jitter
     if (prevRef.current) {
       const d = hav(prevRef.current.lat, prevRef.current.lon, latitude, longitude);
-      if (d > NOISE_FLOOR && d <= MAX_JUMP) {
-        pendingRef.current += d;
-        if (pendingRef.current >= MIN_COMMIT) {
-          distRef.current += pendingRef.current;
-          pendingRef.current = 0;
+      if (d > 1.0 && d <= MAX_JUMP) {
+        const coherent = gpsSpeed != null ? gpsSpeed >= MOVE_GATE : d > 3;
+        if (coherent) {
+          pendingRef.current += d;
+          const commit = mode.id === "walk" ? 6 : MIN_COMMIT;
+          if (pendingRef.current >= commit) {
+            distRef.current += pendingRef.current;
+            pendingRef.current = 0;
+          }
         }
       }
     }
     prevRef.current = { lat: latitude, lon: longitude };
 
-    // 💾 downsampled + capped route (small storage)
     const lp = routeRef.current[routeRef.current.length - 1];
     if (routeRef.current.length < ROUTE_MAX_POINTS) {
       if (!lp || hav(lp.lat, lp.lon, latitude, longitude) > ROUTE_MIN_SPACING) {
@@ -312,18 +282,20 @@ export default function MoveTracker() {
 
     setDist(distRef.current + pendingRef.current);
 
-    if (pendingRef.current > 2 || (gpsSpeed != null && gpsSpeed >= 1)) { setMoving(true); lastMoveRef.current = now; }
+    const movingNow = gpsSpeed != null ? gpsSpeed >= MOVE_GATE : pendingRef.current > 3;
+    if (movingNow) { setMoving(true); lastMoveRef.current = now; }
     if (now - lastMoveRef.current > 6000) setMoving(false);
 
     if (gpsSpeed != null && gpsSpeed >= 0) {
       const kmh = gpsSpeed * 3.6;
-      speedRef.current = speedRef.current === 0 ? kmh : speedRef.current * 0.6 + kmh * 0.4;
+      if (kmh < 1.0) speedRef.current = speedRef.current * 0.5;
+      else speedRef.current = speedRef.current === 0 ? kmh : speedRef.current * 0.6 + kmh * 0.4;
       setSpeed(Math.round(speedRef.current * 10) / 10);
       if (speedRef.current > maxSpeedRef.current) maxSpeedRef.current = speedRef.current;
     }
 
     const kmhNow = speedRef.current;
-    if (warming) setHint("🛰️ GPS warming up — few seconds, stay near sky/window...");
+    if (warming) setHint("🛰️ GPS locking on — keep moving, accuracy improves...");
     else if (kmhNow >= MIN_SPEED) {
       if (mode.id === "walk" && kmhNow > 14) setHint("🚴 That speed looks like RIDING — switch mode above?");
       else if (mode.id === "run" && kmhNow < 6) setHint("🚶 Easy pace — maybe WALK mode fits better?");
@@ -332,12 +304,8 @@ export default function MoveTracker() {
   };
 
   const onErr = () => setHint("📡 GPS weak — move near a window or outside!");
+  const startWatch = () => { watchRef.current = navigator.geolocation.watchPosition(onPos, onErr, GEO_OPTS); };
 
-  const startWatch = () => {
-    watchRef.current = navigator.geolocation.watchPosition(onPos, onErr, GEO_OPTS);
-  };
-
-  // 💾 auto-delete old route maps: keep only the most recent N
   const pruneOldRoutes = async (uid: string) => {
     const { data: rows } = await supabase.from("gym_logs")
       .select("id").eq("user_id", uid).not("activity_type", "is", null).eq("completed", true).not("route", "is", null)
@@ -361,13 +329,15 @@ export default function MoveTracker() {
   const start = () => {
     if (!navigator.geolocation) { alert("GPS not supported on this device!"); return; }
     const DME = DeviceMotionEvent as any;
-    if (typeof DME !== "undefined" && typeof DME.requestPermission === "function") {
-      DME.requestPermission().catch(() => {});
-    }
+    if (typeof DME !== "undefined" && typeof DME.requestPermission === "function") DME.requestPermission().catch(() => {});
+    // prompt + warm GPS for accuracy
+    try { navigator.geolocation.getCurrentPosition(() => {}, () => {}, GEO_OPTS); } catch {}
     distRef.current = 0; secRef.current = 0; pendingRef.current = 0; speedRef.current = 0;
     routeRef.current = []; elevRef.current = 0; maxSpeedRef.current = 0;
     startTsRef.current = Date.now(); pausedMsRef.current = 0;
     setDist(0); setSec(0); setSteps(0); setSpeed(0); setMoving(false); setHint(""); setLast(null); setCoachTip(""); setPosted(false);
+    setShareUrl((old) => { if (old) URL.revokeObjectURL(old); return null; });
+    shareBlobRef.current = null;
     setWarming(true);
     prevRef.current = null; lastMoveRef.current = Date.now();
     setTracking(true); setPaused(false);
@@ -397,11 +367,9 @@ export default function MoveTracker() {
     watchRef.current = null;
     releaseWake();
     setTracking(false); setPaused(false); setMoving(false);
-
     const now = Date.now();
     const elapsedMs = (paused ? pauseStartRef.current : now) - startTsRef.current - pausedMsRef.current;
     const secs = Math.max(0, Math.floor(elapsedMs / 1000));
-
     const km = distRef.current / 1000;
     const mins = Math.max(1, Math.round(secs / 60));
     const userWeight = Number(weight) || 65;
@@ -420,8 +388,13 @@ export default function MoveTracker() {
         avg_speed: secs > 0 ? Math.round((km / (secs / 3600)) * 10) / 10 : 0,
         route, elevation_gain_m: elev, max_speed: maxSp, steps_count: steps,
       });
-      pruneOldRoutes(uid); // 💾 auto-delete old maps
+      pruneOldRoutes(uid);
       setLast({ dist: km, sec: secs, cal, label: mode.label, coins: earnedCoins, route, elev, maxSpeed: maxSp, steps });
+      const cardBlob = await makeShareCard({ label: mode.label, km, sec: secs, pace: km > 0 ? fmtPace(Math.round(secs / km)) : "—", cal, coins: earnedCoins, route, name: nameRef.current });
+      if (cardBlob) {
+        shareBlobRef.current = cardBlob;
+        setShareUrl((old) => { if (old) URL.revokeObjectURL(old); return URL.createObjectURL(cardBlob); });
+      }
       if (km >= 0.5) {
         const paceSec = Math.round(secs / km);
         const { data: pb } = await supabase.from("personal_bests").select("*").eq("user_id", uid).maybeSingle();
@@ -455,58 +428,57 @@ export default function MoveTracker() {
     } else if (secs < 10) setHint("⏱️ Too short — track at least 10 seconds!");
   };
 
-  const shareRun = async () => {
+  const runText = (l: NonNullable<typeof last>) => {
+    const pace = l.dist > 0 ? fmtPace(Math.round(l.sec / l.dist)) : "—";
+    return `🏃 I just ${l.label}ed ${l.dist.toFixed(2)} km in ${fmtTime(l.sec)} (pace ${pace}/km) · ${l.cal} kcal · +${l.coins} 🪙 on DailyGoal!`;
+  };
+  const downloadImage = () => {
+    if (!shareUrl) return;
+    const a = document.createElement("a"); a.href = shareUrl; a.download = "dailygoal-run.png"; a.click();
+  };
+  const shareImage = async () => {
     if (!last) return;
-    const pace = last.dist > 0 ? fmtPace(Math.round(last.sec / last.dist)) : "—";
-    const text = `🏃 I just ${last.label}ed ${last.dist.toFixed(2)} km in ${fmtTime(last.sec)} (pace ${pace}/km) · ${last.cal} kcal · +${last.coins} 🪙 on DailyGoal!`;
-    const blob = await makeShareCard({ label: last.label, km: last.dist, sec: last.sec, pace, cal: last.cal, coins: last.coins, route: last.route, name: nameRef.current });
+    const blob = shareBlobRef.current;
+    const text = runText(last);
     const nav: any = navigator;
     if (blob) {
       const file = new File([blob], "dailygoal-run.png", { type: "image/png" });
       if (nav.canShare && nav.canShare({ files: [file] })) {
         try { await nav.share({ files: [file], title: "My Run", text }); return; } catch { return; }
       }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url; a.download = "dailygoal-run.png"; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 5000); // 💾 free memory
+      downloadImage();
       try { await navigator.clipboard.writeText(text); } catch {}
-      alert("🖼️ Run card saved to Downloads + text copied — share it anywhere!");
+      alert("🖼️ Image saved to Downloads + text copied!");
       return;
     }
     if (nav.share) { try { await nav.share({ title: "My Run", text }); return; } catch {} }
-    try { await navigator.clipboard.writeText(text); alert("Copied! Paste anywhere 📋"); } catch {}
+    try { await navigator.clipboard.writeText(text); } catch {}
   };
-
+  const copyText = async () => {
+    if (!last) return;
+    try { await navigator.clipboard.writeText(runText(last)); alert("Text copied 📋"); } catch {}
+  };
   const postRun = async () => {
     const uid = uidRef.current; if (!uid || !last) return;
-    const { data: sess } = await supabase.auth.getSession();
-    const name = (sess.session?.user.user_metadata as any)?.display_name || nameRef.current;
     await supabase.from("move_posts").insert({
-      user_id: uid, display_name: name, mode: last.label,
+      user_id: uid, display_name: nameRef.current, mode: last.label,
       distance_km: Math.round(last.dist * 100) / 100, duration_sec: last.sec,
       pace_sec: last.dist > 0 ? Math.round(last.sec / last.dist) : null,
       calories: last.cal, coins: last.coins, route: last.route,
     });
-    const { data: fd } = await supabase.from("move_posts").select("*").order("created_at", { ascending: false }).limit(10);
-    setFeed(fd || []);
     setPosted(true);
-  };
-
-  const askLocation = () => {
-    navigator.geolocation.getCurrentPosition(() => setPerm("granted"), () => setPerm("denied"), GEO_OPTS);
   };
 
   const km = dist / 1000;
   const userWeight = Number(weight) || 65;
   let paceStr = "—";
-  if (km > 0.01 && sec > 0) {
+  if (km >= 0.05 && sec > 0) {
     const currentPace = sec / 60 / km;
     if (currentPace > 99) paceStr = "99:59+";
     else paceStr = `${Math.floor(currentPace)}:${String(Math.floor((currentPace % 1) * 60)).padStart(2, "0")}`;
   }
   const cal = km > 0.01 ? Math.round(((mode.met * 3.5 * userWeight) / 200) * (sec / 60)) : 0;
   const maxSpeed = Math.max(...weekChart.map((w) => w.speed), 1);
-
   const ModeIcon = mode.icon;
 
   return (
@@ -515,37 +487,22 @@ export default function MoveTracker() {
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
           <div className="flex items-center justify-between mb-4">
-            <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
-              <ModeIcon size={22} strokeWidth={2.2} className="text-white" />
-            </span>
-            <span className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-[11px] font-black border border-white/20 flex items-center gap-1.5">
-              <Timer size={11} />
-              {fmtTime(sec)}
-            </span>
+            <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center"><ModeIcon size={22} strokeWidth={2.2} className="text-white" /></span>
+            <span className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-[11px] font-black border border-white/20 flex items-center gap-1.5"><Timer size={11} /> {fmtTime(sec)}</span>
           </div>
           <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Auto Tracker</h1>
-          <p className="text-[11px] text-white/75 font-semibold mt-0.5">GPS + steps + calories · screen stays on · low storage</p>
+          <p className="text-[11px] text-white/75 font-semibold mt-0.5">GPS + steps + calories · screen stays on automatically</p>
         </div>
       </div>
 
-      <MoveTrackerGuide />
-
-      <div className="flex flex-wrap gap-1.5 mb-4">
-        <span className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold ${perm === "granted" ? "bg-green-500/10 border-green-500/30 text-green-300" : perm === "denied" ? "bg-red-500/10 border-red-500/30 text-red-300" : "bg-slate-800/60 border-slate-700 text-slate-400"}`}>
-          📍 Location: {perm === "granted" ? "on" : perm === "denied" ? "blocked" : "not set"}
-        </span>
-        <span className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold ${wakeOn ? "bg-green-500/10 border-green-500/30 text-green-300" : "bg-slate-800/60 border-slate-700 text-slate-400"}`}>
-          🔆 Screen stay-on: {wakeOn ? "active" : "idle"}
-        </span>
-        <span className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[10px] font-bold ${persisted ? "bg-green-500/10 border-green-500/30 text-green-300" : "bg-slate-800/60 border-slate-700 text-slate-400"}`}>
-          💾 Data safe: {persisted ? "yes" : "standard"}
-        </span>
-        {perm === "prompt" || perm === "unknown" ? (
-          <button onClick={askLocation} className="px-2.5 py-1.5 rounded-lg bg-blue-500/15 border border-blue-500/30 text-[10px] font-black text-blue-300">Enable GPS</button>
-        ) : null}
-        {perm === "denied" && (
-          <span className="px-2.5 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-[10px] font-bold text-red-300">Fix: browser site settings → allow location</span>
-        )}
+      {/* 🔝 POST + FEED at top */}
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        <button onClick={() => router.push("/run-feed")} className="press py-3 rounded-xl bg-slate-800 border border-slate-700 text-xs font-black text-slate-200 flex items-center justify-center gap-1.5">
+          <Users size={14} /> See others&apos; runs
+        </button>
+        <button onClick={postRun} disabled={!last || posted} className="press py-3 rounded-xl bg-violet-500/15 border border-violet-500/30 text-xs font-black text-violet-300 flex items-center justify-center gap-1.5 disabled:opacity-40">
+          <Send size={14} /> {posted ? "Posted ✓" : "Post my run"}
+        </button>
       </div>
 
       <div className="flex justify-center gap-4 mb-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 text-[11px] font-black">
@@ -559,8 +516,7 @@ export default function MoveTracker() {
           return (
             <button key={m.id} onClick={() => !tracking && setMode(m)}
               className={`press py-3 rounded-xl text-[10px] font-black border transition-all flex flex-col items-center gap-1 ${mode.id === m.id ? "bg-green-500/15 border-green-500/30 text-green-300" : "bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800"}`}>
-              <Icon size={16} strokeWidth={2.2} />
-              {m.label}
+              <Icon size={16} strokeWidth={2.2} /> {m.label}
             </button>
           );
         })}
@@ -568,58 +524,35 @@ export default function MoveTracker() {
 
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4 flex items-center justify-between">
         <span className="text-sm font-bold text-slate-400">Body Weight (kg)</span>
-        <input type="number" min="20" max="300" value={weight} onChange={(e) => setWeight(e.target.value)} disabled={tracking}
-          placeholder="kg"
+        <input type="number" min="20" max="300" value={weight} onChange={(e) => setWeight(e.target.value)} disabled={tracking} placeholder="kg"
           className="bg-slate-800 border border-slate-700 rounded-xl w-20 text-center text-white py-1.5 text-sm outline-none focus:border-green-500 disabled:opacity-50" />
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid gap-3 mb-4">
         <div className="grid grid-cols-2 gap-3 text-center">
           <div className="bg-slate-800/60 rounded-xl p-4">
-            <div className="w-8 h-8 mx-auto mb-2 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
-              <Footprints size={15} strokeWidth={2.2} />
-            </div>
+            <div className="w-8 h-8 mx-auto mb-2 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center"><Footprints size={15} strokeWidth={2.2} /></div>
             <p className="text-[10px] font-black text-slate-500">TOTAL STEPS</p>
             <p className="text-2xl font-black text-white mt-1">{steps}</p>
           </div>
           <div className="bg-slate-800/60 rounded-xl p-4">
-            <div className="w-8 h-8 mx-auto mb-2 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center">
-              <Ruler size={15} strokeWidth={2.2} />
-            </div>
+            <div className="w-8 h-8 mx-auto mb-2 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center"><Ruler size={15} strokeWidth={2.2} /></div>
             <p className="text-[10px] font-black text-slate-500">DISTANCE</p>
             <p className="text-2xl font-black text-white mt-1">{km.toFixed(2)} <span className="text-sm text-slate-500">km</span></p>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="bg-slate-800/60 rounded-xl p-3">
-            <p className="text-[10px] font-black text-slate-500">SPEED</p>
-            <p className="text-xl font-black text-orange-400 mt-1">{speed || "0.0"}</p>
-            <p className="text-[10px] text-slate-500 font-bold">km/h</p>
-          </div>
-          <div className="bg-slate-800/60 rounded-xl p-3">
-            <p className="text-[10px] font-black text-slate-500">PACE</p>
-            <p className="text-xl font-black text-green-400 mt-1">{paceStr}</p>
-            <p className="text-[10px] text-slate-500 font-bold">min/km</p>
-          </div>
-          <div className="bg-slate-800/60 rounded-xl p-3">
-            <p className="text-[10px] font-black text-slate-500">BURNED</p>
-            <p className="text-xl font-black text-red-400 mt-1">{cal}</p>
-            <p className="text-[10px] text-slate-500 font-bold">kcal</p>
-          </div>
+          <div className="bg-slate-800/60 rounded-xl p-3"><p className="text-[10px] font-black text-slate-500">SPEED</p><p className="text-xl font-black text-orange-400 mt-1">{speed || "0.0"}</p><p className="text-[10px] text-slate-500 font-bold">km/h</p></div>
+          <div className="bg-slate-800/60 rounded-xl p-3"><p className="text-[10px] font-black text-slate-500">PACE</p><p className="text-xl font-black text-green-400 mt-1">{paceStr}</p><p className="text-[10px] text-slate-500 font-bold">min/km</p></div>
+          <div className="bg-slate-800/60 rounded-xl p-3"><p className="text-[10px] font-black text-slate-500">BURNED</p><p className="text-xl font-black text-red-400 mt-1">{cal}</p><p className="text-[10px] text-slate-500 font-bold">kcal</p></div>
         </div>
         {tracking && (
           paused ? (
-            <div className="text-center text-[10px] font-black py-2 rounded-lg flex items-center justify-center gap-1.5 bg-amber-500/15 text-amber-300">
-              <Pause size={11} /> PAUSED — timer & GPS stopped
-            </div>
+            <div className="text-center text-[10px] font-black py-2 rounded-lg flex items-center justify-center gap-1.5 bg-amber-500/15 text-amber-300"><Pause size={11} /> PAUSED — timer & GPS stopped</div>
           ) : gpsMoving ? (
-            <div className="text-center text-[10px] font-black py-2 rounded-lg flex items-center justify-center gap-1.5 bg-green-500/15 text-green-400">
-              <Radio size={11} /> GPS tracking movement
-            </div>
+            <div className="text-center text-[10px] font-black py-2 rounded-lg flex items-center justify-center gap-1.5 bg-green-500/15 text-green-400"><Radio size={11} /> GPS tracking movement</div>
           ) : (
-            <div className="text-center text-[10px] font-black py-2 rounded-lg flex items-center justify-center gap-1.5 bg-slate-800/50 text-slate-500">
-              <Pause size={11} /> Waiting for real movement...
-            </div>
+            <div className="text-center text-[10px] font-black py-2 rounded-lg flex items-center justify-center gap-1.5 bg-slate-800/50 text-slate-500"><Pause size={11} /> Waiting for real movement...</div>
           )
         )}
       </div>
@@ -629,19 +562,15 @@ export default function MoveTracker() {
       {tracking ? (
         <div className="grid grid-cols-2 gap-2">
           <button onClick={paused ? resume : pause}
-            className={`press w-full py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 border transition-all ${
-              paused ? "bg-green-500/15 border-green-500/30 text-green-300" : "bg-amber-500/15 border-amber-500/30 text-amber-300"
-            }`}>
+            className={`press w-full py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 border transition-all ${paused ? "bg-green-500/15 border-green-500/30 text-green-300" : "bg-amber-500/15 border-amber-500/30 text-amber-300"}`}>
             {paused ? <><Play size={18} fill="currentColor" /> RESUME</> : <><Pause size={18} /> PAUSE</>}
           </button>
-          <button onClick={stop}
-            className="press w-full py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 border transition-all bg-red-500/15 border-red-500/30 text-red-300">
+          <button onClick={stop} className="press w-full py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 border transition-all bg-red-500/15 border-red-500/30 text-red-300">
             <Square size={18} /> STOP & SAVE
           </button>
         </div>
       ) : (
-        <button onClick={start}
-          className="press w-full py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 border transition-all bg-green-500/15 border-green-500/30 text-green-300">
+        <button onClick={start} className="press w-full py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 border transition-all bg-green-500/15 border-green-500/30 text-green-300">
           <Play size={18} fill="currentColor" /> START TRACKING
         </button>
       )}
@@ -652,31 +581,25 @@ export default function MoveTracker() {
             <span className="flex items-center gap-2"><Flag size={15} className="text-green-400" /> Run Saved!</span>
             <span className="text-slate-500 text-xs">{fmtTime(last.sec)}</span>
           </div>
+          {shareUrl && <img src={shareUrl} alt="run card" className="w-full rounded-xl border border-slate-700 mb-3" />}
           <div className="flex gap-3 items-center mb-3">
             <RouteMap route={last.route} size={80} />
             <div className="flex-1 grid grid-cols-2 gap-2 text-[11px] font-bold text-slate-300">
-              <span>⛰️ Elev: {last.elev} m</span>
-              <span>⚡ Max: {last.maxSpeed} km/h</span>
-              <span>👟 Steps: {last.steps}</span>
-              <span>🔥 {last.cal} kcal</span>
+              <span>⛰️ Elev: {last.elev} m</span><span>⚡ Max: {last.maxSpeed} km/h</span>
+              <span>👟 Steps: {last.steps}</span><span>🔥 {last.cal} kcal</span>
             </div>
           </div>
           {last.coins > 0 ? (
-            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3 text-center text-green-300 text-sm font-black mb-2 flex items-center justify-center gap-1.5">
-              <Coins size={15} /> COMPLETED {last.label} → +{last.coins} coins
-            </div>
+            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-3 text-center text-green-300 text-sm font-black mb-2 flex items-center justify-center gap-1.5"><Coins size={15} /> COMPLETED {last.label} → +{last.coins} coins</div>
           ) : (
             <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 text-center text-slate-400 text-sm font-bold mb-2">Run ≥1 km to earn coins (0 coins)</div>
           )}
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            <button onClick={shareRun} className="press py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-black text-slate-200 flex items-center justify-center gap-1.5">
-              <Share2 size={14} /> Share
-            </button>
-            <button onClick={postRun} disabled={posted} className="press py-2.5 rounded-xl bg-green-500/15 border border-green-500/30 text-xs font-black text-green-300 flex items-center justify-center gap-1.5 disabled:opacity-50">
-              <Send size={14} /> {posted ? "Posted ✓" : "Post to Feed"}
-            </button>
+          <div className="grid grid-cols-3 gap-2">
+            <button onClick={shareImage} className="press py-2.5 rounded-xl bg-green-500/15 border border-green-500/30 text-xs font-black text-green-300 flex items-center justify-center gap-1.5"><Share2 size={14} /> Share</button>
+            <button onClick={downloadImage} className="press py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-black text-slate-200 flex items-center justify-center gap-1.5"><Download size={14} /> Save</button>
+            <button onClick={copyText} className="press py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-black text-slate-200 flex items-center justify-center gap-1.5"><Copy size={14} /> Text</button>
           </div>
-          {coachTip && <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl p-3 text-xs text-violet-200 whitespace-pre-wrap font-semibold">{coachTip}</div>}
+          {coachTip && <div className="bg-violet-500/10 border border-violet-500/20 rounded-xl p-3 text-xs text-violet-200 whitespace-pre-wrap font-semibold mt-2">{coachTip}</div>}
         </div>
       )}
 
@@ -687,67 +610,30 @@ export default function MoveTracker() {
             {history.map((h) => (
               <div key={h.id} className="flex items-center gap-3 bg-slate-800/50 rounded-xl p-2.5">
                 <RouteMap route={h.route} size={52} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[12px] font-bold text-white truncate">{h.workout_type}</p>
-                  <p className="text-[10px] text-slate-500">{h.session_date} · {h.duration_minutes} min · {h.calories} kcal</p>
-                </div>
-                <div className="text-right shrink-0">
-                  <p className="text-[13px] font-black text-green-400">{(h.distance_km || 0).toFixed(2)} km</p>
-                  <p className="text-[9px] text-slate-500">{h.avg_speed ? `${h.avg_speed} km/h` : ""}</p>
-                </div>
+                <div className="flex-1 min-w-0"><p className="text-[12px] font-bold text-white truncate">{h.workout_type}</p><p className="text-[10px] text-slate-500">{h.session_date} · {h.duration_minutes} min · {h.calories} kcal</p></div>
+                <div className="text-right shrink-0"><p className="text-[13px] font-black text-green-400">{(h.distance_km || 0).toFixed(2)} km</p><p className="text-[9px] text-slate-500">{h.avg_speed ? `${h.avg_speed} km/h` : ""}</p></div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {feed.length > 0 && (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
-          <p className="text-xs font-black text-slate-400 mb-3 flex items-center gap-2"><Flag size={14} className="text-green-400" /> COMMUNITY RUN FEED</p>
-          <div className="grid gap-2">
-            {feed.map((f) => (
-              <div key={f.id} className="flex items-center gap-3 bg-slate-800/50 rounded-xl p-2.5">
-                <RouteMap route={f.route} size={48} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-[12px] font-bold text-white truncate">{f.display_name} · {f.mode}</p>
-                  <p className="text-[10px] text-slate-500">{f.distance_km} km · {fmtTime(f.duration_sec || 0)} · {f.calories} kcal</p>
-                </div>
-                <span className="text-[10px] font-black text-amber-300 shrink-0">+{f.coins} 🪙</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5 mt-5">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5">
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs font-black text-slate-400 flex items-center gap-2"><TrendingUp size={14} className="text-green-400" /> YOUR TOTALS</p>
           <div className="flex gap-1">
             {(["week", "month", "year"] as const).map((p) => (
-              <button key={p} onClick={() => setPeriod(p)}
-                className={`px-2.5 py-1 rounded-lg text-[10px] font-black border ${period === p ? "bg-green-500/15 border-green-500/30 text-green-300" : "bg-slate-800 border-slate-700 text-slate-500"}`}>
+              <button key={p} onClick={() => setPeriod(p)} className={`px-2.5 py-1 rounded-lg text-[10px] font-black border ${period === p ? "bg-green-500/15 border-green-500/30 text-green-300" : "bg-slate-800 border-slate-700 text-slate-500"}`}>
                 {p === "week" ? "Week" : p === "month" ? "Month" : "Year"}
               </button>
             ))}
           </div>
         </div>
         <div className="grid grid-cols-4 gap-2 text-center">
-          <div className="bg-slate-800/60 rounded-xl p-3">
-            <p className="text-lg font-black text-green-400">{totals.km}</p>
-            <p className="text-[9px] font-black text-slate-500">KM</p>
-          </div>
-          <div className="bg-slate-800/60 rounded-xl p-3">
-            <p className="text-lg font-black text-blue-400">{Math.floor(totals.min / 60)}h {totals.min % 60}m</p>
-            <p className="text-[9px] font-black text-slate-500">TIME</p>
-          </div>
-          <div className="bg-slate-800/60 rounded-xl p-3">
-            <p className="text-lg font-black text-amber-400">{totals.n}</p>
-            <p className="text-[9px] font-black text-slate-500">RUNS</p>
-          </div>
-          <div className="bg-slate-800/60 rounded-xl p-3">
-            <p className="text-lg font-black text-red-400">{totals.cal}</p>
-            <p className="text-[9px] font-black text-slate-500">KCAL</p>
-          </div>
+          <div className="bg-slate-800/60 rounded-xl p-3"><p className="text-lg font-black text-green-400">{totals.km}</p><p className="text-[9px] font-black text-slate-500">KM</p></div>
+          <div className="bg-slate-800/60 rounded-xl p-3"><p className="text-lg font-black text-blue-400">{Math.floor(totals.min / 60)}h {totals.min % 60}m</p><p className="text-[9px] font-black text-slate-500">TIME</p></div>
+          <div className="bg-slate-800/60 rounded-xl p-3"><p className="text-lg font-black text-amber-400">{totals.n}</p><p className="text-[9px] font-black text-slate-500">RUNS</p></div>
+          <div className="bg-slate-800/60 rounded-xl p-3"><p className="text-lg font-black text-red-400">{totals.cal}</p><p className="text-[9px] font-black text-slate-500">KCAL</p></div>
         </div>
       </div>
 
@@ -760,8 +646,7 @@ export default function MoveTracker() {
           {weekChart.map((w, i) => (
             <div key={i} className="flex-1 flex flex-col items-center gap-1">
               <span className="text-[9px] text-slate-500 font-black">{w.speed > 0 ? w.speed : ""}</span>
-              <div className={`w-full rounded-t-lg ${i === 5 ? "bg-green-500" : "bg-blue-500"}`}
-                style={{ height: `${Math.max((w.speed / maxSpeed) * 70, w.speed > 0 ? 8 : 2)}px` }} />
+              <div className={`w-full rounded-t-lg ${i === 5 ? "bg-green-500" : "bg-blue-500"}`} style={{ height: `${Math.max((w.speed / maxSpeed) * 70, w.speed > 0 ? 8 : 2)}px` }} />
               <span className="text-[9px] text-slate-600 font-bold">{w.label}</span>
             </div>
           ))}
@@ -772,14 +657,10 @@ export default function MoveTracker() {
       {pbFlash && (
         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border-2 border-amber-500/40 rounded-3xl p-8 text-center max-w-sm w-full">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-amber-500/20 flex items-center justify-center">
-              <Trophy size={40} className="text-amber-400 animate-bounce" />
-            </div>
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-amber-500/20 flex items-center justify-center"><Trophy size={40} className="text-amber-400 animate-bounce" /></div>
             <p className="text-2xl font-black text-amber-400 mb-2">PERSONAL BEST!</p>
             <p className="text-white font-bold mb-6 text-sm">{pbFlash}</p>
-            <button onClick={() => setPbFlash("")} className="press w-full py-3.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-sm font-black text-amber-300 flex items-center justify-center gap-1.5">
-              <Rocket size={16} /> LET&apos;S GO!
-            </button>
+            <button onClick={() => setPbFlash("")} className="press w-full py-3.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-sm font-black text-amber-300 flex items-center justify-center gap-1.5"><Rocket size={16} /> LET&apos;S GO!</button>
           </div>
         </div>
       )}
