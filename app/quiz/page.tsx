@@ -579,14 +579,35 @@ export default function QuizPage() {
 
           {/* SUBMIT OR SCORE */}
           {!submitted ? (
-            <button
-              onClick={submit}
-              disabled={answers.some((a) => a === -1)}
-              className="press w-full py-4 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-base font-black text-emerald-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-            >
-              <Check size={17} />
-              Submit Answers ({answers.filter((a) => a !== -1).length}/{questions.length} answered)
-            </button>
+            <div className="grid gap-3">
+              {/* 🛠️ PRE-SUBMISSION ACTIONS (Available immediately after generation) */}
+              <div className="flex gap-2">
+                <button
+                  onClick={copyQuizToClipboard}
+                  className="press flex-1 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-black text-slate-300 flex items-center justify-center gap-1.5 hover:bg-slate-700 transition-all"
+                >
+                  <Clipboard size={14} className="text-cyan-400" />
+                  Copy Text
+                </button>
+                <button
+                  onClick={downloadQuiz}
+                  className="press flex-1 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-black text-slate-300 flex items-center justify-center gap-1.5 hover:bg-slate-700 transition-all"
+                >
+                  <Download size={14} className="text-emerald-400" />
+                  Download
+                </button>
+              </div>
+
+              {/* MAIN SUBMIT BUTTON */}
+              <button
+                onClick={submit}
+                disabled={answers.some((a) => a === -1)}
+                className="press w-full py-4 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-base font-black text-emerald-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+              >
+                <Check size={17} />
+                Submit Answers ({answers.filter((a) => a !== -1).length}/{questions.length} answered)
+              </button>
+            </div>
           ) : (
             <>
               {/* SCORE CARD */}
