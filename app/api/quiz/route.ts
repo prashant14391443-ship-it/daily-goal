@@ -1,5 +1,15 @@
 import { NextResponse } from "next/server";
 
+// Increase body size limit for base64 image uploads (Next.js default is 1MB)
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "10mb",
+    },
+  },
+};
+
+// ✅ RESTORED YOUR EXACT MODELS
 const GROQ_CHAT = [
   "openai/gpt-oss-120b",
   "openai/gpt-oss-20b",
@@ -32,40 +42,76 @@ function extractQuestions(raw: string): any[] | null {
 
 export async function POST(req: Request) {
   try {
-    const { topic, count = 5 } = await req.json();
+    const body = await req.json();
+    const { mode = "topic", topic, text, image, count = 5 } = body;
+    
     const groqKey = process.env.GROQ_API_KEY;
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
     if (!groqKey && !gKey) {
       return NextResponse.json({ error: "API keys not configured." }, { status: 500 });
     }
-    if (!topic) {
-      return NextResponse.json({ error: "Enter a topic first." }, { status: 400 });
+
+    // 1. Validate based on mode
+    if (mode === "topic" && !topic?.trim()) {
+      return NextResponse.json({ error: "Please enter a topic." }, { status: 400 });
+    }
+    if (mode === "text" && !text?.trim()) {
+      return NextResponse.json({ error: "Please paste some text." }, { status: 400 });
+    }
+    if (mode === "photo" && !image) {
+      return NextResponse.json({ error: "Please provide an image." }, { status: 400 });
     }
 
     const numQuestions = Math.min(10, Math.max(1, Number(count) || 5));
 
-    const prompt = `You are a teacher. Create ${numQuestions} multiple-choice questions about "${topic}".
-Reply ONLY with a valid JSON array (no markdown):
+    // 2. Build dynamic prompt based on mode
+    let promptText = "";
+    if (mode === "topic") {
+      promptText = `You are an expert teacher. Create ${numQuestions} high-quality multiple-choice questions about "${topic}".
+Reply ONLY with a valid JSON array (no markdown, no extra text):
 [{"q":"question text","options":["A","B","C","D"],"answer":0,"explain":"one line why correct"}]
 "answer" is the index (0-3) of the correct option.`;
+    } else if (mode === "text") {
+      promptText = `You are an expert teacher. Create ${numQuestions} multiple-choice questions based STRICTLY on the following text. Do not use outside knowledge.
+Reply ONLY with a valid JSON array (no markdown, no extra text):
+[{"q":"question text","options":["A","B","C","D"],"answer":0,"explain":"one line why correct"}]
+"answer" is the index (0-3) of the correct option.
+
+TEXT:
+${text}`;
+    } else if (mode === "photo") {
+      promptText = `You are an expert teacher. Analyze the provided image (which contains study notes, a textbook page, or handwritten text) and create ${numQuestions} multiple-choice questions based STRICTLY on its visible content.
+Reply ONLY with a valid JSON array (no markdown, no extra text):
+[{"q":"question text","options":["A","B","C","D"],"answer":0,"explain":"one line why correct"}]
+"answer" is the index (0-3) of the correct option.`;
+    }
 
     const errs: string[] = [];
 
-    // 1️⃣ GROQ FIRST (fast + free)
+    // 3️⃣ GROQ FIRST
     if (groqKey) {
       for (const model of GROQ_CHAT) {
         try {
+          // Format payload for vision if image is provided (OpenAI compatible format)
+          const messageContent = (mode === "photo" && image)
+            ? [
+                { type: "text", text: promptText },
+                { type: "image_url", image_url: { url: image } }
+              ]
+            : promptText;
+
           const r = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${groqKey}` },
             body: JSON.stringify({
               model,
-              messages: [{ role: "user", content: prompt }],
+              messages: [{ role: "user", content: messageContent }],
               max_tokens: 2048,
               temperature: 0.7,
             }),
           });
+
           if (r.ok) {
             const d = await r.json();
             const parsed = extractQuestions(d.choices?.[0]?.message?.content || "");
@@ -73,29 +119,48 @@ Reply ONLY with a valid JSON array (no markdown):
             errs.push(`${model}: bad parse`);
           } else {
             const t = await r.text().catch(() => "");
-            errs.push(`${model}: ${r.status} ${t.slice(0, 60)}`);
+            errs.push(`${model}: ${r.status} ${t.slice(0, 80)}`);
           }
         } catch (e: unknown) {
           errs.push(`${model}: ${e instanceof Error ? e.message : "fail"}`);
         }
       }
-    } else errs.push("groq: NO KEY");
+    } else {
+      errs.push("groq: NO KEY");
+    }
 
-    // 2️⃣ GEMINI FALLBACK
+    // 4️⃣ GEMINI FALLBACK
     if (gKey) {
       for (const model of GEMINI_MODELS) {
         try {
+          // Build Gemini parts (text + optional inline image)
+          const parts: any[] = [{ text: promptText }];
+          
+          if (mode === "photo" && image) {
+            // Extract mime type and base64 data from "data:image/jpeg;base64,..."
+            const match = image.match(/^data:(image\/[a-zA-Z0-9.+]+);base64,(.*)$/);
+            if (match) {
+              parts.push({
+                inlineData: {
+                  mimeType: match[1],
+                  data: match[2],
+                },
+              });
+            }
+          }
+
           const r = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gKey}`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
+                contents: [{ parts }],
                 generationConfig: { temperature: 0.7, maxOutputTokens: 2048 },
               }),
             }
           );
+
           if (r.ok) {
             const d = await r.json();
             const parsed = extractQuestions(d.candidates?.[0]?.content?.parts?.[0]?.text || "");
@@ -103,19 +168,22 @@ Reply ONLY with a valid JSON array (no markdown):
             errs.push(`${model}: bad parse`);
           } else {
             const t = await r.text().catch(() => "");
-            errs.push(`${model}: ${r.status} ${t.slice(0, 60)}`);
+            errs.push(`${model}: ${r.status} ${t.slice(0, 80)}`);
           }
         } catch (e: unknown) {
           errs.push(`${model}: ${e instanceof Error ? e.message : "fail"}`);
         }
       }
-    } else errs.push("gemini: NO KEY");
+    } else {
+      errs.push("gemini: NO KEY");
+    }
 
     return NextResponse.json(
-      { error: "All AI engines are resting. Try again in a minute!", debug: errs },
+      { error: "All AI engines failed to generate questions. Try a different input or try again.", debug: errs },
       { status: 503 }
     );
-  } catch {
-    return NextResponse.json({ error: "Server error. Try again." }, { status: 400 });
+  } catch (err) {
+    console.error("Quiz API Error:", err);
+    return NextResponse.json({ error: "Server error. Try again." }, { status: 500 });
   }
 }

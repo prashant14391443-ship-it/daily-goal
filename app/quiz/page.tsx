@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Link from "next/link";
-import { Bot, Sparkles, Zap, BookOpen, Check, X, Lightbulb, Play } from "lucide-react";
+import { Bot, Sparkles, Zap, BookOpen, Check, X, Lightbulb, Play, Clipboard, Camera, FileText, Image as ImageIcon, Trash2 } from "lucide-react";
 import { ProgressRing } from "@/app/components/ui";
 import BackText from "@/app/components/BackBtn";
 
@@ -13,25 +13,93 @@ type Question = {
   explain: string;
 };
 
+type QuizMode = "topic" | "text" | "photo";
+
+// 🖼️ IMAGE COMPRESSION FUNCTION (Keeps file size small for fast uploads)
+const compressImage = (file: File, maxWidth = 800, quality = 0.7): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Canvas context failed')); return; }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+};
+
 const QUICK_TOPICS = [
   { label: "Math", emoji: "🔢" },
   { label: "World War 2", emoji: "⚔️" },
-  { label: "Photosynthesis", emoji: "🌱" },
+  { label: "Photosynthesis", emoji: "" },
   { label: "Python", emoji: "🐍" },
-  { label: "India GK", emoji: "🇮🇳" },
+  { label: "India GK", emoji: "🇮" },
   { label: "Physics", emoji: "⚛️" },
 ];
 
 const LETTERS = ["A", "B", "C", "D", "E", "F"];
 
 export default function QuizPage() {
+  const [mode, setMode] = useState<QuizMode>("topic");
   const [topic, setTopic] = useState("");
+  const [pastedText, setPastedText] = useState("");
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [count, setCount] = useState(5);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<number[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  //  UPDATED IMAGE UPLOAD HANDLER WITH COMPRESSION
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        setError('Please select a valid image file');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Image size should be less than 10MB');
+        return;
+      }
+      
+      setLoading(true);
+      setError("");
+      try {
+        // Compress and resize image before sending to API
+        const compressedBase64 = await compressImage(file, 800, 0.7);
+        setSelectedImage(compressedBase64);
+      } catch (err) {
+        setError('Failed to process image. Please try again.');
+      }
+      setLoading(false);
+    }
+  };
+
+  const removeImage = () => {
+    setSelectedImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const generate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,8 +107,27 @@ export default function QuizPage() {
     setError("");
     setQuestions([]);
     setSubmitted(false);
+    
     try {
-      const res = await fetch("/api/quiz", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, count }) });
+      let body: any = { count, mode };
+      
+      if (mode === "topic") {
+        if (!topic.trim()) throw new Error("Please enter a topic");
+        body.topic = topic;
+      } else if (mode === "text") {
+        if (!pastedText.trim()) throw new Error("Please paste some text");
+        body.text = pastedText;
+      } else if (mode === "photo") {
+        if (!selectedImage) throw new Error("Please select an image");
+        body.image = selectedImage;
+      }
+
+      const res = await fetch("/api/quiz", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify(body) 
+      });
+      
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "failed");
       setQuestions(data.questions || []);
@@ -65,7 +152,7 @@ export default function QuizPage() {
 
   const scoreMessage =
     score === questions.length
-      ? { emoji: "🏆", text: "Perfect! You're a champion!", color: "text-emerald-300" }
+      ? { emoji: "", text: "Perfect! You're a champion!", color: "text-emerald-300" }
       : score >= count / 2
       ? { emoji: "💪", text: "Good job — review the red ones!", color: "text-amber-300" }
       : { emoji: "📚", text: "Keep studying — you'll get there!", color: "text-slate-300" };
@@ -85,7 +172,7 @@ export default function QuizPage() {
             <div className="flex-1 min-w-0">
               <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>AI Quiz</h1>
               <p className="text-[11px] text-white/75 font-semibold mt-0.5">
-                {loading ? "Writing your questions..." : "Any topic → instant test with score"}
+                {loading ? "Writing your questions..." : "Topic, text, or photo → instant quiz"}
               </p>
             </div>
           </div>
@@ -99,57 +186,179 @@ export default function QuizPage() {
             <Bot size={32} className="text-teal-400 animate-pulse" />
           </div>
           <p className="text-lg font-black text-white mb-1">AI is crafting your quiz...</p>
-          <p className="text-xs text-teal-300 font-bold">"{topic}" • {count} questions</p>
+          <p className="text-xs text-teal-300 font-bold">
+            {mode === "topic" && `"${topic}"`}
+            {mode === "text" && `${pastedText.length} characters`}
+            {mode === "photo" && `Processing image...`}
+            • {count} questions
+          </p>
           <div className="mt-4 h-1.5 bg-slate-800 rounded-full overflow-hidden max-w-xs mx-auto">
             <div className="h-full bg-teal-500 rounded-full animate-pulse" style={{ width: "60%" }} />
           </div>
         </div>
       )}
 
-      {/* FORM + QUICK CHIPS */}
+      {/* MODE SELECTOR + FORM */}
       {!isReviewing && !loading && (
         <>
-          {/* ⚡ QUICK TOPICS */}
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
-            <p className="text-[10px] font-black text-slate-500 mb-2">⚡ QUICK TOPICS (tap to start)</p>
-            <div className="flex flex-wrap gap-1.5">
-              {QUICK_TOPICS.map((t) => (
-                <button
-                  key={t.label}
-                  onClick={() => {
-                    setTopic(t.label);
-                    setTimeout(() => {
-                      const form = document.getElementById("quiz-form") as HTMLFormElement | null;
-                      form?.requestSubmit();
-                    }, 50);
-                  }}
-                  className="press inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 hover:border-cyan-500/40 hover:bg-slate-700 text-xs font-bold"
-                >
-                  <span>{t.emoji}</span>
-                  <span>{t.label}</span>
-                </button>
-              ))}
+          {/* 📱 MODE SWITCHER */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-2 mb-4">
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setMode("topic")}
+                className={`press flex flex-col items-center gap-1.5 p-3 rounded-xl text-xs font-black transition-all ${
+                  mode === "topic"
+                    ? "bg-cyan-500/20 border border-cyan-500/40 text-cyan-300"
+                    : "bg-slate-800 border border-transparent text-slate-400 hover:bg-slate-700"
+                }`}
+              >
+                <Sparkles size={18} />
+                <span>Topic</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("text")}
+                className={`press flex flex-col items-center gap-1.5 p-3 rounded-xl text-xs font-black transition-all ${
+                  mode === "text"
+                    ? "bg-cyan-500/20 border border-cyan-500/40 text-cyan-300"
+                    : "bg-slate-800 border border-transparent text-slate-400 hover:bg-slate-700"
+                }`}
+              >
+                <FileText size={18} />
+                <span>Paste Text</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("photo")}
+                className={`press flex flex-col items-center gap-1.5 p-3 rounded-xl text-xs font-black transition-all ${
+                  mode === "photo"
+                    ? "bg-cyan-500/20 border border-cyan-500/40 text-cyan-300"
+                    : "bg-slate-800 border border-transparent text-slate-400 hover:bg-slate-700"
+                }`}
+              >
+                <Camera size={18} />
+                <span>Photo</span>
+              </button>
             </div>
           </div>
 
-          {/* 📝 CUSTOM FORM */}
-          <form id="quiz-form" onSubmit={generate} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5 grid gap-3">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
-                <Sparkles size={16} strokeWidth={2.2} />
-              </span>
-              <p className="font-black text-sm text-white">Or type your own topic</p>
+          {/* ⚡ QUICK TOPICS (only show in topic mode) */}
+          {mode === "topic" && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
+              <p className="text-[10px] font-black text-slate-500 mb-2">⚡ QUICK TOPICS (tap to start)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {QUICK_TOPICS.map((t) => (
+                  <button
+                    key={t.label}
+                    type="button"
+                    onClick={() => {
+                      setTopic(t.label);
+                      setTimeout(() => {
+                        const form = document.getElementById("quiz-form") as HTMLFormElement | null;
+                        form?.requestSubmit();
+                      }, 50);
+                    }}
+                    className="press inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 hover:border-cyan-500/40 hover:bg-slate-700 text-xs font-bold"
+                  >
+                    <span>{t.emoji}</span>
+                    <span>{t.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-            <input
-              value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. Quantum physics, Indian history, React hooks..."
-              required
-              className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-cyan-500"
-            />
+          )}
+
+          {/* 📝 INPUT FORM */}
+          <form id="quiz-form" onSubmit={generate} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5 grid gap-3">
+            
+            {/* TOPIC MODE */}
+            {mode === "topic" && (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
+                    <Sparkles size={16} strokeWidth={2.2} />
+                  </span>
+                  <p className="font-black text-sm text-white">Enter a topic</p>
+                </div>
+                <input
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  placeholder="e.g. Quantum physics, Indian history, React hooks..."
+                  required
+                  className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-cyan-500"
+                />
+              </>
+            )}
+
+            {/* TEXT MODE */}
+            {mode === "text" && (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
+                    <Clipboard size={16} strokeWidth={2.2} />
+                  </span>
+                  <p className="font-black text-sm text-white">Paste your text</p>
+                </div>
+                <textarea
+                  value={pastedText}
+                  onChange={(e) => setPastedText(e.target.value)}
+                  placeholder="Paste your notes, article, or any text here. The AI will generate quiz questions based on the content..."
+                  required
+                  rows={6}
+                  className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-cyan-500 resize-none"
+                />
+                <p className="text-[10px] text-slate-500 font-semibold">
+                  {pastedText.length} characters • AI will create questions from this content
+                </p>
+              </>
+            )}
+
+            {/* PHOTO MODE */}
+            {mode === "photo" && (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
+                    <ImageIcon size={16} strokeWidth={2.2} />
+                  </span>
+                  <p className="font-black text-sm text-white">Upload or take a photo</p>
+                </div>
+                
+                {!selectedImage ? (
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="press w-full p-8 rounded-xl bg-slate-800 border-2 border-dashed border-slate-700 hover:border-cyan-500/40 text-center cursor-pointer"
+                  >
+                    <Camera size={32} className="mx-auto mb-2 text-slate-500" />
+                    <p className="text-sm font-bold text-slate-400">Tap to upload or take photo</p>
+                    <p className="text-[10px] text-slate-600 mt-1">Supports JPG, PNG • Max 10MB</p>
+                  </div>
+                ) : (
+                  <div className="relative rounded-xl overflow-hidden border border-slate-700">
+                    <img src={selectedImage} alt="Selected" className="w-full h-48 object-cover" />
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute top-2 right-2 p-2 rounded-lg bg-red-500/90 hover:bg-red-600 text-white"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                )}
+                
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </>
+            )}
 
             {/* ⚡ QUIZ LENGTH */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 mt-2">
               <button
                 type="button"
                 onClick={() => setCount(5)}
@@ -193,7 +402,7 @@ export default function QuizPage() {
         </>
       )}
 
-      {/* 📝 QUESTIONS + REVIEW */}
+      {/*  QUESTIONS + REVIEW */}
       {isReviewing && (
         <>
           {/* HEADER */}
@@ -201,7 +410,11 @@ export default function QuizPage() {
             <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
             <div className="relative flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
-                <h1 className="text-lg font-black text-white leading-tight truncate">"{topic}"</h1>
+                <h1 className="text-lg font-black text-white leading-tight truncate">
+                  {mode === "topic" && `"${topic}"`}
+                  {mode === "text" && `From Pasted Text`}
+                  {mode === "photo" && `From Image`}
+                </h1>
                 <p className="text-[11px] text-white/75 font-semibold mt-0.5">
                   {submitted ? `${score}/${questions.length} correct • ${pct}%` : `Answer all ${questions.length} questions`}
                 </p>
@@ -313,7 +526,11 @@ export default function QuizPage() {
         <div className="bg-slate-900 border border-slate-800 rounded-2xl mt-4">
           <div className="text-center py-8">
             <p className="text-4xl mb-2">🎯</p>
-            <p className="text-slate-500 text-sm font-bold">Tap a quick topic above or type your own!</p>
+            <p className="text-slate-500 text-sm font-bold">
+              {mode === "topic" && "Tap a quick topic above or type your own!"}
+              {mode === "text" && "Paste your study notes or article text above!"}
+              {mode === "photo" && "Upload a photo of your notes or textbook!"}
+            </p>
           </div>
         </div>
       )}
