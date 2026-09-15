@@ -71,10 +71,7 @@ export default function CalculatorPage() {
   const [result, setResult] = useState<Result | null>(null);
 
   const [logs, setLogs] = useState<Log[]>([]);
-  const [meals, setMeals] = useState<Meal[]>(() => {
-    if (typeof window === "undefined") return BASE_MEALS;
-    try { const extra = JSON.parse(localStorage.getItem("dg-meals") || "[]"); return [...BASE_MEALS, ...extra]; } catch { return BASE_MEALS; }
-  });
+  const [meals, setMeals] = useState<Meal[]>(BASE_MEALS);
   const [addingMeal, setAddingMeal] = useState<string | null>(null);
   const [foodName, setFoodName] = useState("");
   const [qty, setQty] = useState("1");
@@ -95,16 +92,32 @@ export default function CalculatorPage() {
   const today = toLocalISO(new Date());
 
   useEffect(() => {
-    const saved = localStorage.getItem("dg-calc");
-    if (saved) {
-      try {
-        const p = JSON.parse(saved);
-        setName(p.name || ""); setAge(p.age || ""); setGender(p.gender || "male");
-        setHeight(p.height || ""); setWeight(p.weight || ""); setActivity(p.activity || "1.375");
-        setTarget(p.target || ""); setPace(p.pace || "0.5"); setResult(p.result || null);
-      } catch {}
-    }
-    loadLogs();
+    const loadData = async () => {
+      const { data } = await supabase.auth.getSession();
+      const uid = data.session?.user.id;
+      if (!uid) return;
+
+      // Load from Supabase database
+      const { data: profile } = await supabase.from("profiles").select("*").eq("id", uid).single();
+      
+      if (profile) {
+        setName(profile.name || ""); 
+        setAge(profile.age ? String(profile.age) : ""); 
+        setGender(profile.gender || "male");
+        setHeight(profile.height ? String(profile.height) : ""); 
+        setWeight(profile.weight ? String(profile.weight) : ""); 
+        setActivity(profile.activity || "1.375");
+        setTarget(profile.target ? String(profile.target) : ""); 
+        setPace(profile.pace || "0.5"); 
+        setResult(profile.result || null);
+        
+        if (profile.custom_meals && Array.isArray(profile.custom_meals)) {
+          setMeals([...BASE_MEALS, ...(profile.custom_meals as Meal[])]);
+        }
+      }
+      loadLogs();
+    };
+    loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -116,7 +129,7 @@ export default function CalculatorPage() {
     setLogs((rows as Log[]) || []);
   };
 
-  const calculate = (e: React.FormEvent) => {
+  const calculate = async (e: React.FormEvent) => {
     e.preventDefault();
     const w = Number(weight), h = Number(height), a = Number(age), t = Number(target);
     const bmr = Math.round(gender === "male" ? 10 * w + 6.25 * h - 5 * a + 5 : 10 * w + 6.25 * h - 5 * a - 161);
@@ -128,7 +141,15 @@ export default function CalculatorPage() {
     const weeks = Math.round(Math.abs(diff) / Number(pace));
     const r: Result = { name, bmr, tdee, calories, weeks, direction, target: t };
     setResult(r);
-    localStorage.setItem("dg-calc", JSON.stringify({ name, age, gender, height, weight, activity, target, pace, result: r }));
+    
+    const { data } = await supabase.auth.getSession();
+    const uid = data.session?.user.id;
+    if (uid) {
+      await supabase.from("profiles").upsert({
+        id: uid, name, age: Number(age), gender, height: Number(height), weight: Number(weight), 
+        target: Number(target), activity, pace, result: r, custom_meals: meals.filter(m => m.key.startsWith("custom-"))
+      });
+    }
   };
 
   const motivation = (r: Result) => {
@@ -195,13 +216,20 @@ export default function CalculatorPage() {
     if (inserted) setLogs((l) => [...l, inserted as Log]);
     setScanMeal(null); setScanImg(null); setScanResult(null);
   };
-  const addMealSection = () => {
+  const addMealSection = async () => {
     const label = prompt("New meal section name (e.g. Evening Chai):");
     if (!label || !label.trim()) return;
     const item: Meal = { key: "custom-" + Date.now(), icon: "🍽️", label: label.trim() };
     const next = [...meals, item];
     setMeals(next);
-    localStorage.setItem("dg-meals", JSON.stringify(next.filter((m) => m.key.startsWith("custom-"))));
+    
+    const { data } = await supabase.auth.getSession();
+    const uid = data.session?.user.id;
+    if (uid) {
+      await supabase.from("profiles").upsert({
+        id: uid, custom_meals: next.filter(m => m.key.startsWith("custom-"))
+      });
+    }
   };
 
   const eaten = logs.reduce((s, l) => s + l.calories, 0);
