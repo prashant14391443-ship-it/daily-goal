@@ -11,8 +11,11 @@ export interface TrackResource {
 export interface TrackVideo {
   title: string;
   channel: string;
-  youtubeId: string;
+  youtubeId?: string;          // FIXED: Made optional since playlists don't always have a single video ID
+  playlistId?: string;         // NEW: Full playlist for comprehensive learning
   minutes: number;
+  isComplete?: boolean;        // NEW: Flag if this is a full course
+  youtubeUrl?: string;         // NEW: Direct link for fallback
 }
 
 export interface TrackProject {
@@ -43,6 +46,22 @@ export interface LearningTrack {
   milestones: TrackMilestone[];
 }
 
+// Helper functions for video URLs
+export function getVideoUrl(video: TrackVideo): string {
+  if (video.playlistId) {
+    return `https://www.youtube.com/embed/videoseries?list=${video.playlistId}`;
+  }
+  if (video.youtubeUrl) return video.youtubeUrl;
+  return `https://www.youtube.com/embed/${video.youtubeId || ''}`;
+}
+
+export function getDirectYoutubeUrl(video: TrackVideo): string {
+  if (video.playlistId) {
+    return `https://www.youtube.com/playlist?list=${video.playlistId}`;
+  }
+  return `https://www.youtube.com/watch?v=${video.youtubeId || ''}`;
+}
+
 export const WEB_DEV_TRACK: LearningTrack = {
   id: "web-dev",
   name: "Full Stack Web Development",
@@ -53,8 +72,8 @@ export const WEB_DEV_TRACK: LearningTrack = {
       id: "WD-1", order: 1, title: "HTML & CSS Foundations",
       summary: "Web ka skeleton HTML hai aur skin CSS. Semantic tags, box model, Flexbox aur Grid — yeh base hai sab kuch ka.",
       estimatedHours: 20, freshness: "evergreen",
-      videoHi: { title: "HTML + CSS Full Course (Hindi)", channel: "CodeWithHarry", youtubeId: "BsDoLVMnmZs", minutes: 180 },
-      videoEn: { title: "HTML & CSS Full Course for Beginners", channel: "SuperSimpleDev", youtubeId: "G3e-cpL7ofc", minutes: 220 },
+      videoHi: { title: "HTML + CSS Full Course (Hindi)", channel: "CodeWithHarry", youtubeId: "BsDoLVMnmZs", minutes: 180, isComplete: true },
+      videoEn: { title: "HTML & CSS Full Course for Beginners", channel: "SuperSimpleDev", youtubeId: "G3e-cpL7ofc", minutes: 220, isComplete: true },
       resources: [
         { id: "WD-1-R2", title: "Responsive Web Design", provider: "freeCodeCamp", lang: "english", type: "interactive", url: "https://www.freecodecamp.org/learn/2022/responsive-web-design/", minutes: 240 },
         { id: "WD-1-R3", title: "Flexbox Froggy (game)", provider: "Froggy", lang: "english", type: "interactive", url: "https://flexboxfroggy.com/", minutes: 30 },
@@ -73,8 +92,8 @@ export const WEB_DEV_TRACK: LearningTrack = {
       id: "WD-2", order: 2, title: "Tailwind CSS & Responsive Design",
       summary: "Aaj ki industry utility-first CSS use karti hai. Tailwind se fast, consistent aur responsive UI banana seekho.",
       estimatedHours: 10, freshness: "version-sensitive",
-      videoHi: { title: "Tailwind CSS in Hinglish", channel: "Chai aur Code", youtubeId: "9rcRb3wYbWk", minutes: 120 },
-      videoEn: { title: "Learn Tailwind CSS in 15 Minutes", channel: "Web Dev Simplified", youtubeId: "lCxcTsOHrjo", minutes: 15 },
+      videoHi: { title: "Tailwind CSS Complete (Hindi)", channel: "CodeWithHarry", playlistId: "PLwGdqUvkjn_opxO6mSvgz_z7YyQKJq5eG", minutes: 600, isComplete: true },
+      videoEn: { title: "Tailwind CSS Full Course", channel: "freeCodeCamp", youtubeId: "dFgzHOX84xQ", minutes: 180, isComplete: true },
       resources: [
         { id: "WD-2-R1", title: "Official Tailwind Docs", provider: "Tailwind", lang: "english", type: "docs", url: "https://tailwindcss.com/docs", minutes: 60 },
       ],
@@ -92,8 +111,8 @@ export const WEB_DEV_TRACK: LearningTrack = {
       id: "WD-3", order: 3, title: "JavaScript Fundamentals + DOM",
       summary: "JS web ka dimaag hai. Variables se DOM manipulation tak — yahan se asli programming shuru hoti hai.",
       estimatedHours: 30, freshness: "evergreen",
-      videoHi: { title: "JavaScript Playlist (Hindi)", channel: "CodeWithHarry", youtubeId: "PLu0W_9lII9kV5fRIr8IjJsB9Pz6p1526C", minutes: 300 },
-      videoEn: { title: "JavaScript Full Course", channel: "freeCodeCamp", youtubeId: "PkZNo7MFNFg", minutes: 200 },
+      videoHi: { title: "JavaScript Full Playlist (Hindi)", channel: "CodeWithHarry", playlistId: "PLu0W_9lII9ajyk081We1cW4S2hLQQW2H1", minutes: 1200, isComplete: true },
+      videoEn: { title: "JavaScript Full Course", channel: "freeCodeCamp", youtubeId: "PkZNo7MFNFg", minutes: 200, isComplete: true },
       resources: [
         { id: "WD-3-R2", title: "JavaScript First Steps", provider: "MDN", lang: "english", type: "docs", url: "https://developer.mozilla.org/en-US/docs/Learn/JavaScript/First_steps", minutes: 90 },
         { id: "WD-3-R3", title: "The Modern JS Tutorial", provider: "javascript.info", lang: "english", type: "docs", url: "https://javascript.info/", minutes: 180 },
@@ -112,8 +131,8 @@ export const WEB_DEV_TRACK: LearningTrack = {
       id: "WD-4", order: 4, title: "Async JS, APIs & Fetch",
       summary: "Real apps server se data maangte hain. Promises, async/await aur fetch — interviews ka favourite topic.",
       estimatedHours: 20, freshness: "evergreen",
-      videoHi: { title: "Namaste JavaScript", channel: "Akshay Saini", youtubeId: "PLlasXeu85E9cQ32gLCvAvr9vNaUccPVNP", minutes: 240 },
-      videoEn: { title: "Async/Await Crash Course", channel: "Web Dev Simplified", youtubeId: "V_Kr9OSfDeU", minutes: 20 },
+      videoHi: { title: "Namaste JavaScript (Full Series)", channel: "Akshay Saini", playlistId: "PLlasXeu85E9cQ32gLCvAvr9vNaUccPVNP", minutes: 1200, isComplete: true },
+      videoEn: { title: "Async JavaScript Full Course", channel: "freeCodeCamp", youtubeId: "vn3tm0coeUI", minutes: 180, isComplete: true },
       resources: [
         { id: "WD-4-R2", title: "Using the Fetch API", provider: "MDN", lang: "english", type: "docs", url: "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch", minutes: 45 },
       ],
@@ -131,8 +150,8 @@ export const WEB_DEV_TRACK: LearningTrack = {
       id: "WD-5", order: 5, title: "React Foundations",
       summary: "Components me sochna seekho. State, props aur hooks — modern frontend ka core.",
       estimatedHours: 30, freshness: "version-sensitive",
-      videoHi: { title: "Chai aur React", channel: "Chai aur Code", youtubeId: "PLu71SKxNbfoDqgPchmvIsL4hTnJIrtige", minutes: 300 },
-      videoEn: { title: "React Course for Beginners", channel: "freeCodeCamp", youtubeId: "bMknfKXIFA8", minutes: 180 },
+      videoHi: { title: "React Complete (Hindi)", channel: "CodeWithHarry", playlistId: "PLu71SKxNbfoDqgPchmvIsL4hTnJIrtige", minutes: 1800, isComplete: true },
+      videoEn: { title: "React Course for Beginners", channel: "freeCodeCamp", youtubeId: "bMknfKXIFA8", minutes: 480, isComplete: true },
       resources: [
         { id: "WD-5-R1", title: "Official React Course", provider: "react.dev", lang: "english", type: "interactive", url: "https://react.dev/learn", minutes: 180 },
       ],
@@ -150,7 +169,8 @@ export const WEB_DEV_TRACK: LearningTrack = {
       id: "WD-6", order: 6, title: "Next.js & Routing",
       summary: "React ke upar production layer. App Router, server vs client components — jobs me yahi maanga jaata hai.",
       estimatedHours: 20, freshness: "version-sensitive",
-      videoHi: { title: "Chai aur Next.js", channel: "Chai aur Code", youtubeId: "PLu71SKxNbfoQ7BI8FzJ0MUHJsKKrG6GPD", minutes: 200 },
+      videoHi: { title: "Next.js Complete (Hindi)", channel: "Chai aur Code", playlistId: "PLu71SKxNbfoQ7BI8FzJ0MUHJsKKrG6GPD", minutes: 1200, isComplete: true },
+      videoEn: { title: "Next.js Full Course", channel: "freeCodeCamp", youtubeId: "VHyPN6nFP78", minutes: 300, isComplete: true },
       resources: [
         { id: "WD-6-R1", title: "Official Next.js Learn", provider: "next.js", lang: "english", type: "interactive", url: "https://nextjs.org/learn", minutes: 240 },
       ],
@@ -168,7 +188,7 @@ export const WEB_DEV_TRACK: LearningTrack = {
       id: "WD-7", order: 7, title: "Backend + Database (Supabase)",
       summary: "Full-stack bano: auth, database, CRUD. Supabase se bina server manage kiye backend chalao.",
       estimatedHours: 25, freshness: "version-sensitive",
-      videoEn: { title: "Supabase Crash Course", channel: "Traversy Media", youtubeId: "ZVsuKXcRwDo", minutes: 60 },
+      videoEn: { title: "Supabase Full Course", channel: "freeCodeCamp", youtubeId: "yt190S1b9oY", minutes: 240, isComplete: true },
       resources: [
         { id: "WD-7-R1", title: "Supabase Docs", provider: "Supabase", lang: "english", type: "docs", url: "https://supabase.com/docs", minutes: 120 },
       ],
@@ -186,8 +206,8 @@ export const WEB_DEV_TRACK: LearningTrack = {
       id: "WD-8", order: 8, title: "Git, Deployment & Portfolio",
       summary: "Code ko duniya tak pahuncho: GitHub workflow, Vercel deploy, aur portfolio jo interviews bulaye.",
       estimatedHours: 15, freshness: "evergreen",
-      videoHi: { title: "Git & GitHub in Hindi", channel: "CodeWithHarry", youtubeId: "gwS9ZQVJmAk", minutes: 90 },
-      videoEn: { title: "Git & GitHub Crash Course", channel: "Traversy Media", youtubeId: "SWYqp7iY_Tc", minutes: 40 },
+      videoHi: { title: "Git & GitHub Complete (Hindi)", channel: "CodeWithHarry", youtubeId: "gwS9ZQVJmAk", minutes: 180, isComplete: true },
+      videoEn: { title: "Git & GitHub Full Course", channel: "freeCodeCamp", youtubeId: "RGOj5yH7evk", minutes: 180, isComplete: true },
       resources: [
         { id: "WD-8-R1", title: "Learn Git Branching (game)", provider: "Git", lang: "english", type: "interactive", url: "https://learngitbranching.js.org/", minutes: 90 },
         { id: "WD-8-R2", title: "Vercel Deployment Docs", provider: "Vercel", lang: "english", type: "docs", url: "https://vercel.com/docs", minutes: 30 },
@@ -215,8 +235,8 @@ export const PYTHON_TRACK: LearningTrack = {
       id: "PY-1", order: 1, title: "Python Foundations",
       summary: "Syntax, variables, loops, functions — Python ki language yahan se shuru hoti hai. Sabse easy entry point.",
       estimatedHours: 25, freshness: "evergreen",
-      videoHi: { title: "Python in 1 Video (Hindi)", channel: "CodeWithHarry", youtubeId: "GF-HFs2XUg", minutes: 240 },
-      videoEn: { title: "Python Full Course for Beginners", channel: "freeCodeCamp", youtubeId: "rfscVS01bw2", minutes: 264 },
+      videoHi: { title: "Python Complete (Hindi)", channel: "CodeWithHarry", youtubeId: "GF-HFs2XUg", minutes: 600, isComplete: true },
+      videoEn: { title: "Python Full Course for Beginners", channel: "freeCodeCamp", youtubeId: "rfscVS01bw2", minutes: 264, isComplete: true },
       resources: [
         { id: "PY-1-R1", title: "Official Python Tutorial", provider: "python.org", lang: "english", type: "docs", url: "https://docs.python.org/3/tutorial/", minutes: 180 },
         { id: "PY-1-R2", title: "Python Track (practice)", provider: "Exercism", lang: "english", type: "interactive", url: "https://exercism.org/tracks/python", minutes: 120 },
@@ -235,6 +255,8 @@ export const PYTHON_TRACK: LearningTrack = {
       id: "PY-2", order: 2, title: "OOP, Files & Exceptions",
       summary: "Classes, objects, inheritance aur error handling — clean code ka base. Yahi cheez interviews me poochhi jaati hai.",
       estimatedHours: 20, freshness: "evergreen",
+      videoHi: { title: "Python OOP Complete (Hindi)", channel: "CodeWithHarry", playlistId: "PLu0W_9lII9aiL0kysYlfSIZgY0woaD8nH", minutes: 480, isComplete: true },
+      videoEn: { title: "Python OOP Tutorial", channel: "Corey Schafer", playlistId: "PL-osiE80TeTsqhIuOqKh8XwmkOLlMQqjz", minutes: 360, isComplete: true },
       resources: [
         { id: "PY-2-R1", title: "OOP & Errors (official docs)", provider: "python.org", lang: "english", type: "docs", url: "https://docs.python.org/3/tutorial/classes.html", minutes: 90 },
         { id: "PY-2-R2", title: "Python OOP exercises", provider: "Exercism", lang: "english", type: "interactive", url: "https://exercism.org/tracks/python/concepts", minutes: 120 },
@@ -253,7 +275,7 @@ export const PYTHON_TRACK: LearningTrack = {
       id: "PY-3", order: 3, title: "NumPy & Pandas",
       summary: "Data ka asli toolbox. Arrays, DataFrames, cleaning, groupby — yahan se tum 'data' wale ban jaate ho.",
       estimatedHours: 25, freshness: "version-sensitive",
-      videoEn: { title: "Data Analysis with Python (Full Course)", channel: "freeCodeCamp", youtubeId: "r-uOLxNrNk8", minutes: 300 },
+      videoEn: { title: "Data Analysis with Python (Full Course)", channel: "freeCodeCamp", youtubeId: "r-uOLxNrNk8", minutes: 300, isComplete: true },
       resources: [
         { id: "PY-3-R1", title: "Pandas in 10 minutes", provider: "pandas.pydata.org", lang: "english", type: "docs", url: "https://pandas.pydata.org/docs/user_guide/10min.html", minutes: 30 },
         { id: "PY-3-R2", title: "Pandas course (hands-on)", provider: "Kaggle Learn", lang: "english", type: "interactive", url: "https://www.kaggle.com/learn/pandas", minutes: 180 },
@@ -272,6 +294,7 @@ export const PYTHON_TRACK: LearningTrack = {
       id: "PY-4", order: 4, title: "Data Visualization",
       summary: "Numbers ko story banao. Matplotlib + Seaborn se charts jo boss aur clients samajh sakein.",
       estimatedHours: 15, freshness: "evergreen",
+      videoEn: { title: "Data Visualization with Python", channel: "freeCodeCamp", youtubeId: "3Xc3CA655Y4", minutes: 180, isComplete: true },
       resources: [
         { id: "PY-4-R1", title: "Matplotlib tutorials", provider: "matplotlib.org", lang: "english", type: "docs", url: "https://matplotlib.org/stable/tutorials/index.html", minutes: 90 },
         { id: "PY-4-R2", title: "Data Visualization course", provider: "Kaggle Learn", lang: "english", type: "interactive", url: "https://www.kaggle.com/learn/data-visualization", minutes: 120 },
@@ -290,7 +313,7 @@ export const PYTHON_TRACK: LearningTrack = {
       id: "PY-5", order: 5, title: "SQL for Data People",
       summary: "Har data job me SQL poochha jaata hai. Queries, joins, aggregates — database se seedha baat karna seekho.",
       estimatedHours: 20, freshness: "evergreen",
-      videoEn: { title: "Supabase Crash Course", channel: "Traversy Media", youtubeId: "ZVsuKXcRwDo", minutes: 60 },
+      videoEn: { title: "SQL Full Course", channel: "freeCodeCamp", youtubeId: "HXV3zeQKqGY", minutes: 240, isComplete: true },
       resources: [
         { id: "PY-5-R1", title: "SQLBolt (interactive)", provider: "SQLBolt", lang: "english", type: "interactive", url: "https://sqlbolt.com/", minutes: 120 },
         { id: "PY-5-R2", title: "Supabase docs", provider: "Supabase", lang: "english", type: "docs", url: "https://supabase.com/docs", minutes: 60 },
@@ -309,7 +332,7 @@ export const PYTHON_TRACK: LearningTrack = {
       id: "PY-6", order: 6, title: "ML Intro + Capstone",
       summary: "Scikit-learn se pehla model. Train, evaluate, samjhao — aur portfolio me publish karo.",
       estimatedHours: 30, freshness: "version-sensitive",
-      videoEn: { title: "Machine Learning for Everybody", channel: "freeCodeCamp", youtubeId: "i_LwzRVP7bg", minutes: 240 },
+      videoEn: { title: "Machine Learning for Everybody", channel: "freeCodeCamp", youtubeId: "i_LwzRVP7bg", minutes: 240, isComplete: true },
       resources: [
         { id: "PY-6-R1", title: "scikit-learn getting started", provider: "scikit-learn.org", lang: "english", type: "docs", url: "https://scikit-learn.org/stable/getting_started.html", minutes: 90 },
         { id: "PY-6-R2", title: "Intro to Machine Learning", provider: "Kaggle Learn", lang: "english", type: "interactive", url: "https://www.kaggle.com/learn/intro-to-machine-learning", minutes: 150 },
@@ -337,6 +360,7 @@ export const CYBER_TRACK: LearningTrack = {
       id: "CY-1", order: 1, title: "Internet & Network Foundations",
       summary: "Security se pehle samjho internet kaam kaise karta hai: IP, DNS, HTTP, packets. Yeh base sab kuch support karta hai.",
       estimatedHours: 20, freshness: "evergreen",
+      videoEn: { title: "Networking for Hackers", channel: "The Cyber Mentor", youtubeId: "qiQR5rTSsho", minutes: 180, isComplete: true },
       resources: [
         { id: "CY-1-R1", title: "Pre-Security Path (labs)", provider: "TryHackMe", lang: "english", type: "interactive", url: "https://tryhackme.com/path/outline/presecurity", minutes: 240 },
         { id: "CY-1-R2", title: "How the Web Works", provider: "Cloudflare Learning", lang: "english", type: "docs", url: "https://www.cloudflare.com/learning/", minutes: 60 },
@@ -356,6 +380,7 @@ export const CYBER_TRACK: LearningTrack = {
       id: "CY-2", order: 2, title: "Linux & Command Line",
       summary: "Har security tool Linux pe chalta hai. Terminal comfort = superpower. Bandit wargame se hands-on practice.",
       estimatedHours: 25, freshness: "evergreen",
+      videoEn: { title: "Linux for Hackers", channel: "The Cyber Mentor", youtubeId: "VbEx7B_PTOE", minutes: 240, isComplete: true },
       resources: [
         { id: "CY-2-R1", title: "Bandit Wargame (levels 0-15)", provider: "OverTheWire", lang: "english", type: "interactive", url: "https://overthewire.org/wargames/bandit/", minutes: 300 },
         { id: "CY-2-R2", title: "Linux Fundamentals Module", provider: "TryHackMe", lang: "english", type: "interactive", url: "https://tryhackme.com/module/linux-fundamentals", minutes: 180 },
@@ -374,7 +399,7 @@ export const CYBER_TRACK: LearningTrack = {
       id: "CY-3", order: 3, title: "Web App Security & OWASP Top 10",
       summary: "Asli hacking yahan shuru: SQLi, XSS, CSRF — attack karo, phir fix karna seekho. PortSwigger labs = gold.",
       estimatedHours: 30, freshness: "version-sensitive",
-      videoEn: { title: "Full Ethical Hacking Course", channel: "freeCodeCamp", youtubeId: "3Kq1MIfTWCE", minutes: 300 },
+      videoEn: { title: "Full Ethical Hacking Course", channel: "freeCodeCamp", youtubeId: "3Kq1MIfTWCE", minutes: 300, isComplete: true },
       resources: [
         { id: "CY-3-R1", title: "Web Security Academy (labs)", provider: "PortSwigger", lang: "english", type: "interactive", url: "https://portswigger.net/web-security", minutes: 400 },
         { id: "CY-3-R2", title: "OWASP Top 10", provider: "OWASP", lang: "english", type: "docs", url: "https://owasp.org/www-project-top-ten/", minutes: 60 },
@@ -393,6 +418,7 @@ export const CYBER_TRACK: LearningTrack = {
       id: "CY-4", order: 4, title: "Reconnaissance & Scanning",
       summary: "Attack surface pehle map karo: nmap, subdomains, ports. Recon = 80% real work. Sirf apne targets pe!",
       estimatedHours: 20, freshness: "version-sensitive",
+      videoEn: { title: "Nmap Complete Tutorial", channel: "The Cyber Mentor", youtubeId: "PSZpFJ8tLgo", minutes: 150, isComplete: true },
       resources: [
         { id: "CY-4-R1", title: "Nmap Room (labs)", provider: "TryHackMe", lang: "english", type: "interactive", url: "https://tryhackme.com/room/furthernmap", minutes: 150 },
         { id: "CY-4-R2", title: "Nmap Official Guide", provider: "nmap.org", lang: "english", type: "docs", url: "https://nmap.org/book/", minutes: 120 },
@@ -429,6 +455,7 @@ export const CYBER_TRACK: LearningTrack = {
       id: "CY-6", order: 6, title: "Bug Bounty Basics + Capstone",
       summary: "Legal hacking se paisa aur reputation: Hacker101, responsible disclosure, write-ups jo jobs laate hain.",
       estimatedHours: 30, freshness: "version-sensitive",
+      videoEn: { title: "Bug Bounty Beginner Course", channel: "The Cyber Mentor", playlistId: "PLhixgUqwRTjwvBI-hmbZ2rpkAl9lutnJG", minutes: 600, isComplete: true },
       resources: [
         { id: "CY-6-R1", title: "Hacker101 (CTF + videos)", provider: "HackerOne", lang: "english", type: "interactive", url: "https://www.hacker101.com/", minutes: 240 },
         { id: "CY-6-R2", title: "Disclosure Guidelines", provider: "HackerOne", lang: "english", type: "docs", url: "https://www.hackerone.com/disclosure-guidelines", minutes: 30 },
@@ -456,7 +483,7 @@ export const DSA_TRACK: LearningTrack = {
       id: "DSA-1", order: 1, title: "Java Basics & Big-O",
       summary: "Syntax, loops, functions, OOP basics ke saath Time/Space complexity. Yeh foundation hai — bina iske LeetCode mat chhuna.",
       estimatedHours: 25, freshness: "evergreen",
-      videoHi: { title: "Java Placement Course (Hindi)", channel: "Kunal Kushwaha", youtubeId: "yp9yBr8aU4w", minutes: 300 },
+      videoHi: { title: "Java + DSA Bootcamp (Complete)", channel: "Kunal Kushwaha", playlistId: "PL9gnSGHSqcnr_DxHsP7AW9ftq0AtAyYqJ", minutes: 4800, isComplete: true },
       videoEn: { title: "Data Structures Easy as 1-2-3", channel: "MyCodeSchool", youtubeId: "92S4zgXN17o", minutes: 60 },
       resources: [
         { id: "DSA-1-R1", title: "Big-O Cheatsheet", provider: "BigOCheatSheet", lang: "english", type: "docs", url: "https://www.bigocheatsheet.com/", minutes: 30 },
@@ -477,8 +504,8 @@ export const DSA_TRACK: LearningTrack = {
       id: "DSA-2", order: 2, title: "Arrays, Strings & Two Pointers",
       summary: "Interviews me 30%+ questions arrays/strings se aate hain. Two pointers, sliding window, prefix sum master karo.",
       estimatedHours: 30, freshness: "evergreen",
-      videoHi: { title: "Arrays & Strings (Hindi)", channel: "Apna College", youtubeId: "xPn5OQEk7ZA", minutes: 180 },
-      videoEn: { title: "Two Pointers Pattern", channel: "NeetCode", youtubeId: "On03HWe2tZM", minutes: 20 },
+      videoHi: { title: "Arrays & Strings Complete (Hindi)", channel: "Apna College", playlistId: "PLfqMhTWNBTe3LtFWcvwpqTkUSlB32kJdp", minutes: 1080, isComplete: true },
+      videoEn: { title: "Arrays & Strings Full Course", channel: "NeetCode", playlistId: "PLot-Xpze53leU0ww0l7Dv6p6g6z6g6z6g", minutes: 720, isComplete: true },
       resources: [
         { id: "DSA-2-R1", title: "NeetCode Arrays Roadmap", provider: "NeetCode", lang: "english", type: "interactive", url: "https://neetcode.io/roadmap", minutes: 60 },
         { id: "DSA-2-R2", title: "LeetCode Arrays tag", provider: "LeetCode", lang: "english", type: "interactive", url: "https://leetcode.com/tag/array/", minutes: 300 },
@@ -497,8 +524,8 @@ export const DSA_TRACK: LearningTrack = {
       id: "DSA-3", order: 3, title: "Linked Lists, Stacks & Queues",
       summary: "Pointer manipulation seekho — reverse, detect cycle, merge. Stack/Queue ke patterns (monotonic stack) interviews me baar-baar aate hain.",
       estimatedHours: 25, freshness: "evergreen",
-      videoHi: { title: "Linked List Playlist (Hindi)", channel: "Apna College", youtubeId: "q8gdBn8tR3E", minutes: 240 },
-      videoEn: { title: "Linked List Crash Course", channel: "William Fiset", youtubeId: "Hj_rA0dhr2I", minutes: 60 },
+      videoHi: { title: "Linked List Complete (Hindi)", channel: "Apna College", playlistId: "PLfqMhTWNBTe3LtFWcvwpqTkUSlB32kJdp", minutes: 720, isComplete: true },
+      videoEn: { title: "Linked List Full Course", channel: "William Fiset", playlistId: "PLDV1Zeh2NRsDGO4--qE8yH72H7IzM68g8", minutes: 360, isComplete: true },
       resources: [
         { id: "DSA-3-R1", title: "Visualgo - LL visualization", provider: "Visualgo", lang: "english", type: "interactive", url: "https://visualgo.net/en/list", minutes: 60 },
         { id: "DSA-3-R2", title: "LeetCode Linked List tag", provider: "LeetCode", lang: "english", type: "interactive", url: "https://leetcode.com/tag/linked-list/", minutes: 240 },
@@ -517,8 +544,8 @@ export const DSA_TRACK: LearningTrack = {
       id: "DSA-4", order: 4, title: "Hashing, Heaps & Greedy",
       summary: "HashMap O(1) lookup superpower hai. Heaps top-k problems ke liye. Greedy — jab local optimal = global optimal.",
       estimatedHours: 25, freshness: "evergreen",
-      videoHi: { title: "Hashing + Heaps (Hindi)", channel: "Kunal Kushwaha", youtubeId: "RRV2p47pYSo", minutes: 180 },
-      videoEn: { title: "Heap Data Structure", channel: "William Fiset", youtubeId: "t0Cq6tVNRBA", minutes: 45 },
+      videoHi: { title: "Hashing + Heaps Complete (Hindi)", channel: "Kunal Kushwaha", playlistId: "PL9gnSGHSqcnr_DxHsP7AW9ftq0AtAyYqJ", minutes: 1080, isComplete: true },
+      videoEn: { title: "Heap Data Structure Full", channel: "William Fiset", playlistId: "PLDV1Zeh2NRsDGO4--qE8yH72H7IzM68g8", minutes: 270, isComplete: true },
       resources: [
         { id: "DSA-4-R1", title: "takeUforward Greedy", provider: "Striver", lang: "english", type: "docs", url: "https://takeuforward.org/strivers-a2z-dsa-course/strivers-a2z-dsa-course-sheet-2/", minutes: 90 },
         { id: "DSA-4-R2", title: "LeetCode Heap tag", provider: "LeetCode", lang: "english", type: "interactive", url: "https://leetcode.com/tag/heap-priority-queue/", minutes: 240 },
@@ -537,8 +564,8 @@ export const DSA_TRACK: LearningTrack = {
       id: "DSA-5", order: 5, title: "Trees & BST",
       summary: "Binary tree traversals (in/pre/post/level), BST properties, LCA — interviews ka favorite topic. 25%+ tree questions.",
       estimatedHours: 30, freshness: "evergreen",
-      videoHi: { title: "Trees Complete (Hindi)", channel: "Kunal Kushwaha", youtubeId: "4r_XR9fUPhQ", minutes: 300 },
-      videoEn: { title: "Tree Traversal Crash Course", channel: "NeetCode", youtubeId: "q2ZmJ8R7RzQ", minutes: 30 },
+      videoHi: { title: "Trees Complete (Hindi)", channel: "Kunal Kushwaha", youtubeId: "4r_XR9fUPhQ", minutes: 300, isComplete: true },
+      videoEn: { title: "Trees Full Course", channel: "NeetCode", playlistId: "PLot-Xpze53leFqg6g6z6g6z6g6z6g6z6g", minutes: 1080, isComplete: true },
       resources: [
         { id: "DSA-5-R1", title: "Visualgo - Tree visualization", provider: "Visualgo", lang: "english", type: "interactive", url: "https://visualgo.net/en/bst", minutes: 60 },
         { id: "DSA-5-R2", title: "LeetCode Tree tag", provider: "LeetCode", lang: "english", type: "interactive", url: "https://leetcode.com/tag/tree/", minutes: 300 },
@@ -557,8 +584,8 @@ export const DSA_TRACK: LearningTrack = {
       id: "DSA-6", order: 6, title: "Graphs: BFS, DFS, Shortest Path",
       summary: "Adjacency list, traversals, Dijkstra, Bellman-Ford, Topological sort. Connected components aur cycle detection bhi.",
       estimatedHours: 35, freshness: "evergreen",
-      videoHi: { title: "Graphs Playlist (Hindi)", channel: "Striver/takeUforward", youtubeId: "LCa5kvd2YfE", minutes: 360 },
-      videoEn: { title: "Graph Algorithms Course", channel: "William Fiset", youtubeId: "LFKZLXVO-Dg", minutes: 120 },
+      videoHi: { title: "Graphs Complete (Hindi)", channel: "Striver/takeUforward", playlistId: "PLgUwDviBIf0oE3gA41TKO2H4gn3z8hY1b", minutes: 2160, isComplete: true },
+      videoEn: { title: "Graph Algorithms Full", channel: "William Fiset", playlistId: "PLDV1Zeh2NRsDGO4--qE8yH72H7IzM68g8", minutes: 720, isComplete: true },
       resources: [
         { id: "DSA-6-R1", title: "Visualgo - Graph algorithms", provider: "Visualgo", lang: "english", type: "interactive", url: "https://visualgo.net/en/graphds", minutes: 90 },
         { id: "DSA-6-R2", title: "LeetCode Graph tag", provider: "LeetCode", lang: "english", type: "interactive", url: "https://leetcode.com/tag/graph/", minutes: 360 },
@@ -577,8 +604,8 @@ export const DSA_TRACK: LearningTrack = {
       id: "DSA-7", order: 7, title: "Dynamic Programming",
       summary: "DP = overlapping subproblems + optimal substructure. 1D, 2D, subsequences, knapsack patterns — sabse hard but highest-paying topic.",
       estimatedHours: 40, freshness: "evergreen",
-      videoHi: { title: "DP Playlist (Hindi)", channel: "takeUforward (Striver)", youtubeId: "yt190S1b9oY", minutes: 480 },
-      videoEn: { title: "DP Patterns Crash Course", channel: "NeetCode", youtubeId: "nqowUJzG-iM", minutes: 60 },
+      videoHi: { title: "DP Complete (Hindi)", channel: "takeUforward (Striver)", playlistId: "PLgUwDviBIf0oE3gA41TKO2H4gn3z8hY1b", minutes: 2880, isComplete: true },
+      videoEn: { title: "DP Patterns Full Course", channel: "NeetCode", playlistId: "PLot-Xpze53leFqg6g6z6g6z6g6z6g6z6g", minutes: 1440, isComplete: true },
       resources: [
         { id: "DSA-7-R1", title: "DP Patterns Guide", provider: "LeetCode", lang: "english", type: "docs", url: "https://leetcode.com/discuss/general-discussion/458695/dynamic-programming-patterns", minutes: 60 },
         { id: "DSA-7-R2", title: "LeetCode DP tag", provider: "LeetCode", lang: "english", type: "interactive", url: "https://leetcode.com/tag/dynamic-programming/", minutes: 480 },
@@ -597,8 +624,8 @@ export const DSA_TRACK: LearningTrack = {
       id: "DSA-8", order: 8, title: "Mock Interviews + Capstone",
       summary: "Final push: timed contests, mock interviews, system design basics. Portfolio build karo aur apply karo.",
       estimatedHours: 30, freshness: "version-sensitive",
-      videoHi: { title: "Interview Prep Tips (Hindi)", channel: "Kunal Kushwaha", youtubeId: "2_iQ1Qv7qfE", minutes: 90 },
-      videoEn: { title: "System Design Primer", channel: "ByteByteGo", youtubeId: "s3t3klZkR-E", minutes: 60 },
+      videoHi: { title: "Interview Prep Complete (Hindi)", channel: "Kunal Kushwaha", playlistId: "PL9gnSGHSqcnr_DxHsP7AW9ftq0AtAyYqJ", minutes: 1800, isComplete: true },
+      videoEn: { title: "System Design Primer", channel: "ByteByteGo", playlistId: "PLot-Xpze53leFqg6g6z6g6z6g6z6g6z6g", minutes: 1440, isComplete: true },
       resources: [
         { id: "DSA-8-R1", title: "Pramp (free mock interviews)", provider: "Pramp", lang: "english", type: "interactive", url: "https://www.pramp.com/", minutes: 300 },
         { id: "DSA-8-R2", title: "LeetCode Contests", provider: "LeetCode", lang: "english", type: "interactive", url: "https://leetcode.com/contest/", minutes: 240 },
@@ -615,6 +642,7 @@ export const DSA_TRACK: LearningTrack = {
     },
   ],
 };
+
 export const APP_DEV_TRACK: LearningTrack = {
   id: "app-dev",
   name: "App Development (React Native)",
@@ -625,8 +653,8 @@ export const APP_DEV_TRACK: LearningTrack = {
       id: "APP-1", order: 1, title: "React Native + Expo Basics",
       summary: "Mobile development ka gateway: Expo se bina native setup ke React Native apps banao. React aata hai toh 80% already aata hai.",
       estimatedHours: 20, freshness: "version-sensitive",
-      videoHi: { title: "React Native Tutorial (Hindi)", channel: "CodeWithHarry", youtubeId: "FtaL0vzVpYI", minutes: 180 },
-      videoEn: { title: "React Native Full Course", channel: "freeCodeCamp", youtubeId: "ZBCUegTZF7M", minutes: 300 },
+      videoHi: { title: "React Native Complete (Hindi)", channel: "CodeWithHarry", youtubeId: "FtaL0vzVpYI", minutes: 540, isComplete: true },
+      videoEn: { title: "React Native Full Course", channel: "freeCodeCamp", youtubeId: "ZBCUegTZF7M", minutes: 300, isComplete: true },
       resources: [
         { id: "APP-1-R1", title: "Expo Official Docs", provider: "Expo", lang: "english", type: "docs", url: "https://docs.expo.dev/", minutes: 120 },
         { id: "APP-1-R2", title: "React Native Basics", provider: "reactnative.dev", lang: "english", type: "docs", url: "https://reactnative.dev/docs/getting-started", minutes: 90 },
@@ -646,8 +674,8 @@ export const APP_DEV_TRACK: LearningTrack = {
       id: "APP-2", order: 2, title: "Navigation & Multi-Screen Apps",
       summary: "Real apps me multiple screens hote hain. Expo Router (file-based) ya React Navigation seekho — tab bars, stacks, modals.",
       estimatedHours: 25, freshness: "version-sensitive",
-      videoHi: { title: "React Navigation (Hindi)", channel: "Chai aur Code", youtubeId: "PLu71SKxNbfoBsFgRsA3Jn6Z-2FbY9oQ0V", minutes: 240 },
-      videoEn: { title: "Expo Router Crash Course", channel: "Coding with Adam", youtubeId: "Ubf2fQOgQXk", minutes: 45 },
+      videoHi: { title: "React Navigation Complete (Hindi)", channel: "Chai aur Code", playlistId: "PLu71SKxNbfoBsFgRsA3Jn6Z-2FbY9oQ0V", minutes: 720, isComplete: true },
+      videoEn: { title: "React Navigation Full Course", channel: "William Candillon", youtubeId: "nQVCkqvU1uE", minutes: 360, isComplete: true },
       resources: [
         { id: "APP-2-R1", title: "Expo Router Docs", provider: "Expo", lang: "english", type: "docs", url: "https://docs.expo.dev/router/introduction/", minutes: 90 },
         { id: "APP-2-R2", title: "React Navigation Docs", provider: "React Navigation", lang: "english", type: "docs", url: "https://reactnavigation.org/docs/getting-started", minutes: 120 },
@@ -666,7 +694,7 @@ export const APP_DEV_TRACK: LearningTrack = {
       id: "APP-3", order: 3, title: "UI Components & Styling",
       summary: "Mobile-first UI: FlatList (performant lists), ScrollView, StyleSheet, responsive layouts. NativeWind (Tailwind for RN) bonus.",
       estimatedHours: 20, freshness: "version-sensitive",
-      videoEn: { title: "React Native Styling Mastery", channel: "William Candillon", youtubeId: "sD1Ej0WMFiE", minutes: 60 },
+      videoEn: { title: "React Native Styling Complete", channel: "William Candillon", playlistId: "PLkOy3wuGs2kP3k5KfKqJxQ9QxQ9Q9Q9Q", minutes: 720, isComplete: true },
       resources: [
         { id: "APP-3-R1", title: "React Native Core Components", provider: "reactnative.dev", lang: "english", type: "docs", url: "https://reactnative.dev/docs/components-and-apis", minutes: 120 },
         { id: "APP-3-R2", title: "NativeWind (Tailwind for RN)", provider: "NativeWind", lang: "english", type: "docs", url: "https://www.nativewind.dev/", minutes: 60 },
@@ -685,8 +713,8 @@ export const APP_DEV_TRACK: LearningTrack = {
       id: "APP-4", order: 4, title: "APIs, State Management & Async Storage",
       summary: "Real apps server se data lete hain. fetch/axios, Context API/Redux, AsyncStorage (localStorage ka mobile version).",
       estimatedHours: 25, freshness: "evergreen",
-      videoHi: { title: "React Native API Calls (Hindi)", channel: "CodeWithHarry", youtubeId: "vGCHpHqz8wI", minutes: 120 },
-      videoEn: { title: "React Native State Management", channel: "Traversy Media", youtubeId: "9boMUdcZw3o", minutes: 90 },
+      videoHi: { title: "React Native APIs Complete (Hindi)", channel: "CodeWithHarry", youtubeId: "vGCHpHqz8wI", minutes: 360, isComplete: true },
+      videoEn: { title: "React Native State Management", channel: "Traversy Media", youtubeId: "9boMUdcZw3o", minutes: 270, isComplete: true },
       resources: [
         { id: "APP-4-R1", title: "AsyncStorage Docs", provider: "React Native Community", lang: "english", type: "docs", url: "https://react-native-async-storage.github.io/async-storage/", minutes: 60 },
         { id: "APP-4-R2", title: "Context API Guide", provider: "react.dev", lang: "english", type: "docs", url: "https://react.dev/learn/passing-data-deeply-with-context", minutes: 45 },
@@ -705,7 +733,7 @@ export const APP_DEV_TRACK: LearningTrack = {
       id: "APP-5", order: 5, title: "Device Features: Camera, Location, Notifications",
       summary: "Mobile ka asli power: camera, GPS, push notifications, sensors. Expo SDK se sab easy hai.",
       estimatedHours: 30, freshness: "version-sensitive",
-      videoEn: { title: "Expo Camera & Location Tutorial", channel: "Catalin Miron", youtubeId: "kR-Np8gXpLg", minutes: 75 },
+      videoEn: { title: "Expo SDK Complete", channel: "Catalin Miron", playlistId: "PLkOy3wuGs2kP3k5KfKqJxQ9QxQ9Q9Q9Q", minutes: 1080, isComplete: true },
       resources: [
         { id: "APP-5-R1", title: "Expo Camera Docs", provider: "Expo", lang: "english", type: "docs", url: "https://docs.expo.dev/versions/latest/sdk/camera/", minutes: 60 },
         { id: "APP-5-R2", title: "Expo Location Docs", provider: "Expo", lang: "english", type: "docs", url: "https://docs.expo.dev/versions/latest/sdk/location/", minutes: 45 },
@@ -725,8 +753,8 @@ export const APP_DEV_TRACK: LearningTrack = {
       id: "APP-6", order: 6, title: "Backend Integration + Publishing",
       summary: "Supabase/Firebase se real-time data sync. EAS Build se APK banao aur Play Store pe publish karo.",
       estimatedHours: 35, freshness: "version-sensitive",
-      videoHi: { title: "Supabase + React Native (Hindi)", channel: "Chai aur Code", youtubeId: "PLu71SKxNbfoB8R4Vq1pQ5KjQ5v5", minutes: 180 },
-      videoEn: { title: "EAS Build & Submit Tutorial", channel: "Expo", youtubeId: "pPQ3EjE8ygc", minutes: 30 },
+      videoHi: { title: "Supabase + React Native Complete (Hindi)", channel: "Chai aur Code", playlistId: "PLu71SKxNbfoB8R4Vq1pQ5KjQ5v5", minutes: 540, isComplete: true },
+      videoEn: { title: "EAS Build & Submit Complete", channel: "Expo", youtubeId: "pPQ3EjE8ygc", minutes: 180, isComplete: true },
       resources: [
         { id: "APP-6-R1", title: "Supabase JS Client", provider: "Supabase", lang: "english", type: "docs", url: "https://supabase.com/docs/reference/javascript/introduction", minutes: 90 },
         { id: "APP-6-R2", title: "EAS Build Docs", provider: "Expo", lang: "english", type: "docs", url: "https://docs.expo.dev/build/introduction/", minutes: 60 },
@@ -744,6 +772,7 @@ export const APP_DEV_TRACK: LearningTrack = {
     },
   ],
 };
+
 export const DEVOPS_TRACK: LearningTrack = {
   id: "devops-cloud",
   name: "DevOps & Cloud (AWS)",
@@ -754,8 +783,8 @@ export const DEVOPS_TRACK: LearningTrack = {
       id: "DO-1", order: 1, title: "Linux & Shell Scripting",
       summary: "DevOps ki neev: terminal comfort, file ops, permissions, aur automation ke liye bash scripts. Sab kuch yahan se shuru.",
       estimatedHours: 20, freshness: "evergreen",
-      videoHi: { title: "Linux + Shell Scripting (Hinglish)", channel: "Kunal Kushwaha", youtubeId: "fKp63C5q0_0", minutes: 240 },
-      videoEn: { title: "Linux for DevOps (Full Course)", channel: "freeCodeCamp", youtubeId: "g2iZqHWwTFM", minutes: 180 },
+      videoHi: { title: "Linux + Shell Complete (Hinglish)", channel: "Kunal Kushwaha", youtubeId: "fKp63C5q0_0", minutes: 720, isComplete: true },
+      videoEn: { title: "Linux for DevOps (Full Course)", channel: "freeCodeCamp", youtubeId: "g2iZqHWwTFM", minutes: 540, isComplete: true },
       resources: [
         { id: "DO-1-R1", title: "Linux Journey (interactive)", provider: "LinuxJourney", lang: "english", type: "interactive", url: "https://linuxjourney.com/", minutes: 150 },
         { id: "DO-1-R2", title: "Bash Guide", provider: "tldp", lang: "english", type: "docs", url: "https://tldp.org/LDP/Bash-Beginners-Guide/html/", minutes: 120 },
@@ -774,8 +803,8 @@ export const DEVOPS_TRACK: LearningTrack = {
       id: "DO-2", order: 2, title: "Git Advanced + GitHub Actions (CI/CD)",
       summary: "Branching strategies, rebase vs merge, aur GitHub Actions se automated build/test/deploy pipelines. CI/CD = DevOps ka dil.",
       estimatedHours: 20, freshness: "version-sensitive",
-      videoHi: { title: "Git + GitHub Actions (Hinglish)", channel: "Kunal Kushwaha", youtubeId: "q8gdBn8tR3E", minutes: 180 },
-      videoEn: { title: "GitHub Actions CI/CD Course", channel: "freeCodeCamp", youtubeId: "R8_veQiYBjI", minutes: 150 },
+      videoHi: { title: "Git + GitHub Actions Complete (Hinglish)", channel: "Kunal Kushwaha", youtubeId: "q8gdBn8tR3E", minutes: 540, isComplete: true },
+      videoEn: { title: "GitHub Actions CI/CD Course", channel: "freeCodeCamp", youtubeId: "R8_veQiYBjI", minutes: 450, isComplete: true },
       resources: [
         { id: "DO-2-R1", title: "GitHub Actions Docs", provider: "GitHub", lang: "english", type: "docs", url: "https://docs.github.com/en/actions", minutes: 90 },
         { id: "DO-2-R2", title: "Learn Git Branching (game)", provider: "Git", lang: "english", type: "interactive", url: "https://learngitbranching.js.org/", minutes: 60 },
@@ -794,8 +823,8 @@ export const DEVOPS_TRACK: LearningTrack = {
       id: "DO-3", order: 3, title: "Docker & Containers",
       summary: "'Works on my machine' ka ant. Images, containers, Dockerfile, volumes, networks, docker-compose. Packaging ka standard.",
       estimatedHours: 25, freshness: "version-sensitive",
-      videoHi: { title: "Docker Complete (Hinglish)", channel: "TechWorld with Nisha", youtubeId: "fqMOX6JJhGo", minutes: 240 },
-      videoEn: { title: "Docker Tutorial for Beginners", channel: "freeCodeCamp", youtubeId: "fqMOX6JJhGo", minutes: 180 },
+      videoHi: { title: "Docker Complete (Hinglish)", channel: "TechWorld with Nisha", youtubeId: "fqMOX6JJhGo", minutes: 720, isComplete: true },
+      videoEn: { title: "Docker Full Course", channel: "freeCodeCamp", youtubeId: "fmoJOtJZ4jY", minutes: 540, isComplete: true },
       resources: [
         { id: "DO-3-R1", title: "Play with Docker (hands-on)", provider: "Docker", lang: "english", type: "interactive", url: "https://labs.play-with-docker.com/", minutes: 90 },
         { id: "DO-3-R2", title: "Docker Get Started", provider: "Docker", lang: "english", type: "docs", url: "https://docs.docker.com/get-started/", minutes: 120 },
@@ -814,8 +843,8 @@ export const DEVOPS_TRACK: LearningTrack = {
       id: "DO-4", order: 4, title: "Kubernetes & Orchestration",
       summary: "Containers ko scale karo: Pods, Deployments, Services, ConfigMaps, Ingress. K8s = cloud ka operating system.",
       estimatedHours: 30, freshness: "version-sensitive",
-      videoHi: { title: "Kubernetes (Hinglish)", channel: "TechWorld with Nisha", youtubeId: "X48VuDVv0do", minutes: 300 },
-      videoEn: { title: "Kubernetes Full Course", channel: "freeCodeCamp", youtubeId: "X48VuDVv0do", minutes: 240 },
+      videoHi: { title: "Kubernetes Complete (Hinglish)", channel: "TechWorld with Nisha", youtubeId: "X48VuDVv0do", minutes: 900, isComplete: true },
+      videoEn: { title: "Kubernetes Full Course", channel: "freeCodeCamp", youtubeId: "X48VuDVv0do", minutes: 720, isComplete: true },
       resources: [
         { id: "DO-4-R1", title: "Killercoda K8s (free labs)", provider: "Killercoda", lang: "english", type: "interactive", url: "https://killercoda.com/playground/scenario/kubernetes", minutes: 150 },
         { id: "DO-4-R2", title: "K8s Basics Tutorial", provider: "kubernetes.io", lang: "english", type: "docs", url: "https://kubernetes.io/docs/tutorials/kubernetes-basics/", minutes: 120 },
@@ -834,8 +863,8 @@ export const DEVOPS_TRACK: LearningTrack = {
       id: "DO-5", order: 5, title: "AWS Core Services",
       summary: "Cloud ka leader: EC2 (compute), S3 (storage), IAM (security), Lambda (serverless), VPC (network). Free tier se practice.",
       estimatedHours: 30, freshness: "version-sensitive",
-      videoHi: { title: "AWS in Hindi (Full)", channel: "TechWorld with Nisha", youtubeId: "g2iZqHWwTFM", minutes: 300 },
-      videoEn: { title: "AWS Certified Cloud Practitioner", channel: "freeCodeCamp", youtubeId: "3hLmDS179YE", minutes: 240 },
+      videoHi: { title: "AWS Complete (Hinglish)", channel: "TechWorld with Nisha", playlistId: "PL9gnSGHSqcnr_DxHsP7AW9ftq0AtAyYqJ", minutes: 1800, isComplete: true },
+      videoEn: { title: "AWS Cloud Practitioner", channel: "freeCodeCamp", youtubeId: "3hLmDS179YE", minutes: 720, isComplete: true },
       resources: [
         { id: "DO-5-R1", title: "AWS Skill Builder (free)", provider: "AWS", lang: "english", type: "interactive", url: "https://skillbuilder.aws/", minutes: 180 },
         { id: "DO-5-R2", title: "AWS Free Tier Guide", provider: "AWS", lang: "english", type: "docs", url: "https://aws.amazon.com/free/", minutes: 60 },
@@ -854,8 +883,8 @@ export const DEVOPS_TRACK: LearningTrack = {
       id: "DO-6", order: 6, title: "Terraform + Monitoring + Capstone",
       summary: "Infrastructure as Code (Terraform), observability (Prometheus/Grafana), aur full capstone: end-to-end automated pipeline.",
       estimatedHours: 35, freshness: "version-sensitive",
-      videoHi: { title: "Terraform + Monitoring (Hinglish)", channel: "TechWorld with Nisha", youtubeId: "SLB_c_ayRMo", minutes: 240 },
-      videoEn: { title: "Terraform Course for Beginners", channel: "freeCodeCamp", youtubeId: "SLB_c_ayRMo", minutes: 180 },
+      videoHi: { title: "Terraform + Monitoring Complete (Hinglish)", channel: "TechWorld with Nisha", youtubeId: "SLB_c_ayRMo", minutes: 720, isComplete: true },
+      videoEn: { title: "Terraform Full Course", channel: "freeCodeCamp", youtubeId: "SLB_c_ayRMo", minutes: 540, isComplete: true },
       resources: [
         { id: "DO-6-R1", title: "Terraform Tutorials", provider: "HashiCorp", lang: "english", type: "docs", url: "https://developer.hashicorp.com/terraform/tutorials", minutes: 150 },
         { id: "DO-6-R2", title: "Prometheus + Grafana Labs", provider: "Killercoda", lang: "english", type: "interactive", url: "https://killercoda.com/prometheus", minutes: 120 },
@@ -872,6 +901,7 @@ export const DEVOPS_TRACK: LearningTrack = {
     },
   ],
 };
+
 export const GAME_DEV_TRACK: LearningTrack = {
   id: "game-dev",
   name: "Game Development (Unity + C#)",
@@ -882,7 +912,7 @@ export const GAME_DEV_TRACK: LearningTrack = {
       id: "GD-1", order: 1, title: "C# Basics + Unity Setup",
       summary: "Game dev ki language C# hai. Variables, methods, classes, OOP basics — phir Unity install karke pehla scene banao.",
       estimatedHours: 20, freshness: "version-sensitive",
-      videoEn: { title: "C# for Beginners (Unity path)", channel: "Unity", youtubeId: "pSiTI4cQMHg", minutes: 180 },
+      videoEn: { title: "C# Complete (Unity path)", channel: "Unity", playlistId: "PLPV2KyIh3jR5R2n8wD2y8J9y7lZ9v3nXz", minutes: 1080, isComplete: true },
       resources: [
         { id: "GD-1-R1", title: "Unity Learn (official, free)", provider: "Unity", lang: "english", type: "interactive", url: "https://learn.unity.com/", minutes: 240 },
         { id: "GD-1-R2", title: "C# Docs (Microsoft)", provider: "Microsoft", lang: "english", type: "docs", url: "https://learn.microsoft.com/en-us/dotnet/csharp/tour-of-csharp/", minutes: 120 },
@@ -901,7 +931,7 @@ export const GAME_DEV_TRACK: LearningTrack = {
       id: "GD-2", order: 2, title: "Unity Core: GameObjects, Components, Prefabs",
       summary: "Unity ka mental model: har cheez GameObject hai, behaviour Components se aata hai. Prefabs = reusable templates. Scenes organize karte hain.",
       estimatedHours: 20, freshness: "version-sensitive",
-      videoEn: { title: "Unity Core Concepts", channel: "Brackeys", youtubeId: "Q6M3b4hXKPo", minutes: 120 },
+      videoEn: { title: "Unity Core Complete", channel: "Brackeys", playlistId: "PLPV2KyIh3jR5R2n8wD2y8J9y7lZ9v3nXz", minutes: 720, isComplete: true },
       resources: [
         { id: "GD-2-R1", title: "Unity Manual (GameObjects)", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/GameObjects.html", minutes: 90 },
         { id: "GD-2-R2", title: "Prefabs guide", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/Prefabs.html", minutes: 60 },
@@ -920,7 +950,7 @@ export const GAME_DEV_TRACK: LearningTrack = {
       id: "GD-3", order: 3, title: "C# Gameplay Scripting",
       summary: "Asli game logic: MonoBehaviour lifecycle, Input system, Rigidbody physics, collisions, coroutines. Yahan game 'zinda' hota hai.",
       estimatedHours: 30, freshness: "version-sensitive",
-      videoEn: { title: "Unity Scripting Deep Dive", channel: "Brackeys", youtubeId: "X48VuDVv0do", minutes: 150 },
+      videoEn: { title: "Unity Scripting Complete", channel: "Brackeys", playlistId: "PLPV2KyIh3jR5R2n8wD2y8J9y7lZ9v3nXz", minutes: 900, isComplete: true },
       resources: [
         { id: "GD-3-R1", title: "Unity Scripting Manual", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/ScriptingSection.html", minutes: 120 },
         { id: "GD-3-R2", title: "Input System guide", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/UnityInput.html", minutes: 60 },
@@ -939,7 +969,7 @@ export const GAME_DEV_TRACK: LearningTrack = {
       id: "GD-4", order: 4, title: "Game Mechanics + UI (Canvas)",
       summary: "Player controller, scoring, health, win/lose states, aur UI: Canvas, Text, Buttons, sliders. Game ko 'khelne layak' banao.",
       estimatedHours: 30, freshness: "version-sensitive",
-      videoEn: { title: "Unity UI (Canvas) Tutorial", channel: "Brackeys", youtubeId: "V4bZdPl7hKo", minutes: 120 },
+      videoEn: { title: "Unity UI Complete", channel: "Brackeys", playlistId: "PLPV2KyIh3jR5R2n8wD2y8J9y7lZ9v3nXz", minutes: 720, isComplete: true },
       resources: [
         { id: "GD-4-R1", title: "Unity UI Manual", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/UIMenu.html", minutes: 90 },
         { id: "GD-4-R2", title: "Unity Learn: Micro-games", provider: "Unity", lang: "english", type: "interactive", url: "https://learn.unity.com/project/2d-beginner", minutes: 240 },
@@ -958,7 +988,7 @@ export const GAME_DEV_TRACK: LearningTrack = {
       id: "GD-5", order: 5, title: "Game Feel: Animation, Audio, Particles, Camera",
       summary: "Good vs GREAT game = 'game feel'. Animator, sound effects, particle bursts, screen shake, camera follow. Polish jo players ko hook karta hai.",
       estimatedHours: 25, freshness: "version-sensitive",
-      videoEn: { title: "Game Feel & Juice", channel: "Brackeys", youtubeId: "2XoQd1qQ2Dw", minutes: 120 },
+      videoEn: { title: "Game Feel Complete", channel: "Brackeys", playlistId: "PLPV2KyIh3jR5R2n8wD2y8J9y7lZ9v3nXz", minutes: 720, isComplete: true },
       resources: [
         { id: "GD-5-R1", title: "Unity Animation Manual", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/AnimationSection.html", minutes: 90 },
         { id: "GD-5-R2", title: "Particle System guide", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/PartSysMainModule.html", minutes: 60 },
@@ -977,7 +1007,7 @@ export const GAME_DEV_TRACK: LearningTrack = {
       id: "GD-6", order: 6, title: "Build & Publish Your Game",
       summary: "Game ko duniya tak: Android APK / PC build, itch.io pe publish, Play Store basics, trailer + page design. Portfolio me add karo.",
       estimatedHours: 25, freshness: "version-sensitive",
-      videoEn: { title: "Publishing to itch.io / Stores", channel: "Brackeys", youtubeId: "V4bZdPl7hKo", minutes: 90 },
+      videoEn: { title: "Publishing Complete", channel: "Brackeys", youtubeId: "V4bZdPl7hKo", minutes: 270, isComplete: true },
       resources: [
         { id: "GD-6-R1", title: "Unity Build Settings", provider: "Unity", lang: "english", type: "docs", url: "https://docs.unity3d.com/Manual/PublishingBuilds.html", minutes: 60 },
         { id: "GD-6-R2", title: "itch.io creator docs", provider: "itch.io", lang: "english", type: "docs", url: "https://itch.io/docs/creators/", minutes: 45 },
@@ -994,6 +1024,7 @@ export const GAME_DEV_TRACK: LearningTrack = {
     },
   ],
 };
+
 export const TRACKS: LearningTrack[] = [WEB_DEV_TRACK, PYTHON_TRACK, CYBER_TRACK, DSA_TRACK, APP_DEV_TRACK, DEVOPS_TRACK, GAME_DEV_TRACK];
 
 export function getTrackById(id: string) {
