@@ -425,6 +425,12 @@ export default function TrackDashboard() {
       {playerFor && (() => {
         const v = playerFor.lang === "hi" ? playerFor.m.videoHi : playerFor.m.videoEn;
         if (!v) return null;
+        
+        // FIX 1: Safely fallback to an empty string if both IDs are missing
+        const videoId = v.playlistId || v.youtubeId || "";
+        // FIX 2: Use optional chaining (?.) so .startsWith doesn't crash on undefined
+        const isPlaylist = !!v.playlistId || (v.youtubeId?.startsWith("PL") ?? false);
+        
         return (
           <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4" onClick={closePlayer}>
             <div className="w-full max-w-2xl" onClick={(e) => e.stopPropagation()}>
@@ -437,9 +443,13 @@ export default function TrackDashboard() {
                 </button>
               </div>
               <VideoPlayer
-                youtubeId={v.youtubeId}
-                isPlaylist={v.youtubeId.startsWith("PL")}
+                youtubeId={videoId}
+                isPlaylist={isPlaylist}
                 onTick={(s) => { watchBuf.current += s; }}
+                title={v.title}
+                channel={v.channel}
+                minutes={v.minutes}
+                isComplete={v.isComplete}
               />
               <button onClick={() => reportResource(playerFor.m.id, playerFor.lang === "hi" ? "video-hi" : "video-en")}
                 className="mt-3 flex items-center gap-1.5 text-[10px] font-bold text-slate-500 hover:text-amber-300 transition-colors">
