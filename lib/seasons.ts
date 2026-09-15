@@ -16,7 +16,7 @@ export const LIFETIME_LEVELS = [
   { name: "Legend", icon: "👑", need: 64000 },
   { name: "Dragon", icon: "🐉", need: 128000 },
   { name: "Immortal", icon: "🌌", need: 256000 },
-  { name: "BATMAN", icon: "🦇", need: 512000 },
+  { name: "G.O.A.T.", icon: "🦇", need: 512000 },
 ];
 
 export function seasonInfo(now = Date.now()) {

@@ -132,7 +132,7 @@ export default function LeaderboardPage() {
         </div>
         {top10[0] && top10[0].season > 0 && (
           <div className="relative mt-3 bg-black/20 backdrop-blur rounded-xl px-3 py-2 text-center">
-            <p className="text-[10px] font-black text-amber-200">🦇 CURRENT BATMAN: {top10[0].name.toUpperCase()}</p>
+            <p className="text-[10px] font-black text-amber-200">🦇 CURRENT G.O.A.T.: {top10[0].name.toUpperCase()}</p>
           </div>
         )}
       </div>

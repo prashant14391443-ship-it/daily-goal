@@ -337,7 +337,7 @@ export default function Dashboard() {
   const todoAllDone = todoDone + generalDone; const todoAllTotal = todoTotal + tasks.length;
   const todoPct = todoAllTotal > 0 ? Math.min(100, Math.round((todoAllDone / todoAllTotal) * 100)) : 0;
   const overallPct = Math.round((studyPct + gymPct + habitsPct + todoPct) / 4);
-  const motivation = overallPct >= 100 ? "⚡ BATMAN MODE: COMPLETE!" : overallPct >= 75 ? "Keep it up, champion!" : overallPct >= 50 ? "Better than yesterday!" : overallPct >= 25 ? "Good start, keep pushing!" : "Rise, hero — start NOW!";
+  const motivation = overallPct >= 100 ? "⚡ G.O.A.T. MODE: COMPLETE!" : overallPct >= 75 ? "Keep it up, champion!" : overallPct >= 50 ? "Better than yesterday!" : overallPct >= 25 ? "Good start, keep pushing!" : "Rise, hero — start NOW!";
   const maxStreak = Math.max(studyStreak, gymStreak, moveStreak, todoStreak, englishStreak, learnStreak);
   const maxBroken = Math.max(studyBroken, gymBroken, todoBroken, ...habitBroken.map((b) => b.broken), 0);
   const weekData = chartMode === "study" ? studyWeekData : chartMode === "gym" ? gymWeekData : chartMode === "todo" ? todoWeekData : habitsWeekData;
