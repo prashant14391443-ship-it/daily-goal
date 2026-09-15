@@ -2,7 +2,13 @@
 
 import { useState, useRef } from "react";
 import Link from "next/link";
-import { Bot, Sparkles, Zap, BookOpen, Check, X, Lightbulb, Play, Clipboard, Camera, FileText, Image as ImageIcon, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+import {
+  Bot, Sparkles, Zap, BookOpen, Check, X, Lightbulb, Play,
+  Clipboard, Camera, FileText, Image as ImageIcon, Trash2,
+  Download, Layers, Loader2
+} from "lucide-react";
 import { ProgressRing } from "@/app/components/ui";
 import BackText from "@/app/components/BackBtn";
 
@@ -15,7 +21,7 @@ type Question = {
 
 type QuizMode = "topic" | "text" | "photo";
 
-// 🖼️ IMAGE COMPRESSION FUNCTION (Keeps file size small for fast uploads)
+// ️ IMAGE COMPRESSION (keeps uploads small & fast)
 const compressImage = (file: File, maxWidth = 800, quality = 0.7): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -28,18 +34,18 @@ const compressImage = (file: File, maxWidth = 800, quality = 0.7): Promise<strin
           height = Math.round((height * maxWidth) / width);
           width = maxWidth;
         }
-        const canvas = document.createElement('canvas');
+        const canvas = document.createElement("canvas");
         canvas.width = width;
         canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { reject(new Error('Canvas context failed')); return; }
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("Canvas context failed")); return; }
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+        resolve(canvas.toDataURL("image/jpeg", quality));
       };
-      img.onerror = () => reject(new Error('Failed to load image'));
+      img.onerror = () => reject(new Error("Failed to load image"));
       img.src = e.target?.result as string;
     };
-    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.onerror = () => reject(new Error("Failed to read file"));
     reader.readAsDataURL(file);
   });
 };
@@ -47,15 +53,16 @@ const compressImage = (file: File, maxWidth = 800, quality = 0.7): Promise<strin
 const QUICK_TOPICS = [
   { label: "Math", emoji: "🔢" },
   { label: "World War 2", emoji: "⚔️" },
-  { label: "Photosynthesis", emoji: "" },
-  { label: "Python", emoji: "🐍" },
-  { label: "India GK", emoji: "🇮" },
-  { label: "Physics", emoji: "⚛️" },
+  { label: "Photosynthesis", emoji: "🌱" },
+  { label: "Python", emoji: "" },
+  { label: "India GK", emoji: "🇮🇳" },
+  { label: "Physics", emoji: "️" },
 ];
 
 const LETTERS = ["A", "B", "C", "D", "E", "F"];
 
 export default function QuizPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<QuizMode>("topic");
   const [topic, setTopic] = useState("");
   const [pastedText, setPastedText] = useState("");
@@ -66,29 +73,31 @@ export default function QuizPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [answers, setAnswers] = useState<number[]>([]);
   const [submitted, setSubmitted] = useState(false);
+
+  //  Flashcard batch-add state
+  const [addingFlashcards, setAddingFlashcards] = useState(false);
+  const [flashcardMsg, setFlashcardMsg] = useState("");
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  //  UPDATED IMAGE UPLOAD HANDLER WITH COMPRESSION
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.type.startsWith('image/')) {
-        setError('Please select a valid image file');
+      if (!file.type.startsWith("image/")) {
+        setError("Please select a valid image file");
         return;
       }
       if (file.size > 10 * 1024 * 1024) {
-        setError('Image size should be less than 10MB');
+        setError("Image size should be less than 10MB");
         return;
       }
-      
       setLoading(true);
       setError("");
       try {
-        // Compress and resize image before sending to API
         const compressedBase64 = await compressImage(file, 800, 0.7);
         setSelectedImage(compressedBase64);
-      } catch (err) {
-        setError('Failed to process image. Please try again.');
+      } catch {
+        setError("Failed to process image. Please try again.");
       }
       setLoading(false);
     }
@@ -96,9 +105,7 @@ export default function QuizPage() {
 
   const removeImage = () => {
     setSelectedImage(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const generate = async (e: React.FormEvent) => {
@@ -107,10 +114,10 @@ export default function QuizPage() {
     setError("");
     setQuestions([]);
     setSubmitted(false);
-    
+    setFlashcardMsg("");
+
     try {
-      let body: any = { count, mode };
-      
+      const body: any = { count, mode };
       if (mode === "topic") {
         if (!topic.trim()) throw new Error("Please enter a topic");
         body.topic = topic;
@@ -122,12 +129,12 @@ export default function QuizPage() {
         body.image = selectedImage;
       }
 
-      const res = await fetch("/api/quiz", { 
-        method: "POST", 
-        headers: { "Content-Type": "application/json" }, 
-        body: JSON.stringify(body) 
+      const res = await fetch("/api/quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
-      
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "failed");
       setQuestions(data.questions || []);
@@ -158,6 +165,88 @@ export default function QuizPage() {
       : { emoji: "📚", text: "Keep studying — you'll get there!", color: "text-slate-300" };
 
   const isReviewing = questions.length > 0;
+
+  // 📋 COPY QUIZ TO CLIPBOARD
+  const copyQuizToClipboard = () => {
+    const text = questions
+      .map((q, i) => {
+        const optionsText = q.options
+          .map((opt, idx) => `${String.fromCharCode(65 + idx)}. ${opt}`)
+          .join("\n");
+        return `Q${i + 1}: ${q.q}\n${optionsText}\n✅ Correct Answer: ${q.options[q.answer]}\n💡 Explanation: ${q.explain}`;
+      })
+      .join("\n\n---\n\n");
+
+    navigator.clipboard.writeText(text).then(() => {
+      setFlashcardMsg("✅ Copied to clipboard!");
+      setTimeout(() => setFlashcardMsg(""), 2500);
+    }).catch(() => {
+      setFlashcardMsg("❌ Failed to copy.");
+      setTimeout(() => setFlashcardMsg(""), 2500);
+    });
+  };
+
+  // 📥 DOWNLOAD QUIZ AS .TXT FILE
+  const downloadQuiz = () => {
+    const text = questions
+      .map((q, i) => {
+        const optionsText = q.options
+          .map((opt, idx) => `${String.fromCharCode(65 + idx)}. ${opt}`)
+          .join("\n");
+        return `Q${i + 1}: ${q.q}\n${optionsText}\n✅ Correct Answer: ${q.options[q.answer]}\n💡 Explanation: ${q.explain}`;
+      })
+      .join("\n\n---\n\n");
+
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const filename = `AI-Quiz-${mode === "topic" ? topic.replace(/\s+/g, "-") : "Custom"}.txt`;
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setFlashcardMsg("✅ Downloaded!");
+    setTimeout(() => setFlashcardMsg(""), 2500);
+  };
+
+  // 🃏 ADD ALL QUESTIONS TO FLASHCARDS
+  const addAllToFlashcards = async () => {
+    setAddingFlashcards(true);
+    setFlashcardMsg("");
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) {
+        router.push("/login");
+        return;
+      }
+
+      const flashcardSubject =
+        mode === "topic" ? topic : mode === "text" ? "Pasted Text" : "Photo Notes";
+
+      // Build flashcard rows: front = question, back = answer + explanation
+      const rows = questions.map((q) => ({
+        user_id: userId,
+        subject: flashcardSubject || "Quiz Import",
+        front: q.q,
+        back: `✅ ${q.options[q.answer]}\n\n💡 ${q.explain}`,
+      }));
+
+      const { error } = await supabase.from("flashcards").insert(rows);
+      if (error) throw new Error(error.message);
+
+      setFlashcardMsg(`✅ Added ${rows.length} cards to Flashcards!`);
+      setTimeout(() => setFlashcardMsg(""), 3000);
+    } catch (err) {
+      setFlashcardMsg(err instanceof Error ? `❌ ${err.message}` : "❌ Failed to add cards.");
+      setTimeout(() => setFlashcardMsg(""), 3000);
+    }
+    setAddingFlashcards(false);
+  };
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-6 pt-6 pb-24 max-w-4xl mx-auto">
@@ -243,7 +332,7 @@ export default function QuizPage() {
             </div>
           </div>
 
-          {/* ⚡ QUICK TOPICS (only show in topic mode) */}
+          {/* ⚡ QUICK TOPICS (only in topic mode) */}
           {mode === "topic" && (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
               <p className="text-[10px] font-black text-slate-500 mb-2">⚡ QUICK TOPICS (tap to start)</p>
@@ -271,8 +360,6 @@ export default function QuizPage() {
 
           {/* 📝 INPUT FORM */}
           <form id="quiz-form" onSubmit={generate} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-5 grid gap-3">
-            
-            {/* TOPIC MODE */}
             {mode === "topic" && (
               <>
                 <div className="flex items-center gap-2 mb-1">
@@ -291,7 +378,6 @@ export default function QuizPage() {
               </>
             )}
 
-            {/* TEXT MODE */}
             {mode === "text" && (
               <>
                 <div className="flex items-center gap-2 mb-1">
@@ -303,7 +389,7 @@ export default function QuizPage() {
                 <textarea
                   value={pastedText}
                   onChange={(e) => setPastedText(e.target.value)}
-                  placeholder="Paste your notes, article, or any text here. The AI will generate quiz questions based on the content..."
+                  placeholder="Paste your notes, article, or any text here..."
                   required
                   rows={6}
                   className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-cyan-500 resize-none"
@@ -314,7 +400,6 @@ export default function QuizPage() {
               </>
             )}
 
-            {/* PHOTO MODE */}
             {mode === "photo" && (
               <>
                 <div className="flex items-center gap-2 mb-1">
@@ -323,9 +408,8 @@ export default function QuizPage() {
                   </span>
                   <p className="font-black text-sm text-white">Upload or take a photo</p>
                 </div>
-                
                 {!selectedImage ? (
-                  <div 
+                  <div
                     onClick={() => fileInputRef.current?.click()}
                     className="press w-full p-8 rounded-xl bg-slate-800 border-2 border-dashed border-slate-700 hover:border-cyan-500/40 text-center cursor-pointer"
                   >
@@ -345,7 +429,6 @@ export default function QuizPage() {
                     </button>
                   </div>
                 )}
-                
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -368,7 +451,9 @@ export default function QuizPage() {
                     : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
                 }`}
               >
-                <p className="text-2xl font-black leading-none flex items-center justify-center gap-1"><Zap size={18} /> 5</p>
+                <p className="text-2xl font-black leading-none flex items-center justify-center gap-1">
+                  <Zap size={18} /> 5
+                </p>
                 <p className="text-[10px] mt-1">Quick test</p>
               </button>
               <button
@@ -380,7 +465,9 @@ export default function QuizPage() {
                     : "bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700"
                 }`}
               >
-                <p className="text-2xl font-black leading-none flex items-center justify-center gap-1"><BookOpen size={18} /> 10</p>
+                <p className="text-2xl font-black leading-none flex items-center justify-center gap-1">
+                  <BookOpen size={18} /> 10
+                </p>
                 <p className="text-[10px] mt-1">Standard</p>
               </button>
             </div>
@@ -479,7 +566,9 @@ export default function QuizPage() {
 
                   {submitted && q.explain && (
                     <div className="mt-3 bg-violet-500/10 border border-violet-500/20 rounded-xl p-3">
-                      <p className="text-[10px] font-black text-violet-300 mb-1 flex items-center gap-1"><Lightbulb size={11} /> EXPLANATION</p>
+                      <p className="text-[10px] font-black text-violet-300 mb-1 flex items-center gap-1">
+                        <Lightbulb size={11} /> EXPLANATION
+                      </p>
                       <p className="text-xs text-slate-300 leading-relaxed">{q.explain}</p>
                     </div>
                   )}
@@ -499,24 +588,77 @@ export default function QuizPage() {
               Submit Answers ({answers.filter((a) => a !== -1).length}/{questions.length} answered)
             </button>
           ) : (
-            <div className="relative overflow-hidden rounded-3xl bg-emerald-500/10 border-2 border-emerald-500/30 p-6 text-center">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.05),_transparent_70%)]" />
-              <div className="relative flex flex-col items-center gap-3">
-                <ProgressRing pct={pct} size={100} stroke={9} color="#10b981" track="rgba(255,255,255,0.1)" />
-                <p className="text-4xl font-black text-white">{score} / {questions.length}</p>
-                <p className="text-sm font-black text-emerald-200">
-                  {scoreMessage.emoji} {scoreMessage.text}
-                </p>
-                <div className="flex gap-2 mt-1">
-                  <span className="text-[10px] font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-md flex items-center gap-1">
-                    <Check size={11} /> {score} correct
-                  </span>
-                  <span className="text-[10px] font-black text-red-300 bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-md flex items-center gap-1">
-                    <X size={11} /> {questions.length - score} wrong
-                  </span>
+            <>
+              {/* SCORE CARD */}
+              <div className="relative overflow-hidden rounded-3xl bg-emerald-500/10 border-2 border-emerald-500/30 p-6 text-center">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.05),_transparent_70%)]" />
+                <div className="relative flex flex-col items-center gap-3">
+                  <ProgressRing pct={pct} size={100} stroke={9} color="#10b981" track="rgba(255,255,255,0.1)" />
+                  <p className="text-4xl font-black text-white">{score} / {questions.length}</p>
+                  <p className="text-sm font-black text-emerald-200">
+                    {scoreMessage.emoji} {scoreMessage.text}
+                  </p>
+                  <div className="flex gap-2 mt-1">
+                    <span className="text-[10px] font-black text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-md flex items-center gap-1">
+                      <Check size={11} /> {score} correct
+                    </span>
+                    <span className="text-[10px] font-black text-red-300 bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-md flex items-center gap-1">
+                      <X size={11} /> {questions.length - score} wrong
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
+
+              {/* ️ ACTION BUTTONS: Copy, Download, Flashcard */}
+              <div className="grid grid-cols-3 gap-2 mt-4">
+                <button
+                  onClick={copyQuizToClipboard}
+                  className="press flex flex-col items-center gap-1 p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyan-500/40 hover:bg-slate-800 transition-all"
+                >
+                  <Clipboard size={20} className="text-cyan-400" />
+                  <span className="text-[10px] font-black text-slate-300">Copy</span>
+                </button>
+
+                <button
+                  onClick={downloadQuiz}
+                  className="press flex flex-col items-center gap-1 p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-emerald-500/40 hover:bg-slate-800 transition-all"
+                >
+                  <Download size={20} className="text-emerald-400" />
+                  <span className="text-[10px] font-black text-slate-300">Download</span>
+                </button>
+
+                <button
+                  onClick={addAllToFlashcards}
+                  disabled={addingFlashcards}
+                  className="press flex flex-col items-center gap-1 p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-violet-500/40 hover:bg-slate-800 transition-all disabled:opacity-60"
+                >
+                  {addingFlashcards ? (
+                    <Loader2 size={20} className="text-violet-400 animate-spin" />
+                  ) : (
+                    <Layers size={20} className="text-violet-400" />
+                  )}
+                  <span className="text-[10px] font-black text-slate-300">
+                    {addingFlashcards ? "Adding..." : "Flashcard"}
+                  </span>
+                </button>
+              </div>
+
+              {/* FEEDBACK MESSAGE */}
+              {flashcardMsg && (
+                <div className="mt-3 bg-slate-900 border border-slate-800 rounded-xl p-3 text-center">
+                  <p className="text-xs font-bold text-slate-200">{flashcardMsg}</p>
+                </div>
+              )}
+
+              {/* LINK TO FLASHCARDS */}
+              <Link
+                href="/flashcards"
+                className="press mt-3 w-full py-3 rounded-xl bg-violet-500/15 border border-violet-500/30 text-sm font-black text-violet-300 flex items-center justify-center gap-1.5"
+              >
+                <Layers size={15} />
+                Open Flashcards →
+              </Link>
+            </>
           )}
         </>
       )}
