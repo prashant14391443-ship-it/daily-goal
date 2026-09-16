@@ -6,8 +6,11 @@ import type { CSSProperties } from "react";
 const APP_URL = "https://daily-goal-beige.vercel.app";
 const INSTALL_URL = APP_URL + "/install";
 
-const MIN_SPIN_MS = 6000; // spinner shows at least 6 seconds
-const SAFETY_MS = 20000; // if anything weird, show Installed after 20s
+// ✏️ Change this one line if you ever measure a different real size
+const SIZE_LABEL = "~3 MB";
+
+const MIN_SPIN_MS = 6000; // spinning circle shows at least 6 seconds
+const SAFETY_MS = 20000; // fallback: show Installed after 20s max
 
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -20,7 +23,6 @@ export default function InstallPage() {
   const [installEvent, setInstallEvent] = useState<InstallPromptEvent | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [alreadyInstalled, setAlreadyInstalled] = useState(false);
-  const [sizeLabel, setSizeLabel] = useState("~3 MB");
   const [note, setNote] = useState("");
 
   const acceptTime = useRef<number | null>(null);
@@ -55,26 +57,9 @@ export default function InstallPage() {
     window.addEventListener("appinstalled", onInstalled);
     setAlreadyInstalled(window.matchMedia("(display-mode: standalone)").matches);
 
-    const t = window.setTimeout(() => {
-      try {
-        const nav = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
-        const res = performance.getEntriesByType("resource") as PerformanceResourceTiming[];
-        let bytes = 0;
-        nav.forEach((e) => (bytes += e.transferSize || 0));
-        res.forEach((e) => (bytes += e.transferSize || 0));
-        const mb = bytes / (1024 * 1024);
-        if (mb > 0.05) {
-          setSizeLabel(mb < 1 ? "~" + mb.toFixed(1) + " MB" : "~" + Math.round(mb) + " MB");
-        }
-      } catch {
-        /* keep default */
-      }
-    }, 1500);
-
     return () => {
       window.removeEventListener("beforeinstallprompt", onPrompt);
       window.removeEventListener("appinstalled", onInstalled);
-      window.clearTimeout(t);
       if (minTimer.current) window.clearTimeout(minTimer.current);
       if (safetyTimer.current) window.clearTimeout(safetyTimer.current);
     };
@@ -83,6 +68,7 @@ export default function InstallPage() {
 
   const handleInstall = async () => {
     if (!installEvent) {
+      // popup not available (iPhone / in-app browser) → one small line only
       const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
       setNote(
         isIOS
@@ -100,11 +86,11 @@ export default function InstallPage() {
     if (choice.outcome === "accepted") {
       acceptTime.current = Date.now();
       installedFired.current = false;
-      setPhase("installing"); // ⭕ spinner starts NOW
+      setPhase("installing"); // ⭕ spinner starts now
       minTimer.current = window.setTimeout(tryFinish, MIN_SPIN_MS);
       safetyTimer.current = window.setTimeout(() => setPhase("installed"), SAFETY_MS);
     } else {
-      setPhase("idle"); // user cancelled popup
+      setPhase("idle"); // user cancelled the popup
     }
     setInstallEvent(null);
   };
@@ -118,7 +104,7 @@ export default function InstallPage() {
         <h1 style={styles.h1}>DAILY GOAL</h1>
         <p style={styles.sub}>Study • Compete • Connect</p>
 
-        <div style={styles.sizeBadge}>📦 {sizeLabel} • installs in seconds</div>
+        <div style={styles.sizeBadge}>📦 {SIZE_LABEL} • installs in seconds</div>
 
         {alreadyInstalled ? (
           <>
@@ -145,14 +131,14 @@ export default function InstallPage() {
             <p style={styles.spinSub}>
               {phase === "confirm"
                 ? "Chrome is asking for your confirmation"
-                : "Downloading app files (" + sizeLabel + ") • keep this page open"}
+                : "Downloading app files (" + SIZE_LABEL + ") • keep this page open"}
             </p>
           </div>
         ) : (
           <>
             <button onClick={handleInstall} style={{ ...styles.btn, ...styles.btnInstall }}>
               📲 INSTALL APP
-              <span style={styles.btnSmall}>Only {sizeLabel} — icon on your home screen</span>
+              <span style={styles.btnSmall}>Only {SIZE_LABEL} — icon on your home screen</span>
             </button>
 
             <a href="/" style={{ ...styles.btn, ...styles.btnBrowser }}>
