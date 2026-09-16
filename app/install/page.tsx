@@ -6,6 +6,9 @@ import type { CSSProperties } from "react";
 const APP_URL = "https://daily-goal-beige.vercel.app";
 const INSTALL_URL = APP_URL + "/install";
 
+const MIN_SPIN_MS = 6000; // spinner shows at least 6 seconds
+const SAFETY_MS = 20000; // if anything weird, show Installed after 20s
+
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
@@ -19,7 +22,19 @@ export default function InstallPage() {
   const [alreadyInstalled, setAlreadyInstalled] = useState(false);
   const [sizeLabel, setSizeLabel] = useState("~3 MB");
   const [note, setNote] = useState("");
+
+  const acceptTime = useRef<number | null>(null);
+  const installedFired = useRef(false);
+  const minTimer = useRef<number | null>(null);
   const safetyTimer = useRef<number | null>(null);
+
+  const tryFinish = () => {
+    if (!installedFired.current) return;
+    if (acceptTime.current === null) return;
+    if (Date.now() - acceptTime.current >= MIN_SPIN_MS) {
+      setPhase("installed");
+    }
+  };
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -31,18 +46,15 @@ export default function InstallPage() {
       setInstallEvent(e as InstallPromptEvent);
     };
 
-    // THIS is the real "installation finished" signal from Chrome
     const onInstalled = () => {
-      if (safetyTimer.current) window.clearTimeout(safetyTimer.current);
-      setPhase("installed");
-      setInstallEvent(null);
+      installedFired.current = true;
+      tryFinish();
     };
 
     window.addEventListener("beforeinstallprompt", onPrompt);
     window.addEventListener("appinstalled", onInstalled);
     setAlreadyInstalled(window.matchMedia("(display-mode: standalone)").matches);
 
-    // measure real downloaded size of this app (transfer bytes)
     const t = window.setTimeout(() => {
       try {
         const nav = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
@@ -55,7 +67,7 @@ export default function InstallPage() {
           setSizeLabel(mb < 1 ? "~" + mb.toFixed(1) + " MB" : "~" + Math.round(mb) + " MB");
         }
       } catch {
-        /* keep default label */
+        /* keep default */
       }
     }, 1500);
 
@@ -63,13 +75,14 @@ export default function InstallPage() {
       window.removeEventListener("beforeinstallprompt", onPrompt);
       window.removeEventListener("appinstalled", onInstalled);
       window.clearTimeout(t);
+      if (minTimer.current) window.clearTimeout(minTimer.current);
       if (safetyTimer.current) window.clearTimeout(safetyTimer.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleInstall = async () => {
     if (!installEvent) {
-      // popup not available (iPhone / in-app browser) → one small line only
       const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
       setNote(
         isIOS
@@ -85,10 +98,13 @@ export default function InstallPage() {
     const choice = await installEvent.userChoice;
 
     if (choice.outcome === "accepted") {
-      setPhase("installing"); // spinner stays until appinstalled fires
-      safetyTimer.current = window.setTimeout(() => setPhase("installed"), 20000);
+      acceptTime.current = Date.now();
+      installedFired.current = false;
+      setPhase("installing"); // ⭕ spinner starts NOW
+      minTimer.current = window.setTimeout(tryFinish, MIN_SPIN_MS);
+      safetyTimer.current = window.setTimeout(() => setPhase("installed"), SAFETY_MS);
     } else {
-      setPhase("idle"); // user cancelled the popup
+      setPhase("idle"); // user cancelled popup
     }
     setInstallEvent(null);
   };
@@ -129,7 +145,7 @@ export default function InstallPage() {
             <p style={styles.spinSub}>
               {phase === "confirm"
                 ? "Chrome is asking for your confirmation"
-                : "Usually takes 5–10 seconds • only " + sizeLabel}
+                : "Downloading app files (" + sizeLabel + ") • keep this page open"}
             </p>
           </div>
         ) : (
