@@ -218,3 +218,14 @@ html.light .text-slate-200 { color: #334155; }
 /* bottom navigation bar → white in light mode */
 html.light nav,
 html.light footer { background-color: #ffffff; }
+/* ☀️ COUNTDOWN CHIP — light mode fix */
+html.light .bg-slate-800\/90,
+html.light .bg-slate-800\/95 { background-color: #e2e8f0; }
+
+html.light .bg-\[\#1e293b\],
+html.light .bg-\[\#1e293b\]\/90,
+html.light .bg-\[\#1e293b\]\/80,
+html.light .bg-\[\#0f172a\],
+html.light .bg-\[\#0f172a\]\/90,
+html.light .bg-\[\#263445\],
+html.light .bg-\[\#334155\] { background-color: #e2e8f0 !important; }
