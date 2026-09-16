@@ -2,61 +2,22 @@
 
 import { useEffect, useRef, useState } from "react";
 import LivekitRoom from "@/app/LivekitRoom";
+import CallRatingModal from "@/app/components/CallRatingModal";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Dices, ArrowLeft, Flag, X, PhoneOff, Shuffle, Mic, Loader2, HeartHandshake } from "lucide-react";
-
-function CallRatingModal({
-  callId,
-  partnerId,
-  onClose,
-}: {
-  callId: string;
-  partnerId: string;
-  onClose: () => void;
-}) {
-  const [rating, setRating] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  const submit = async (value: number) => {
-    setRating(value);
-    setSaving(true);
-    await supabase.from("call_ratings").insert({
-      call_id: callId,
-      rated_user_id: partnerId,
-      rating: value,
-    });
-    setSaving(false);
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 text-center shadow-xl">
-        <h2 className="text-lg font-bold">How was your call?</h2>
-        <p className="mt-2 text-sm text-slate-400">Rate your conversation</p>
-        <div className="mt-5 flex justify-center gap-2">
-          {[1, 2, 3, 4, 5].map((value) => (
-            <button
-              key={value}
-              type="button"
-              disabled={saving}
-              onClick={() => submit(value)}
-              className={`text-2xl transition-transform hover:scale-110 ${rating && value <= rating ? "text-yellow-400" : "text-slate-600"}`}
-              aria-label={`${value} star${value === 1 ? "" : "s"}`}
-            >
-              ★
-            </button>
-          ))}
-        </div>
-        <button type="button" onClick={onClose} className="mt-5 text-sm text-slate-400 hover:text-white">
-          Skip
-        </button>
-      </div>
-    </div>
-  );
-}
+import {
+  Dices,
+  ArrowLeft,
+  Flag,
+  X,
+  PhoneOff,
+  Shuffle,
+  Mic,
+  Loader2,
+  HeartHandshake,
+  GraduationCap,
+} from "lucide-react";
 
 function longRoom() {
   return (
@@ -78,9 +39,11 @@ export default function RandomTalkPage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const meRef = useRef("");
   const blockedRef = useRef<Set<string>>(new Set());
+  const myGenderRef = useRef("");
+  const myPrefRef = useRef("any");
   const router = useRouter();
 
-  // ── AUTH + BLOCKED LIST ─────────────────────────────────────────────
+  // ── AUTH + PROFILE + BLOCKED LIST ────────────────────────────────────
   useEffect(() => {
     const init = async () => {
       const { data } = await supabase.auth.getSession();
@@ -91,7 +54,27 @@ export default function RandomTalkPage() {
       }
       setMe(uid);
       meRef.current = uid;
-      setDisplayName(data.session?.user.email?.split("@")[0] || "friend");
+
+      // profile name + gender prefs (safe fallback if columns missing)
+      let name = data.session?.user.email?.split("@")[0] || "friend";
+      const { data: prof, error } = await supabase
+        .from("profiles")
+        .select("display_name, gender, pref_gender")
+        .eq("user_id", uid)
+        .maybeSingle();
+      if (!error && prof) {
+        name = (prof as any).display_name || name;
+        myGenderRef.current = (prof as any).gender || "";
+        myPrefRef.current = (prof as any).pref_gender || "any";
+      } else {
+        const { data: prof2 } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", uid)
+          .maybeSingle();
+        name = (prof2 as any)?.display_name || name;
+      }
+      setDisplayName(name);
 
       // never match with people I blocked (or who blocked me)
       const { data: bl } = await supabase
@@ -132,7 +115,7 @@ export default function RandomTalkPage() {
     return () => clearTimeout(t);
   }, []);
 
-  // SMART DISCONNECT: end call if the stranger leaves
+  // SMART DISCONNECT: end call automatically if the stranger leaves
   useEffect(() => {
     if (state !== "talk" || !room) return;
     let checks = 0;
@@ -156,7 +139,7 @@ export default function RandomTalkPage() {
     }
   };
 
-  // ── MATCHING (block-aware) ──────────────────────────────────────────
+  // ── MATCHING (block-aware + gender-preference-aware) ─────────────────
   const start = async () => {
     setState("waiting");
     const myRoom = longRoom();
@@ -176,7 +159,7 @@ export default function RandomTalkPage() {
         return;
       }
 
-      // I was claimed by someone → learn who from the shared room
+      // I was claimed by someone → learn partner from the shared room
       if (mine.status === "matched" && mine.room_code) {
         const { data: pair } = await supabase
           .from("talk_queue")
@@ -190,7 +173,7 @@ export default function RandomTalkPage() {
         return;
       }
 
-      // I claim the oldest waiting stranger (skipping blocked users)
+      // I claim the oldest compatible waiting stranger
       const { data: waiting } = await supabase
         .from("talk_queue")
         .select("*")
@@ -199,8 +182,30 @@ export default function RandomTalkPage() {
         .order("updated_at", { ascending: true })
         .limit(10);
 
-      for (const target of (waiting as any[]) || []) {
+      const candidates = (waiting as any[]) || [];
+      if (!candidates.length) return;
+
+      // candidate genders / prefs (safe if columns missing)
+      let pmap = new Map<string, any>();
+      const { data: profs, error: pErr } = await supabase
+        .from("profiles")
+        .select("user_id, gender, pref_gender")
+        .in("user_id", candidates.map((c) => c.user_id));
+      if (!pErr) pmap = new Map(((profs as any[]) || []).map((p) => [p.user_id, p]));
+
+      for (const target of candidates) {
         if (blockedRef.current.has(target.user_id)) continue;
+
+        const cp = pmap.get(target.user_id);
+        const cGender = cp?.gender || "";
+        const cPref = cp?.pref_gender || "any";
+        const myG = myGenderRef.current;
+        const myP = myPrefRef.current;
+        // my preference vs their gender
+        if (myP !== "any" && cGender && cGender !== myP) continue;
+        // their preference vs my gender
+        if (cPref !== "any" && myG && cPref !== myG) continue;
+
         const { data: claimed } = await supabase
           .from("talk_queue")
           .update({ status: "matched" })
@@ -270,19 +275,32 @@ export default function RandomTalkPage() {
           </div>
         </div>
 
-        {state === "talk" && (
-          <button
-            onClick={reportStranger}
-            title="Report Stranger"
-            className="px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-400 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all flex items-center gap-2 shrink-0"
-          >
-            <Flag size={15} />
-            <span className="font-bold text-xs hidden sm:inline">Report</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* 🎓 ENGLISH CLUB BUTTON */}
+          {state !== "talk" && (
+            <Link
+              href="/practice"
+              className="px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 hover:bg-slate-800 transition-all flex items-center gap-2"
+            >
+              <GraduationCap size={15} className="text-violet-400" />
+              <span className="font-bold text-xs hidden sm:inline">English Club</span>
+            </Link>
+          )}
+          {/* REPORT BUTTON */}
+          {state === "talk" && (
+            <button
+              onClick={reportStranger}
+              title="Report Stranger"
+              className="px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-slate-400 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/30 transition-all flex items-center gap-2"
+            >
+              <Flag size={15} />
+              <span className="font-bold text-xs hidden sm:inline">Report</span>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* IDLE */}
+      {/* IDLE STATE */}
       {state === "idle" && (
         <div className="flex-1 flex flex-col justify-center">
           <div className="bg-slate-900/70 backdrop-blur border border-slate-800 rounded-3xl p-8 text-center max-w-md w-full mx-auto">
@@ -312,7 +330,7 @@ export default function RandomTalkPage() {
         </div>
       )}
 
-      {/* WAITING */}
+      {/* WAITING STATE */}
       {state === "waiting" && (
         <div className="flex-1 flex flex-col justify-center">
           <div className="bg-slate-900/70 backdrop-blur border border-slate-800 rounded-3xl p-8 text-center max-w-md w-full mx-auto">
@@ -334,7 +352,7 @@ export default function RandomTalkPage() {
         </div>
       )}
 
-      {/* TALK */}
+      {/* TALK STATE */}
       {state === "talk" && (
         <div className="flex-1 min-h-0 w-full max-w-xl mx-auto flex flex-col">
           <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-2">

@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { callBudget, USER_DAILY } from "@/lib/callLimits";
 import {
   Mic, Users, BarChart3, UserPlus, MessageCircle, Ban, Unlock,
-  Check, X, Phone, Clock, Star, PhoneCall, ArrowLeft,
+  Check, X, Phone, Clock, Star, PhoneCall, ArrowLeft, Dices, GraduationCap,
 } from "lucide-react";
 
 type Row = { id: string; partner: string | null; name: string; avatar: string | null; at: string; dur: number };
@@ -27,6 +27,7 @@ function fmtWhen(iso: string) {
 export default function PracticeHubPage() {
   const [me, setMe] = useState("");
   const [tab, setTab] = useState<"calls" | "friends" | "progress">("calls");
+  const [online, setOnline] = useState(0);
   const router = useRouter();
 
   // calls tab
@@ -46,6 +47,20 @@ export default function PracticeHubPage() {
   const [lastWeek, setLastWeek] = useState(0);
   const [bars, setBars] = useState<{ label: string; sec: number; today: boolean }[]>([]);
 
+  // 🟢 online counter
+  useEffect(() => {
+    const loadOnline = async () => {
+      const { count } = await supabase
+        .from("online_users")
+        .select("*", { count: "exact", head: true })
+        .gt("last_seen", new Date(Date.now() - 90000).toISOString());
+      setOnline(count || 0);
+    };
+    loadOnline();
+    const id = setInterval(loadOnline, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const load = useCallback(async () => {
     if (!me) return;
     const cutoff = new Date(Date.now() - 90000).toISOString();
@@ -63,12 +78,13 @@ export default function PracticeHubPage() {
     ]);
     setBudget(b);
 
-    // history + partner names
     const logRows = (logs.data as any[]) || [];
     const pids = Array.from(new Set(logRows.map((r) => (r.user_a === me ? r.user_b : r.user_a)).filter(Boolean)));
     const { data: profs } = pids.length
       ? await supabase.from("profiles").select("user_id,display_name,avatar_url").in("user_id", pids)
       : { data: [] };
+    
+    // FIX 1: Map tuple typing
     const pmap = new Map<string, any>(((profs as any[]) || []).map((p) => [p.user_id, p] as [string, any]));
     setRows(logRows.map((r) => {
       const pid = r.user_a === me ? r.user_b : r.user_a;
@@ -76,7 +92,6 @@ export default function PracticeHubPage() {
       return { id: r.id, partner: pid, name: p?.display_name || "Member", avatar: p?.avatar_url || null, at: r.started_at, dur: r.duration_sec || 0 };
     }));
 
-    // friends + online
     const fids = ((fr.data as any[]) || []).map((f) => f.friend_id);
     setFriendsSet(new Set(fids));
     if (fids.length) {
@@ -84,6 +99,7 @@ export default function PracticeHubPage() {
         supabase.from("profiles").select("user_id,display_name,avatar_url,appear_offline").in("user_id", fids),
         supabase.from("online_users").select("user_id").gt("last_seen", cutoff).in("user_id", fids),
       ]);
+      // FIX 2: Set generic typing
       const onlineSet = new Set<string>(((on.data as any[]) || []).map((o) => o.user_id as string));
       setFriends(((fp.data as any[]) || []).map((p) => ({
         user_id: p.user_id, name: p.display_name || "Member", avatar: p.avatar_url || null,
@@ -91,7 +107,6 @@ export default function PracticeHubPage() {
       })));
     } else setFriends([]);
 
-    // requests
     const inc = new Map<string, string>();
     const out = new Set<string>();
     ((rq.data as any[]) || []).forEach((q) => { if (q.to_id === me) inc.set(q.from_id, q.id); else out.add(q.to_id); });
@@ -99,6 +114,7 @@ export default function PracticeHubPage() {
     const rids = ((rq.data as any[]) || []).filter((q) => q.to_id === me).map((q) => q.from_id);
     if (rids.length) {
       const { data: rp } = await supabase.from("profiles").select("user_id,display_name,avatar_url").in("user_id", rids);
+      // FIX 3 & 4: Using `rp` instead of `rp.data`, and applying Map tuple typing
       const m = new Map<string, any>(((rp as any[]) || []).map((p) => [p.user_id, p] as [string, any]));
       setReqs(((rq.data as any[]) || []).filter((q) => q.to_id === me).map((q) => ({
         id: q.id, from_id: q.from_id, name: m.get(q.from_id)?.display_name || "Member", avatar: m.get(q.from_id)?.avatar_url || null,
@@ -107,8 +123,6 @@ export default function PracticeHubPage() {
 
     setBlocked(new Set(((bl.data as any[]) || []).map((x) => (x.blocker_id === me ? x.blocked_id : x.blocker_id))));
 
-    // progress (reuse last-30-days logs)
-    const all30 = logRows; // already limited to 30 rows; fetch full count separately
     const [{ count }] = await Promise.all([
       supabase.from("call_logs").select("*", { count: "exact", head: true })
         .or(`user_a.eq.${me},user_b.eq.${me}`).not("ended_at", "is", null).gte("started_at", d30),
@@ -139,7 +153,6 @@ export default function PracticeHubPage() {
       labels.push({ label: d.toLocaleDateString([], { weekday: "short" }).toUpperCase(), sec: perDay[6 - i], today: i === 0 });
     }
     setBars(labels);
-    void all30;
   }, [me]);
 
   useEffect(() => {
@@ -153,7 +166,6 @@ export default function PracticeHubPage() {
   }, [router]);
   useEffect(() => { load(); }, [load]);
 
-  // ── simple actions ──
   const addFriend = async (pid: string) => {
     await supabase.from("friend_requests").insert({ from_id: me, to_id: pid });
     setOutgoing((s) => new Set(s).add(pid));
@@ -187,75 +199,103 @@ export default function PracticeHubPage() {
   const max = Math.max(60, ...bars.map((b) => b.sec));
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-3 pb-28">
-      {/* header */}
+    <main className="min-h-screen bg-slate-950 text-white p-3 pb-24">
+      {/* 🎓 HEADER */}
       <div className="flex items-center gap-3 mb-4 max-w-xl mx-auto">
-        <Link href="/dashboard" className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center">
+        <Link href="/dashboard" className="w-9 h-9 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center shrink-0">
           <ArrowLeft size={18} className="text-slate-300" />
         </Link>
-        <p className="font-bold">Practice Hub</p>
-      </div>
-
-      {/* 3 tabs */}
-      <div className="grid grid-cols-3 gap-2 mb-4 max-w-xl mx-auto">
-        {([["calls", "Calls", Mic], ["friends", "Friends", Users], ["progress", "Progress", BarChart3]] as const).map(([id, label, Icon]) => (
-          <button key={id} onClick={() => setTab(id as "calls" | "friends" | "progress")}
-            className={`py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${tab === id ? "bg-gradient-to-r from-rose-600 to-indigo-600" : "bg-slate-900 border border-slate-800 text-slate-400"}`}>
-            <Icon size={14} /> {label}
-            {id === "friends" && reqs.length > 0 && <span className="min-w-4 h-4 px-1 rounded-full bg-red-500 text-[9px] flex items-center justify-center">{reqs.length}</span>}
-          </button>
-        ))}
+        <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center shrink-0">
+          <GraduationCap size={20} className="text-violet-400" />
+        </div>
+        <div>
+          <h1 className="font-bold leading-tight">English Club</h1>
+          <p className="text-[10px] text-slate-400 font-semibold">Stranger calls • Friends • Progress</p>
+        </div>
       </div>
 
       <div className="max-w-xl mx-auto grid gap-3">
-        {/* ── TAB 1: CALLS (people you talked to) ── */}
-        {tab === "calls" && (
-          <>
-            <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
-              <div className="flex justify-between text-xs font-bold mb-2">
-                <span className="flex items-center gap-1.5"><PhoneCall size={14} className="text-rose-400" /> Free calling: 20 min/day</span>
-                <span className="flex items-center gap-1 text-slate-300"><Clock size={12} /> {fmtClock(budget?.myLeft ?? USER_DAILY)} left</span>
-              </div>
-              <div className="h-2.5 rounded-full bg-slate-800 overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-rose-500 to-indigo-500" style={{ width: `${pct}%` }} />
-              </div>
+        {/* 🎲 TALK TO STRANGER — inside the club */}
+        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
+              <Dices size={22} className="text-rose-400" />
             </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-sm">Talk to a Stranger</p>
+              <p className="text-[10px] text-slate-400 font-semibold flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                {online} member{online === 1 ? "" : "s"} online right now
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/random-talk"
+            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-rose-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 font-bold text-sm text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+          >
+            <Mic size={17} /> Find Me a Partner
+          </Link>
+        </div>
 
-            <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
-              <p className="text-sm font-bold mb-3">People you talked to ({rows.length})</p>
-              {rows.length === 0 ? (
-                <p className="text-xs text-slate-500 py-6 text-center">No calls yet — press the big button below! 🎙️</p>
-              ) : rows.map((r) => (
-                <div key={r.id} className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex items-center gap-3 mb-2">
-                  {r.avatar ? <img src={r.avatar} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
-                    : <span className="w-10 h-10 rounded-full bg-violet-600 flex items-center justify-center font-bold shrink-0">{r.name.charAt(0).toUpperCase()}</span>}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold truncate">{r.name}</p>
-                    <p className="text-[10px] text-slate-500 font-semibold">{fmtWhen(r.at)} • {fmtDur(r.dur)}</p>
-                  </div>
-                  {r.partner && (incoming.has(r.partner) ? (
-                    <>
-                      <button onClick={() => acceptReq({ id: incoming.get(r.partner!)!, from_id: r.partner!, name: r.name, avatar: r.avatar })} className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center"><Check size={15} /></button>
-                      <button onClick={() => declineReq({ id: incoming.get(r.partner!)!, from_id: r.partner!, name: r.name, avatar: r.avatar })} className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center"><X size={15} /></button>
-                    </>
-                  ) : !friendsSet.has(r.partner) && !outgoing.has(r.partner) && !blocked.has(r.partner) ? (
-                    <button onClick={() => addFriend(r.partner!)} className="px-2.5 py-2 rounded-lg bg-violet-600 text-[10px] font-bold flex items-center gap-1"><UserPlus size={12} /> Add Friend</button>
-                  ) : outgoing.has(r.partner) ? (
-                    <span className="px-2 py-2 rounded-lg bg-slate-800 text-[10px] font-bold text-slate-400">Sent</span>
-                  ) : null)}
-                  {r.partner && friendsSet.has(r.partner) && (
-                    <Link href={`/chat?user=${r.partner}`} className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center"><MessageCircle size={14} /></Link>
-                  )}
-                  {r.partner && (blocked.has(r.partner)
-                    ? <button onClick={() => unblock(r.partner!)} className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center"><Unlock size={14} /></button>
-                    : <button onClick={() => blockUser(r.partner!)} className="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 flex items-center justify-center"><Ban size={14} /></button>)}
+        {/* 🕐 QUOTA BAR */}
+        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
+          <div className="flex justify-between text-xs font-bold mb-2">
+            <span className="flex items-center gap-1.5"><PhoneCall size={14} className="text-rose-400" /> Free calling: 20 min/day</span>
+            <span className="flex items-center gap-1 text-slate-300"><Clock size={12} /> {fmtClock(budget?.myLeft ?? USER_DAILY)} left</span>
+          </div>
+          <div className="h-2.5 rounded-full bg-slate-800 overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-rose-500 to-indigo-500" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+
+        {/* 3 TABS */}
+        <div className="grid grid-cols-3 gap-2">
+          {([["calls", "Calls", Mic], ["friends", "Friends", Users], ["progress", "Progress", BarChart3]] as const).map(([id, label, Icon]) => (
+            <button key={id} onClick={() => setTab(id as "calls" | "friends" | "progress")}
+              className={`py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 ${tab === id ? "bg-gradient-to-r from-rose-600 to-indigo-600" : "bg-slate-900 border border-slate-800 text-slate-400"}`}>
+              <Icon size={14} /> {label}
+              {id === "friends" && reqs.length > 0 && <span className="min-w-4 h-4 px-1 rounded-full bg-red-500 text-[9px] flex items-center justify-center">{reqs.length}</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* ── TAB: CALLS ── */}
+        {tab === "calls" && (
+          <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
+            <p className="text-sm font-bold mb-3">People you talked to ({rows.length})</p>
+            {rows.length === 0 ? (
+              <p className="text-xs text-slate-500 py-6 text-center">No calls yet — press "Find Me a Partner" above! 🎙️</p>
+            ) : rows.map((r) => (
+              <div key={r.id} className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex items-center gap-3 mb-2">
+                {r.avatar ? <img src={r.avatar} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                  : <span className="w-10 h-10 rounded-full bg-violet-600 flex items-center justify-center font-bold shrink-0">{r.name.charAt(0).toUpperCase()}</span>}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold truncate">{r.name}</p>
+                  <p className="text-[10px] text-slate-500 font-semibold">{fmtWhen(r.at)} • {fmtDur(r.dur)}</p>
                 </div>
-              ))}
-            </div>
-          </>
+                {r.partner && (incoming.has(r.partner) ? (
+                  <>
+                    {/* FIX 5 & 6: Bang operators added for strict-mode closure inference */}
+                    <button onClick={() => acceptReq({ id: incoming.get(r.partner!)!, from_id: r.partner!, name: r.name, avatar: r.avatar })} className="w-8 h-8 rounded-lg bg-green-600 flex items-center justify-center"><Check size={15} /></button>
+                    <button onClick={() => declineReq({ id: incoming.get(r.partner!)!, from_id: r.partner!, name: r.name, avatar: r.avatar })} className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center"><X size={15} /></button>
+                  </>
+                ) : !friendsSet.has(r.partner) && !outgoing.has(r.partner) && !blocked.has(r.partner) ? (
+                  <button onClick={() => addFriend(r.partner!)} className="px-2.5 py-2 rounded-lg bg-violet-600 text-[10px] font-bold flex items-center gap-1"><UserPlus size={12} /> Add Friend</button>
+                ) : outgoing.has(r.partner) ? (
+                  <span className="px-2 py-2 rounded-lg bg-slate-800 text-[10px] font-bold text-slate-400">Sent</span>
+                ) : null)}
+                {r.partner && friendsSet.has(r.partner) && (
+                  <Link href={`/chat?user=${r.partner}`} className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center"><MessageCircle size={14} /></Link>
+                )}
+                {r.partner && (blocked.has(r.partner)
+                  ? <button onClick={() => unblock(r.partner!)} className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center"><Unlock size={14} /></button>
+                  : <button onClick={() => blockUser(r.partner!)} className="w-8 h-8 rounded-lg bg-slate-800 text-slate-400 flex items-center justify-center"><Ban size={14} /></button>)}
+              </div>
+            ))}
+          </div>
         )}
 
-        {/* ── TAB 2: FRIENDS ── */}
+        {/* ── TAB: FRIENDS ── */}
         {tab === "friends" && (
           <>
             {reqs.length > 0 && (
@@ -297,7 +337,7 @@ export default function PracticeHubPage() {
           </>
         )}
 
-        {/* ── TAB 3: PROGRESS ── */}
+        {/* ── TAB: PROGRESS ── */}
         {tab === "progress" && (
           <div className="bg-slate-900/70 border border-slate-800 rounded-2xl p-4">
             <div className="grid grid-cols-2 gap-2 mb-4">
