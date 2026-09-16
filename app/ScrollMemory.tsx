@@ -3,34 +3,17 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
-// detect browser Back / Forward
-let backForward = false;
-if (typeof window !== "undefined") {
-  window.addEventListener("popstate", () => {
-    backForward = true;
-  });
-}
+let restoring = false;      // while we re-apply a position, don't save scroll noise
+let saveLockUntil = 0;      // ignore scroll events during page swap
 
-// keep re-applying the saved position until the page is tall enough
 function restoreScroll(saved: number) {
   const start = Date.now();
-  let cancelled = false;
-
-  const cancel = () => {
-    cancelled = true;
-    window.removeEventListener("touchmove", cancel);
-    window.removeEventListener("wheel", cancel);
-  };
-  // if the USER scrolls manually, stop fighting them
-  window.addEventListener("touchmove", cancel, { passive: true });
-  window.addEventListener("wheel", cancel, { passive: true });
-
+  restoring = true;
   const attempt = () => {
-    if (cancelled) return;
     window.scrollTo(0, saved);
     const reached = Math.abs(window.scrollY - saved) < 5;
     if (reached || Date.now() - start > 5000) {
-      cancel();
+      restoring = false;
       return;
     }
     setTimeout(attempt, 120);
@@ -41,25 +24,27 @@ function restoreScroll(saved: number) {
 export default function ScrollMemory() {
   const pathname = usePathname();
   const pathRef = useRef(pathname);
+  const mounted = useRef(false);
 
-  // remember scroll position of the page we're on
+  // remember position of whichever page we're on
   useEffect(() => {
-    const save = () =>
+    const save = () => {
+      if (restoring || Date.now() < saveLockUntil) return;
       sessionStorage.setItem("scroll:" + pathRef.current, String(window.scrollY));
-    window.addEventListener("scroll", save, { passive: true });
-    save();
-    return () => {
-      save();
-      window.removeEventListener("scroll", save);
     };
+    window.addEventListener("scroll", save, { passive: true });
+    return () => window.removeEventListener("scroll", save);
   }, []);
 
-  // Back/Forward → restore; normal tap/link → top (Next default)
+  // on page change: restore saved position (except first load = refresh → top)
   useEffect(() => {
-    pathRef.current = pathname;
-    if (!backForward) return;
-    backForward = false;
-    const saved = Number(sessionStorage.getItem("scroll:" + pathname) || 0);
+    saveLockUntil = Date.now() + 1500;
+    const target = pathname;
+    const firstLoad = !mounted.current;
+    mounted.current = true;
+    pathRef.current = target;
+    if (firstLoad) return; // refresh / fresh open stays at top
+    const saved = Number(sessionStorage.getItem("scroll:" + target) || 0);
     if (saved > 0) restoreScroll(saved);
   }, [pathname]);
 
