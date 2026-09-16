@@ -196,3 +196,25 @@ html.bronze .border-violet-500\/40 { border-color: rgba(220, 170, 110, 0.4); }
 
 /* sparkle dots in hero card */
 html.bronze .bg-violet-400, html.bronze .bg-purple-400 { background-color: #dcaa6e; }
+/* ☀️ LIGHT FIX PACK — translucent panels, chip, bell, bottom bar */
+html.light .bg-slate-950\/90,
+html.light .bg-slate-950\/95,
+html.light .bg-slate-900\/95,
+html.light .bg-slate-900\/90,
+html.light .bg-slate-900\/80 { background-color: rgba(255, 255, 255, 0.95); }
+
+html.light .bg-slate-800\/80,
+html.light .bg-slate-800\/60,
+html.light .bg-slate-800\/50,
+html.light .bg-slate-800\/40 { background-color: #e2e8f0; }
+
+html.light .bg-slate-700\/60,
+html.light .bg-slate-700\/50,
+html.light .bg-slate-700\/40 { background-color: #cbd5e1; }
+
+html.light .text-slate-100 { color: #1e293b; }
+html.light .text-slate-200 { color: #334155; }
+
+/* bottom navigation bar → white in light mode */
+html.light nav,
+html.light footer { background-color: #ffffff; }
