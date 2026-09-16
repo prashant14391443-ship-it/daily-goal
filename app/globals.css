@@ -229,3 +229,44 @@ html.light .bg-\[\#0f172a\],
 html.light .bg-\[\#0f172a\]\/90,
 html.light .bg-\[\#263445\],
 html.light .bg-\[\#334155\] { background-color: #e2e8f0 !important; }
+/* 🎨 ROOT-CAUSE THEMING — redefine the palette per theme (Tailwind v4) */
+html.light {
+  --color-slate-950: #f8fafc;
+  --color-slate-900: #ffffff;
+  --color-slate-800: #eef2f7;
+  --color-slate-700: #e2e8f0;
+  --color-slate-600: #cbd5e1;
+  --color-slate-500: #64748b;
+  --color-slate-400: #64748b;
+  --color-slate-300: #475569;
+  --color-slate-200: #334155;
+  --color-slate-100: #1e293b;
+
+  /* pale text colors → readable versions on white */
+  --color-violet-200: #6d5ae0;
+  --color-violet-300: #6d5ae0;
+  --color-violet-400: #7c3aed;
+  --color-blue-300: #2563eb;
+  --color-blue-400: #2563eb;
+  --color-emerald-300: #059669;
+  --color-emerald-400: #059669;
+  --color-amber-300: #b45309;
+  --color-amber-400: #b45309;
+  --color-rose-300: #e11d48;
+  --color-rose-400: #e11d48;
+  --color-teal-300: #0d9488;
+  --color-teal-400: #0d9488;
+}
+
+html.bronze {
+  --color-slate-950: #080605;
+  --color-slate-900: #131009;
+  --color-slate-800: #1f1912;
+  --color-slate-700: #2e2619;
+  --color-slate-600: #3a3125;
+  --color-slate-500: #8a7d6c;
+  --color-slate-400: #a2947f;
+  --color-slate-300: #d6c9b6;
+  --color-slate-200: #e4dac9;
+  --color-slate-100: #efe7d8;
+}
