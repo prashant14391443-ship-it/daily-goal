@@ -19,6 +19,8 @@ const themeScript = `
   if(t === "light") h.classList.add("light");
   if(t === "bronze") h.classList.add("bronze");
 }catch(e){}})();
+  var m = document.querySelector('meta[name="theme-color"]');
+  if (m) m.content = (t === "light") ? "#f8fafc" : (t === "bronze") ? "#080605" : "#020617";
 `;
 
 export default function RootLayout({
