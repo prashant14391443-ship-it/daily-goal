@@ -270,3 +270,11 @@ html.bronze {
   --color-slate-200: #e4dac9;
   --color-slate-100: #efe7d8;
 }
+/* ☀️ catch semi-transparent white TEXT in light mode (text-white/60, /70, /80…) */
+html.light [class*="text-white/"] { color: #334155; }
+
+/* extra-pale violet stops, just in case prompts use them */
+html.light {
+  --color-violet-100: #5b4bd5;
+  --color-violet-50: #6d5ae0;
+}
