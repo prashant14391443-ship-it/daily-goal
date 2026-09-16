@@ -303,3 +303,11 @@ html.bronze .dg-chip {
   background-color: #1f1912 !important;   /* 🥉 bronze theme */
   border: 1px solid rgba(220, 170, 110, 0.35) !important;
 }
+/* 🌙 BLUE theme — top countdown pill blends with dashboard navy */
+html:not(.light):not(.bronze) [class*="rounded-full"][class*="bg-slate-"][class*="fixed"],
+html:not(.light):not(.bronze) [class*="rounded-full"][class*="bg-slate-"][class*="absolute"],
+html:not(.light):not(.bronze) [class*="rounded-full"][class*="bg-[#"][class*="fixed"],
+html:not(.light):not(.bronze) [class*="rounded-full"][class*="bg-[#"][class*="absolute"] {
+  background-color: #0f172a !important;   /* same navy as dashboard cards */
+  border: 1px solid rgba(148, 163, 184, 0.18) !important;
+}
