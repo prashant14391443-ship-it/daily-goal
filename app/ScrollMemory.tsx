@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
-// detects browser Back / Forward presses
+// detect browser Back / Forward
 let backForward = false;
 if (typeof window !== "undefined") {
   window.addEventListener("popstate", () => {
@@ -11,11 +11,38 @@ if (typeof window !== "undefined") {
   });
 }
 
+// keep re-applying the saved position until the page is tall enough
+function restoreScroll(saved: number) {
+  const start = Date.now();
+  let cancelled = false;
+
+  const cancel = () => {
+    cancelled = true;
+    window.removeEventListener("touchmove", cancel);
+    window.removeEventListener("wheel", cancel);
+  };
+  // if the USER scrolls manually, stop fighting them
+  window.addEventListener("touchmove", cancel, { passive: true });
+  window.addEventListener("wheel", cancel, { passive: true });
+
+  const attempt = () => {
+    if (cancelled) return;
+    window.scrollTo(0, saved);
+    const reached = Math.abs(window.scrollY - saved) < 5;
+    if (reached || Date.now() - start > 5000) {
+      cancel();
+      return;
+    }
+    setTimeout(attempt, 120);
+  };
+  attempt();
+}
+
 export default function ScrollMemory() {
   const pathname = usePathname();
   const pathRef = useRef(pathname);
 
-  // continuously remember scroll position of the page we're on
+  // remember scroll position of the page we're on
   useEffect(() => {
     const save = () =>
       sessionStorage.setItem("scroll:" + pathRef.current, String(window.scrollY));
@@ -27,22 +54,13 @@ export default function ScrollMemory() {
     };
   }, []);
 
-  // on navigation: Back/Forward → restore position, normal taps → stay at top
+  // Back/Forward → restore; normal tap/link → top (Next default)
   useEffect(() => {
     pathRef.current = pathname;
-    if (!backForward) return; // tab/link click = fresh visit = top (Next default)
+    if (!backForward) return;
     backForward = false;
-
     const saved = Number(sessionStorage.getItem("scroll:" + pathname) || 0);
-    if (!saved) return;
-
-    // retry several times so it sticks even after async data renders
-    const restore = () => window.scrollTo(0, saved);
-    restore();
-    setTimeout(restore, 100);
-    setTimeout(restore, 300);
-    setTimeout(restore, 600);
-    setTimeout(restore, 1000);
+    if (saved > 0) restoreScroll(saved);
   }, [pathname]);
 
   return null;

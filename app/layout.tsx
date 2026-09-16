@@ -22,7 +22,25 @@ const themeScript = `
   var m = document.querySelector('meta[name="theme-color"]');
   if (m) m.content = (t === "light") ? "#f8fafc" : (t === "bronze") ? "#080605" : "#020617";
   if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
-  window.addEventListener("load", function(){ window.scrollTo(0, 0); });
+  window.addEventListener("load", function(){
+    try {
+      var nav = performance.getEntriesByType("navigation")[0];
+      var type = nav ? nav.type : "navigate";
+      if (type === "back_forward") {
+        var s = Number(sessionStorage.getItem("scroll:" + location.pathname) || 0);
+        if (s > 0) {
+          var t0 = Date.now();
+          (function attempt(){
+            window.scrollTo(0, s);
+            if (Math.abs(window.scrollY - s) < 5 || Date.now() - t0 > 5000) return;
+            setTimeout(attempt, 120);
+          })();
+          return;
+        }
+      }
+      window.scrollTo(0, 0);
+    } catch(e) { window.scrollTo(0, 0); }
+  });
 }catch(e){}})();
 `;
 
