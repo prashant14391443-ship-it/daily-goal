@@ -5,6 +5,7 @@ import CoinPop from "./CoinPop";
 import OfflineBanner from "@/app/components/OfflineBanner";
 import CountdownChip from "@/app/components/CountdownChip";
 import TopBar from "./TopBar";
+import ScrollMemory from "./ScrollMemory";
 
 export const metadata: Metadata = {
   title: "DAILY GOAL",
@@ -48,6 +49,7 @@ export default function RootLayout({
         {children}
         <BottomNav />
         <CoinPop />
+        <ScrollMemory />
       </body>
     </html>
   );
