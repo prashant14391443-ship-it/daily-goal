@@ -11,13 +11,23 @@ export const metadata: Metadata = {
   description: "Your productivity dashboard for study, gym and habits.",
 };
 
+const themeScript = `
+(function(){try{
+  var t = localStorage.getItem("dg-theme");
+  var h = document.documentElement;
+  h.classList.remove("light","bronze");
+  if(t === "light") h.classList.add("light");
+  if(t === "bronze") h.classList.add("bronze");
+}catch(e){}})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.webmanifest" />
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
@@ -25,6 +35,7 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="h-full antialiased pb-20 md:pb-0 bg-slate-950">
         <OfflineBanner />

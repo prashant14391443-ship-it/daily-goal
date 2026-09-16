@@ -100,7 +100,7 @@ export default function ProfileMenu() {
   const [saving, setSaving] = useState(false);
   const [badgePop, setBadgePop] = useState("");
   const [coinFly, setCoinFly] = useState("");
-  const [light, setLight] = useState(false);
+  const [theme, setTheme] = useState<"dark" | "light" | "bronze">("dark");
   const [fbOpen, setFbOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -119,10 +119,11 @@ export default function ProfileMenu() {
       setAvatarUrl(meta.avatar_url || "");
     };
     load();
-    if (localStorage.getItem("dg-theme") === "light") {
-      setLight(true);
-      document.documentElement.classList.add("light");
-    }
+    const saved = localStorage.getItem("dg-theme");
+    const t = saved === "light" || saved === "bronze" ? saved : "dark";
+    setTheme(t);
+    document.documentElement.classList.remove("light", "bronze");
+    if (t !== "dark") document.documentElement.classList.add(t);
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
     }
@@ -445,10 +446,12 @@ export default function ProfileMenu() {
   const initial = name.charAt(0).toUpperCase();
 
   const toggleTheme = () => {
-    const next = !light;
-    setLight(next);
-    document.documentElement.classList.toggle("light", next);
-    localStorage.setItem("dg-theme", next ? "light" : "dark");
+    const order = ["dark", "light", "bronze"] as const;
+    const next = order[(order.indexOf(theme) + 1) % order.length];
+    setTheme(next);
+    document.documentElement.classList.remove("light", "bronze");
+    if (next !== "dark") document.documentElement.classList.add(next);
+    localStorage.setItem("dg-theme", next);
   };
 
   const logout = async () => {
@@ -606,7 +609,9 @@ export default function ProfileMenu() {
             className="flex justify-between items-center text-sm bg-slate-800 hover:bg-slate-700 transition-colors p-3 rounded-xl font-medium"
           >
             <span>Theme</span>
-            <span className="bg-slate-900 px-3 py-1 rounded-lg text-xs font-bold">{light ? "☀️ Light" : "🌙 Dark"}</span>
+            <span className="bg-slate-900 px-3 py-1 rounded-lg text-xs font-bold">
+              {theme === "light" ? "☀️ Light" : theme === "bronze" ? "🥉 Bronze" : "🌙 Dark"}
+            </span>
           </button>
 
           <Link

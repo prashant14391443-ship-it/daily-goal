@@ -1,126 +1,47 @@
+/* 🥉 BRONZE / GOLD THEME */
+html.bronze { color-scheme: dark; }
+html.bronze body { background: #080605; }
 
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap');
+html.bronze .bg-slate-950 { background-color: #080605; }   /* page bg – warm black */
+html.bronze .bg-slate-900 { background-color: #131009; }   /* cards */
+html.bronze .bg-slate-800 { background-color: #1f1912; }   /* tiles / inputs */
+html.bronze .bg-slate-700 { background-color: #2e2619; }   /* hover / dividers */
 
-@import "tailwindcss";
+html.bronze .text-white { color: #f2e9db; }
+html.bronze .text-slate-300 { color: #d6c9b6; }
+html.bronze .text-slate-400,
+html.bronze .text-slate-500 { color: #a2947f; }
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+html.bronze .border-slate-700,
+html.bronze .border-slate-800 { border-color: #2b2318; }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* purple accents → bronze */
+html.bronze .text-violet-200, html.bronze .text-violet-300, html.bronze .text-violet-400,
+html.bronze .text-purple-300, html.bronze .text-purple-400,
+html.bronze .text-fuchsia-300, html.bronze .text-fuchsia-400 { color: #dcaa6e; }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+html.bronze .bg-violet-500, html.bronze .bg-violet-600,
+html.bronze .bg-purple-500, html.bronze .bg-purple-600,
+html.bronze .bg-fuchsia-500, html.bronze .bg-fuchsia-600 { background-color: #8a6534; }
 
-html {
-  color-scheme: dark;
-}
-html.light {
-  color-scheme: light;
-}
-html.light .bg-slate-950 { background-color: #f8fafc; }
-html.light .bg-slate-900 { background-color: #ffffff; }
-html.light .bg-slate-800 { background-color: #e2e8f0; }
-html.light .bg-slate-700 { background-color: #cbd5e1; }
-html.light .text-white { color: #0f172a; }
-html.light .text-slate-300,
-html.light .text-slate-400,
-html.light .text-slate-500 { color: #64748b; }
-html.light .border-slate-700,
-html.light .border-slate-800 { border-color: #e2e8f0; }
-input[type="date"] {
-  font-size: 14px;
-}
+html.bronze .bg-violet-400\/10, html.bronze .bg-violet-500\/10,
+html.bronze .bg-violet-600\/20, html.bronze .bg-purple-500\/10 { background-color: rgba(220,170,110,.12); }
 
-@media (max-width: 767px) {
-  input[type="date"] {
-    width: 115px;
-    font-size: 13px;
-    padding: 8px 6px;
-  }
-}/* brand glow when a goal hits 100% */
-.bar-full {
-  animation: barGlow 1.6s ease-in-out infinite;
-}
-@keyframes barGlow {
-  0%,
-  100% {
-    box-shadow: 0 0 6px rgba(167, 139, 250, 0.7);
-  }
-  50% {
-    box-shadow: 0 0 16px rgba(167, 139, 250, 1);
-  }
-}/* Edit & Delete become colorful pill buttons everywhere */
-button.text-yellow-400,
-button.text-amber-400 {
-  background: rgba(250, 204, 21, 0.12);
-  border: 1px solid rgba(250, 204, 21, 0.45);
-  border-radius: 0.5rem;
-  padding: 0.25rem 0.75rem;
-  font-weight: 700;
-  font-size: 11px;
-}
-button.text-red-400 {
-  background: rgba(248, 113, 113, 0.12);
-  border: 1px solid rgba(248, 113, 113, 0.45);
-  border-radius: 0.5rem;
-  padding: 0.25rem 0.75rem;
-  font-weight: 700;
-  font-size: 11px;
-}
-/* titles shrink + wrap, never cover bell/avatar */
-h1 {
-  max-width: calc(100% - 7.5rem);
-  font-size: clamp(1.1rem, 5.5vw, 1.875rem);
-  overflow-wrap: break-word;
-}
-/* 🎨 DAILY GOAL DESIGN SYSTEM — Phase 1 */
-html, body {
-  overflow-x: hidden;              /* kill horizontal scroll */
-  -webkit-tap-highlight-color: transparent;  /* no ugly tap flash */
-}
+html.bronze .border-violet-400\/30, html.bronze .border-violet-500\/30 { border-color: rgba(220,170,110,.35); }
 
-body {
-  font-family: 'Outfit', system-ui, -apple-system, sans-serif;  /* premium font */
-  background: #020617;
+/* custom brand pieces */
+html.bronze .nav-active {
+  background: #241c12;
+  box-shadow: 0 0 14px rgba(220,170,110,.25);
 }
-
-button {
-  touch-action: manipulation;      /* faster taps, no double-tap zoom */
-}
-
-/* press squish = alive feeling */
-.press { transition: transform 0.12s ease; }
-.press:active { transform: scale(0.96); }
-
-/* gradient headline text */
-.t-grad {
-  background: linear-gradient(90deg, #a78bfa, #f472b6);
+html.bronze .t-grad {
+  background: linear-gradient(90deg, #e8c39a, #c08a4e);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
-
-/* glowing active pill (bottom nav) */
-.nav-active {
-  background: linear-gradient(90deg, #8b5cf6, #d946ef);
-  box-shadow: 0 0 18px rgba(168, 85, 247, 0.45);
-}
-
-/* safe-area for notched phones */
-.pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-/* 🛡️ ANTI-VERTICAL-TITLE SAFETY — titles always stay on one line */
-h1 {
-  white-space: nowrap;
-  flex-shrink: 0;
+html.bronze .bar-full { animation: barGlowBronze 1.6s ease-in-out infinite; }
+@keyframes barGlowBronze {
+  0%, 100% { box-shadow: 0 0 6px rgba(220,170,110,.7); }
+  50%      { box-shadow: 0 0 16px rgba(220,170,110,1); }
 }
