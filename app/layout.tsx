@@ -18,9 +18,11 @@ const themeScript = `
   h.classList.remove("light","bronze");
   if(t === "light") h.classList.add("light");
   if(t === "bronze") h.classList.add("bronze");
-}catch(e){}})();
   var m = document.querySelector('meta[name="theme-color"]');
   if (m) m.content = (t === "light") ? "#f8fafc" : (t === "bronze") ? "#080605" : "#020617";
+  if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
+  window.addEventListener("load", function(){ window.scrollTo(0, 0); });
+}catch(e){}})();
 `;
 
 export default function RootLayout({

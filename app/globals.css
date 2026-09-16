@@ -126,6 +126,84 @@ h1 {
   flex-shrink: 0;
 }
 
+/* 🎨 ROOT-CAUSE THEMING — Tailwind v4 palette variables per theme */
+html.light {
+  --color-slate-950: #f8fafc;
+  --color-slate-900: #ffffff;
+  --color-slate-800: #eef2f7;
+  --color-slate-700: #e2e8f0;
+  --color-slate-600: #cbd5e1;
+  --color-slate-500: #64748b;
+  --color-slate-400: #64748b;
+  --color-slate-300: #475569;
+  --color-slate-200: #334155;
+  --color-slate-100: #1e293b;
+
+  --color-violet-100: #5b4bd5;
+  --color-violet-200: #6d5ae0;
+  --color-violet-300: #6d5ae0;
+  --color-violet-400: #7c3aed;
+  --color-blue-300: #2563eb;
+  --color-blue-400: #2563eb;
+  --color-emerald-300: #059669;
+  --color-emerald-400: #059669;
+  --color-amber-300: #b45309;
+  --color-amber-400: #b45309;
+  --color-rose-300: #e11d48;
+  --color-rose-400: #e11d48;
+  --color-teal-300: #0d9488;
+  --color-teal-400: #0d9488;
+}
+
+html.bronze {
+  --color-slate-950: #080605;
+  --color-slate-900: #131009;
+  --color-slate-800: #1f1912;
+  --color-slate-700: #2e2619;
+  --color-slate-600: #3a3125;
+  --color-slate-500: #8a7d6c;
+  --color-slate-400: #a2947f;
+  --color-slate-300: #d6c9b6;
+  --color-slate-200: #e4dac9;
+  --color-slate-100: #efe7d8;
+}
+
+/* ☀️ catch semi-transparent white TEXT in light mode (text-white/60, /70…) */
+html.light [class*="text-white/"] { color: #334155; }
+
+/* ☀️ LIGHT FIX PACK — translucent panels, chip, bell, bottom bar */
+html.light .bg-slate-950\/90,
+html.light .bg-slate-950\/95,
+html.light .bg-slate-900\/95,
+html.light .bg-slate-900\/90,
+html.light .bg-slate-900\/80 { background-color: rgba(255, 255, 255, 0.95); }
+
+html.light .bg-slate-800\/90,
+html.light .bg-slate-800\/95,
+html.light .bg-slate-800\/80,
+html.light .bg-slate-800\/60,
+html.light .bg-slate-800\/50,
+html.light .bg-slate-800\/40 { background-color: #e2e8f0; }
+
+html.light .bg-slate-700\/60,
+html.light .bg-slate-700\/50,
+html.light .bg-slate-700\/40 { background-color: #cbd5e1; }
+
+html.light .text-slate-100 { color: #1e293b; }
+html.light .text-slate-200 { color: #334155; }
+
+html.light nav,
+html.light footer { background-color: #ffffff; }
+
+/* ☀️ COUNTDOWN CHIP — custom hex backgrounds */
+html.light .bg-\[\#1e293b\],
+html.light .bg-\[\#1e293b\]\/90,
+html.light .bg-\[\#1e293b\]\/80,
+html.light .bg-\[\#0f172a\],
+html.light .bg-\[\#0f172a\]\/90,
+html.light .bg-\[\#263445\],
+html.light .bg-\[\#334155\] { background-color: #e2e8f0 !important; }
+
 /* 🥉 BRONZE / GOLD THEME */
 html.bronze { color-scheme: dark; }
 html.bronze body { background: #080605; }
@@ -173,6 +251,7 @@ html.bronze .bar-full { animation: barGlowBronze 1.6s ease-in-out infinite; }
   0%, 100% { box-shadow: 0 0 6px rgba(220, 170, 110, 0.7); }
   50%      { box-shadow: 0 0 16px rgba(220, 170, 110, 1); }
 }
+
 /* 🥉 BRONZE POLISH — warm up the last cool-blue leftovers */
 html.bronze .bg-slate-900\/95,
 html.bronze .bg-slate-900\/90,
@@ -196,85 +275,3 @@ html.bronze .border-violet-500\/40 { border-color: rgba(220, 170, 110, 0.4); }
 
 /* sparkle dots in hero card */
 html.bronze .bg-violet-400, html.bronze .bg-purple-400 { background-color: #dcaa6e; }
-/* ☀️ LIGHT FIX PACK — translucent panels, chip, bell, bottom bar */
-html.light .bg-slate-950\/90,
-html.light .bg-slate-950\/95,
-html.light .bg-slate-900\/95,
-html.light .bg-slate-900\/90,
-html.light .bg-slate-900\/80 { background-color: rgba(255, 255, 255, 0.95); }
-
-html.light .bg-slate-800\/80,
-html.light .bg-slate-800\/60,
-html.light .bg-slate-800\/50,
-html.light .bg-slate-800\/40 { background-color: #e2e8f0; }
-
-html.light .bg-slate-700\/60,
-html.light .bg-slate-700\/50,
-html.light .bg-slate-700\/40 { background-color: #cbd5e1; }
-
-html.light .text-slate-100 { color: #1e293b; }
-html.light .text-slate-200 { color: #334155; }
-
-/* bottom navigation bar → white in light mode */
-html.light nav,
-html.light footer { background-color: #ffffff; }
-/* ☀️ COUNTDOWN CHIP — light mode fix */
-html.light .bg-slate-800\/90,
-html.light .bg-slate-800\/95 { background-color: #e2e8f0; }
-
-html.light .bg-\[\#1e293b\],
-html.light .bg-\[\#1e293b\]\/90,
-html.light .bg-\[\#1e293b\]\/80,
-html.light .bg-\[\#0f172a\],
-html.light .bg-\[\#0f172a\]\/90,
-html.light .bg-\[\#263445\],
-html.light .bg-\[\#334155\] { background-color: #e2e8f0 !important; }
-/* 🎨 ROOT-CAUSE THEMING — redefine the palette per theme (Tailwind v4) */
-html.light {
-  --color-slate-950: #f8fafc;
-  --color-slate-900: #ffffff;
-  --color-slate-800: #eef2f7;
-  --color-slate-700: #e2e8f0;
-  --color-slate-600: #cbd5e1;
-  --color-slate-500: #64748b;
-  --color-slate-400: #64748b;
-  --color-slate-300: #475569;
-  --color-slate-200: #334155;
-  --color-slate-100: #1e293b;
-
-  /* pale text colors → readable versions on white */
-  --color-violet-200: #6d5ae0;
-  --color-violet-300: #6d5ae0;
-  --color-violet-400: #7c3aed;
-  --color-blue-300: #2563eb;
-  --color-blue-400: #2563eb;
-  --color-emerald-300: #059669;
-  --color-emerald-400: #059669;
-  --color-amber-300: #b45309;
-  --color-amber-400: #b45309;
-  --color-rose-300: #e11d48;
-  --color-rose-400: #e11d48;
-  --color-teal-300: #0d9488;
-  --color-teal-400: #0d9488;
-}
-
-html.bronze {
-  --color-slate-950: #080605;
-  --color-slate-900: #131009;
-  --color-slate-800: #1f1912;
-  --color-slate-700: #2e2619;
-  --color-slate-600: #3a3125;
-  --color-slate-500: #8a7d6c;
-  --color-slate-400: #a2947f;
-  --color-slate-300: #d6c9b6;
-  --color-slate-200: #e4dac9;
-  --color-slate-100: #efe7d8;
-}
-/* ☀️ catch semi-transparent white TEXT in light mode (text-white/60, /70, /80…) */
-html.light [class*="text-white/"] { color: #334155; }
-
-/* extra-pale violet stops, just in case prompts use them */
-html.light {
-  --color-violet-100: #5b4bd5;
-  --color-violet-50: #6d5ae0;
-}
