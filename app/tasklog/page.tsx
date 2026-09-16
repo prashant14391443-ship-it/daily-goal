@@ -4,8 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
 import { useRouter } from "next/navigation";
-import { ListTodo, Flame, Bell, BellOff, Plus, Pencil, X, Check, AlarmClock } from "lucide-react";
+import { ListTodo, Flame, Bell, BellOff, Plus, Pencil, X, Check, AlarmClock, GripVertical } from "lucide-react";
 import { ProgressRing, GradButton, EmptyState } from "@/app/components/ui";
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type Todo = {
   id: string;
@@ -13,12 +16,92 @@ type Todo = {
   completed: boolean;
   reminder_time: string | null;
   task_date: string;
+  sort_order: number | null;
 };
 
 function toLocalISO(d: Date) { const y = d.getFullYear(); const m = String(d.getMonth() + 1).padStart(2, "0"); const day = String(d.getDate()).padStart(2, "0"); return `${y}-${m}-${day}`; }
 function addDays(dateStr: string, days: number) { const d = new Date(dateStr + "T00:00:00"); d.setDate(d.getDate() + days); return toLocalISO(d); }
 function calcStreak(dates: Set<string>, today: string) { let streak = 0; let cursor = dates.has(today) ? today : addDays(today, -1); while (dates.has(cursor)) { streak += 1; cursor = addDays(cursor, -1); } return streak; }
 
+const inputCls = "w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-amber-500";
+
+/* ---------- ONE SORTABLE ROW ---------- */
+function TodoRow(props: {
+  t: Todo;
+  isEditing: boolean;
+  editTitle: string;
+  editTime: string;
+  onEditTitle: (v: string) => void;
+  onEditTime: (v: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+  onToggle: () => void;
+  onDelete: () => void;
+  onStartEdit: () => void;
+}) {
+  const { t, isEditing } = props;
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: t.id,
+    disabled: isEditing,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`bg-slate-900 border rounded-2xl p-4 ${t.completed ? "border-green-500/20" : "border-slate-800"} ${
+        isDragging ? "relative z-20 ring-2 ring-amber-500 shadow-2xl shadow-black/50" : ""
+      }`}
+    >
+      {isEditing ? (
+        <div className="flex flex-wrap gap-2">
+          <input value={props.editTitle} onChange={(e) => props.onEditTitle(e.target.value)}
+            className="flex-1 min-w-[150px] p-2 rounded-xl bg-slate-800 border border-slate-700 text-sm" />
+          <input type="time" value={props.editTime} onChange={(e) => props.onEditTime(e.target.value)}
+            className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-sm" />
+          <button onClick={props.onSave} className="press px-4 py-2 rounded-xl bg-amber-600 text-sm font-black">Save</button>
+          <button onClick={props.onCancel} className="press px-4 py-2 rounded-xl bg-slate-800 text-sm text-slate-400">Cancel</button>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            {/* ⠿ HOLD + DRAG HANDLE */}
+            <button
+              {...attributes}
+              {...listeners}
+              style={{ touchAction: "none" }}
+              className="press w-8 h-8 shrink-0 rounded-lg bg-slate-800/70 border border-slate-700/60 flex items-center justify-center text-slate-500 active:text-amber-400 cursor-grab active:cursor-grabbing"
+              aria-label={`Drag to reorder ${t.title}`}
+            >
+              <GripVertical size={15} />
+            </button>
+            <button
+              onClick={props.onToggle}
+              className={`press w-7 h-7 rounded-md border-2 flex items-center justify-center shrink-0 ${
+                t.completed ? "bg-green-500 border-green-500" : "border-slate-700"
+              }`}
+            >
+              {t.completed && <Check size={14} strokeWidth={3} className="text-white" />}
+            </button>
+            <div className="min-w-0">
+              <p className={`font-bold text-sm truncate ${t.completed ? "line-through text-slate-500" : "text-white"}`}>{t.title}</p>
+              <p className="text-[10px] text-slate-500 font-semibold flex items-center gap-1.5 mt-0.5">
+                {t.task_date}
+                {t.reminder_time && <span className="flex items-center gap-0.5"><AlarmClock size={10} /> {t.reminder_time.slice(0, 5)}</span>}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button onClick={props.onStartEdit} className="press w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-amber-400"><Pencil size={13} /></button>
+            <button onClick={props.onDelete} className="press w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-red-400"><X size={14} /></button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- PAGE ---------- */
 export default function TodoPage() {
   const today = toLocalISO(new Date());
   const [date, setDate] = useState(today);
@@ -37,12 +120,19 @@ export default function TodoPage() {
 
   const router = useRouter();
 
+  // hold ~150ms before drag starts → page still scrolls normally
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { delay: 150, tolerance: 8 } })
+  );
+
   const load = async (selectedDate: string) => {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
     if (!userId) { router.push("/login"); return; }
     const [rows, allDone] = await Promise.all([
-      supabase.from("tasks").select("*").eq("user_id", userId).eq("category", "todo").eq("task_date", selectedDate).order("created_at"),
+      supabase.from("tasks").select("*").eq("user_id", userId).eq("category", "todo").eq("task_date", selectedDate)
+        .order("sort_order", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: true }),
       supabase.from("tasks").select("task_date").eq("user_id", userId).eq("category", "todo").eq("completed", true),
     ]);
     setTodos(rows.data || []);
@@ -101,6 +191,7 @@ export default function TodoPage() {
       await supabase.from("tasks").insert({
         user_id: userId, title: newTask.trim(), task_date: date,
         category: "todo", reminder_time: newTime || null,
+        sort_order: todos.length, // append at the end
       });
       setNewTask(""); setNewTime("");
       await load(date);
@@ -129,10 +220,27 @@ export default function TodoPage() {
     await load(date);
   };
 
+  /* ----- DRAG & DROP REORDER ----- */
+  const persistOrder = async (changed: Todo[]) => {
+    await Promise.all(
+      changed.map((t) => supabase.from("tasks").update({ sort_order: t.sort_order }).eq("id", t.id))
+    );
+  };
+
+  const onDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const oldIndex = todos.findIndex((t) => t.id === active.id);
+    const newIndex = todos.findIndex((t) => t.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const next = arrayMove(todos, oldIndex, newIndex).map((t, i) => ({ ...t, sort_order: i }));
+    const changed = next.filter((t, i) => todos[i]?.id !== t.id);
+    setTodos(next); // instant UI
+    void persistOrder(changed); // save to Supabase
+  };
+
   const doneCount = todos.filter((t) => t.completed).length;
   const pct = todos.length ? Math.round((doneCount / todos.length) * 100) : 0;
-
-  const inputCls = "w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-amber-500";
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
@@ -194,54 +302,36 @@ export default function TodoPage() {
         </div>
       </form>
 
-      {/* TODOS */}
-      <div className="grid gap-2">
-        {todos.map((t) => (
-          <div key={t.id} className={`bg-slate-900 border rounded-2xl p-4 ${t.completed ? "border-green-500/20" : "border-slate-800"}`}>
-            {editingId === t.id ? (
-              <div className="flex flex-wrap gap-2">
-                <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)}
-                  className="flex-1 min-w-[150px] p-2 rounded-xl bg-slate-800 border border-slate-700 text-sm" />
-                <input type="time" value={editTime} onChange={(e) => setEditTime(e.target.value)}
-                  className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-sm" />
-                <button onClick={saveEdit} className="press px-4 py-2 rounded-xl bg-amber-600 text-sm font-black">Save</button>
-                <button onClick={() => setEditingId(null)} className="press px-4 py-2 rounded-xl bg-slate-800 text-sm text-slate-400">Cancel</button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <button
-                    onClick={() => toggleTodo(t.id, t.completed)}
-                    className={`press w-7 h-7 rounded-md border-2 flex items-center justify-center shrink-0 ${
-                      t.completed ? "bg-green-500 border-green-500" : "border-slate-700"
-                    }`}
-                  >
-                    {t.completed && <Check size={14} strokeWidth={3} className="text-white" />}
-                  </button>
-                  <div className="min-w-0">
-                    <p className={`font-bold text-sm truncate ${t.completed ? "line-through text-slate-500" : "text-white"}`}>
-                      {t.title}
-                    </p>
-                    <p className="text-[10px] text-slate-500 font-semibold flex items-center gap-1.5 mt-0.5">
-                      {t.task_date}
-                      {t.reminder_time && <span className="flex items-center gap-0.5"><AlarmClock size={10} /> {t.reminder_time.slice(0, 5)}</span>}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <button onClick={() => startEdit(t)} className="press w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-amber-400"><Pencil size={13} /></button>
-                  <button onClick={() => deleteTodo(t.id)} className="press w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-red-400"><X size={14} /></button>
-                </div>
+      <p className="text-[10px] text-slate-500 font-semibold mb-2">Tip: hold the ⠿ handle on a task and drag it to any position — order is saved.</p>
+
+      {/* TODOS — DRAGGABLE */}
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={todos.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+          <div className="grid gap-2">
+            {todos.map((t) => (
+              <TodoRow
+                key={t.id}
+                t={t}
+                isEditing={editingId === t.id}
+                editTitle={editTitle}
+                editTime={editTime}
+                onEditTitle={setEditTitle}
+                onEditTime={setEditTime}
+                onSave={saveEdit}
+                onCancel={() => setEditingId(null)}
+                onToggle={() => toggleTodo(t.id, t.completed)}
+                onDelete={() => deleteTodo(t.id)}
+                onStartEdit={() => startEdit(t)}
+              />
+            ))}
+            {todos.length === 0 && (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl">
+                <EmptyState emoji="📋✨" text="No plans yet — write your daily plan above!" />
               </div>
             )}
           </div>
-        ))}
-        {todos.length === 0 && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl">
-            <EmptyState emoji="📋✨" text="No plans yet — write your daily plan above!" />
-          </div>
-        )}
-      </div>
+        </SortableContext>
+      </DndContext>
     </main>
   );
 }

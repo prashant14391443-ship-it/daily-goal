@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Repeat, Clock, X, List, Lightbulb } from "lucide-react";
+import { Repeat, Clock, X, List, Lightbulb, AlarmClock } from "lucide-react";
 import { EmptyState } from "@/app/components/ui";
 
 function toLocalISO(d: Date) {
@@ -14,12 +14,14 @@ function toLocalISO(d: Date) {
   return `${y}-${m}-${day}`;
 }
 
-type Task = { id: string; title: string; repeat: string | null; completed: boolean };
+type Task = { id: string; title: string; repeat: string | null; completed: boolean; reminder_time: string | null };
 
 export default function RepeatTasksPage() {
   const [templates, setTemplates] = useState<Task[]>([]);
   const [todayTasks, setTodayTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [timeEditId, setTimeEditId] = useState<string | null>(null);
+  const [timeEditValue, setTimeEditValue] = useState("");
   const router = useRouter();
 
   const load = async () => {
@@ -28,10 +30,10 @@ export default function RepeatTasksPage() {
     if (!userId) { router.push("/login"); return; }
     const today = toLocalISO(new Date());
     const { data: repeatingData } = await supabase
-      .from("tasks").select("id, title, repeat, completed")
+      .from("tasks").select("id, title, repeat, completed, reminder_time")
       .eq("user_id", userId).not("repeat", "is", null);
     const { data: regularData } = await supabase
-      .from("tasks").select("id, title, repeat, completed")
+      .from("tasks").select("id, title, repeat, completed, reminder_time")
       .eq("user_id", userId).eq("task_date", today)
       .is("repeat", null).is("parent_id", null).eq("category", "todo");
     setTemplates((repeatingData as Task[]) || []);
@@ -47,6 +49,13 @@ export default function RepeatTasksPage() {
   };
   const stopRepeating = async (t: Task) => {
     await supabase.from("tasks").update({ repeat: null }).eq("id", t.id);
+    await load();
+  };
+
+  /* change the time that all future daily copies will inherit */
+  const saveTime = async (id: string) => {
+    await supabase.from("tasks").update({ reminder_time: timeEditValue || null }).eq("id", id);
+    setTimeEditId(null);
     await load();
   };
 
@@ -95,6 +104,9 @@ export default function RepeatTasksPage() {
                 {templates.length} running
               </span>
             </div>
+            <p className="text-[10px] text-slate-500 font-semibold mb-2">
+              Every daily copy inherits the ⏰ time shown here. Tap the clock to change it for all future days.
+            </p>
 
             <div className="grid gap-2">
               {templates.map((t) => (
@@ -108,18 +120,45 @@ export default function RepeatTasksPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="font-black text-sm text-white truncate">{t.title}</p>
-                      <p className="text-[10px] text-indigo-300 font-bold mt-0.5 flex items-center gap-1">
-                        <Clock size={10} />
-                        Auto-copies every day
-                      </p>
+                      {timeEditId === t.id ? (
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <input
+                            type="time"
+                            value={timeEditValue}
+                            onChange={(e) => setTimeEditValue(e.target.value)}
+                            className="px-2 py-1 rounded-lg bg-slate-800 border border-slate-700 text-[11px] outline-none focus:border-indigo-500"
+                          />
+                          <button onClick={() => saveTime(t.id)} className="press px-2 py-1 rounded-lg bg-indigo-600 text-[10px] font-black">Save</button>
+                          <button onClick={() => setTimeEditId(null)} className="press px-2 py-1 rounded-lg bg-slate-800 text-[10px] font-bold text-slate-400">Cancel</button>
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-indigo-300 font-bold mt-0.5 flex items-center gap-1 flex-wrap">
+                          <Clock size={10} />
+                          Auto-copies every day
+                          {t.reminder_time ? (
+                            <span className="text-amber-300">• ⏰ {t.reminder_time.slice(0, 5)}</span>
+                          ) : (
+                            <span className="text-slate-500">• no time set</span>
+                          )}
+                        </p>
+                      )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => stopRepeating(t)}
-                    className="press shrink-0 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-[10px] font-black flex items-center gap-1"
-                  >
-                    <X size={11} /> Stop
-                  </button>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      onClick={() => { setTimeEditId(t.id); setTimeEditValue(t.reminder_time ? t.reminder_time.slice(0, 5) : ""); }}
+                      className="press w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 flex items-center justify-center"
+                      title="Change reminder time for future copies"
+                    >
+                      <AlarmClock size={13} />
+                    </button>
+                    <button
+                      onClick={() => stopRepeating(t)}
+                      className="press px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-[10px] font-black flex items-center gap-1"
+                    >
+                      <X size={11} /> Stop
+                    </button>
+                  </div>
                 </div>
               ))}
               {templates.length === 0 && (
@@ -142,7 +181,7 @@ export default function RepeatTasksPage() {
                 </span>
                 <p className="font-black text-sm text-white">Today&apos;s Tasks</p>
               </div>
-              <span className="text-[10px] font-bold text-slate-600">{todayTasks.length} available</span>
+              <span className="text-[10px] text-slate-600 font-bold">{todayTasks.length} available</span>
             </div>
 
             <div className="grid gap-2">
@@ -154,6 +193,9 @@ export default function RepeatTasksPage() {
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="shrink-0 w-5 h-5 rounded-md border-2 border-slate-700 bg-slate-800" />
                     <p className="text-sm font-semibold text-slate-200 truncate">{t.title}</p>
+                    {t.reminder_time && (
+                      <span className="shrink-0 text-[10px] text-amber-300 font-bold">⏰ {t.reminder_time.slice(0, 5)}</span>
+                    )}
                   </div>
                   <button
                     onClick={() => makeRepeating(t)}
