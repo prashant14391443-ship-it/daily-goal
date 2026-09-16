@@ -5,8 +5,58 @@ import LivekitRoom from "@/app/LivekitRoom";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { callBudget, addCallSeconds } from "@/lib/callLimits";
 import { Dices, ArrowLeft, Flag, X, PhoneOff, Shuffle, Mic, Loader2, HeartHandshake } from "lucide-react";
+
+function CallRatingModal({
+  callId,
+  partnerId,
+  onClose,
+}: {
+  callId: string;
+  partnerId: string;
+  onClose: () => void;
+}) {
+  const [rating, setRating] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (value: number) => {
+    setRating(value);
+    setSaving(true);
+    await supabase.from("call_ratings").insert({
+      call_id: callId,
+      rated_user_id: partnerId,
+      rating: value,
+    });
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 text-center shadow-xl">
+        <h2 className="text-lg font-bold">How was your call?</h2>
+        <p className="mt-2 text-sm text-slate-400">Rate your conversation</p>
+        <div className="mt-5 flex justify-center gap-2">
+          {[1, 2, 3, 4, 5].map((value) => (
+            <button
+              key={value}
+              type="button"
+              disabled={saving}
+              onClick={() => submit(value)}
+              className={`text-2xl transition-transform hover:scale-110 ${rating && value <= rating ? "text-yellow-400" : "text-slate-600"}`}
+              aria-label={`${value} star${value === 1 ? "" : "s"}`}
+            >
+              ★
+            </button>
+          ))}
+        </div>
+        <button type="button" onClick={onClose} className="mt-5 text-sm text-slate-400 hover:text-white">
+          Skip
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function longRoom() {
   return (
@@ -22,11 +72,15 @@ export default function RandomTalkPage() {
   const [me, setMe] = useState("");
   const [displayName, setDisplayName] = useState("friend");
   const [online, setOnline] = useState(0);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [partnerId, setPartnerId] = useState<string | null>(null);
+  const [rateCall, setRateCall] = useState<{ sec: number; partner: string; callId: string } | null>(null);
   const [showHint, setShowHint] = useState(true);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const meRef = useRef("");
+  const blockedRef = useRef<Set<string>>(new Set());
   const router = useRouter();
 
+  // ── AUTH + BLOCKED LIST ─────────────────────────────────────────────
   useEffect(() => {
     const init = async () => {
       const { data } = await supabase.auth.getSession();
@@ -38,6 +92,17 @@ export default function RandomTalkPage() {
       setMe(uid);
       meRef.current = uid;
       setDisplayName(data.session?.user.email?.split("@")[0] || "friend");
+
+      // never match with people I blocked (or who blocked me)
+      const { data: bl } = await supabase
+        .from("blocks")
+        .select("blocker_id, blocked_id")
+        .or(`blocker_id.eq.${uid},blocked_id.eq.${uid}`);
+      const set = new Set<string>();
+      ((bl as any[]) || []).forEach((r) =>
+        set.add(r.blocker_id === uid ? r.blocked_id : r.blocker_id)
+      );
+      blockedRef.current = set;
     };
     init();
     return () => {
@@ -48,7 +113,7 @@ export default function RandomTalkPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 🟢 ONLINE COUNTER (same as community)
+  // 🟢 ONLINE COUNTER
   useEffect(() => {
     const load = async () => {
       const { count } = await supabase
@@ -67,25 +132,19 @@ export default function RandomTalkPage() {
     return () => clearTimeout(t);
   }, []);
 
-  // SMART DISCONNECT: Automatically ends the call if the stranger leaves
+  // SMART DISCONNECT: end call if the stranger leaves
   useEffect(() => {
     if (state !== "talk" || !room) return;
-
     let checks = 0;
     const dropCheck = setInterval(async () => {
       checks++;
       if (checks < 3) return;
-
       const { count } = await supabase
         .from("talk_queue")
         .select("*", { count: "exact", head: true })
         .eq("room_code", room);
-
-      if (count !== null && count < 2) {
-        end();
-      }
+      if (count !== null && count < 2) end();
     }, 3000);
-
     return () => clearInterval(dropCheck);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, room]);
@@ -97,6 +156,7 @@ export default function RandomTalkPage() {
     }
   };
 
+  // ── MATCHING (block-aware) ──────────────────────────────────────────
   const start = async () => {
     setState("waiting");
     const myRoom = longRoom();
@@ -115,23 +175,32 @@ export default function RandomTalkPage() {
         setState("idle");
         return;
       }
+
+      // I was claimed by someone → learn who from the shared room
       if (mine.status === "matched" && mine.room_code) {
+        const { data: pair } = await supabase
+          .from("talk_queue")
+          .select("user_id")
+          .eq("room_code", mine.room_code);
+        const other = ((pair as any[]) || []).find((r) => r.user_id !== me);
+        setPartnerId(other?.user_id || null);
         stopPoll();
         setRoom(mine.room_code);
         setState("talk");
         return;
       }
 
-      const { data: other } = await supabase
+      // I claim the oldest waiting stranger (skipping blocked users)
+      const { data: waiting } = await supabase
         .from("talk_queue")
         .select("*")
         .eq("status", "waiting")
         .neq("user_id", me)
         .order("updated_at", { ascending: true })
-        .limit(1);
+        .limit(10);
 
-      if (other && other.length > 0) {
-        const target = other[0];
+      for (const target of (waiting as any[]) || []) {
+        if (blockedRef.current.has(target.user_id)) continue;
         const { data: claimed } = await supabase
           .from("talk_queue")
           .update({ status: "matched" })
@@ -143,9 +212,11 @@ export default function RandomTalkPage() {
             .from("talk_queue")
             .update({ status: "matched", room_code: target.room_code })
             .eq("user_id", me);
+          setPartnerId(target.user_id);
           stopPoll();
           setRoom(target.room_code);
           setState("talk");
+          return;
         }
       }
     }, 2000);
@@ -189,7 +260,9 @@ export default function RandomTalkPage() {
             <Dices size={20} className="text-rose-400" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-base md:text-lg font-bold text-white leading-tight truncate">Talk to a Stranger</h1>
+            <h1 className="text-base md:text-lg font-bold text-white leading-tight truncate">
+              Talk to a Stranger
+            </h1>
             <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
               {online} online now
@@ -197,7 +270,6 @@ export default function RandomTalkPage() {
           </div>
         </div>
 
-        {/* REPORT BUTTON */}
         {state === "talk" && (
           <button
             onClick={reportStranger}
@@ -210,7 +282,7 @@ export default function RandomTalkPage() {
         )}
       </div>
 
-      {/* IDLE STATE */}
+      {/* IDLE */}
       {state === "idle" && (
         <div className="flex-1 flex flex-col justify-center">
           <div className="bg-slate-900/70 backdrop-blur border border-slate-800 rounded-3xl p-8 text-center max-w-md w-full mx-auto">
@@ -222,7 +294,6 @@ export default function RandomTalkPage() {
               Press the button below. When another member also presses it, you both enter a private voice room to talk.
             </p>
 
-            {/* 🟢 ONLINE COUNT */}
             <div className="flex items-center justify-center gap-2 mb-6 bg-slate-800/60 border border-slate-700 rounded-xl py-2.5">
               <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
               <span className="text-xs font-bold text-slate-300">
@@ -241,7 +312,7 @@ export default function RandomTalkPage() {
         </div>
       )}
 
-      {/* WAITING STATE */}
+      {/* WAITING */}
       {state === "waiting" && (
         <div className="flex-1 flex flex-col justify-center">
           <div className="bg-slate-900/70 backdrop-blur border border-slate-800 rounded-3xl p-8 text-center max-w-md w-full mx-auto">
@@ -263,14 +334,23 @@ export default function RandomTalkPage() {
         </div>
       )}
 
-      {/* TALK STATE */}
+      {/* TALK */}
       {state === "talk" && (
         <div className="flex-1 min-h-0 w-full max-w-xl mx-auto flex flex-col">
           <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar pb-2">
-            <LivekitRoom roomName={room} identity={displayName} onLeave={end} />
+            <LivekitRoom
+              roomName={room}
+              identity={displayName}
+              partnerId={partnerId}
+              callType="stranger"
+              onCallEnd={(sec, partner, callId) => {
+                if (partner && callId && sec >= 30)
+                  setRateCall({ sec, partner, callId });
+              }}
+              onLeave={end}
+            />
           </div>
 
-          {/* DOCKED ACTIONS */}
           <div className="flex gap-2 md:gap-3 shrink-0 pt-2">
             <button
               onClick={next}
@@ -295,6 +375,15 @@ export default function RandomTalkPage() {
             </p>
           )}
         </div>
+      )}
+
+      {/* ⭐ POST-CALL RATING */}
+      {rateCall && (
+        <CallRatingModal
+          callId={rateCall.callId}
+          partnerId={rateCall.partner}
+          onClose={() => setRateCall(null)}
+        />
       )}
     </main>
   );
