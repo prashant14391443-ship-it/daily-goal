@@ -8,9 +8,10 @@ import { PACKS_C } from "./dataC";
 import { PACKS_D } from "./dataD";
 import { BookOpen, RotateCw, Archive, Sparkles, Volume2, ArrowLeft, Check, Lightbulb, Flag, BookMarked, Repeat, Search, Award, TrendingUp } from "lucide-react";
 
-type VWord = { word: string; type: string; meaning: string; hindi: string; example: string; synonym: string };
+// 🔥 Added antonym to VWord and Row types
+type VWord = { word: string; type: string; meaning: string; hindi: string; example: string; synonym: string; antonym: string };
 type Pack = { id: string; emoji: string; title: string; desc: string; words: VWord[] };
-type Row = { word: string; meaning: string; hindi: string; level: number; next_review: string | null };
+type Row = { word: string; meaning: string; hindi: string; level: number; next_review: string | null; synonym: string; antonym: string };
 
 // ✅ ALL 20 TOPICS (600 words total) — manual, offline, instant
 const PACKS: Pack[] = [...PACKS_A, ...PACKS_B, ...PACKS_C, ...PACKS_D];
@@ -94,7 +95,16 @@ export default function VocabPage() {
     await supabase
       .from("user_vocab")
       .upsert(
-        { user_id: uid, word: w.word, meaning: w.meaning, hindi: w.hindi, level: 0, next_review: addDaysISO(1) },
+        { 
+          user_id: uid, 
+          word: w.word, 
+          meaning: w.meaning, 
+          hindi: w.hindi, 
+          level: 0, 
+          next_review: addDaysISO(1),
+          synonym: w.synonym, // 🔥 Make sure these are saved!
+          antonym: w.antonym
+        },
         { onConflict: "user_id,word" }
       );
     load();
@@ -151,7 +161,15 @@ export default function VocabPage() {
       });
       const d = await res.json();
       const words: VWord[] = (d.items || [])
-        .map((a: string[]) => ({ word: a[0], type: a[1] || "word", meaning: a[2] || "", hindi: a[3] || "", example: a[4] || "", synonym: a[5] || "" }))
+        .map((a: string[]) => ({ 
+          word: a[0], 
+          type: a[1] || "word", 
+          meaning: a[2] || "", 
+          hindi: a[3] || "", 
+          example: a[4] || "", 
+          synonym: a[5] || "",
+          antonym: a[6] || "" // 🔥 Mapped the 7th item (antonym) here
+        }))
         .filter((w: VWord) => w.word && w.meaning);
       if (words.length >= 3) startPack({ id: "ai-" + t, emoji: "✨", title: t, desc: "AI pack", words });
       else alert("😴 Could not generate — try another topic!");
@@ -369,11 +387,22 @@ export default function VocabPage() {
             </button>
           </div>
 
-          <div className="text-center">
-            <span className="text-xs text-slate-400 flex items-center justify-center gap-2">
-              <Repeat size={12} />
-              Synonym: <span className="font-semibold text-violet-400">{w.synonym}</span>
-            </span>
+          {/* 🔥 Synonyms and Antonyms Block */}
+          <div className="text-center space-y-1 mt-2">
+            <div>
+              <span className="text-xs text-slate-400 flex items-center justify-center gap-2">
+                <Repeat size={12} />
+                Synonym: <span className="font-semibold text-violet-400">{w.synonym}</span>
+              </span>
+            </div>
+            {w.antonym && (
+              <div>
+                <span className="text-xs text-slate-400 flex items-center justify-center gap-2">
+                  <span className="text-[10px]">🆚</span>
+                  Antonym: <span className="font-semibold text-rose-400">{w.antonym}</span>
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -419,7 +448,7 @@ export default function VocabPage() {
 
         <button 
           onClick={() => setFlipped(true)} 
-          className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md mx-auto w-full grid gap-4 text-center min-h-[300px] content-center hover:border-slate-600 transition-colors"
+          className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md mx-auto w-full grid gap-4 text-center min-h-[300px] content-center hover:border-slate-600 transition-colors relative"
         >
           <p className="text-4xl font-bold uppercase mb-4">{w.word}</p>
           <button 
@@ -435,9 +464,16 @@ export default function VocabPage() {
             <>
               <p className="text-sm text-slate-200 mt-4">{w.meaning}</p>
               <p className="text-sm text-amber-200 mt-2">{w.hindi}</p>
-              <div className="flex items-center justify-center gap-2 mt-4">
-                <span className="text-xl">{masteryOf(w.level)}</span>
-                <p className="text-xs text-slate-500">level {w.level}</p>
+              
+              {/* 🔥 Synonym and Antonym added to review flip card */}
+              <div className="flex justify-center gap-4 mt-3">
+                {w.synonym && <p className="text-[11px]"><span className="text-slate-500">🔁 Syn:</span> <span className="text-violet-300 font-semibold">{w.synonym}</span></p>}
+                {w.antonym && <p className="text-[11px]"><span className="text-slate-500">🆚 Ant:</span> <span className="text-rose-300 font-semibold">{w.antonym}</span></p>}
+              </div>
+
+              <div className="absolute bottom-4 inset-x-0 flex justify-center items-center gap-1.5 mt-4">
+                <span className="text-[14px]">{masteryOf(w.level)}</span>
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Level {w.level}</span>
               </div>
             </>
           )}
@@ -513,6 +549,13 @@ export default function VocabPage() {
                 <p className="text-xs text-slate-400">
                   {r.meaning} • <span className="text-amber-200">{r.hindi}</span>
                 </p>
+                {/* 🔥 Added Antonyms and Synonyms to the Bank view */}
+                {(r.synonym || r.antonym) && (
+                  <p className="text-[10px] mt-1.5 font-medium">
+                    {r.synonym && <span className="text-violet-400 mr-3">🔁 {r.synonym}</span>}
+                    {r.antonym && <span className="text-rose-400">🆚 {r.antonym}</span>}
+                  </p>
+                )}
               </div>
               <button 
                 onClick={() => speak(r.word)} 
