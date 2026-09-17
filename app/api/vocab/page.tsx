@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 
-type VWord = { word: string; type: string; meaning: string; hindi: string; example: string; synonym: string };
+type VWord = { word: string; type: string; meaning: string; hindi: string; example: string; synonym: string; antonym: string };
 type Pack = { id: string; emoji: string; title: string; desc: string; words: VWord[] };
-type Row = { word: string; meaning: string; hindi: string; level: number; next_review: string | null };
+type Row = { word: string; meaning: string; hindi: string; level: number; next_review: string | null; synonym: string; antonym: string };
 
 const PACKS: Pack[] = [
   {
@@ -14,11 +14,11 @@ const PACKS: Pack[] = [
     title: "Daily Conversation",
     desc: "Sound natural with friends",
     words: [
-      { word: "genuinely", type: "adverb", meaning: "truly, honestly", hindi: "सच में, वास्तव में", example: "I genuinely enjoyed the food.", synonym: "truly" },
-      { word: "grab", type: "verb", meaning: "take something quickly", hindi: "झट से ले लेना", example: "Let me grab a coffee before class.", synonym: "snatch" },
-      { word: "catch up", type: "phrasal verb", meaning: "meet and share recent news", hindi: "हालचाल लेना, मिलकर बातें करना", example: "We should catch up soon!", synonym: "reconnect" },
-      { word: "awesome", type: "adjective", meaning: "very impressive or excellent", hindi: "शानदार, कमाल का", example: "The movie was awesome!", synonym: "amazing" },
-      { word: "figure out", type: "phrasal verb", meaning: "solve or understand after thinking", hindi: "समझना, हल निकालना", example: "I will figure out the bus route.", synonym: "solve" },
+      { word: "genuinely", type: "adverb", meaning: "truly, honestly", hindi: "सच में, वास्तव में", example: "I genuinely enjoyed the food.", synonym: "truly", antonym: "falsely" },
+      { word: "grab", type: "verb", meaning: "take something quickly", hindi: "झट से ले लेना", example: "Let me grab a coffee before class.", synonym: "snatch", antonym: "release" },
+      { word: "catch up", type: "phrasal verb", meaning: "meet and share recent news", hindi: "हालचाल लेना, मिलकर बातें करना", example: "We should catch up soon!", synonym: "reconnect", antonym: "ignore" },
+      { word: "awesome", type: "adjective", meaning: "very impressive or excellent", hindi: "शानदार, कमाल का", example: "The movie was awesome!", synonym: "amazing", antonym: "terrible" },
+      { word: "figure out", type: "phrasal verb", meaning: "solve or understand after thinking", hindi: "समझना, हल निकालना", example: "I will figure out the bus route.", synonym: "solve", antonym: "confuse" },
     ],
   },
   {
@@ -27,11 +27,11 @@ const PACKS: Pack[] = [
     title: "Interview Words",
     desc: "Impress any interviewer",
     words: [
-      { word: "persevere", type: "verb", meaning: "keep going even when it is difficult", hindi: "दृढ़ता से लगे रहना", example: "She persevered until she passed the exam.", synonym: "persist" },
-      { word: "punctual", type: "adjective", meaning: "always on time", hindi: "समय का पाबंद", example: "He is always punctual for meetings.", synonym: "on time" },
-      { word: "collaborate", type: "verb", meaning: "work together with others", hindi: "सहयोग करना, मिलकर काम करना", example: "We collaborate with the design team.", synonym: "cooperate" },
-      { word: "initiative", type: "noun", meaning: "the first step; leadership to act", hindi: "पहल, पहलकदमी", example: "She took the initiative to organize the event.", synonym: "enterprise" },
-      { word: "diligent", type: "adjective", meaning: "hardworking and careful", hindi: "परिश्रमी, मेहनती", example: "A diligent worker always finishes on time.", synonym: "hardworking" },
+      { word: "persevere", type: "verb", meaning: "keep going even when it is difficult", hindi: "दृढ़ता से लगे रहना", example: "She persevered until she passed the exam.", synonym: "persist", antonym: "quit" },
+      { word: "punctual", type: "adjective", meaning: "always on time", hindi: "समय का पाबंद", example: "He is always punctual for meetings.", synonym: "on time", antonym: "late" },
+      { word: "collaborate", type: "verb", meaning: "work together with others", hindi: "सहयोग करना, मिलकर काम करना", example: "We collaborate with the design team.", synonym: "cooperate", antonym: "compete" },
+      { word: "initiative", type: "noun", meaning: "the first step; leadership to act", hindi: "पहल, पहलकदमी", example: "She took the initiative to organize the event.", synonym: "enterprise", antonym: "apathy" },
+      { word: "diligent", type: "adjective", meaning: "hardworking and careful", hindi: "परिश्रमी, मेहनती", example: "A diligent worker always finishes on time.", synonym: "hardworking", antonym: "lazy" },
     ],
   },
   {
@@ -40,11 +40,11 @@ const PACKS: Pack[] = [
     title: "Exam & Academic",
     desc: "Words that appear in tests",
     words: [
-      { word: "analyze", type: "verb", meaning: "examine something in detail", hindi: "विश्लेषण करना", example: "Analyze the data carefully before answering.", synonym: "examine" },
-      { word: "concise", type: "adjective", meaning: "short and clear", hindi: "संक्षिप्त और स्पष्ट", example: "Write a concise summary of the chapter.", synonym: "brief" },
-      { word: "evaluate", type: "verb", meaning: "judge the value or quality", hindi: "मूल्यांकन करना", example: "Evaluate both arguments before deciding.", synonym: "assess" },
-      { word: "hypothesis", type: "noun", meaning: "an idea to be tested", hindi: "परिकल्पना", example: "The hypothesis was proven correct.", synonym: "theory" },
-      { word: "comprehend", type: "verb", meaning: "understand fully", hindi: "पूरी तरह समझना", example: "I could not comprehend the question.", synonym: "understand" },
+      { word: "analyze", type: "verb", meaning: "examine something in detail", hindi: "विश्लेषण करना", example: "Analyze the data carefully before answering.", synonym: "examine", antonym: "ignore" },
+      { word: "concise", type: "adjective", meaning: "short and clear", hindi: "संक्षिप्त और स्पष्ट", example: "Write a concise summary of the chapter.", synonym: "brief", antonym: "wordy" },
+      { word: "evaluate", type: "verb", meaning: "judge the value or quality", hindi: "मूल्यांकन करना", example: "Evaluate both arguments before deciding.", synonym: "assess", antonym: "neglect" },
+      { word: "hypothesis", type: "noun", meaning: "an idea to be tested", hindi: "परिकल्पना", example: "The hypothesis was proven correct.", synonym: "theory", antonym: "fact" },
+      { word: "comprehend", type: "verb", meaning: "understand fully", hindi: "पूरी तरह समझना", example: "I could not comprehend the question.", synonym: "understand", antonym: "misunderstand" },
     ],
   },
 ];
@@ -121,7 +121,16 @@ export default function VocabPage() {
     await supabase
       .from("user_vocab")
       .upsert(
-        { user_id: uid, word: w.word, meaning: w.meaning, hindi: w.hindi, level: 0, next_review: addDaysISO(1) },
+        { 
+          user_id: uid, 
+          word: w.word, 
+          meaning: w.meaning, 
+          hindi: w.hindi, 
+          level: 0, 
+          next_review: addDaysISO(1),
+          synonym: w.synonym, // Make sure you have this column in your DB!
+          antonym: w.antonym  // Make sure you have this column in your DB!
+        },
         { onConflict: "user_id,word" }
       );
     load();
@@ -298,9 +307,15 @@ export default function VocabPage() {
             <p className="text-sm italic">"{w.example}"</p>
             <button onClick={() => speak(w.example)} className="mt-2 text-[10px] bg-slate-800 px-2 py-1 rounded">🔊 Hear sentence</button>
           </div>
-          <div className="text-center">
-            <span className="text-xs text-slate-400">🔁 Synonym: </span>
-            <span className="text-xs font-bold text-violet-400">{w.synonym}</span>
+          <div className="text-center space-y-1">
+            <div>
+              <span className="text-xs text-slate-400">🔁 Synonym: </span>
+              <span className="text-xs font-bold text-violet-400">{w.synonym}</span>
+            </div>
+            <div>
+              <span className="text-xs text-slate-400">🆚 Antonym: </span>
+              <span className="text-xs font-bold text-rose-400">{w.antonym}</span>
+            </div>
           </div>
         </div>
 
@@ -324,17 +339,26 @@ export default function VocabPage() {
 
         <button
           onClick={() => setFlipped(true)}
-          className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md mx-auto w-full grid gap-4 text-center min-h-[300px] content-center"
+          className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md mx-auto w-full grid gap-4 text-center min-h-[300px] content-center relative"
         >
           <p className="text-4xl font-black uppercase">{w.word}</p>
           <button onClick={(e) => { e.stopPropagation(); speak(w.word); }} className="justify-self-center py-2 px-4 rounded-xl bg-slate-800 text-sm font-bold">🔊</button>
           {!flipped ? (
-            <p className="text-xs text-slate-500 animate-pulse">👆 Tap card to reveal meaning</p>
+            <p className="text-xs text-slate-500 animate-pulse mt-4">👆 Tap card to reveal meaning</p>
           ) : (
             <>
-              <p className="text-sm text-slate-200">{w.meaning}</p>
+              <p className="text-sm text-slate-200 mt-2">{w.meaning}</p>
               <p className="text-sm text-amber-200">{w.hindi}</p>
-              <p className="text-[10px] text-slate-500">{masteryOf(w.level)} level {w.level}</p>
+              
+              <div className="flex justify-center gap-4 mt-2">
+                {w.synonym && <p className="text-[10px]"><span className="text-slate-500">🔁 Syn:</span> <span className="text-violet-300">{w.synonym}</span></p>}
+                {w.antonym && <p className="text-[10px]"><span className="text-slate-500">🆚 Ant:</span> <span className="text-rose-300">{w.antonym}</span></p>}
+              </div>
+
+              <div className="absolute bottom-4 inset-x-0 flex justify-center items-center gap-1.5">
+                <span className="text-[14px]">{masteryOf(w.level)}</span>
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Level {w.level}</span>
+              </div>
             </>
           )}
         </button>
@@ -363,7 +387,7 @@ export default function VocabPage() {
           value={bankQ}
           onChange={(e) => setBankQ(e.target.value)}
           placeholder="🔍 Search your words..."
-          className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm mb-4"
+          className="w-full p-3 rounded-xl bg-slate-900 border border-slate-700 text-sm mb-4 outline-none focus:border-violet-500"
         />
         <div className="grid gap-2">
           {list.length === 0 && <p className="text-sm text-slate-500 text-center py-8">No words yet — learn a pack first! 📚</p>}
@@ -373,6 +397,12 @@ export default function VocabPage() {
               <div className="flex-1">
                 <p className="font-bold text-sm uppercase">{r.word}</p>
                 <p className="text-[10px] text-slate-400">{r.meaning} • <span className="text-amber-200">{r.hindi}</span></p>
+                {(r.synonym || r.antonym) && (
+                  <p className="text-[9px] mt-0.5">
+                    {r.synonym && <span className="text-violet-400/80 mr-2">🔁 {r.synonym}</span>}
+                    {r.antonym && <span className="text-rose-400/80">🆚 {r.antonym}</span>}
+                  </p>
+                )}
               </div>
               <button onClick={() => speak(r.word)} className="px-3 py-2 rounded-lg bg-slate-800 text-sm">🔊</button>
             </div>
@@ -432,4 +462,3 @@ export default function VocabPage() {
     </main>
   );
 }
-
