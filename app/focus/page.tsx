@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
-import { Timer, Play, Pause, RotateCcw, Shield, ShieldCheck, Wind, BookOpen, ChevronDown } from "lucide-react";
+import { Timer, Play, Pause, RotateCcw, Square, Wind, BookOpen, ChevronDown } from "lucide-react";
 import BoxBreather from "@/app/components/BoxBreather";
 import BackText from "@/app/components/BackBtn";
 
@@ -32,10 +32,7 @@ function playBeep() {
   } catch {}
 }
 
-const PRESETS = [15, 25, 40, 60, 90];
-
-function PlantRing({ pct, ringColor, center }: { pct: number; ringColor: string; center: React.ReactNode }) {
-  const size = 210;
+function PlantRing({ pct, ringColor, center, size = 210 }: { pct: number; ringColor: string; center: React.ReactNode; size?: number }) {
   const stroke = 10;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
@@ -67,13 +64,12 @@ export default function FocusPage() {
   const [subject, setSubject] = useState("");
   const [custom, setCustom] = useState("");
   const [doneToday, setDoneToday] = useState(0);
-  const [shield, setShield] = useState(false);
   const [warmupEnabled, setWarmupEnabled] = useState(false);
   const [showBreather, setShowBreather] = useState(false);
   const [showOpts, setShowOpts] = useState(false);
   const wakeRef = useRef<any>(null);
 
-  /* ---------- wake lock + fullscreen (Focus Shield) ---------- */
+  /* ---------- screen stay-awake + fullscreen ---------- */
   const setWakeLock = async (on: boolean) => {
     try {
       if (on && typeof navigator !== "undefined" && "wakeLock" in navigator) {
@@ -90,27 +86,26 @@ export default function FocusPage() {
 
   const setFullscreen = async (on: boolean) => {
     try {
-      if (on) await document.documentElement.requestFullscreen?.();
+      if (on) { if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.(); }
       else if (document.fullscreenElement) await document.exitFullscreen();
     } catch {}
   };
 
+  /* screen stays on + fullscreen for as long as the timer runs */
   useEffect(() => {
-    if (running && shield) { setWakeLock(true); setFullscreen(true); }
+    if (running) setWakeLock(true);
     else { setWakeLock(false); setFullscreen(false); }
-  }, [running, shield]);
+  }, [running]);
 
   useEffect(() => {
     const onVis = () => {
-      if (document.visibilityState === "visible" && running && shield) setWakeLock(true);
+      if (document.visibilityState === "visible" && running) setWakeLock(true);
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
-  }, [running, shield]);
+  }, [running]);
 
   useEffect(() => () => { wakeRef.current?.release?.().catch(() => {}); }, []);
-
-  /* zen mode: hide options while running */
   useEffect(() => { if (running) setShowOpts(false); }, [running]);
 
   useEffect(() => {
@@ -138,7 +133,7 @@ export default function FocusPage() {
     complete();
   }, [left, running]);
 
-  const pickPreset = (m: number) => {
+  const setMinutes = (m: number) => {
     setFocusMin(m);
     const b = m >= 40 ? 10 : 5;
     setBreakMin(b);
@@ -147,7 +142,12 @@ export default function FocusPage() {
 
   const applyCustom = () => {
     const m = Number(custom);
-    if (m > 0) pickPreset(m);
+    if (m > 0) setMinutes(m);
+  };
+
+  const startNow = () => {
+    setRunning(true);
+    setFullscreen(true); // called from the tap gesture = allowed
   };
 
   const complete = async () => {
@@ -191,26 +191,60 @@ export default function FocusPage() {
   const ss = String(Math.max(left, 0) % 60).padStart(2, "0");
 
   const isBreak = mode === "break";
+  const heroGrad = isBreak ? "from-amber-500 via-orange-600 to-rose-600" : "from-emerald-500 via-green-600 to-teal-600";
   const ringColor = isBreak ? "#fbbf24" : "#10b981";
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-6 pt-6 pb-24 max-w-md mx-auto">
-      {/* slim header — no more giant hero card */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-lg font-black leading-tight" style={{ whiteSpace: "nowrap" }}>Focus Timer</h1>
-          <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-            {focusMin}m focus → {breakMin}m break • 🍅 {doneToday} today
+      {/* 🌙 ZEN MODE — whole screen, only timer + stop */}
+      {running && (
+        <div
+          className="fixed inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center gap-6 px-8"
+          onClick={() => setFullscreen(true)}
+        >
+          <PlantRing
+            pct={pct}
+            ringColor={ringColor}
+            size={280}
+            center={
+              <>
+                <span className="text-6xl drop-shadow-2xl mb-2">{plant}</span>
+                <span className="text-7xl font-black tracking-tight tabular-nums">{mm}:{ss}</span>
+                <span className={`text-[11px] font-black mt-2 ${isBreak ? "text-amber-400" : "text-emerald-400"}`}>
+                  {isBreak ? "BREAK TIME ☕" : "FOCUS TIME 📵"}
+                </span>
+              </>
+            }
+          />
+          <button
+            onClick={(e) => { e.stopPropagation(); setRunning(false); }}
+            className="press px-10 py-4 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-sm font-black flex items-center gap-2"
+          >
+            <Square size={16} fill="currentColor" /> Stop
+          </button>
+          <p className="text-[10px] text-slate-600 font-semibold text-center">
+            screen stays on while running • tap anywhere for full screen
           </p>
         </div>
-        <span className={`px-3 py-1.5 rounded-full text-[10px] font-black border flex items-center gap-1 ${
-          isBreak ? "bg-amber-500/15 border-amber-500/30 text-amber-300" : "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
-        }`}>
-          <Timer size={11} /> {isBreak ? "BREAK" : "FOCUS"}
-        </span>
+      )}
+
+      {/* slim gradient hero — one compact row */}
+      <div className={`mb-4 overflow-hidden rounded-2xl bg-gradient-to-r ${heroGrad} p-3 shadow-lg transition-all duration-700`}>
+        <div className="flex items-center gap-3">
+          <span className="w-9 h-9 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
+            <Timer size={18} strokeWidth={2.2} className="text-white" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Focus Timer</h1>
+            <p className="text-[10px] text-white/75 font-semibold">{focusMin}m focus → {breakMin}m break • 🍅 {doneToday} today</p>
+          </div>
+          <span className="bg-white/15 backdrop-blur px-2.5 py-1 rounded-full text-[9px] font-black text-white border border-white/20">
+            {isBreak ? "☕ BREAK" : "🍅 FOCUS"}
+          </span>
+        </div>
       </div>
 
-      {/* timer FIRST — above the fold, time inside the ring */}
+      {/* timer card */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 mb-4 text-center">
         <PlantRing
           pct={pct}
@@ -220,19 +254,20 @@ export default function FocusPage() {
               <span className="text-4xl drop-shadow-2xl mb-1">{plant}</span>
               <span className="text-5xl font-black tracking-tight tabular-nums">{mm}:{ss}</span>
               <span className={`text-[10px] font-black mt-1 ${isBreak ? "text-amber-400" : "text-emerald-400"}`}>
-                {isBreak ? "BREAK TIME — stretch, hydrate ☕" : "FOCUS TIME — stay off phone 📵"}
+                {isBreak ? "BREAK — stretch, hydrate ☕" : "FOCUS — stay off phone 📵"}
               </span>
             </>
           }
         />
       </div>
 
-      {/* START immediately under timer — zero scrolling */}
+      {/* start + reset */}
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => {
             if (!running && warmupEnabled) { setShowBreather(true); return; }
-            setRunning(!running);
+            if (running) setRunning(false);
+            else startNow();
           }}
           className={`press flex-1 py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 transition-all ${
             running
@@ -252,43 +287,47 @@ export default function FocusPage() {
         </button>
       </div>
 
-      {/* preset chips — one tap */}
-      <div className="flex gap-1.5 mb-4">
-        {PRESETS.map((m) => (
-          <button
-            key={m}
-            onClick={() => pickPreset(m)}
+      {/* ⏱ slider card — drag to set minutes */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
+        <p className="text-[10px] font-black text-slate-500 mb-3">SESSION LENGTH</p>
+        <input
+          type="range"
+          min={5}
+          max={180}
+          step={5}
+          value={focusMin}
+          disabled={running}
+          onChange={(e) => setMinutes(Number(e.target.value))}
+          className="w-full accent-emerald-500 disabled:opacity-50"
+        />
+        <p className="text-center text-sm font-black text-emerald-300 mt-2 tabular-nums">
+          {focusMin} minutes <span className="text-slate-500">→ {breakMin}m break</span>
+        </p>
+        <div className="flex gap-2 mt-3">
+          <input
+            type="number"
+            min="1"
+            max="180"
+            placeholder="Or type minutes"
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { applyCustom(); (e.target as HTMLInputElement).blur(); }
+            }}
             disabled={running}
-            className={`press flex-1 min-w-[50px] px-2 py-2.5 rounded-xl text-xs font-black border transition-all disabled:opacity-50 ${
-              focusMin === m
-                ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
-                : "bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800"
-            }`}
+            className="flex-1 p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs outline-none focus:border-emerald-500 disabled:opacity-50"
+          />
+          <button
+            onClick={applyCustom}
+            disabled={running}
+            className="press px-4 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-black disabled:opacity-50"
           >
-            {m}m
+            Set
           </button>
-        ))}
+        </div>
       </div>
 
-      {/* Focus Shield — the honest "do not disturb" we can offer */}
-      <button
-        onClick={() => setShield(!shield)}
-        className={`press w-full mb-4 px-4 py-3 rounded-2xl text-xs font-black border transition-all flex items-center justify-center gap-2 ${
-          shield
-            ? "bg-indigo-500/15 border-indigo-500/40 text-indigo-300"
-            : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
-        }`}
-      >
-        {shield ? <ShieldCheck size={14} /> : <Shield size={14} />}
-        {shield ? "Focus Shield ON — screen on + fullscreen zen" : "Focus Shield — block distractions"}
-      </button>
-      {shield && (
-        <p className="-mt-2 mb-4 text-[10px] text-slate-500 font-semibold text-center">
-          For calls/SMS silence also enable your phone's Do Not Disturb — web apps can't block calls.
-        </p>
-      )}
-
-      {/* everything else hidden behind one collapse */}
+      {/* options collapse */}
       <button
         onClick={() => setShowOpts(!showOpts)}
         className="w-full mb-3 py-3 rounded-xl bg-slate-900 border border-slate-800 text-xs font-black text-slate-400 flex items-center justify-center gap-1.5"
@@ -299,33 +338,6 @@ export default function FocusPage() {
 
       {showOpts && (
         <div className="grid gap-3 mb-4">
-          {/* custom minutes: Enter key OR Set button — no more blur trap */}
-          <div className="flex gap-2">
-            <input
-              type="number"
-              min="1"
-              max="180"
-              placeholder="Custom minutes"
-              value={custom}
-              onChange={(e) => setCustom(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  applyCustom();
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
-              disabled={running}
-              className="flex-1 p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs outline-none focus:border-emerald-500 disabled:opacity-50"
-            />
-            <button
-              onClick={applyCustom}
-              disabled={running}
-              className="press px-4 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-black disabled:opacity-50"
-            >
-              Set
-            </button>
-          </div>
-
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
               <BookOpen size={14} strokeWidth={2} />
@@ -338,7 +350,6 @@ export default function FocusPage() {
               className="w-full pl-10 pr-3 py-3 rounded-xl bg-slate-900 border border-slate-800 text-sm outline-none focus:border-emerald-500 disabled:opacity-50"
             />
           </div>
-
           <label className="flex items-center justify-center gap-2 cursor-pointer select-none py-1">
             <input
               type="checkbox"
@@ -350,6 +361,9 @@ export default function FocusPage() {
             <Wind size={14} className="text-indigo-400" />
             <span className="text-xs font-semibold text-slate-400">60-sec calm warm-up before focus</span>
           </label>
+          <p className="text-[10px] text-slate-500 font-semibold text-center">
+            💡 For total silence (calls/SMS) enable your phone's Do Not Disturb — web apps can't block calls.
+          </p>
         </div>
       )}
 
@@ -359,7 +373,7 @@ export default function FocusPage() {
         <BoxBreather
           seconds={60}
           autoStart={false}
-          onDone={() => { setShowBreather(false); setRunning(true); }}
+          onDone={() => { setShowBreather(false); startNow(); }}
           onCancel={() => setShowBreather(false)}
         />
       )}
