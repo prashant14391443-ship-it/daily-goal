@@ -50,16 +50,18 @@ export async function POST(req: Request) {
       }).select().single();
       if (error || !attempt) return NextResponse.json({ error: "Could not create attempt", debug: error?.message }, { status: 500 });
 
+      // Ensure no duplicates exist in official PYQ papers either
+      const uniqueIds = Array.from(new Set(ids));
       const { error: linkErr } = await admin.from("test_attempt_questions").insert(
-        ids.map((id: string, i: number) => ({ attempt_id: attempt.id, question_id: id, question_order: i }))
+        uniqueIds.map((id: string, i: number) => ({ attempt_id: attempt.id, question_id: id, question_order: i }))
       );
       if (linkErr) return NextResponse.json({ error: linkErr.message }, { status: 500 });
 
-      return NextResponse.json({ attempt_id: attempt.id, have: ids.length, target: ids.length, done: true });
+      return NextResponse.json({ attempt_id: attempt.id, have: uniqueIds.length, target: uniqueIds.length, done: true });
     }
 
     // ==========================================
-    // AI MODE: build the full plan (100 Qs / sectional)
+    // AI MODE: build the full plan (100 Qs / sectional / topic)
     // ==========================================
     let planObjs: { section: any; topic: any }[] = [];
     if (topic_id) {
@@ -115,8 +117,23 @@ export async function POST(req: Request) {
 
     const { results, firstError } = await quickFill(admin, exam, quickSlots, new Set(seenIds), year, 8000, 4);
 
-    const okPairs = results.filter((r) => r.q !== null) as { slot: PlanSlot; q: LoadedQuestion }[];
+    // Initial extraction of successful and failed slots
+    const rawOkPairs = results.filter((r) => r.q !== null) as { slot: PlanSlot; q: LoadedQuestion }[];
     const failedSlots = results.filter((r) => r.q === null).map((r) => r.slot);
+
+    // 🔥 FIX: Deduplicate okPairs to absolutely prevent 'test_attempt_questions_pkey' violations
+    // If a duplicate question is returned due to parallel DB generation, convert the extra to a failed slot.
+    const usedQIds = new Set<string>();
+    const okPairs: { slot: PlanSlot; q: LoadedQuestion }[] = [];
+    
+    for (const pair of rawOkPairs) {
+      if (usedQIds.has(pair.q.id)) {
+        failedSlots.push(pair.slot); // Move the duplicate back to the failed queue
+      } else {
+        usedQIds.add(pair.q.id);
+        okPairs.push(pair);
+      }
+    }
 
     if (okPairs.length === 0) {
       await admin.from("test_attempts").delete().eq("id", attempt.id);
@@ -126,6 +143,7 @@ export async function POST(req: Request) {
     // Keep slot↔question alignment: filled slots first, then the rest, failed quick slots last
     const newPlan: PlanSlot[] = [...okPairs.map((p) => p.slot), ...restSlots, ...failedSlots];
 
+    // Safely insert, knowing uniqueness is guaranteed
     const { error: linkErr } = await admin.from("test_attempt_questions").insert(
       okPairs.map((p, i) => ({ attempt_id: attempt.id, question_id: p.q.id, question_order: i }))
     );
