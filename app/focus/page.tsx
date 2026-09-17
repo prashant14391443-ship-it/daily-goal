@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
-import Link from "next/link";
-import { Timer, Play, Pause, RotateCcw, Sun, Moon, BookOpen, Coffee, Wind } from "lucide-react";
+import { Timer, Play, Pause, RotateCcw, Shield, ShieldCheck, Wind, BookOpen, ChevronDown } from "lucide-react";
 import BoxBreather from "@/app/components/BoxBreather";
 import BackText from "@/app/components/BackBtn";
 
@@ -35,8 +34,8 @@ function playBeep() {
 
 const PRESETS = [15, 25, 40, 60, 90];
 
-function PlantRing({ pct, plant, ringColor }: { pct: number; plant: string; ringColor: string }) {
-  const size = 220;
+function PlantRing({ pct, ringColor, center }: { pct: number; ringColor: string; center: React.ReactNode }) {
+  const size = 210;
   const stroke = 10;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
@@ -44,7 +43,7 @@ function PlantRing({ pct, plant, ringColor }: { pct: number; plant: string; ring
   return (
     <div className="relative inline-flex items-center justify-center">
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(255,255,255,0.08)" strokeWidth={stroke} fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="rgba(128,128,128,0.15)" strokeWidth={stroke} fill="none" />
         <circle
           cx={size / 2} cy={size / 2} r={r}
           stroke={ringColor} strokeWidth={stroke} fill="none"
@@ -54,9 +53,7 @@ function PlantRing({ pct, plant, ringColor }: { pct: number; plant: string; ring
           style={{ transition: "stroke-dashoffset 0.6s ease" }}
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-7xl drop-shadow-2xl">{plant}</span>
-      </div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">{center}</div>
     </div>
   );
 }
@@ -70,16 +67,13 @@ export default function FocusPage() {
   const [subject, setSubject] = useState("");
   const [custom, setCustom] = useState("");
   const [doneToday, setDoneToday] = useState(0);
-  const [awake, setAwake] = useState(false);
-  const [wakeSupported, setWakeSupported] = useState(false);
+  const [shield, setShield] = useState(false);
   const [warmupEnabled, setWarmupEnabled] = useState(false);
   const [showBreather, setShowBreather] = useState(false);
+  const [showOpts, setShowOpts] = useState(false);
   const wakeRef = useRef<any>(null);
 
-  useEffect(() => {
-    setWakeSupported(typeof navigator !== "undefined" && "wakeLock" in navigator);
-  }, []);
-
+  /* ---------- wake lock + fullscreen (Focus Shield) ---------- */
   const setWakeLock = async (on: boolean) => {
     try {
       if (on && typeof navigator !== "undefined" && "wakeLock" in navigator) {
@@ -94,22 +88,30 @@ export default function FocusPage() {
     } catch { wakeRef.current = null; }
   };
 
+  const setFullscreen = async (on: boolean) => {
+    try {
+      if (on) await document.documentElement.requestFullscreen?.();
+      else if (document.fullscreenElement) await document.exitFullscreen();
+    } catch {}
+  };
+
   useEffect(() => {
-    if (running && awake) setWakeLock(true);
-    else setWakeLock(false);
-  }, [running, awake]);
+    if (running && shield) { setWakeLock(true); setFullscreen(true); }
+    else { setWakeLock(false); setFullscreen(false); }
+  }, [running, shield]);
 
   useEffect(() => {
     const onVis = () => {
-      if (document.visibilityState === "visible" && running && awake) setWakeLock(true);
+      if (document.visibilityState === "visible" && running && shield) setWakeLock(true);
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
-  }, [running, awake]);
+  }, [running, shield]);
 
-  useEffect(() => {
-    return () => { wakeRef.current?.release?.().catch(() => {}); };
-  }, []);
+  useEffect(() => () => { wakeRef.current?.release?.().catch(() => {}); }, []);
+
+  /* zen mode: hide options while running */
+  useEffect(() => { if (running) setShowOpts(false); }, [running]);
 
   useEffect(() => {
     const load = async () => {
@@ -189,131 +191,47 @@ export default function FocusPage() {
   const ss = String(Math.max(left, 0) % 60).padStart(2, "0");
 
   const isBreak = mode === "break";
-  const heroGrad = isBreak ? "from-amber-500 via-orange-600 to-rose-600" : "from-emerald-500 via-green-600 to-teal-600";
   const ringColor = isBreak ? "#fbbf24" : "#10b981";
-  const modeLabel = isBreak ? "BREAK TIME" : "FOCUS TIME";
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-6 pt-6 pb-24 max-w-md mx-auto">
-      <div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${heroGrad} p-5 shadow-xl transition-all duration-700`}>
-        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
-        <div className="relative">
-          <div className="flex items-center justify-between mb-3">
-            <span className="w-11 h-11 shrink-0 rounded-xl bg-white/15 flex items-center justify-center">
-              <Timer size={22} strokeWidth={2.2} className="text-white" />
-            </span>
-            <span className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-[10px] font-black border border-white/20 flex items-center gap-1.5">
-              {isBreak ? <Coffee size={11} /> : <Timer size={11} />}
-              {isBreak ? "BREAK" : "FOCUS"}
-            </span>
-          </div>
-          <h1 className="text-lg font-black text-white leading-tight" style={{ whiteSpace: "nowrap" }}>Focus Timer</h1>
-          <p className="text-[11px] text-white/75 font-semibold mt-0.5">
+      {/* slim header — no more giant hero card */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-lg font-black leading-tight" style={{ whiteSpace: "nowrap" }}>Focus Timer</h1>
+          <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
             {focusMin}m focus → {breakMin}m break • 🍅 {doneToday} today
           </p>
         </div>
-      </div>
-
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 mb-4 text-center">
-        <p className={`text-[10px] font-black mb-4 ${isBreak ? "text-amber-400" : "text-emerald-400"}`}>
-          {modeLabel}
-        </p>
-
-        <div className="flex justify-center mb-4">
-          <PlantRing pct={pct} plant={plant} ringColor={ringColor} />
-        </div>
-
-        <p className="text-6xl font-black tracking-tight mb-1 tabular-nums">
-          {mm}:{ss}
-        </p>
-        <p className="text-xs text-slate-500 font-bold">
-          {isBreak ? "Stretch a little, hydrate ☕" : "Stay off your phone! 📵"}
-        </p>
-      </div>
-
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
-        <p className="text-[10px] font-black text-slate-500 mb-2">PRESET DURATIONS</p>
-        <div className="flex gap-1.5 flex-wrap">
-          {PRESETS.map((m) => (
-            <button
-              key={m}
-              onClick={() => pickPreset(m)}
-              disabled={running}
-              className={`press flex-1 min-w-[50px] px-3 py-2.5 rounded-xl text-xs font-black border transition-all disabled:opacity-50 ${
-                focusMin === m
-                  ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
-                  : "bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700"
-              }`}
-            >
-              {m}m
-            </button>
-          ))}
-        </div>
-        <div className="mt-2">
-          <input
-            type="number"
-            min="1"
-            max="180"
-            placeholder="Custom (minutes)"
-            value={custom}
-            onChange={(e) => setCustom(e.target.value)}
-            onBlur={applyCustom}
-            disabled={running}
-            className="w-full p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs outline-none focus:border-emerald-500 disabled:opacity-50"
-          />
-        </div>
-      </div>
-
-      {wakeSupported && (
-        <button
-          onClick={() => setAwake(!awake)}
-          className={`press w-full mb-4 px-4 py-3 rounded-2xl text-xs font-black border transition-all flex items-center justify-center gap-2 ${
-            awake
-              ? "bg-amber-500/10 border-amber-500/30 text-amber-300"
-              : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
-          }`}
-        >
-          {awake ? <Sun size={14} /> : <Moon size={14} />}
-          {awake ? "Screen stays ON while timer runs" : "Screen can sleep normally"}
-          {awake && running && (
-            <span className="ml-1 text-[10px] text-amber-300/80 animate-pulse">• Active</span>
-          )}
-        </button>
-      )}
-
-      <div className="relative mb-4">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
-          <BookOpen size={14} strokeWidth={2} />
+        <span className={`px-3 py-1.5 rounded-full text-[10px] font-black border flex items-center gap-1 ${
+          isBreak ? "bg-amber-500/15 border-amber-500/30 text-amber-300" : "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+        }`}>
+          <Timer size={11} /> {isBreak ? "BREAK" : "FOCUS"}
         </span>
-        <input
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-          placeholder="Subject (e.g. Math) — optional"
-          disabled={running}
-          className="w-full pl-10 pr-3 py-3 rounded-xl bg-slate-900 border border-slate-800 text-sm outline-none focus:border-emerald-500 disabled:opacity-50"
+      </div>
+
+      {/* timer FIRST — above the fold, time inside the ring */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-4 mb-4 text-center">
+        <PlantRing
+          pct={pct}
+          ringColor={ringColor}
+          center={
+            <>
+              <span className="text-4xl drop-shadow-2xl mb-1">{plant}</span>
+              <span className="text-5xl font-black tracking-tight tabular-nums">{mm}:{ss}</span>
+              <span className={`text-[10px] font-black mt-1 ${isBreak ? "text-amber-400" : "text-emerald-400"}`}>
+                {isBreak ? "BREAK TIME — stretch, hydrate ☕" : "FOCUS TIME — stay off phone 📵"}
+              </span>
+            </>
+          }
         />
       </div>
 
-      {/* 🧘 CALM WARM-UP TOGGLE */}
-      <label className="flex items-center justify-center gap-2 mb-4 cursor-pointer select-none">
-        <input
-          type="checkbox"
-          checked={warmupEnabled}
-          onChange={(e) => setWarmupEnabled(e.target.checked)}
-          disabled={running}
-          className="w-4 h-4 rounded accent-indigo-500"
-        />
-        <Wind size={14} className="text-indigo-400" />
-        <span className="text-xs font-semibold text-slate-400">60-sec calm warm-up before focus</span>
-      </label>
-
-      <div className="flex gap-2">
+      {/* START immediately under timer — zero scrolling */}
+      <div className="flex gap-2 mb-4">
         <button
           onClick={() => {
-            if (!running && warmupEnabled) {
-              setShowBreather(true);
-              return;
-            }
+            if (!running && warmupEnabled) { setShowBreather(true); return; }
             setRunning(!running);
           }}
           className={`press flex-1 py-4 rounded-xl text-base font-black flex items-center justify-center gap-2 transition-all ${
@@ -333,16 +251,115 @@ export default function FocusPage() {
           <RotateCcw size={18} />
         </button>
       </div>
-<BackText />
-      {/* 🧘 BREATHING WARM-UP MODAL */}
+
+      {/* preset chips — one tap */}
+      <div className="flex gap-1.5 mb-4">
+        {PRESETS.map((m) => (
+          <button
+            key={m}
+            onClick={() => pickPreset(m)}
+            disabled={running}
+            className={`press flex-1 min-w-[50px] px-2 py-2.5 rounded-xl text-xs font-black border transition-all disabled:opacity-50 ${
+              focusMin === m
+                ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                : "bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800"
+            }`}
+          >
+            {m}m
+          </button>
+        ))}
+      </div>
+
+      {/* Focus Shield — the honest "do not disturb" we can offer */}
+      <button
+        onClick={() => setShield(!shield)}
+        className={`press w-full mb-4 px-4 py-3 rounded-2xl text-xs font-black border transition-all flex items-center justify-center gap-2 ${
+          shield
+            ? "bg-indigo-500/15 border-indigo-500/40 text-indigo-300"
+            : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+        }`}
+      >
+        {shield ? <ShieldCheck size={14} /> : <Shield size={14} />}
+        {shield ? "Focus Shield ON — screen on + fullscreen zen" : "Focus Shield — block distractions"}
+      </button>
+      {shield && (
+        <p className="-mt-2 mb-4 text-[10px] text-slate-500 font-semibold text-center">
+          For calls/SMS silence also enable your phone's Do Not Disturb — web apps can't block calls.
+        </p>
+      )}
+
+      {/* everything else hidden behind one collapse */}
+      <button
+        onClick={() => setShowOpts(!showOpts)}
+        className="w-full mb-3 py-3 rounded-xl bg-slate-900 border border-slate-800 text-xs font-black text-slate-400 flex items-center justify-center gap-1.5"
+      >
+        {showOpts ? "Hide options" : "More options"}
+        <ChevronDown size={14} className={`transition-transform ${showOpts ? "rotate-180" : ""}`} />
+      </button>
+
+      {showOpts && (
+        <div className="grid gap-3 mb-4">
+          {/* custom minutes: Enter key OR Set button — no more blur trap */}
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min="1"
+              max="180"
+              placeholder="Custom minutes"
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  applyCustom();
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              disabled={running}
+              className="flex-1 p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-xs outline-none focus:border-emerald-500 disabled:opacity-50"
+            />
+            <button
+              onClick={applyCustom}
+              disabled={running}
+              className="press px-4 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-black disabled:opacity-50"
+            >
+              Set
+            </button>
+          </div>
+
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">
+              <BookOpen size={14} strokeWidth={2} />
+            </span>
+            <input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Subject (e.g. Math) — optional"
+              disabled={running}
+              className="w-full pl-10 pr-3 py-3 rounded-xl bg-slate-900 border border-slate-800 text-sm outline-none focus:border-emerald-500 disabled:opacity-50"
+            />
+          </div>
+
+          <label className="flex items-center justify-center gap-2 cursor-pointer select-none py-1">
+            <input
+              type="checkbox"
+              checked={warmupEnabled}
+              onChange={(e) => setWarmupEnabled(e.target.checked)}
+              disabled={running}
+              className="w-4 h-4 rounded accent-indigo-500"
+            />
+            <Wind size={14} className="text-indigo-400" />
+            <span className="text-xs font-semibold text-slate-400">60-sec calm warm-up before focus</span>
+          </label>
+        </div>
+      )}
+
+      <BackText />
+
       {showBreather && !running && (
         <BoxBreather
           seconds={60}
           autoStart={false}
-          onDone={() => {
-            setShowBreather(false);
-            setRunning(true);
-          }}
+          onDone={() => { setShowBreather(false); setRunning(true); }}
           onCancel={() => setShowBreather(false)}
         />
       )}
