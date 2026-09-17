@@ -66,6 +66,8 @@ export default function NotificationCenter() {
   const clearAll = () => {
     localStorage.removeItem("dg-notifications");
     setItems([]);
+    setOpen(false); // ✅ panel closes immediately — no tap-outside needed
+    window.dispatchEvent(new Event("dg-notif-change")); // keep badge/count in sync everywhere
   };
 
   const timeLabel = (iso: string) =>
