@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 import { authHeaders } from "@/lib/testApi";
 import { getExamById, SSC_CGL_T1 } from "@/lib/examPatterns";
 
-// FIX 1: Allow string, number, or null for user_answer
+// Allow string, number, or null for user_answer
 type SheetItem = {
   order: number; question_id: string; section_id: string; topic_id: string;
   question_text: string; options: string[]; correct_index: number; explanation: string | null;
@@ -99,7 +99,6 @@ function downloadPaper(
 ${Object.entries(bySection).map(([secId, qs]) => `
 <div class="section-title">${sectionShort(secId)}</div>
 ${qs.map((q) => {
-  // FIX 2, 3 & 4: Safe parsing for HTML template
   const isAns = q.user_answer !== null && q.user_answer !== undefined && String(q.user_answer) !== "null";
   const ansIdx = isAns ? Number(q.user_answer) : -1;
 
@@ -215,11 +214,9 @@ export default function ResultsPage() {
   const topicName = (id: string) => exam.sections.flatMap((s) => s.topics).find((t) => t.id === id)?.name || id;
   const sectionShort = (id: string) => exam.sections.find((s) => s.id === id)?.shortName || "";
 
-  // FIX 5: Safe Answer parsing helpers for the React UI
   const isAnswered = (ans: string | number | null) => ans !== null && ans !== undefined && String(ans) !== "null";
   const getAnsIdx = (ans: string | number | null) => isAnswered(ans) ? Number(ans) : -1;
 
-  // FIX 6: Accurate filtering that handles "null" strings properly
   const filtered = sheet.filter((q) => {
     if (filter === "wrong") return isAnswered(q.user_answer) && !q.is_correct;
     if (filter === "correct") return q.is_correct;
@@ -382,19 +379,20 @@ export default function ResultsPage() {
                   const isCorrectOpt = i === q.correct_index;
                   const isWrongOpt = ansIdx === i && !isCorrectOpt;
                   
-                  // Generate the correct class string based on our safe parsing
+                  // HIGHLIGHT FIX: Made text extremely dark and visible (text-emerald-700 and text-red-700)
                   const optClass = isCorrectOpt 
-                    ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200" 
+                    ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-700 dark:text-emerald-400 font-bold" 
                     : isWrongOpt 
-                    ? "bg-red-500/15 border-red-500/40 text-red-200" 
-                    : "bg-slate-800/50 border-slate-700/50 text-slate-400";
+                    ? "bg-red-500/20 border-red-500/50 text-red-700 dark:text-red-400 font-bold" 
+                    : "bg-slate-800/10 border-slate-700/30 text-slate-700 dark:bg-slate-800/50 dark:border-slate-700/50 dark:text-slate-400";
 
                   return (
-                  <div key={i} className={`flex items-start gap-2 p-2.5 rounded-lg text-xs border ${optClass}`}>
+                  <div key={i} className={`flex items-start gap-2 p-2.5 rounded-lg text-xs border transition-colors ${optClass}`}>
                     <span className="font-black shrink-0">{String.fromCharCode(65 + i)}.</span>
                     <span className="flex-1">{opt}</span>
-                    {isCorrectOpt && <CheckCircle2 size={13} className="text-emerald-400 shrink-0 mt-0.5" />}
-                    {isWrongOpt && <XCircle size={13} className="text-red-400 shrink-0 mt-0.5" />}
+                    {/* Increased icon sizes to 16 and made their colors stronger */}
+                    {isCorrectOpt && <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />}
+                    {isWrongOpt && <XCircle size={16} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />}
                   </div>
                 )})}
               </div>
