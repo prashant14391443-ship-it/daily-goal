@@ -7,6 +7,7 @@ import { recordNotification } from "@/lib/notify";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import FeedbackModal from "@/app/components/FeedbackModal";
+import AvatarCropper from "@/app/components/AvatarCropper";
 
 function playBeep() {
   try {
@@ -97,6 +98,7 @@ export default function ProfileMenu() {
   const [editName, setEditName] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
+    const [cropSrc, setCropSrc] = useState("");
   const [saving, setSaving] = useState(false);
   const [badgePop, setBadgePop] = useState("");
   const [coinFly, setCoinFly] = useState("");
@@ -470,9 +472,7 @@ export default function ProfileMenu() {
       alert("Max 8 MB!");
       return;
     }
-    const small = await compressAvatar(f);
-    setPhoto(small);
-    setPreview(URL.createObjectURL(small));
+    setCropSrc(URL.createObjectURL(f)); // open move & zoom cropper
   };
 
   const saveProfile = async () => {
@@ -677,7 +677,17 @@ export default function ProfileMenu() {
           </div>
         </div>
       )}
-
+      {cropSrc && (
+        <AvatarCropper
+          src={cropSrc}
+          onCancel={() => setCropSrc("")}
+          onConfirm={(f) => {
+            setCropSrc("");
+            setPhoto(f);
+            setPreview(URL.createObjectURL(f));
+          }}
+        />
+      )}
       <FeedbackModal open={fbOpen} onClose={() => setFbOpen(false)} />
     </div>
   ); 
