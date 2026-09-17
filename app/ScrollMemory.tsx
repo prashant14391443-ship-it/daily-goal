@@ -11,12 +11,11 @@ function writeSave(path: string, y: number) {
   try {
     sessionStorage.setItem("scroll:" + path, String(y));
   } catch {
-    // storage full / blocked — ignore
+    // storage blocked — ignore
   }
 }
 
-// capture the TRUE position at the exact moment of tap / back,
-// then freeze saving so page-swap noise (scroll clamped to 0) can't overwrite it
+// capture the TRUE position at tap/back moment, then freeze saving briefly
 function captureNow(lockMs: number) {
   if (!restoring) writeSave(currentPath, window.scrollY);
   saveLockUntil = Date.now() + lockMs;
@@ -28,7 +27,7 @@ if (typeof window !== "undefined") {
   window.addEventListener("popstate", () => captureNow(1500));
 }
 
-// re-apply saved position until the page is actually tall enough (async data)
+// re-apply saved position until page is tall enough (async data)
 function restoreScroll(saved: number) {
   const start = Date.now();
   restoring = true;
@@ -37,7 +36,7 @@ function restoreScroll(saved: number) {
     const reached = Math.abs(window.scrollY - saved) < 5;
     if (reached || Date.now() - start > 8000) {
       restoring = false;
-      saveLockUntil = Date.now() + 1200; // shield from leftover back-swipe
+      saveLockUntil = Date.now() + 1200; // shield from leftover swipe
       return;
     }
     setTimeout(attempt, 120);
@@ -49,7 +48,7 @@ export default function ScrollMemory() {
   const pathname = usePathname();
   const mounted = useRef(false);
 
-  // continuous saving, but never during locks / restores
+  // continuous saving, never during locks/restores
   useEffect(() => {
     const save = () => {
       if (restoring || Date.now() < saveLockUntil) return;
@@ -59,7 +58,29 @@ export default function ScrollMemory() {
     return () => window.removeEventListener("scroll", save);
   }, []);
 
-  // page change → restore (first load = refresh → stay top)
+  // NEW: tapping a link to the page you're ALREADY on (e.g. Home tab) → go TOP
+  useEffect(() => {
+    const onSamePageLink = (e: MouseEvent) => {
+      const a = (e.target as Element | null)?.closest?.("a[href]") as
+        | HTMLAnchorElement
+        | null;
+      if (!a) return;
+      let url: URL;
+      try {
+        url = new URL(a.href, location.origin);
+      } catch {
+        return;
+      }
+      if (url.hash || url.pathname !== location.pathname) return;
+      window.scrollTo(0, 0);
+      writeSave(url.pathname, 0);
+      saveLockUntil = Date.now() + 800;
+    };
+    document.addEventListener("click", onSamePageLink, true);
+    return () => document.removeEventListener("click", onSamePageLink, true);
+  }, []);
+
+  // page change → restore saved position (first load = refresh → top)
   useEffect(() => {
     const first = !mounted.current;
     mounted.current = true;
