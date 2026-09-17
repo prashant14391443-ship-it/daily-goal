@@ -328,3 +328,20 @@ html.bronze .dg-chip, html.bronze .dg-chip * {
   background-color: #131009 !important;
   border: 1px solid rgba(220, 170, 110, 0.2) !important;
 }
+/* 🌙 BLUE — countdown pill: shade darker, blends with dashboard navy */
+html:not(.light):not(.bronze) .bg-slate-700\/80,
+html:not(.light):not(.bronze) .bg-slate-700\/70,
+html:not(.light):not(.bronze) .bg-slate-800\/80,
+html:not(.light):not(.bronze) .bg-slate-800\/70 { background-color: #101828; }
+
+/* ☀️ LIGHT — countdown pill: shade lighter, blends with white page */
+html.light .bg-slate-700\/80,
+html.light .bg-slate-700\/70,
+html.light .bg-slate-800\/80,
+html.light .bg-slate-800\/70 { background-color: #f1f5f9; }
+
+/* 🥉 BRONZE — keep the perfect match you already have */
+html.bronze .bg-slate-700\/80,
+html.bronze .bg-slate-700\/70,
+html.bronze .bg-slate-800\/80,
+html.bronze .bg-slate-800\/70 { background-color: #241c12; }
