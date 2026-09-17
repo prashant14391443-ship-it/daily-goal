@@ -7,10 +7,12 @@ import { supabase } from "@/lib/supabase";
 import { authHeaders } from "@/lib/testApi";
 import { getExamById, SSC_CGL_T1 } from "@/lib/examPatterns";
 
+// FIX 1: Allow string, number, or null for user_answer
 type SheetItem = {
   order: number; question_id: string; section_id: string; topic_id: string;
   question_text: string; options: string[]; correct_index: number; explanation: string | null;
-  user_answer: number | null; is_correct: boolean; time_taken_sec: number;
+  user_answer: string | number | null; 
+  is_correct: boolean; time_taken_sec: number;
 };
 
 function fmtClock(s: number) {
@@ -96,7 +98,12 @@ function downloadPaper(
 </div>
 ${Object.entries(bySection).map(([secId, qs]) => `
 <div class="section-title">${sectionShort(secId)}</div>
-${qs.map((q) => `
+${qs.map((q) => {
+  // FIX 2, 3 & 4: Safe parsing for HTML template
+  const isAns = q.user_answer !== null && q.user_answer !== undefined && String(q.user_answer) !== "null";
+  const ansIdx = isAns ? Number(q.user_answer) : -1;
+
+  return `
 <div class="question">
   <span class="q-num">Q${q.order + 1}.</span>
   <span class="q-topic">[${topicName(q.topic_id)}]</span>
@@ -106,22 +113,23 @@ ${qs.map((q) => `
       let cls = "";
       if (mode === "solutions") {
         if (j === q.correct_index) cls = "opt-correct";
-        else if (q.user_answer === j && j !== q.correct_index) cls = "opt-wrong";
+        else if (ansIdx === j && j !== q.correct_index) cls = "opt-wrong";
       }
       return `<div class="opt ${cls}"><span class="opt-label">${String.fromCharCode(65 + j)}.</span> ${opt}</div>`;
     }).join("")}
   </div>
-  ${mode === "solutions" && q.user_answer === null ? '<p class="user-skipped">⏭️ Skipped</p>' : ""}
+  ${mode === "solutions" && !isAns ? '<p class="user-skipped">⏭️ Skipped</p>' : ""}
   ${mode === "solutions" && q.explanation ? `<div class="explanation"><strong>Explanation:</strong> ${q.explanation}</div>` : ""}
 </div>
-`).join("")}
+`}).join("")}
 `).join("")}
 <div class="answer-key">
   <h3>${mode === "solutions" ? "Quick Answer Key" : "Answer Key"}</h3>
   <div class="key-grid">
     ${sheet.map((q) => {
+      const isAns = q.user_answer !== null && q.user_answer !== undefined && String(q.user_answer) !== "null";
       const letter = String.fromCharCode(65 + q.correct_index);
-      const cls = mode === "solutions" ? (q.user_answer === null ? "key-skip" : q.is_correct ? "key-correct" : "key-wrong") : "";
+      const cls = mode === "solutions" ? (!isAns ? "key-skip" : q.is_correct ? "key-correct" : "key-wrong") : "";
       return `<div class="key-item ${cls}">Q${q.order + 1}: <strong>${letter}</strong></div>`;
     }).join("")}
   </div>
@@ -207,10 +215,15 @@ export default function ResultsPage() {
   const topicName = (id: string) => exam.sections.flatMap((s) => s.topics).find((t) => t.id === id)?.name || id;
   const sectionShort = (id: string) => exam.sections.find((s) => s.id === id)?.shortName || "";
 
+  // FIX 5: Safe Answer parsing helpers for the React UI
+  const isAnswered = (ans: string | number | null) => ans !== null && ans !== undefined && String(ans) !== "null";
+  const getAnsIdx = (ans: string | number | null) => isAnswered(ans) ? Number(ans) : -1;
+
+  // FIX 6: Accurate filtering that handles "null" strings properly
   const filtered = sheet.filter((q) => {
-    if (filter === "wrong") return q.user_answer !== null && !q.is_correct;
+    if (filter === "wrong") return isAnswered(q.user_answer) && !q.is_correct;
     if (filter === "correct") return q.is_correct;
-    if (filter === "skipped") return q.user_answer === null;
+    if (filter === "skipped") return !isAnswered(q.user_answer);
     return true;
   });
 
@@ -224,7 +237,8 @@ export default function ResultsPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-<div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${('gradient' in exam ? exam.gradient : 'from-slate-800 to-slate-900')} p-6 shadow-xl text-center`}>        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+      <div className={`relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br ${('gradient' in exam ? exam.gradient : 'from-slate-800 to-slate-900')} p-6 shadow-xl text-center`}>
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative">
           <Trophy size={36} className="text-white mx-auto mb-2" />
           <p className="text-[11px] font-black text-white/80 uppercase tracking-wider">{testTitle} • Complete</p>
@@ -350,8 +364,12 @@ export default function ResultsPage() {
           </div>
         </div>
         <div className="grid gap-3">
-          {filtered.map((q) => (
-            <div key={q.question_id} className={`rounded-xl border p-4 ${q.user_answer === null ? "border-slate-700 bg-slate-800/40" : q.is_correct ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5"}`}>
+          {filtered.map((q) => {
+            const ansIdx = getAnsIdx(q.user_answer);
+            const skipped = !isAnswered(q.user_answer);
+
+            return (
+            <div key={q.question_id} className={`rounded-xl border p-4 ${skipped ? "border-slate-700 bg-slate-800/40" : q.is_correct ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5"}`}>
               <div className="flex items-center gap-2 mb-2 flex-wrap">
                 <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-slate-800 text-slate-400">Q{q.order + 1}</span>
                 <span className="px-2 py-0.5 rounded-md text-[9px] font-black bg-slate-800 text-slate-400">{sectionShort(q.section_id)}</span>
@@ -360,16 +378,27 @@ export default function ResultsPage() {
               </div>
               <p className="text-sm font-bold text-white leading-relaxed mb-3">{q.question_text}</p>
               <div className="grid gap-1.5 mb-3">
-                {q.options.map((opt, i) => (
-                  <div key={i} className={`flex items-start gap-2 p-2.5 rounded-lg text-xs border ${i === q.correct_index ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200" : q.user_answer === i ? "bg-red-500/15 border-red-500/40 text-red-200" : "bg-slate-800/50 border-slate-700/50 text-slate-400"}`}>
+                {q.options.map((opt, i) => {
+                  const isCorrectOpt = i === q.correct_index;
+                  const isWrongOpt = ansIdx === i && !isCorrectOpt;
+                  
+                  // Generate the correct class string based on our safe parsing
+                  const optClass = isCorrectOpt 
+                    ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-200" 
+                    : isWrongOpt 
+                    ? "bg-red-500/15 border-red-500/40 text-red-200" 
+                    : "bg-slate-800/50 border-slate-700/50 text-slate-400";
+
+                  return (
+                  <div key={i} className={`flex items-start gap-2 p-2.5 rounded-lg text-xs border ${optClass}`}>
                     <span className="font-black shrink-0">{String.fromCharCode(65 + i)}.</span>
                     <span className="flex-1">{opt}</span>
-                    {i === q.correct_index && <CheckCircle2 size={13} className="text-emerald-400 shrink-0 mt-0.5" />}
-                    {q.user_answer === i && i !== q.correct_index && <XCircle size={13} className="text-red-400 shrink-0 mt-0.5" />}
+                    {isCorrectOpt && <CheckCircle2 size={13} className="text-emerald-400 shrink-0 mt-0.5" />}
+                    {isWrongOpt && <XCircle size={13} className="text-red-400 shrink-0 mt-0.5" />}
                   </div>
-                ))}
+                )})}
               </div>
-              {q.user_answer === null && <p className="text-[11px] font-bold text-slate-500 mb-2">⏭️ You skipped this question.</p>}
+              {skipped && <p className="text-[11px] font-bold text-slate-500 mb-2">⏭️ You skipped this question.</p>}
               {q.explanation && (
                 <div className="bg-slate-800/60 rounded-lg p-3">
                   <p className="text-[10px] font-black text-cyan-400 uppercase mb-1">Explanation</p>
@@ -377,7 +406,7 @@ export default function ResultsPage() {
                 </div>
               )}
             </div>
-          ))}
+          )})}
           {filtered.length === 0 && <p className="text-center text-xs text-slate-500 font-bold py-4">No questions in this filter.</p>}
         </div>
       </div>
