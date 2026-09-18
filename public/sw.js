@@ -1,28 +1,28 @@
-// DAILY GOAL service worker v9 — FINAL: fast install + silent full-app save after first login
-const CACHE_NAME = "daily-goal-v9";
+// DAILY GOAL service worker v10 — FINAL: aggressive precrawl, silent offline
+const CACHE_NAME = "daily-goal-v10";
 const API_CACHE = "daily-goal-api-v1";
-const SENTINEL = "/__all_pages_saved_v9";
+const SENTINEL = "/__all_pages_saved_v10";
 
-// EVERY non-AI page in the app → saved to phone automatically
 const ALL_PAGES = [
   "/", "/dashboard", "/login", "/signup",
-  "/todo", "/tasklog", "/myday", "/repeat",
+  "/todo", "/tasklog", "/myday", "/repeat", "/breakdown",
   "/study", "/studylog", "/daily-goals", "/study-tracker", "/focus", "/mind",
-  "/gym-log", "/workout", "/nutrition", "/calculator", "/running", "/progress",
+  "/gym-log", "/workout", "/nutrition", "/calculator", "/running", "/progress", "/move",
   "/routine-habits", "/habitslog", "/routines", "/freeze", "/quit", "/habit-stats", "/streaks", "/weekly",
   "/flashcards",
   "/talk", "/english", "/english-tips", "/speaking",
   "/leaderboard", "/feed", "/friends", "/profile", "/pricing", "/install", "/search",
+  "/ai", "/quiz", "/summarize", "/calorie", "/blueprint", "/exam", "/test",
 ];
 
-// Save all pages in gentle batches of 6 (background, invisible)
 async function saveAllPages() {
   const cache = await caches.open(CACHE_NAME);
-  for (let i = 0; i < ALL_PAGES.length; i += 6) {
-    const batch = ALL_PAGES.slice(i, i + 6);
+  for (let i = 0; i < ALL_PAGES.length; i += 8) {
+    const batch = ALL_PAGES.slice(i, i + 8);
     await Promise.all(batch.map(async (route) => {
       try {
-        if (await cache.match(route)) return;
+        const existing = await cache.match(route);
+        if (existing) return;
         const res = await fetch(route, { credentials: "same-origin" });
         if (!res.ok) return;
         const html = await res.clone().text();
@@ -37,7 +37,6 @@ async function saveAllPages() {
   await cache.put(SENTINEL, new Response("1"));
 }
 
-// Install = 3 tiny files → 3 seconds
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -63,7 +62,6 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
 
-  // 1) Supabase data: online = fresh, offline = last saved answer
   if (url.hostname.endsWith(".supabase.co")) {
     const authTail = (req.headers.get("authorization") || "").slice(-24);
     const key = url.href + "|auth:" + authTail;
@@ -81,12 +79,12 @@ self.addEventListener("fetch", (event) => {
 
   if (url.origin !== self.location.origin) return;
 
-  // 2) Pages: online = fresh + trigger the silent full-app save (once, background, never blocks the screen)
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req).then((res) => {
         const clone = res.clone();
         caches.open(CACHE_NAME).then((c) => c.put(req, clone)).catch(() => {});
+        // Run precrawl every page load if sentinel missing (catches failed batches)
         event.waitUntil((async () => {
           const done = await caches.match(SENTINEL);
           if (done) return;
@@ -98,7 +96,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 3) JS/CSS/images: saved copy first, else download + save
   event.respondWith(
     caches.match(req).then((hit) => hit || fetch(req).then((res) => {
       if (res && res.ok) {
@@ -110,14 +107,12 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// Offline edits auto-sync when internet returns
 self.addEventListener("sync", (event) => {
   if (event.tag === "sync-offline-changes") {
     event.waitUntil(self.clients.matchAll().then((cs) => cs.forEach((c) => c.postMessage({ type: "SYNC_OFFLINE" }))));
   }
 });
 
-// Notifications (untouched)
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
   event.waitUntil(self.registration.showNotification(data.title || "Daily Goal", {
