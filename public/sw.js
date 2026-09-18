@@ -1,47 +1,42 @@
-// DAILY GOAL service worker v5 — auto-precrawl core app for true offline
-const CACHE_NAME = "daily-goal-v5";
+// DAILY GOAL service worker v6 — precrawl + no-bounce offline navigation
+const CACHE_NAME = "daily-goal-v6";
 const API_CACHE = "daily-goal-api-v1";
 const PRECACHE = ["/", "/icon.svg", "/manifest.webmanifest"];
 
-// Core app routes precrawled automatically on first online open
 const CORE_ROUTES = [
   "/", "/dashboard", "/login", "/signup",
   "/todo", "/tasklog", "/myday", "/repeat",
-  "/study", "/studylog", "/daily-goals",
-  "/gym-log", "/workout", "/nutrition",
-  "/routine-habits", "/habitslog", "/routines", "/freeze", "/quit",
-  "/flashcards", "/streaks", "/habit-stats",
+  "/study", "/studylog", "/daily-goals", "/study-tracker",
+  "/gym-log", "/workout", "/nutrition", "/progress",
+  "/routine-habits", "/habitslog", "/routines", "/freeze", "/quit", "/habit-stats", "/streaks",
+  "/flashcards", "/talk", "/voice", "/english", "/speaking",
+  "/leaderboard", "/feed", "/profile", "/pricing",
 ];
 
+async function precrawl() {
+  const cache = await caches.open(CACHE_NAME);
+  await cache.addAll(PRECACHE).catch(() => {});
+  await Promise.all(CORE_ROUTES.map(async (route) => {
+    try {
+      const res = await fetch(route, { credentials: "same-origin" });
+      if (!res.ok) return;
+      const html = await res.clone().text();
+      await cache.put(route, res);
+      const chunkUrls = [...html.matchAll(/(?:src|href)="(\/_next\/static\/[^"]+)"/g)].map((m) => m[1]);
+      await Promise.all(chunkUrls.map((u) => fetch(u).then((r) => (r.ok ? cache.put(u, r) : null)).catch(() => {})));
+    } catch {}
+  }));
+}
+
 self.addEventListener("install", (event) => {
-  event.waitUntil((async () => {
-    const cache = await caches.open(CACHE_NAME);
-    await cache.addAll(PRECACHE).catch(() => {});
-
-    // 🕷 AUTO-PRECRAWL: fetch each core page + every JS/CSS chunk it references
-    await Promise.all(CORE_ROUTES.map(async (route) => {
-      try {
-        const res = await fetch(route, { credentials: "same-origin" });
-        if (!res.ok) return;
-        const clone = res.clone();
-        const html = await clone.text();
-        await cache.put(route, res);
-        const chunkUrls = [...html.matchAll(/(?:src|href)="(\/_next\/static\/[^"]+)"/g)].map((m) => m[1]);
-        await Promise.all(chunkUrls.map((u) =>
-          fetch(u).then((r) => (r.ok ? cache.put(u, r) : null)).catch(() => {})
-        ));
-      } catch {}
-    }));
-
-    self.skipWaiting();
-  })());
+  event.waitUntil(precrawl().then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => !k.startsWith("daily-goal-v5") && !k.startsWith("daily-goal-api")).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
+      Promise.all(keys.filter((k) => !k.startsWith("daily-goal-v6") && !k.startsWith("daily-goal-api")).map((k) => caches.delete(k)))
+    ).then(() => precrawl()).then(() => self.clients.claim())
   );
 });
 
@@ -78,7 +73,7 @@ self.addEventListener("fetch", (event) => {
 
   if (url.origin !== self.location.origin) return;
 
-  // 📄 PAGE LOADS: network-first → cached page → cached home shell → branded offline page
+  // 📄 PAGE LOADS: network-first → cached page → branded "not saved yet" page (NO bounce to home)
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req)
@@ -88,15 +83,13 @@ self.addEventListener("fetch", (event) => {
           return res;
         })
         .catch(() =>
-          caches.match(req).then(
-            (hit) => hit || caches.match("/").then((home) => home || new Response(offlineHTML(), { headers: { "Content-Type": "text/html" } }))
-          )
+          caches.match(req).then((hit) => hit || new Response(notSavedHTML(url.pathname), { headers: { "Content-Type": "text/html" }, status: 200 }))
         )
     );
     return;
   }
 
-  // 🖼 STATIC/CHUNKS: cache-first, then network (and remember)
+  // 🖼 STATIC/CHUNKS: cache-first, then network
   event.respondWith(
     caches.match(req).then((hit) => hit || fetch(req).then((res) => {
       if (res && res.ok) { const clone = res.clone(); caches.open(CACHE_NAME).then((c) => c.put(req, clone)).catch(() => {}); }
@@ -105,8 +98,8 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-function offlineHTML() {
-  return `<!doctype html><html><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#020617;color:#fff;font-family:sans-serif;text-align:center"><div><p style="font-size:44px;margin:0">📡</p><p style="font-size:18px;font-weight:800;margin:12px 0 4px">You're offline</p><p style="color:#94a3b8;font-size:13px;margin:0">Open Daily Goal once with internet to enable full offline mode.</p></div></body></html>`;
+function notSavedHTML(path) {
+  return `<!doctype html><html><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#020617;color:#fff;font-family:sans-serif;text-align:center;padding:24px"><div><p style="font-size:44px;margin:0">📦</p><p style="font-size:18px;font-weight:800;margin:12px 0 4px">This page isn't saved on your device yet</p><p style="color:#94a3b8;font-size:13px;margin:0 0 20px">Open <b>${path}</b> once with internet and it will work offline forever.</p><a href="/dashboard" style="display:inline-block;padding:12px 24px;border-radius:12px;background:#7c3aed;color:#fff;text-decoration:none;font-weight:800;font-size:14px">← Back to Dashboard</a></div></body></html>`;
 }
 
 self.addEventListener("sync", (event) => {
@@ -116,8 +109,8 @@ self.addEventListener("sync", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  const data = event.data ? event.data.json() : {};
-  event.waitUntil(self.registration.showNotification(data.title || "Daily Goal", { body: data.body || "New notification", icon: "/icon.svg", badge: "/icon.svg", data: data.url || "/" }));
+    const data = event.data ? event.data.json() : {};
+    event.waitUntil(self.registration.showNotification(data.title || "Daily Goal", { body: data.body || "New notification", icon: "/icon.svg", badge: "/icon.svg", data: data.url || "/" }));
 });
 
 self.addEventListener("notificationclick", (event) => {
