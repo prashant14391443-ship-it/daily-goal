@@ -5,87 +5,61 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-export default function Home() {
-  const router = useRouter();
-  const [checked, setChecked] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    const checkAuth = async () => {
-      try {
-        // 📴 OFFLINE FIX: Try Supabase auth with timeout, fallback to localStorage
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Auth timeout")), 2000)
-        );
-
-        const authPromise = supabase.auth.getSession();
-
-        try {
-          // Race: auth vs 2-second timeout
-          const { data } = await Promise.race([authPromise, timeoutPromise]) as any;
-          if (mounted) {
-            if (data.session) {
-              setIsLoggedIn(true);
-              router.replace("/dashboard");
-            } else {
-              setIsLoggedIn(false);
-              setChecked(true);
-            }
-          }
-        } catch {
-          // 📴 Timeout or error: check localStorage directly (offline mode)
-          if (mounted) {
-            const cachedSession = localStorage.getItem(`sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split("//")[1]?.split(".")[0]}-auth-token`);
-            if (cachedSession) {
-              try {
-                const parsed = JSON.parse(cachedSession);
-                if (parsed?.currentSession) {
-                  setIsLoggedIn(true);
-                  router.replace("/dashboard");
-                  return;
-                }
-              } catch {}
-            }
-            // No cached session: show landing page
-            setIsLoggedIn(false);
-            setChecked(true);
-          }
-        }
-      } catch (error) {
-        console.error("Auth check failed:", error);
-        if (mounted) {
-          setIsLoggedIn(false);
-          setChecked(true);
+// 📴 Synchronous cached-session check — works with ZERO network, zero waiting
+function hasCachedSession(): boolean {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("sb-") && k.endsWith("-auth-token")) {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const token = parsed?.access_token || parsed?.currentSession?.access_token;
+          if (token) return true;
         }
       }
-    };
+    }
+  } catch {}
+  return false;
+}
 
-    checkAuth();
+export default function Home() {
+  const router = useRouter();
+  // Decided SYNCHRONOUSLY during first render → SSR HTML is already the final UI
+  const [cached] = useState(() =>
+    typeof window !== "undefined" ? hasCachedSession() : false
+  );
 
+  useEffect(() => {
+    if (!cached) return;
+    let alive = true;
+    if (navigator.onLine) {
+      // Online: verify session is still valid, then go
+      supabase.auth
+        .getSession()
+        .then(({ data }) => {
+          if (alive && data.session) router.replace("/dashboard");
+        })
+        .catch(() => {});
+    } else {
+      // 📴 Offline: trust the cached session — dashboard will show cached data
+      router.replace("/dashboard");
+    }
     return () => {
-      mounted = false;
+      alive = false;
     };
-  }, [router]);
+  }, [cached, router]);
 
-  // Show loading only for a brief moment (max 3 seconds)
-  if (!checked)
+  // Logged-in: brief redirect notice (never an infinite gate)
+  if (cached) {
     return (
       <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-        <p className="text-slate-400 text-sm animate-pulse">🎯 Loading Daily Goal...</p>
-      </main>
-    );
-
-  // Logged in users get redirected, so this only shows for logged-out users
-  if (isLoggedIn) {
-    return (
-      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-        <p className="text-slate-400 text-sm">Redirecting...</p>
+        <p className="text-slate-400 text-sm animate-pulse">🎯 Opening your dashboard...</p>
       </main>
     );
   }
 
+  // Logged-out: landing page renders INSTANTLY (this exact HTML is what SSR sends)
   return (
     <main className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-8 p-8">
       <div className="text-center">
@@ -119,9 +93,7 @@ export default function Home() {
         </Link>
       </nav>
 
-      <div className="fixed bottom-8 text-xs text-slate-600">
-        Built with 💜 for students
-      </div>
+      <div className="fixed bottom-8 text-xs text-slate-600">Built with 💜 for students</div>
     </main>
   );
 }

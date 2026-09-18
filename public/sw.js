@@ -1,5 +1,5 @@
 // DAILY GOAL service worker v3 — offline pages + offline READS + notifications
-const CACHE_NAME = "daily-goal-v3";
+const CACHE_NAME = "daily-goal-v4";
 const API_CACHE = "daily-goal-api-v1";
 const PRECACHE = ["/", "/icon.svg", "/manifest.webmanifest"];
 
