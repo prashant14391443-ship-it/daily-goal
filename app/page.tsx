@@ -8,25 +8,83 @@ import { supabase } from "@/lib/supabase";
 export default function Home() {
   const router = useRouter();
   const [checked, setChecked] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    const check = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        router.replace("/dashboard");
-      } else {
-        setChecked(true);
+    let mounted = true;
+
+    const checkAuth = async () => {
+      try {
+        // 📴 OFFLINE FIX: Try Supabase auth with timeout, fallback to localStorage
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Auth timeout")), 2000)
+        );
+
+        const authPromise = supabase.auth.getSession();
+
+        try {
+          // Race: auth vs 2-second timeout
+          const { data } = await Promise.race([authPromise, timeoutPromise]) as any;
+          if (mounted) {
+            if (data.session) {
+              setIsLoggedIn(true);
+              router.replace("/dashboard");
+            } else {
+              setIsLoggedIn(false);
+              setChecked(true);
+            }
+          }
+        } catch {
+          // 📴 Timeout or error: check localStorage directly (offline mode)
+          if (mounted) {
+            const cachedSession = localStorage.getItem(`sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split("//")[1]?.split(".")[0]}-auth-token`);
+            if (cachedSession) {
+              try {
+                const parsed = JSON.parse(cachedSession);
+                if (parsed?.currentSession) {
+                  setIsLoggedIn(true);
+                  router.replace("/dashboard");
+                  return;
+                }
+              } catch {}
+            }
+            // No cached session: show landing page
+            setIsLoggedIn(false);
+            setChecked(true);
+          }
+        }
+      } catch (error) {
+        console.error("Auth check failed:", error);
+        if (mounted) {
+          setIsLoggedIn(false);
+          setChecked(true);
+        }
       }
     };
-    check();
+
+    checkAuth();
+
+    return () => {
+      mounted = false;
+    };
   }, [router]);
 
+  // Show loading only for a brief moment (max 3 seconds)
   if (!checked)
     return (
       <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
         <p className="text-slate-400 text-sm animate-pulse">🎯 Loading Daily Goal...</p>
       </main>
     );
+
+  // Logged in users get redirected, so this only shows for logged-out users
+  if (isLoggedIn) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
+        <p className="text-slate-400 text-sm">Redirecting...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-8 p-8">
