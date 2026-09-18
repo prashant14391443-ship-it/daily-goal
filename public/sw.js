@@ -1,97 +1,98 @@
-// DAILY GOAL service worker - notifications + offline caching
-const CACHE_NAME = "daily-goal-v1";
-const STATIC_ASSETS = [
-  "/",
-  "/dashboard",
-  "/todo",
-  "/gym-log",
-  "/routine-habits",
-  "/icon.svg",
-  "/manifest.webmanifest",
-];
+// DAILY GOAL service worker v3 — offline pages + offline READS + notifications
+const CACHE_NAME = "daily-goal-v3";
+const API_CACHE = "daily-goal-api-v1";
+const PRECACHE = ["/", "/icon.svg", "/manifest.webmanifest"];
 
-// Install: cache static assets + skip waiting
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
+    caches.open(CACHE_NAME).then((c) => c.addAll(PRECACHE).catch(() => {})).then(() => self.skipWaiting())
   );
-  self.skipWaiting();
 });
 
-// Activate: clean old caches + claim clients
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    caches.keys().then((keys) => Promise.all(keys.filter((k) => !k.startsWith("daily-goal-v3") && !k.startsWith("daily-goal-api")).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch: network-first for API, cache-first for assets
+// Clear private API cache when user signs out (app sends this message)
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "CLEAR_API_CACHE") caches.delete(API_CACHE);
+});
+
 self.addEventListener("fetch", (event) => {
-  const url = new URL(event.request.url);
-  
-  // API calls: network first, fallback to cached response
-  if (url.pathname.startsWith("/api/")) {
+  const req = event.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+
+  // 📥 SUPABASE READS: network-first, remember answer, replay when offline
+  if (url.hostname.endsWith(".supabase.co")) {
+    const authTail = (req.headers.get("authorization") || "").slice(-24);
+    const cacheKey = url.href + "|auth:" + authTail; // per-user key = no data leaks
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          return response;
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(API_CACHE).then(async (c) => {
+              await c.put(cacheKey, clone).catch(() => {});
+              const keys = await c.keys();
+              if (keys.length > 150) await c.delete(keys[0]); // keep cache small
+            }).catch(() => {});
+          }
+          return res;
         })
-        .catch(() => caches.match(event.request))
+        .catch(() => caches.match(cacheKey).then((hit) => hit || Response.error()))
     );
     return;
   }
 
-  // Static assets: cache first, fallback to network
+  if (url.origin !== self.location.origin) return; // LiveKit etc. go direct
+
+  // 📄 PAGE LOADS: network first → cache → branded offline page
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((c) => c.put(req, clone)).catch(() => {});
+          return res;
+        })
+        .catch(() => caches.match(req).then((hit) => hit || caches.match("/").then((home) => home || new Response(offlineHTML(), { headers: { "Content-Type": "text/html" } }))))
+    );
+    return;
+  }
+
+  // 🖼 STATIC FILES: cache first
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    caches.match(req).then((hit) => hit || fetch(req).then((res) => {
+      if (res && res.ok) { const clone = res.clone(); caches.open(CACHE_NAME).then((c) => c.put(req, clone)).catch(() => {}); }
+      return res;
+    }))
   );
 });
 
-// Background sync: queue offline changes
+function offlineHTML() {
+  return `<!doctype html><html><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#020617;color:#fff;font-family:sans-serif;text-align:center"><div><p style="font-size:44px;margin:0">📡</p><p style="font-size:18px;font-weight:800;margin:12px 0 4px">You're offline</p><p style="color:#94a3b8;font-size:13px;margin:0">Reconnect to sync — your saved data is safe.</p></div></body></html>`;
+}
+
 self.addEventListener("sync", (event) => {
   if (event.tag === "sync-offline-changes") {
-    event.waitUntil(syncOfflineChanges());
+    event.waitUntil(self.clients.matchAll().then((cs) => cs.forEach((c) => c.postMessage({ type: "SYNC_OFFLINE" }))));
   }
 });
 
-async function syncOfflineChanges() {
-  const clients = await self.clients.matchAll();
-  clients.forEach((client) => {
-    client.postMessage({ type: "SYNC_OFFLINE" });
-  });
-}
-
-// Push notifications (keeps your existing functionality)
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
-  const title = data.title || "Daily Goal";
-  const options = {
-    body: data.body || "You have a new notification",
-    icon: "/icon.svg",
-    badge: "/icon.svg",
-    data: data.url || "/",
-  };
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(self.registration.showNotification(data.title || "Daily Goal", { body: data.body || "New notification", icon: "/icon.svg", badge: "/icon.svg", data: data.url || "/" }));
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data || "/";
-  event.waitUntil(
-    clients.matchAll({ type: "window" }).then((list) => {
-      for (const client of list) {
-        if (client.url.includes(url) && "focus" in client) {
-          return client.focus();
-        }
-      }
-      if (clients.openWindow) {
-        return clients.openWindow(url);
-      }
-    })
-  );
+  const target = event.notification.data || "/";
+  event.waitUntil(clients.matchAll({ type: "window" }).then((list) => {
+    for (const c of list) if (c.url.includes(target) && "focus" in c) return c.focus();
+    if (clients.openWindow) return clients.openWindow(target);
+  }));
 });

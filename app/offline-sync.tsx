@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getOfflineChanges, clearOfflineChanges } from "@/lib/offlineDB";
@@ -9,46 +8,41 @@ export default function OfflineSync() {
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    const sync = async () => {
+    // Wipe cached private data on sign-out (shared-phone safety)
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT" && navigator.serviceWorker?.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: "CLEAR_API_CACHE" });
+      }
+      if (event === "SIGNED_IN") sync();
+    });
+
+    async function sync() {
       if (!navigator.onLine) return;
-      
       const changes = await getOfflineChanges();
       if (changes.length === 0) return;
-
       setSyncing(true);
-      const syncedIds: string[] = [];
-
-      for (const change of changes) {
+      const done: string[] = [];
+      for (const ch of changes) {
         try {
-          if (change.action === "insert") {
-            await supabase.from(change.table).insert(change.data);
-          } else if (change.action === "update") {
-            await supabase.from(change.table).update(change.data).eq("id", change.data.id);
-          } else if (change.action === "delete") {
-            await supabase.from(change.table).delete().eq("id", change.data.id);
-          }
-          syncedIds.push(change.id);
-        } catch (e) {
-          console.error("Sync failed for:", change, e);
-        }
+          if (ch.action === "insert") await supabase.from(ch.table).insert(ch.data);
+          else if (ch.action === "update") await supabase.from(ch.table).update(ch.data).eq("id", ch.data.id);
+          else if (ch.action === "delete") await supabase.from(ch.table).delete().eq("id", ch.data.id);
+          done.push(ch.id);
+        } catch {}
       }
-
-      if (syncedIds.length > 0) {
-        await clearOfflineChanges(syncedIds);
-      }
+      if (done.length) await clearOfflineChanges(done);
       setSyncing(false);
-    };
+    }
 
     sync();
     window.addEventListener("online", sync);
-    return () => window.removeEventListener("online", sync);
+    return () => { window.removeEventListener("online", sync); sub.subscription.unsubscribe(); };
   }, []);
 
   if (!syncing) return null;
   return (
     <div className="fixed bottom-20 right-4 z-[200] bg-blue-600 text-white text-xs font-bold px-3 py-2 rounded-full shadow-lg flex items-center gap-2">
-      <Loader2 size={14} className="animate-spin" />
-      Syncing offline changes...
+      <Loader2 size={14} className="animate-spin" /> Syncing…
     </div>
   );
 }
