@@ -7,6 +7,7 @@ import CountdownChip from "@/app/components/CountdownChip";
 import TopBar from "./TopBar";
 import ScrollMemory from "./ScrollMemory";
 import AiGuard from "@/app/components/AiGuard";
+
 export const metadata: Metadata = {
   title: "DAILY GOAL",
   description: "Your productivity dashboard for study, gym and habits.",
@@ -64,6 +65,7 @@ export default function RootLayout({
         <OfflineBanner />
         <CountdownChip />
         <TopBar />
+        <AiGuard />
         {children}
         <BottomNav />
         <CoinPop />

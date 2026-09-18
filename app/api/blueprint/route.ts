@@ -70,7 +70,7 @@ EXACT macros → calories:${b.calories} protein:${b.protein}g carbs:${b.carbs}g 
       for (const m of GROQ_MODELS) { try { return parseJson(await groq(prompt, m)); } catch (e) { last = String(e); } }
       for (const m of GEMINI_MODELS) { try { return parseJson(await gemini(prompt, m)); } catch (e) { last = String(e); } }
       throw new Error("AI failed: " + last);
-    }, 168); // Cache for 1 week (168 hours)
+    }, 720); // Cache for 1 week (168 hours)
 
     return NextResponse.json(result);
   } catch (e: any) {

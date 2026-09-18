@@ -462,7 +462,7 @@ TALK LIKE A REAL HUMAN:
             if (reply) {
               if (mode !== "action") {
                 const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
-                await setCached(cacheKey, reply, 3600);
+                await setCached(cacheKey, reply, 2592000);
               }
               return NextResponse.json({ reply, engine: model });
             }
@@ -504,7 +504,7 @@ TALK LIKE A REAL HUMAN:
             if (reply) {
               if (mode !== "action") {
                 const cacheKey = `ai:${mode}:${(topic || "none").slice(0, 40)}:${context.slice(0, 150)}:${message.slice(0, 100)}`;
-                await setCached(cacheKey, reply, 3600);
+                await setCached(cacheKey, reply, 2592000);
               }
               return NextResponse.json({ reply, engine: model });
             }

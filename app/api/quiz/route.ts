@@ -54,7 +54,16 @@ export async function POST(req: Request) {
         { auth: { persistSession: false } }
       );
       const { data } = await supabase.auth.getUser(jwt);
-      if (data.user) userId = data.user.id;
+      if (data.user) {
+        userId = data.user.id;
+        // 🔒 OPTION A — GUEST WALL: heavy AI needs a free real account
+        if (data.user.is_anonymous) {
+          return NextResponse.json(
+            { error: "🔒 Guest preview is for exploring only — sign up free (10 seconds) to unlock this AI feature!" },
+            { status: 403 }
+          );
+        }
+      }
     }
 
     const body = await req.json();

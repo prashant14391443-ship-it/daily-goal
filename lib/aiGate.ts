@@ -65,7 +65,7 @@ export async function aiGate(userId: string, feature: string, weight = 1): Promi
 }
 
 /** Cache identical AI answers → repeated questions cost ZERO tokens. */
-export async function cachedAi<T>(key: string, fn: () => Promise<T>, ttlHours = 24): Promise<T> {
+export async function cachedAi<T>(key: string, fn: () => Promise<T>, ttlHours = 720): Promise<T> {
   const { data } = await supabase.from("ai_cache").select("value,created_at").eq("key", key).maybeSingle();
   if (data && Date.now() - new Date(data.created_at).getTime() < ttlHours * 3600e3)
     return JSON.parse(data.value) as T;
