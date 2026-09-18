@@ -3,12 +3,19 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-// Features that physically need internet (AI / realtime / calls)
+// Pages that physically need internet (AI / realtime / calls / GPS-upload)
 const ONLINE_ONLY = [
   "/english", "/talk", "/speaking", "/evaluate", "/random-talk", "/call",
   "/feed", "/friends", "/inbox", "/chat", "/newpost",
   "/calorie", "/blueprint", "/coach", "/quiz", "/summarize", "/ai-summary",
-  "/exam", "/test", "/learn", "/vocab", "/tips", "/mind", "/focus",
+  "/exam", "/test", "/learn", "/learns", "/vocab", "/move",
+];
+
+// AI API routes that need internet
+const AI_API = [
+  "/api/ai", "/api/quiz", "/api/calorie", "/api/blueprint", "/api/coach",
+  "/api/summarize", "/api/ai-summary", "/api/learn", "/api/breakdown", "/api/vocab",
+  "/api/test/start", "/api/test/topup",
 ];
 
 export default function AiGuard() {
@@ -23,6 +30,7 @@ export default function AiGuard() {
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => setToast(""), 2600);
     };
+    const offlineMsg = "📡 You're offline — this feature needs internet.";
 
     const load = async () => {
       const { data } = await supabase.auth.getSession();
@@ -33,10 +41,23 @@ export default function AiGuard() {
       token = session?.access_token || "";
     });
 
-    // 1️⃣ Auto-attach auth header to our API calls
+    const isOnlineOnlyPath = (p: string) =>
+      ONLINE_ONLY.some((x) => p === x || p.startsWith(x + "/") || p.startsWith(x + "?"));
+
+    // 1️⃣ Fetch patch: auth header + block AI APIs offline + limit alerts
     const orig = window.fetch;
     window.fetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+
+      // Offline + AI API → friendly toast, don't even try network
+      if (!navigator.onLine && AI_API.some((p) => url.includes(p))) {
+        show(offlineMsg);
+        return new Response(JSON.stringify({ error: "offline" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
       const isOwnApi = url.startsWith("/api/") || url.includes(window.location.origin + "/api/");
       if (isOwnApi && token) {
         const headers = new Headers(init.headers);
@@ -57,23 +78,37 @@ export default function AiGuard() {
       return res;
     };
 
-    // 2️⃣ Offline guard: block internet-only pages with a friendly toast (no bounce)
+    // 2️⃣ Block LINK taps to internet-only pages while offline
     const onClick = (e: MouseEvent) => {
       if (navigator.onLine) return;
       const a = (e.target as HTMLElement).closest?.("a[href]") as HTMLAnchorElement | null;
       if (!a) return;
       const href = a.getAttribute("href") || "";
-      if (ONLINE_ONLY.some((p) => href === p || href.startsWith(p + "/") || href.startsWith(p + "?"))) {
+      if (isOnlineOnlyPath(href)) {
         e.preventDefault();
         e.stopPropagation();
-        show("📡 You're offline — this feature needs internet. Everything else works!");
+        show(offlineMsg);
       }
     };
     document.addEventListener("click", onClick, true);
 
+    // 3️⃣ Block programmatic navigation (router.push) to internet-only pages while offline
+    const origPush = history.pushState.bind(history);
+    const origReplace = history.replaceState.bind(history);
+    history.pushState = (state: any, unused: any, url?: string | URL | null) => {
+      if (!navigator.onLine && url && isOnlineOnlyPath(String(url))) { show(offlineMsg); return; }
+      return origPush(state, unused, url);
+    };
+    history.replaceState = (state: any, unused: any, url?: string | URL | null) => {
+      if (!navigator.onLine && url && isOnlineOnlyPath(String(url))) { show(offlineMsg); return; }
+      return origReplace(state, unused, url);
+    };
+
     return () => {
       window.fetch = orig;
       document.removeEventListener("click", onClick, true);
+      history.pushState = origPush;
+      history.replaceState = origReplace;
       sub.subscription.unsubscribe();
       clearTimeout(toastTimer);
     };

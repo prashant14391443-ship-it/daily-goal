@@ -9,6 +9,7 @@ function tempId(): string {
   try { return crypto.randomUUID(); } catch { return `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`; }
 }
 
+// Save a local mirror copy so pages can READ data while offline
 export async function mirrorUpsert(table: string, row: any) {
   const list = (await getCachedData<any[]>(`table:${table}`)) || [];
   const i = list.findIndex((r) => r.id === row.id);
@@ -25,6 +26,8 @@ export async function mirrorRemove(table: string, id: string) {
 export async function mirrorList(table: string): Promise<any[]> {
   return (await getCachedData<any[]>(`table:${table}`)) || [];
 }
+
+// ── WRITE HELPERS (online = server first; offline = save on phone + queue for sync) ──
 
 export async function dbInsert(table: string, row: any): Promise<{ ok: boolean; offline: boolean; id: string }> {
   const id = row.id || tempId();
@@ -67,7 +70,22 @@ export async function dbDelete(table: string, id: string): Promise<{ ok: boolean
   return { ok: true, offline: true };
 }
 
-// v3: MERGE into mirror (so tasklog + myday + repeat can share the tasks table offline)
+// Upsert by natural key (tables like user_goals keyed by user_id, not id)
+export async function dbUpsertBy(table: string, row: any): Promise<{ ok: boolean; offline: boolean }> {
+  if (isOnline()) {
+    const { error } = await supabase.from(table).upsert(row);
+    if (!error) {
+      await mirrorUpsert(table, row);
+      return { ok: true, offline: false };
+    }
+  }
+  await mirrorUpsert(table, { ...row, _pending: true });
+  await queueChange({ table, action: "upsert", data: row });
+  return { ok: true, offline: true };
+}
+
+// ── READ HELPER: online = fresh from server (and mirror it); offline = local mirror ──
+// fromCache is ALWAYS false → silent offline mode (no amber chips on any page)
 export async function dbLoad(
   table: string,
   buildQuery: (q: any) => any,
@@ -86,18 +104,5 @@ export async function dbLoad(
     } catch {}
   }
   const rows = await mirrorList(table);
-  return { rows: match ? rows.filter(match) : rows, fromCache: !isOnline() };
-}
-// Upsert by natural key (tables like user_goals keyed by user_id, not id)
-export async function dbUpsertBy(table: string, row: any): Promise<{ ok: boolean; offline: boolean }> {
-  if (isOnline()) {
-    const { error } = await supabase.from(table).upsert(row);
-    if (!error) {
-      await mirrorUpsert(table, row);
-      return { ok: true, offline: false };
-    }
-  }
-  await mirrorUpsert(table, { ...row, _pending: true });
-  await queueChange({ table, action: "upsert", data: row });
-  return { ok: true, offline: true };
+  return { rows: match ? rows.filter(match) : rows, fromCache: false };
 }

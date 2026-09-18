@@ -62,7 +62,6 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="h-full antialiased pb-20 md:pb-0 bg-slate-950">
-        
         <CountdownChip />
         <TopBar />
         <AiGuard />
