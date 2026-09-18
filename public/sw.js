@@ -1,8 +1,43 @@
-// DAILY GOAL service worker — SIMPLE & FAST (final)
-const CACHE_NAME = "daily-goal-v8";
+// DAILY GOAL service worker v9 — FINAL: fast install + silent full-app save after first login
+const CACHE_NAME = "daily-goal-v9";
 const API_CACHE = "daily-goal-api-v1";
+const SENTINEL = "/__all_pages_saved_v9";
 
-// Install = 3 tiny files only → 3 seconds, like before
+// EVERY non-AI page in the app → saved to phone automatically
+const ALL_PAGES = [
+  "/", "/dashboard", "/login", "/signup",
+  "/todo", "/tasklog", "/myday", "/repeat",
+  "/study", "/studylog", "/daily-goals", "/study-tracker", "/focus", "/mind",
+  "/gym-log", "/workout", "/nutrition", "/calculator", "/running", "/progress",
+  "/routine-habits", "/habitslog", "/routines", "/freeze", "/quit", "/habit-stats", "/streaks", "/weekly",
+  "/flashcards",
+  "/talk", "/english", "/english-tips", "/speaking",
+  "/leaderboard", "/feed", "/friends", "/profile", "/pricing", "/install", "/search",
+];
+
+// Save all pages in gentle batches of 6 (background, invisible)
+async function saveAllPages() {
+  const cache = await caches.open(CACHE_NAME);
+  for (let i = 0; i < ALL_PAGES.length; i += 6) {
+    const batch = ALL_PAGES.slice(i, i + 6);
+    await Promise.all(batch.map(async (route) => {
+      try {
+        if (await cache.match(route)) return;
+        const res = await fetch(route, { credentials: "same-origin" });
+        if (!res.ok) return;
+        const html = await res.clone().text();
+        await cache.put(route, res);
+        const chunks = [...html.matchAll(/(?:src|href)="(\/_next\/static\/[^"]+)"/g)].map((m) => m[1]);
+        await Promise.all(chunks.map((u) =>
+          cache.match(u).then((h) => (h ? null : fetch(u).then((r) => (r.ok ? cache.put(u, r) : null)))).catch(() => {})
+        ));
+      } catch {}
+    }));
+  }
+  await cache.put(SENTINEL, new Response("1"));
+}
+
+// Install = 3 tiny files → 3 seconds
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -11,7 +46,6 @@ self.addEventListener("install", (event) => {
   );
 });
 
-// Activate = delete old caches, take control
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -47,19 +81,24 @@ self.addEventListener("fetch", (event) => {
 
   if (url.origin !== self.location.origin) return;
 
-  // 2) Pages: online = fresh (and saved), offline = saved copy
+  // 2) Pages: online = fresh + trigger the silent full-app save (once, background, never blocks the screen)
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req).then((res) => {
         const clone = res.clone();
         caches.open(CACHE_NAME).then((c) => c.put(req, clone)).catch(() => {});
+        event.waitUntil((async () => {
+          const done = await caches.match(SENTINEL);
+          if (done) return;
+          await saveAllPages();
+        })());
         return res;
       }).catch(() => caches.match(req).then((hit) => hit || caches.match("/")))
     );
     return;
   }
 
-  // 3) JS/CSS/images: saved copy first, else download and save
+  // 3) JS/CSS/images: saved copy first, else download + save
   event.respondWith(
     caches.match(req).then((hit) => hit || fetch(req).then((res) => {
       if (res && res.ok) {
@@ -78,7 +117,7 @@ self.addEventListener("sync", (event) => {
   }
 });
 
-// Notifications (your existing feature, untouched)
+// Notifications (untouched)
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
   event.waitUntil(self.registration.showNotification(data.title || "Daily Goal", {
