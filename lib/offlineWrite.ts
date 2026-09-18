@@ -86,7 +86,7 @@ export async function dbLoad(
     } catch {}
   }
   const rows = await mirrorList(table);
-  return { rows: match ? rows.filter(match) : rows, fromCache: true };
+  return { rows: match ? rows.filter(match) : rows, fromCache: !isOnline() };
 }
 // Upsert by natural key (tables like user_goals keyed by user_id, not id)
 export async function dbUpsertBy(table: string, row: any): Promise<{ ok: boolean; offline: boolean }> {

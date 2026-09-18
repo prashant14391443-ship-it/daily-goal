@@ -5,10 +5,11 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
 import Link from "next/link";
-import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass, Sparkle, Lightbulb, Volume2, Check, RefreshCw, Footprints, GraduationCap, ArrowRight, Code2 } from "lucide-react";
+import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass, Sparkle, Lightbulb, Volume2, Check, RefreshCw, Footprints, GraduationCap, ArrowRight, Code2, WifiOff } from "lucide-react";
 import { TIPS, categoryIcons, categoryColors, localISO, dayNum } from "@/app/components/tipsData";
 import CoinPill from "@/app/CoinPill";
 import DraggableAIBubble from "@/app/components/DraggableAIBubble";
+import { dbLoad, dbInsert, dbUpdate, dbDelete, dbUpsertBy } from "@/lib/offlineWrite";
 
 import { cleanupOldGuest } from "@/lib/guest";
 
@@ -119,6 +120,7 @@ export default function Dashboard() {
   const [cdTitle, setCdTitle] = useState("");
   const [cdDate, setCdDate] = useState("");
   const [cdEmoji, setCdEmoji] = useState("📚");
+  const [fromCache, setFromCache] = useState(false);
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
@@ -128,7 +130,6 @@ export default function Dashboard() {
   const [tipStreak, setTipStreak] = useState(0);
   const [tipWeek, setTipWeek] = useState<{ done: boolean }[]>([]);
 
-  // Weekly summary badges
   const [weekRunKm, setWeekRunKm] = useState(0);
   const [weekAvgCal, setWeekAvgCal] = useState(0);
   const [weekLearnItems, setWeekLearnItems] = useState(0);
@@ -176,14 +177,15 @@ export default function Dashboard() {
     setTipWeek((w) => w.map((d, i) => (i === w.length - 1 ? { done: true } : d)));
   };
 
+  // 📴 Move streak (offline-capable)
   useEffect(() => {
     const loadMove = async () => {
       const { data } = await supabase.auth.getSession();
       const uid = data.session?.user.id;
       if (!uid) return;
-      const { data: rows } = await supabase.from("gym_logs").select("session_date").eq("user_id", uid).eq("completed", true).not("activity_type", "is", null);
+      const { rows } = await dbLoad("gym_logs", (q) => q.eq("user_id", uid).eq("completed", true).not("activity_type", "is", null), (r) => r.user_id === uid && r.completed === true && r.activity_type != null);
       if (!rows || rows.length === 0) return;
-      const days = [...new Set(rows.map((r) => r.session_date))];
+      const days = [...new Set(rows.map((r: any) => r.session_date))];
       const isDay = (d: Date) => days.includes(toLocalISO(d));
       let streak = 0; const cursor = new Date();
       if (!isDay(cursor)) cursor.setDate(cursor.getDate() - 1);
@@ -193,16 +195,15 @@ export default function Dashboard() {
     loadMove();
   }, []);
 
+  // 📴 English streak (offline-capable)
   useEffect(() => {
     const loadEn = async () => {
       const { data } = await supabase.auth.getSession();
       const uid = data.session?.user.id;
       if (!uid) return;
-      const EN_TABLE = "english_logs";
-      const EN_DATE = "session_date";
-      const { data: rows } = await supabase.from(EN_TABLE).select(EN_DATE).eq("user_id", uid);
+      const { rows } = await dbLoad("english_logs", (q) => q.eq("user_id", uid), (r) => r.user_id === uid);
       if (!rows || rows.length === 0) return;
-      const days = new Set(rows.map((r: any) => r[EN_DATE]));
+      const days = new Set(rows.map((r: any) => r.session_date));
       const isDay = (d: Date) => days.has(toLocalISO(d));
       let streak = 0; const cursor = new Date();
       if (!isDay(cursor)) cursor.setDate(cursor.getDate() - 1);
@@ -221,60 +222,63 @@ export default function Dashboard() {
     const name = (meta.display_name || (data.session?.user.email || "friend").split("@")[0]);
     const nameCap = name.charAt(0).toUpperCase() + name.slice(1);
     const weekStart = addDays(today, -6);
+
+    // 📴 All 20 reads → dbLoad (mirror-aware, works offline)
     const [study, studyW, gym, gymW, habits, habitLogs, tasksRes, goalsRes, cdRes, todoRes, studyDoneRes, gymDoneRes, todoDoneRes, todoWeekRes, runRes, nutritionRes, summariesRes, cardsRes, learnRes, learnLogsRes] = await Promise.all([
-      supabase.from("study_sessions").select("duration_minutes").eq("user_id", userId).eq("session_date", today).eq("completed", true),
-      supabase.from("study_sessions").select("duration_minutes, session_date").eq("user_id", userId).gte("session_date", weekStart),
-      supabase.from("gym_logs").select("id").eq("user_id", userId).eq("session_date", today).eq("completed", true),
-      supabase.from("gym_logs").select("duration_minutes, session_date").eq("user_id", userId).gte("session_date", weekStart),
-      supabase.from("habits").select("id, habit_name").eq("user_id", userId),
-      supabase.from("habit_logs").select("habit_id, log_date").eq("user_id", uidSafe(userId)).eq("completed", true),
-      supabase.from("tasks").select("*").eq("user_id", userId).eq("category", "general").eq("task_date", today).order("created_at"),
-      supabase.from("user_goals").select("*").eq("user_id", userId).maybeSingle(),
-      supabase.from("countdowns").select("*").eq("user_id", userId).order("target_date"),
-      supabase.from("tasks").select("id, completed").eq("user_id", userId).eq("category", "todo").eq("task_date", today),
-      supabase.from("study_sessions").select("session_date").eq("user_id", userId).eq("completed", true),
-      supabase.from("gym_logs").select("session_date").eq("user_id", userId).eq("completed", true),
-      supabase.from("tasks").select("task_date").eq("user_id", userId).eq("category", "todo").eq("completed", true),
-      supabase.from("tasks").select("task_date, completed").eq("user_id", userId).eq("category", "todo").gte("task_date", weekStart),
-      supabase.from("gym_logs").select("distance_km").eq("user_id", userId).gte("session_date", weekStart).not("activity_type", "is", null),
-      supabase.from("nutrition_logs").select("log_date, calories").eq("user_id", userId).gte("log_date", weekStart),
-      supabase.from("summaries").select("created_at").eq("user_id", userId).gte("created_at", weekStart),
-      supabase.from("flashcards").select("created_at").eq("user_id", userId).gte("created_at", weekStart),
-      supabase.from("learning_progress").select("done_resources, watch_seconds, quiz_best, status").eq("user_id", userId),
-      supabase.from("daily_study_log").select("day, video_seconds, actions").eq("user_id", userId).order("day", { ascending: false }).limit(400),
+      dbLoad("study_sessions", (q) => q.eq("user_id", userId).eq("session_date", today).eq("completed", true), (r) => r.user_id === userId && r.session_date === today && r.completed === true),
+      dbLoad("study_sessions", (q) => q.eq("user_id", userId).gte("session_date", weekStart), (r) => r.user_id === userId && r.session_date >= weekStart),
+      dbLoad("gym_logs", (q) => q.eq("user_id", userId).eq("session_date", today).eq("completed", true), (r) => r.user_id === userId && r.session_date === today && r.completed === true),
+      dbLoad("gym_logs", (q) => q.eq("user_id", userId).gte("session_date", weekStart), (r) => r.user_id === userId && r.session_date >= weekStart),
+      dbLoad("habits", (q) => q.eq("user_id", userId), (r) => r.user_id === userId),
+      dbLoad("habit_logs", (q) => q.eq("user_id", userId).eq("completed", true), (r) => r.user_id === userId && r.completed === true),
+      dbLoad("tasks", (q) => q.eq("user_id", userId).eq("category", "general").eq("task_date", today).order("created_at"), (r) => r.user_id === userId && r.category === "general" && r.task_date === today),
+      dbLoad("user_goals", (q) => q.eq("user_id", userId), (r) => r.user_id === userId),
+      dbLoad("countdowns", (q) => q.eq("user_id", userId).order("target_date"), (r) => r.user_id === userId),
+      dbLoad("tasks", (q) => q.eq("user_id", userId).eq("category", "todo").eq("task_date", today), (r) => r.user_id === userId && r.category === "todo" && r.task_date === today),
+      dbLoad("study_sessions", (q) => q.eq("user_id", userId).eq("completed", true), (r) => r.user_id === userId && r.completed === true),
+      dbLoad("gym_logs", (q) => q.eq("user_id", userId).eq("completed", true), (r) => r.user_id === userId && r.completed === true),
+      dbLoad("tasks", (q) => q.eq("user_id", userId).eq("category", "todo").eq("completed", true), (r) => r.user_id === userId && r.category === "todo" && r.completed === true),
+      dbLoad("tasks", (q) => q.eq("user_id", userId).eq("category", "todo").gte("task_date", weekStart), (r) => r.user_id === userId && r.category === "todo" && r.task_date >= weekStart),
+      dbLoad("gym_logs", (q) => q.eq("user_id", userId).gte("session_date", weekStart).not("activity_type", "is", null), (r) => r.user_id === userId && r.session_date >= weekStart && r.activity_type != null),
+      dbLoad("nutrition_logs", (q) => q.eq("user_id", userId).gte("log_date", weekStart), (r) => r.user_id === userId && r.log_date >= weekStart),
+      dbLoad("summaries", (q) => q.eq("user_id", userId).gte("created_at", weekStart), (r) => r.user_id === userId && (r.created_at || "") >= weekStart),
+      dbLoad("flashcards", (q) => q.eq("user_id", userId).gte("created_at", weekStart), (r) => r.user_id === userId && (r.created_at || "") >= weekStart),
+      dbLoad("learning_progress", (q) => q.eq("user_id", userId), (r) => r.user_id === userId),
+      dbLoad("daily_study_log", (q) => q.eq("user_id", userId).order("day", { ascending: false }).limit(400), (r) => r.user_id === userId),
     ]);
 
-    const studyMin = (study.data || []).reduce((s, r) => s + r.duration_minutes, 0);
-    const wk = (gym.data || []).length;
-    const gObj: Goals = goalsRes.data ? { study_target: goalsRes.data.study_target, workout_target: goalsRes.data.workout_target, habits_target: goalsRes.data.habits_target } : goals;
-    const hd = new Set((habitLogs.data || []).filter((l) => l.log_date === today).map((l) => l.habit_id)).size;
-    const todoRows = todoRes.data || [];
-    const tt = todoRows.length; const td = todoRows.filter((t) => t.completed).length;
-    const studyDates = new Set((studyDoneRes.data || []).map((r) => r.session_date));
-    const gymDates = new Set((gymDoneRes.data || []).map((r) => r.session_date));
-    const todoDates = new Set((todoDoneRes.data || []).map((r) => r.task_date));
+    setFromCache(study.fromCache || tasksRes.fromCache || habits.fromCache);
+
+    const studyMin = (study.rows || []).reduce((s: number, r: any) => s + r.duration_minutes, 0);
+    const wk = (gym.rows || []).length;
+    const gRow = (goalsRes.rows || [])[0];
+    const gObj: Goals = gRow ? { study_target: gRow.study_target, workout_target: gRow.workout_target, habits_target: gRow.habits_target } : goals;
+    const hd = new Set((habitLogs.rows || []).filter((l: any) => l.log_date === today).map((l: any) => l.habit_id)).size;
+    const todoRows = todoRes.rows || [];
+    const tt = todoRows.length; const td = todoRows.filter((t: any) => t.completed).length;
+    const studyDates = new Set((studyDoneRes.rows || []).map((r: any) => r.session_date));
+    const gymDates = new Set((gymDoneRes.rows || []).map((r: any) => r.session_date));
+    const todoDates = new Set((todoDoneRes.rows || []).map((r: any) => r.task_date));
     const sStreak = calcStreak(studyDates, today); const gStreak = calcStreak(gymDates, today); const tStreak = calcStreak(todoDates, today);
     const sBroken = brokenStreak(studyDates, today); const gBroken = brokenStreak(gymDates, today); const tBroken = brokenStreak(todoDates, today);
-    const hBroken = (habits.data || []).map((h) => { const dates = new Set((habitLogs.data || []).filter((l) => l.habit_id === h.id).map((l) => l.log_date)); return { name: h.habit_name, broken: brokenStreak(dates, today) }; });
-    const hStreaks = (habits.data || []).map((h) => { const dates = new Set((habitLogs.data || []).filter((l) => l.habit_id === h.id).map((l) => l.log_date)); return { name: h.habit_name, streak: calcStreak(dates, today) }; });
-    const buildWeek = (rows: { session_date: string; duration_minutes: number }[] | null) => { const days: DayStat[] = []; for (let i = 6; i >= 0; i--) { const d = addDays(today, -i); days.push({ date: d, value: (rows || []).filter((r) => r.session_date === d).reduce((s, r) => s + r.duration_minutes, 0) }); } return days; };
-    const sw = buildWeek(studyW.data); const gw = buildWeek(gymW.data);
-    const hw: DayStat[] = []; for (let i = 6; i >= 0; i--) { const d = addDays(today, -i); hw.push({ date: d, value: new Set((habitLogs.data || []).filter((l) => l.log_date === d).map((l) => l.habit_id)).size }); }
+    const hBroken = (habits.rows || []).map((h: any) => { const dates = new Set((habitLogs.rows || []).filter((l: any) => l.habit_id === h.id).map((l: any) => l.log_date)); return { name: h.habit_name, broken: brokenStreak(dates, today) }; });
+    const hStreaks = (habits.rows || []).map((h: any) => { const dates = new Set((habitLogs.rows || []).filter((l: any) => l.habit_id === h.id).map((l: any) => l.log_date)); return { name: h.habit_name, streak: calcStreak(dates, today) }; });
+    const buildWeek = (rows: any[] | null) => { const days: DayStat[] = []; for (let i = 6; i >= 0; i--) { const d = addDays(today, -i); days.push({ date: d, value: (rows || []).filter((r: any) => r.session_date === d).reduce((s: number, r: any) => s + r.duration_minutes, 0) }); } return days; };
+    const sw = buildWeek(studyW.rows); const gw = buildWeek(gymW.rows);
+    const hw: DayStat[] = []; for (let i = 6; i >= 0; i--) { const d = addDays(today, -i); hw.push({ date: d, value: new Set((habitLogs.rows || []).filter((l: any) => l.log_date === d).map((l: any) => l.habit_id)).size }); }
     const tw: DayStat[] = []; const twt: Record<string, number> = {};
-    for (let i = 6; i >= 0; i--) { const d = addDays(today, -i); const rows = (todoWeekRes.data || []).filter((t) => t.task_date === d); twt[d] = rows.length; tw.push({ date: d, value: rows.filter((t) => t.completed).length }); }
-    const taskList = tasksRes.data || []; const cdList = cdRes.data || [];
+    for (let i = 6; i >= 0; i--) { const d = addDays(today, -i); const rows = (todoWeekRes.rows || []).filter((t: any) => t.task_date === d); twt[d] = rows.length; tw.push({ date: d, value: rows.filter((t: any) => t.completed).length }); }
+    const taskList = tasksRes.rows || []; const cdList = cdRes.rows || [];
 
-    // Weekly summary badges
-    const totalRunKm = (runRes.data || []).reduce((s, r) => s + (r.distance_km || 0), 0);
+    const totalRunKm = (runRes.rows || []).reduce((s: number, r: any) => s + (r.distance_km || 0), 0);
     setWeekRunKm(Math.round(totalRunKm * 10) / 10);
-    
+
     const calByDay: Record<string, number> = {};
-    (nutritionRes.data || []).forEach((n) => { calByDay[n.log_date] = (calByDay[n.log_date] || 0) + (n.calories || 0); });
+    (nutritionRes.rows || []).forEach((n: any) => { calByDay[n.log_date] = (calByDay[n.log_date] || 0) + (n.calories || 0); });
     const calDays = Object.values(calByDay).filter((v) => v > 0);
     setWeekAvgCal(calDays.length ? Math.round(calDays.reduce((s, v) => s + v, 0) / calDays.length) : 0);
 
-    // Learn & Build Stats
-    const learnRows = learnRes.data || [];
+    const learnRows = learnRes.rows || [];
     let lx = 0, milestonesDone = 0;
     for (const r of learnRows as any[]) {
       lx += (r.done_resources?.length || 0) * 10;
@@ -283,18 +287,18 @@ export default function Dashboard() {
       if (r.status === "completed") { lx += 150; milestonesDone++; }
     }
     setLearnXp(lx);
-    
-    const learnDays = new Set((learnLogsRes.data || []).filter((d: any) => (d.actions > 0 || d.video_seconds > 0)).map((d: any) => d.day));
+
+    const learnDays = new Set((learnLogsRes.rows || []).filter((d: any) => (d.actions > 0 || d.video_seconds > 0)).map((d: any) => d.day));
     let ls = 0; const lcursor = new Date();
     if (!learnDays.has(toLocalISO(lcursor))) lcursor.setDate(lcursor.getDate() - 1);
     while (learnDays.has(toLocalISO(lcursor))) { ls++; lcursor.setDate(lcursor.getDate() - 1); }
     setLearnStreak(ls);
-    
+
     const lpct = Math.min(100, Math.round((milestonesDone / 8) * 100));
     setLearnPct(lpct);
     setLearnLabel(learnRows.length > 0 ? `Lvl ${Math.floor(lx / 300) + 1} · ${milestonesDone} done` : "Start a track");
 
-    setWeekLearnItems((summariesRes.data || []).length + (cardsRes.data || []).length);
+    setWeekLearnItems((summariesRes.rows || []).length + (cardsRes.rows || []).length);
 
     setUserName(nameCap); setStudyMinutes(studyMin); setWorkouts(wk); setGoals(gObj);
     setGoalStudy(String(gObj.study_target)); setGoalWorkout(String(gObj.workout_target)); setGoalHabits(String(gObj.habits_target));
@@ -317,14 +321,57 @@ export default function Dashboard() {
     } catch {}
   };
   useEffect(() => { load(); }, []);
-    useEffect(() => { cleanupOldGuest(3); }, []);
+  useEffect(() => { cleanupOldGuest(3); }, []);
 
-  const saveGoals = async (e: React.FormEvent) => { e.preventDefault(); const { data } = await supabase.auth.getSession(); const userId = data.session?.user.id; if (!userId) return; const g: Goals = { study_target: Number(goalStudy) || 120, workout_target: Number(goalWorkout) || 1, habits_target: Number(goalHabits) || 3 }; const { error } = await supabase.from("user_goals").upsert({ user_id: userId, ...g }); if (error) { alert("Could not save goals: " + error.message); return; } setGoals(g); setEditingGoals(false); };
-  const addTask = async (e: React.FormEvent) => { e.preventDefault(); const { data } = await supabase.auth.getSession(); const userId = data.session?.user.id; if (!userId || !newTask.trim()) return; await supabase.from("tasks").insert({ user_id: userId, title: newTask.trim(), task_date: today, category: "general" }); setNewTask(""); await load(); };
-  const toggleTask = async (id: string, completed: boolean) => { await supabase.from("tasks").update({ completed: !completed }).eq("id", id); setTasks(tasks.map((t) => (t.id === id ? { ...t, completed: !completed } : t))); };
-  const deleteTask = async (id: string) => { await supabase.from("tasks").delete().eq("id", id); setTasks(tasks.filter((t) => t.id !== id)); };
-  const addCountdown = async (e: React.FormEvent) => { e.preventDefault(); const { data } = await supabase.auth.getSession(); const userId = data.session?.user.id; if (!userId || !cdTitle.trim() || !cdDate) return; await supabase.from("countdowns").insert({ user_id: userId, title: cdTitle.trim(), target_date: cdDate, emoji: cdEmoji }); setCdTitle(""); setCdDate(""); await load(); };
-  const deleteCountdown = async (id: string) => { await supabase.from("countdowns").delete().eq("id", id); setCountdowns(countdowns.filter((c) => c.id !== id)); };
+  // 📴 OFFLINE-CAPABLE SAVE GOALS
+  const saveGoals = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { data } = await supabase.auth.getSession();
+    const userId = data.session?.user.id; if (!userId) return;
+    const g: Goals = { study_target: Number(goalStudy) || 120, workout_target: Number(goalWorkout) || 1, habits_target: Number(goalHabits) || 3 };
+    await dbUpsertBy("user_goals", { user_id: userId, ...g });
+    setGoals(g); setEditingGoals(false);
+  };
+
+  // 📴 OFFLINE-CAPABLE ADD TASK
+  const addTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { data } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+    if (!userId || !newTask.trim()) return;
+    const res = await dbInsert("tasks", { user_id: userId, title: newTask.trim(), task_date: today, category: "general", completed: false });
+    if (res.ok) setTasks((prev) => [...prev, { id: res.id, title: newTask.trim(), completed: false }]);
+    setNewTask("");
+  };
+
+  // 📴 OFFLINE-CAPABLE TOGGLE TASK
+  const toggleTask = async (id: string, completed: boolean) => {
+    await dbUpdate("tasks", id, { completed: !completed });
+    setTasks(tasks.map((t) => (t.id === id ? { ...t, completed: !completed } : t)));
+  };
+
+  // 📴 OFFLINE-CAPABLE DELETE TASK
+  const deleteTask = async (id: string) => {
+    await dbDelete("tasks", id);
+    setTasks(tasks.filter((t) => t.id !== id));
+  };
+
+  // 📴 OFFLINE-CAPABLE ADD COUNTDOWN
+  const addCountdown = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { data } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+    if (!userId || !cdTitle.trim() || !cdDate) return;
+    const res = await dbInsert("countdowns", { user_id: userId, title: cdTitle.trim(), target_date: cdDate, emoji: cdEmoji });
+    if (res.ok) setCountdowns((prev) => [...prev, { id: res.id, title: cdTitle.trim(), target_date: cdDate, emoji: cdEmoji }]);
+    setCdTitle(""); setCdDate("");
+  };
+
+  // 📴 OFFLINE-CAPABLE DELETE COUNTDOWN
+  const deleteCountdown = async (id: string) => {
+    await dbDelete("countdowns", id);
+    setCountdowns(countdowns.filter((c) => c.id !== id));
+  };
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -346,7 +393,14 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-20 pb-24 max-w-4xl mx-auto">
-     
+
+      {/* 📴 Subtle offline chip — shows ONLY when actually offline */}
+      {fromCache && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-bold">
+          <WifiOff size={13} /> Offline — showing your saved data. Changes sync when you reconnect.
+        </div>
+      )}
+
       <div className="relative mb-3 overflow-hidden rounded-3xl bg-slate-900 border border-violet-500/20 p-5 shadow-[0_0_50px_-12px_rgba(139,92,246,0.35)]">
         <div className="absolute -right-16 -top-16 w-48 h-48 bg-violet-600/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -left-16 -bottom-16 w-48 h-48 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
@@ -377,7 +431,6 @@ export default function Dashboard() {
       </div>
 
       <DraggableAIBubble />
-
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
         <StatCard href="/study-tracker" icon={BookOpen} tint="bg-blue-500/10 text-blue-400" bar="bg-blue-500" label="Study" value={`${Math.floor(studyMinutes / 60)}h ${studyMinutes % 60}m`} sub={studyMinutes === 0 ? "Start with 25 min" : "studied today"} streak={studyStreak} pct={studyPct} />
@@ -450,7 +503,7 @@ export default function Dashboard() {
               Full report <ArrowRight size={10} />
             </Link>
           </div>
-          
+
           {(weekRunKm > 0 || weekAvgCal > 0 || weekLearnItems > 0) && (
             <div className="flex flex-wrap gap-1.5 mb-3">
               {weekRunKm > 0 && (
@@ -483,7 +536,7 @@ export default function Dashboard() {
             {weekData.map((w) => {
               const pct = chartMode === "todo" ? (todoWeekTotals[w.date] ? Math.min(100, Math.round((w.value / todoWeekTotals[w.date]) * 100)) : 0) : Math.min(100, Math.round((w.value / Math.max(dailyTarget, 1)) * 100));
               return (
-                <div key={w.date} className="flex-1 h-full flex flex-col justify-end items-center gap-1">
+                <div key={w.date} className="flex-1 h-full flex-col justify-end items-center gap-1 flex">
                   {pct > 0 && <span className="text-[9px] text-slate-500 font-bold">{pct}%</span>}
                   <div className={`w-full rounded-t-lg bg-gradient-to-t ${barColor}`} style={{ height: `${Math.max(pct * 0.8, w.value > 0 ? 10 : 3)}%` }} />
                   <span className="text-[9px] text-slate-500 font-semibold">{dayLabel(w.date)}</span>
@@ -573,5 +626,3 @@ export default function Dashboard() {
     </main>
   );
 }
-
-function uidSafe(u: string) { return u; }

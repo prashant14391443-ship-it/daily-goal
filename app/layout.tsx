@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import BottomNav from "./BottomNav";
 import CoinPop from "./CoinPop";
-import OfflineBanner from "@/app/components/OfflineBanner";
 import CountdownChip from "@/app/components/CountdownChip";
 import TopBar from "./TopBar";
 import ScrollMemory from "./ScrollMemory";
@@ -63,7 +62,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="h-full antialiased pb-20 md:pb-0 bg-slate-950">
-        <OfflineBanner />
+        
         <CountdownChip />
         <TopBar />
         <AiGuard />
