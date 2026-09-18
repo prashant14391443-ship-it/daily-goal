@@ -17,7 +17,8 @@ export async function GET(req: Request) {
       { auth: { persistSession: false } }
     );
     const { data } = await supabase.auth.getUser(jwt);
-    if (!data.user || data.user.is_anonymous) return NextResponse.json(defaultRes);
+    if (!data.user) return NextResponse.json(defaultRes);
+    if (data.user.is_anonymous) return NextResponse.json({ guest: true });
 
     const userId = data.user.id;
     const today = new Date().toISOString().slice(0, 10);

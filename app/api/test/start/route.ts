@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import { aiGate } from "@/lib/aiGate";
 import { getExamById } from "@/lib/examPatterns";
-import { buildQuestionPlan, adminClient, userClientFromRequest, distributeByWeight, quickFill, type PlanSlot, type LoadedQuestion } from "@/lib/testEngine";
+import { 
+  buildQuestionPlan, 
+  adminClient, 
+  userClientFromRequest, 
+  distributeByWeight, 
+  quickFill, 
+  paperKey, 
+  type PlanSlot, 
+  type LoadedQuestion 
+} from "@/lib/testEngine";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -20,19 +29,29 @@ export async function POST(req: Request) {
     const userId = userData.user?.id;
     if (!userId) return NextResponse.json({ error: "Please login to start a test" }, { status: 401 });
 
+    // 🔒 GUEST WALL: AI generation needs a free account. Real DB papers stay open as a teaser.
+    if (userData.user?.is_anonymous && source !== "real") {
+      return NextResponse.json(
+        { error: "🔒 Guests can preview real previous-year papers only — sign up free (10 seconds) to unlock AI Mock Tests, Pattern Papers & Topic Practice!" },
+        { status: 403 }
+      );
+    }
+
     // 🔒 AI GATE — weight based on expected question count
-    // Topic practice (10 Qs) = 1 unit, section/full mock (up to 100 Qs) = up to 10 units
-    let expectedQs = QUICK_TARGET; // quick start generates 8 upfront
+    let expectedQs = QUICK_TARGET; 
     if (topic_id) expectedQs = 10;
     else if (section_id) {
       const section = exam.sections.find((s) => s.id === section_id);
       expectedQs = section?.questionCount || QUICK_TARGET;
     } else {
-      expectedQs = 100; // full mock
+      expectedQs = 100; 
     }
     const weight = Math.max(1, Math.ceil(expectedQs / 10));
-    const gate = await aiGate(userId, "test", weight);
-    if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
+    
+    if (source !== "real") {
+      const gate = await aiGate(userId, "test", weight);
+      if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
+    }
 
     const admin = adminClient();
     const isReal = source === "real";
@@ -70,6 +89,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ attempt_id: attempt.id, have: uniqueIds.length, target: uniqueIds.length, done: true });
     }
 
+    // ==========================================
+    // AI MODE: build the full plan
+    // ==========================================
     let planObjs: { section: any; topic: any }[] = [];
     if (topic_id) {
       for (const s of exam.sections) {
@@ -85,12 +107,37 @@ export async function POST(req: Request) {
       if (!section) return NextResponse.json({ error: "Unknown section" }, { status: 400 });
       const dist = distributeByWeight(section.topics, section.questionCount);
       for (const { topic, count } of dist) for (let i = 0; i < count; i++) planObjs.push({ section, topic });
-      for (let i = planObjs.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [planObjs[i], planObjs[j]] = [planObjs[j], planObjs[i]]; }
+      for (let i = planObjs.length - 1; i > 0; i--) { 
+        const j = Math.floor(Math.random() * (i + 1)); 
+        [planObjs[i], planObjs[j]] = [planObjs[j], planObjs[i]]; 
+      }
     } else {
       planObjs = buildQuestionPlan(exam_id);
     }
+    
     const planSlots: PlanSlot[] = planObjs.map((p) => ({ section_id: p.section.id, topic_id: p.topic.id }));
 
+    // 🆕 SHARED VARIANT POOL
+    const scope = topic_id ? "topic" : section_id ? "section" : year ? "pyq" : "mock";
+    const scopeId = topic_id || section_id || "-";
+    const pk = paperKey(exam_id, scope, scopeId, year);
+    
+    // Count how many times THIS user has attempted this specific syllabus slice
+    const { count: prevCount } = await admin
+      .from("test_attempts")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("paper_key", pk);
+      
+    const variant = (prevCount || 0) + 1;
+
+    // Claim this paper batch (upsert prevents race condition crashes)
+    await admin.from("paper_variants").upsert({
+      exam_id, scope, scope_id: scopeId, year, variant,
+      paper_key: pk, status: "generating", total: planSlots.length,
+    }, { onConflict: "paper_key,variant" });
+
+    // Seen-exclusion: avoid repeating last attempt's questions
     let seenIds: string[] = [];
     let lastQ = admin.from("test_attempts").select("id").eq("user_id", userId).eq("exam_id", exam_id);
     lastQ = year ? lastQ.eq("year", year) : lastQ.is("year", null);
@@ -100,21 +147,28 @@ export async function POST(req: Request) {
       seenIds = [...new Set((links || []).map((l: any) => l.question_id))];
     }
 
+    // Auto-cleanup: cap 50 completed attempts per user
     const { data: oldRows } = await admin.from("test_attempts").select("id").eq("user_id", userId).eq("status", "completed").order("created_at", { ascending: false }).range(50, 200);
     if (oldRows && oldRows.length > 0) await admin.from("test_attempts").delete().in("id", oldRows.map((r: any) => r.id));
 
+    // Create attempt shell
     const { data: attempt, error } = await admin.from("test_attempts").insert({
       user_id: userId, exam_id, mode, year,
       status: "preparing",
       total_questions: planSlots.length,
       plan: planSlots,
+      paper_key: pk,
+      variant,
+      scope,
+      scope_id: scopeId,
     }).select().single();
     if (error || !attempt) return NextResponse.json({ error: "Could not create attempt", debug: error?.message }, { status: 500 });
 
+    // QUICK START
     const quickSlots = planSlots.slice(0, Math.min(QUICK_TARGET, planSlots.length));
     const restSlots = planSlots.slice(quickSlots.length);
 
-    const { results, firstError } = await quickFill(admin, exam, quickSlots, new Set(seenIds), year, 8000, 4);
+    const { results, firstError } = await quickFill(admin, exam, quickSlots, new Set(seenIds), year, 8000, 4, pk, variant);
 
     const rawOkPairs = results.filter((r) => r.q !== null) as { slot: PlanSlot; q: LoadedQuestion }[];
     const failedSlots = results.filter((r) => r.q === null).map((r) => r.slot);
@@ -148,6 +202,11 @@ export async function POST(req: Request) {
       total_questions: planSlots.length,
       plan: newPlan,
     }).eq("id", attempt.id);
+
+    // If the whole paper finished instantly, mark it ready for everyone
+    if (okPairs.length >= planSlots.length) {
+      await admin.from("paper_variants").update({ status: "ready", total: okPairs.length }).eq("paper_key", pk).eq("variant", variant);
+    }
 
     return NextResponse.json({ attempt_id: attempt.id, have: okPairs.length, target: planSlots.length, done: okPairs.length >= planSlots.length });
   } catch (e: any) {

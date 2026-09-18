@@ -1,7 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { getExamById, type ExamSection, type ExamTopic } from "@/lib/examPatterns";
 import { buildQuestionPrompt, generateOneQuestion, getKeys } from "@/lib/qGen";
-import { cachedAi } from "@/lib/aiGate"; // 🛡 NEW: Import cache helper
 
 export type LoadedQuestion = {
   id: string;
@@ -18,8 +17,13 @@ export type LoadedQuestion = {
 
 export type PlanSlot = { section_id: string; topic_id: string };
 
+// 🆕 One shared pool per syllabus slice: exam | scope | scopeId | year
+export function paperKey(examId: string, scope: string, scopeId: string | null, year: number | null) {
+  return `${examId}|${scope}|${scopeId || "-"}|${year || "-"}`;
+}
+
 // ==========================================
-// PLAN BUILDERS
+// PLAN BUILDERS (unchanged)
 // ==========================================
 
 export function distributeByWeight(topics: ExamTopic[], total: number): { topic: ExamTopic; count: number }[] {
@@ -59,7 +63,7 @@ export function buildQuestionPlan(examId: string): { section: ExamSection; topic
 }
 
 // ==========================================
-// FETCH OR GENERATE (throws real errors — no silent nulls)
+// FETCH OR GENERATE — now pool-aware (paper_key + variant)
 // ==========================================
 
 async function fetchOrGenerate(
@@ -75,13 +79,18 @@ async function fetchOrGenerate(
   styleGuide: string | undefined,
   yearPatterns: any,
   optionCount: number = 4,
-  difficulty: "easy" | "medium" | "hard" = "medium"
+  difficulty: "easy" | "medium" | "hard" = "medium",
+  pk: string | null = null,
+  variant: number = 1
 ): Promise<LoadedQuestion> {
-  // 1) Try the database cache first (free + instant)
-  let q = admin.from("questions").select("*")
-    .eq("exam_id", examId).eq("section_id", sectionId).eq("topic_id", topicId);
-  if (year) q = q.eq("year", year);
-  else q = q.is("year", null);
+  // 1) Shared DB pool: same paper_key + variant for EVERY user
+  let q = admin.from("questions").select("*").eq("section_id", sectionId).eq("topic_id", topicId);
+  if (pk) {
+    q = q.eq("paper_key", pk).eq("variant", variant);
+  } else {
+    if (year) q = q.eq("year", year);
+    else q = q.is("year", null);
+  }
   if (usedIds.size > 0) q = q.not("id", "in", `(${[...usedIds].map((i) => `"${i}"`).join(",")})`);
   const { data: cached } = await q.limit(10);
 
@@ -96,20 +105,11 @@ async function fetchOrGenerate(
     };
   }
 
-  // 2) DB empty for this slot → ask the AI (CACHED TO PREVENT STORMS)
+  // 2) Pool empty for this slot → ask the AI (once per paper+variant, forever shared)
   const prompt = buildQuestionPrompt(examName, sectionName, topicName, difficulty, optionCount, year, styleGuide, yearPatterns);
-  
-  // 🛡 Cache key: Unique per topic/year/difficulty. 
-  // If 50 users ask for this at once, only the FIRST hits the AI. The rest get the cached result.
-  const cacheKey = `qgen:${examId}:${sectionId}:${topicId}:${year || 'any'}:${difficulty}:${optionCount}`;
-  
-  const gen = await cachedAi(cacheKey, async () => {
-    return await generateOneQuestion(prompt, getKeys());
-  }, 24); // Cache for 24 hours
+  const gen = await generateOneQuestion(prompt, getKeys());
 
-  // 3) Save it so we never pay for the same question twice
-  // Note: If concurrent users hit this, one will succeed, others might fail on unique constraint.
-  // That's fine — the failed ones will just be skipped by the caller, saving tokens.
+  // 3) Save INTO the shared pool
   const { data: saved, error } = await admin.from("questions")
     .insert({
       exam_id: examId, section_id: sectionId, topic_id: topicId,
@@ -122,25 +122,12 @@ async function fetchOrGenerate(
       memory_trick: gen.q.memory_trick,
       source: "ai-generated", difficulty: difficulty,
       year,
+      paper_key: pk, variant: pk ? variant : 1,
     })
     .select()
     .single();
 
-  if (error || !saved) {
-    // If it failed because of a duplicate (race condition), try fetching again
-    if (error?.code === '23505') { 
-       const { data: retry } = await admin.from("questions")
-         .select("*").eq("question_text", gen.q.question_text).maybeSingle();
-       if (retry) {
-          return {
-             id: retry.id, exam_id: retry.exam_id, section_id: retry.section_id, topic_id: retry.topic_id,
-             question_type: retry.question_type, question_text: retry.question_text, options: retry.options,
-             correct_index: retry.correct_index, correct_value: retry.correct_value, explanation: retry.explanation,
-          };
-       }
-    }
-    throw new Error(`DB insert failed: ${error?.message || "no row returned"}`);
-  }
+  if (error || !saved) throw new Error(`DB insert failed: ${error?.message || "no row returned"}`);
 
   return {
     id: saved.id, exam_id: saved.exam_id, section_id: saved.section_id, topic_id: saved.topic_id,
@@ -161,7 +148,9 @@ export async function generateQuestionBatch(
   plan: { section: ExamSection; topic: ExamTopic }[],
   usedIds: Set<string>,
   batchSize = 8,
-  year: number | null = null
+  year: number | null = null,
+  pk: string | null = null,
+  variant: number = 1
 ): Promise<LoadedQuestion[]> {
   const exam = getExamById(examId);
   if (!exam) return [];
@@ -184,7 +173,7 @@ export async function generateQuestionBatch(
       slice.map((p) =>
         fetchOrGenerate(
           admin, examId, p.section.id, p.topic.id, p.topic.name, p.section.name,
-          exam.name, usedIds, year, styleGuide, yearPatterns, optionCount, "medium"
+          exam.name, usedIds, year, styleGuide, yearPatterns, optionCount, "medium", pk, variant
         )
       )
     );
@@ -206,7 +195,7 @@ export async function generateQuestionBatch(
 }
 
 // ==========================================
-// 🔥 QUICK FILL: fast first batch so the test opens instantly
+// QUICK FILL (first blocking batch)
 // ==========================================
 
 export async function quickFill(
@@ -216,7 +205,9 @@ export async function quickFill(
   usedIds: Set<string>,
   year: number | null,
   deadlineMs = 8000,
-  waveSize = 4
+  waveSize = 4,
+  pk: string | null = null,
+  variant: number = 1
 ): Promise<{ results: { slot: PlanSlot; q: LoadedQuestion | null }[]; firstError: string }> {
   const started = Date.now();
   const results: { slot: PlanSlot; q: LoadedQuestion | null }[] = [];
@@ -230,7 +221,6 @@ export async function quickFill(
 
   for (let i = 0; i < slots.length; i += waveSize) {
     if (Date.now() - started > deadlineMs) {
-      // Out of time budget → remaining slots go to the background top-up
       for (let j = i; j < slots.length; j++) results.push({ slot: slots[j], q: null });
       break;
     }
@@ -241,7 +231,7 @@ export async function quickFill(
         return fetchOrGenerate(
           admin, exam.id, section.id, topic.id, topic.name, section.name,
           exam.name, usedIds, year, exam.style_guide, null,
-          exam.allowedOptionCounts?.[0] || 4, "medium"
+          exam.allowedOptionCounts?.[0] || 4, "medium", pk, variant
         );
       })
     );
@@ -260,7 +250,7 @@ export async function quickFill(
 }
 
 // ==========================================
-// ANALYTICS
+// ANALYTICS (unchanged)
 // ==========================================
 
 export function computeAnalytics(
@@ -304,7 +294,7 @@ export function computeAnalytics(
 }
 
 // ==========================================
-// SUPABASE CLIENTS
+// SUPABASE CLIENTS (unchanged)
 // ==========================================
 
 export function adminClient(): SupabaseClient {
@@ -323,7 +313,7 @@ export function userClientFromRequest(req: Request) {
 }
 
 // ==========================================
-// FILL ATTEMPT (background builder)
+// FILL ATTEMPT (background builder) — marks paper READY when done
 // ==========================================
 
 export async function fillAttemptQuestions(
@@ -333,7 +323,9 @@ export async function fillAttemptQuestions(
   plan: PlanSlot[],
   year: number | null,
   budgetMs: number,
-  initialExclude?: Set<string>
+  initialExclude?: Set<string>,
+  pk: string | null = null,
+  variant: number = 1
 ): Promise<{ have: number; target: number; done: boolean; error?: string }> {
   const started = Date.now();
   const { data: linked } = await admin
@@ -344,7 +336,10 @@ export async function fillAttemptQuestions(
   (initialExclude || []).forEach((id) => haveIds.add(id));
   let have = linked?.length || 0;
   const target = plan.length;
-  if (have >= target) return { have, target, done: true };
+  if (have >= target) {
+    if (pk) await admin.from("paper_variants").update({ status: "ready", total: have }).eq("paper_key", pk).eq("variant", variant);
+    return { have, target, done: true };
+  }
 
   const slotToObj = (s: PlanSlot) => {
     const section = exam.sections.find((x) => x.id === s.section_id)!;
@@ -361,7 +356,7 @@ export async function fillAttemptQuestions(
     if (slice.length === 0) break;
 
     try {
-      const batch = await generateQuestionBatch(admin, exam.id, slice, haveIds, 3, year);
+      const batch = await generateQuestionBatch(admin, exam.id, slice, haveIds, 3, year, pk, variant);
       if (batch.length === 0) { failures++; continue; }
       failures = 0;
       await admin.from("test_attempt_questions").insert(
@@ -374,6 +369,11 @@ export async function fillAttemptQuestions(
       failures++;
       console.error("[fillAttemptQuestions]", lastError);
     }
+  }
+
+  // 🆕 Paper complete → shared & ready for EVERY user's Nth attempt
+  if (pk && have >= target) {
+    await admin.from("paper_variants").update({ status: "ready", total: have }).eq("paper_key", pk).eq("variant", variant);
   }
 
   return { have, target, done: have >= target, error: lastError };

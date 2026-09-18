@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { aiGate } from "@/lib/aiGate";
 import { getExamById } from "@/lib/examPatterns";
 import { adminClient, userClientFromRequest, fillAttemptQuestions, type PlanSlot } from "@/lib/testEngine";
 
@@ -16,17 +15,10 @@ export async function POST(req: Request) {
     const userId = userData.user?.id;
     if (!userId) return NextResponse.json({ error: "Not logged in" }, { status: 401 });
 
-    // 🔒 AI GATE — each topup call generates more questions, so weight = 2
-    const gate = await aiGate(userId, "test", 2);
-    if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
-
     const admin = adminClient();
     const { data: attempt } = await admin
-      .from("test_attempts")
-      .select("*")
-      .eq("id", attempt_id)
-      .eq("user_id", userId)
-      .maybeSingle();
+      .from("test_attempts").select("*")
+      .eq("id", attempt_id).eq("user_id", userId).maybeSingle();
     if (!attempt) return NextResponse.json({ error: "Attempt not found" }, { status: 404 });
     if (attempt.status === "completed") return NextResponse.json({ error: "Already finished" }, { status: 400 });
 
@@ -35,8 +27,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ have: attempt.total_questions, target: attempt.total_questions, done: true, new_questions: [] });
     }
 
+    // 🔒 GUEST WALL
+    if (userData.user?.is_anonymous) {
+      return NextResponse.json({ error: "🔒 Sign up free (10 seconds) to unlock AI test generation!" }, { status: 403 });
+    }
+
     const exam = getExamById(attempt.exam_id);
     if (!exam) return NextResponse.json({ error: "Unknown exam" }, { status: 400 });
+
+    // 🆕 continue filling THIS user's shared paper variant
+    const pk = attempt.paper_key || null;
+    const variant = attempt.variant || 1;
 
     const { count } = await admin
       .from("test_attempt_questions")
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
     }
 
     const safeBudget = Math.min(Number(budget) || 9000, 15000);
-    const res = await fillAttemptQuestions(admin, exam, attempt.id, plan, attempt.year, safeBudget, undefined);
+    const res = await fillAttemptQuestions(admin, exam, attempt.id, plan, attempt.year, safeBudget, undefined, pk, variant);
 
     if (res.done && attempt.status !== "in_progress") {
       await admin.from("test_attempts").update({ status: "in_progress", total_questions: res.target }).eq("id", attempt.id);

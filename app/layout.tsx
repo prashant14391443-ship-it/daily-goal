@@ -7,6 +7,7 @@ import CountdownChip from "@/app/components/CountdownChip";
 import TopBar from "./TopBar";
 import ScrollMemory from "./ScrollMemory";
 import AiGuard from "@/app/components/AiGuard";
+import OfflineSync from "./offline-sync";
 
 export const metadata: Metadata = {
   title: "DAILY GOAL",
@@ -66,10 +67,22 @@ export default function RootLayout({
         <CountdownChip />
         <TopBar />
         <AiGuard />
+        <OfflineSync />
         {children}
         <BottomNav />
         <CoinPop />
         <ScrollMemory />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js').catch(() => {});
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );
