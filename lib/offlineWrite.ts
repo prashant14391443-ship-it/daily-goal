@@ -9,13 +9,12 @@ function tempId(): string {
   try { return crypto.randomUUID(); } catch { return `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`; }
 }
 
-// Save a local mirror copy so pages can READ data while offline
 export async function mirrorUpsert(table: string, row: any) {
   const list = (await getCachedData<any[]>(`table:${table}`)) || [];
   const i = list.findIndex((r) => r.id === row.id);
   if (i >= 0) list[i] = { ...list[i], ...row };
   else list.unshift(row);
-  await cacheData(`table:${table}`, list.slice(0, 500)); // cap 500 rows per table
+  await cacheData(`table:${table}`, list.slice(0, 500));
 }
 
 export async function mirrorRemove(table: string, id: string) {
@@ -27,8 +26,6 @@ export async function mirrorList(table: string): Promise<any[]> {
   return (await getCachedData<any[]>(`table:${table}`)) || [];
 }
 
-// ── WRITE HELPERS (use these INSTEAD of supabase.from(...).insert/update/delete) ──
-
 export async function dbInsert(table: string, row: any): Promise<{ ok: boolean; offline: boolean; id: string }> {
   const id = row.id || tempId();
   const full = { ...row, id };
@@ -39,7 +36,6 @@ export async function dbInsert(table: string, row: any): Promise<{ ok: boolean; 
       return { ok: true, offline: false, id };
     }
   }
-  // offline (or server failed): save locally + queue for auto-sync
   await mirrorUpsert(table, { ...full, _pending: true });
   await queueChange({ table, action: "insert", data: full });
   return { ok: true, offline: true, id };
@@ -71,16 +67,21 @@ export async function dbDelete(table: string, id: string): Promise<{ ok: boolean
   return { ok: true, offline: true };
 }
 
-// ── READ HELPER: online = fresh from server (and mirror it); offline = local mirror ──
-export async function dbLoad(table: string, buildQuery: (q: any) => any): Promise<{ rows: any[]; fromCache: boolean }> {
+// 🆕 v2: optional `match` filter applied to CACHED rows so offline views never show wrong-date data
+export async function dbLoad(
+  table: string,
+  buildQuery: (q: any) => any,
+  match?: (row: any) => boolean
+): Promise<{ rows: any[]; fromCache: boolean }> {
   if (isOnline()) {
     try {
       const { data, error } = await buildQuery(supabase.from(table).select("*"));
       if (!error && data) {
-        await cacheData(`table:${table}`, data.slice(0, 500));
+        await cacheData(`table:${table}`, (data as any[]).slice(0, 500));
         return { rows: data, fromCache: false };
       }
     } catch {}
   }
-  return { rows: await mirrorList(table), fromCache: true };
+  const rows = await mirrorList(table);
+  return { rows: match ? rows.filter(match) : rows, fromCache: true };
 }

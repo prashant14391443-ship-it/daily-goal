@@ -7,8 +7,9 @@ import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Dumbbell, Flame, Bell, BellOff, Plus, Pencil, X, Check, AlarmClock } from "lucide-react";
+import { Dumbbell, Flame, Bell, BellOff, Plus, Pencil, X, Check, AlarmClock, WifiOff } from "lucide-react";
 import { ProgressRing, GradButton, EmptyState } from "@/app/components/ui";
+import { dbInsert, dbUpdate, dbDelete, dbLoad } from "@/lib/offlineWrite";
 
 type Workout = {
   id: string;
@@ -36,6 +37,7 @@ export default function WorkoutPage() {
   const [editWorkout, setEditWorkout] = useState("");
   const [editMinutes, setEditMinutes] = useState("");
   const [editTime, setEditTime] = useState("");
+  const [fromCache, setFromCache] = useState(false);
   const notified = useRef<Set<string>>(new Set());
   const router = useRouter();
 
@@ -43,12 +45,21 @@ export default function WorkoutPage() {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
     if (!userId) { router.push("/login"); return; }
-    const [rows, all] = await Promise.all([
-      supabase.from("gym_logs").select("*").eq("user_id", userId).eq("session_date", selectedDate).order("created_at"),
-      supabase.from("gym_logs").select("session_date").eq("user_id", userId).eq("completed", true),
-    ]);
-    setLogs(rows.data || []);
-    setStreak(calcStreak(new Set((all.data || []).map((r) => r.session_date)), today));
+
+    // 📴 Offline-capable READ (with date guard for cached rows)
+    const { rows, fromCache: cache } = await dbLoad(
+      "gym_logs",
+      (q) => q.eq("user_id", userId).eq("session_date", selectedDate).order("created_at"),
+      (r) => r.session_date === selectedDate && r.user_id === userId
+    );
+    setLogs(rows as Workout[]);
+    setFromCache(cache);
+
+    // Streak is nice-to-have; skip when offline
+    if (navigator.onLine) {
+      const { data: all } = await supabase.from("gym_logs").select("session_date").eq("user_id", userId).eq("completed", true);
+      setStreak(calcStreak(new Set((all || []).map((r) => r.session_date)), today));
+    }
   };
 
   useEffect(() => { load(date); }, [date]);
@@ -90,26 +101,40 @@ export default function WorkoutPage() {
     return () => clearInterval(id);
   }, [logs, remindersOn]);
 
+  // 📴 OFFLINE-CAPABLE ADD
   const addLog = async (e: React.FormEvent) => {
     e.preventDefault();
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
-    if (!userId) return;
-    await supabase.from("gym_logs").insert({
-      user_id: userId, workout_type: workout,
+    if (!userId || !workout.trim()) return;
+    const res = await dbInsert("gym_logs", {
+      user_id: userId, workout_type: workout.trim(),
       duration_minutes: Number(minutes) || 0,
       session_date: date, reminder_time: reminderTime || null, completed: false,
     });
+    if (res.ok) {
+      setLogs((prev) => [...prev, {
+        id: res.id,
+        user_id: userId,
+        workout_type: workout.trim(),
+        duration_minutes: Number(minutes) || 0,
+        session_date: date,
+        reminder_time: reminderTime || null,
+        completed: false,
+      } as Workout]);
+    }
     setWorkout(""); setMinutes(""); setReminderTime("");
-    await load(date);
   };
 
+  // 📴 OFFLINE-CAPABLE TOGGLE
   const toggleLog = async (id: string, completed: boolean) => {
-    await supabase.from("gym_logs").update({ completed: !completed }).eq("id", id);
+    await dbUpdate("gym_logs", id, { completed: !completed });
     setLogs(logs.map((l) => (l.id === id ? { ...l, completed: !completed } : l)));
   };
+
+  // 📴 OFFLINE-CAPABLE DELETE
   const deleteLog = async (id: string) => {
-    await supabase.from("gym_logs").delete().eq("id", id);
+    await dbDelete("gym_logs", id);
     setLogs(logs.filter((l) => l.id !== id));
   };
 
@@ -119,15 +144,18 @@ export default function WorkoutPage() {
     setEditMinutes(String(l.duration_minutes));
     setEditTime(l.reminder_time ? l.reminder_time.slice(0, 5) : "");
   };
+
+  // 📴 OFFLINE-CAPABLE EDIT SAVE
   const saveEdit = async () => {
     if (!editingId) return;
-    await supabase.from("gym_logs").update({
+    const patch = {
       workout_type: editWorkout,
       duration_minutes: Number(editMinutes) || 0,
       reminder_time: editTime || null,
-    }).eq("id", editingId);
+    };
+    await dbUpdate("gym_logs", editingId, patch);
+    setLogs(logs.map((l) => (l.id === editingId ? { ...l, ...patch } : l)));
     setEditingId(null);
-    await load(date);
   };
 
   const total = logs.reduce((s, r) => s + r.duration_minutes, 0);
@@ -155,6 +183,13 @@ export default function WorkoutPage() {
           <ProgressRing pct={pct} size={56} stroke={6} color="#ffffff" track="rgba(0,0,0,0.25)" />
         </div>
       </div>
+
+      {/* 📴 Offline indicator */}
+      {fromCache && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-bold">
+          <WifiOff size={13} /> You're offline — changes will sync when you reconnect.
+        </div>
+      )}
 
       {/* CONTROLS */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">

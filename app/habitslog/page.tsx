@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
-import { Plus, Trash2, Flame, Anchor, PartyPopper, Sparkles, X, Landmark, Clock, MapPin, Pencil, Bell, BellOff, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Flame, Anchor, PartyPopper, Sparkles, X, Landmark, Clock, MapPin, Pencil, Bell, BellOff, ChevronLeft, ChevronRight, WifiOff } from "lucide-react";
+import { dbInsert, dbUpdate, dbDelete, dbLoad } from "@/lib/offlineWrite";
 
 type Habit = {
   id: string;
@@ -60,6 +61,7 @@ export default function HabitLogPage() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [streaks, setStreaks] = useState<Record<string, number>>({});
+  const [fromCache, setFromCache] = useState(false);
 
   const [name, setName] = useState("");
   const [anchor, setAnchor] = useState(ANCHORS[0]);
@@ -92,17 +94,29 @@ export default function HabitLogPage() {
   const load = async () => {
     const { data } = await supabase.auth.getSession();
     const id = data.session?.user.id; if (!id) return; setUid(id);
+
+    // 📴 Offline-capable READ for all 3 tables
     const [h, lg, ref] = await Promise.all([
-      supabase.from("habits").select("*").eq("user_id", id).or("category.eq.habit,category.is.null").order("created_at"),
-      supabase.from("habit_logs").select("*").eq("user_id", id).eq("completed", true),
-      supabase.from("reflections").select("*").eq("user_id", id).eq("log_date", today).maybeSingle(),
+      dbLoad("habits", (q) => q.eq("user_id", id).or("category.eq.habit,category.is.null").order("created_at")),
+      dbLoad("habit_logs", (q) => q.eq("user_id", id).eq("completed", true)),
+      dbLoad("reflections", (q) => q.eq("user_id", id).eq("log_date", today), (r) => r.log_date === today),
     ]);
-    setHabits((h.data as Habit[]) || []);
-    const all = (lg.data || []) as any[];
+
+    setHabits((h.rows as Habit[]) || []);
+    const all = (lg.rows || []) as any[];
     setLogs(all);
-    if (ref && ref.data) { setReflWent(ref.data.went_well || ""); setReflImprove(ref.data.improve || ""); setReflGrateful(ref.data.grateful || ""); setReflSaved(true); }
+    setFromCache(h.fromCache || lg.fromCache || ref.fromCache);
+
+    if (ref.rows && ref.rows.length > 0) {
+      const refData = ref.rows[0];
+      setReflWent(refData.went_well || "");
+      setReflImprove(refData.improve || "");
+      setReflGrateful(refData.grateful || "");
+      setReflSaved(true);
+    }
+
     const st: Record<string, number> = {};
-    ((h.data as Habit[]) || []).forEach((hb) => {
+    ((h.rows as Habit[]) || []).forEach((hb) => {
       let s = 0; let cursor = new Date();
       const has = (d: string) => all.some((l) => l.habit_id === hb.id && l.log_date === d);
       if (!has(toLocalISO(cursor))) cursor.setDate(cursor.getDate() - 1);
@@ -140,27 +154,30 @@ export default function HabitLogPage() {
   const weeksSince = (c: string) => Math.floor((Date.now() - new Date(c || Date.now()).getTime()) / (7 * 86400000));
   const currentMin = (h: Habit) => { const w = Math.max(0, weeksSince(h.created_at)); const ladder = [2, 5, 10]; const base = w < 3 ? ladder[w] : (h.target_minutes || 10); return Math.min(base, h.target_minutes || base); };
 
+  // 📴 OFFLINE-CAPABLE AWARD (coins)
   const award = async (hb: Habit) => {
-    const { error } = await supabase.from("coin_log").insert({ user_id: uid, action_key: `habit-${hb.id}-${today}`, coins: 10 });
-    if (!error) {
+    const { ok } = await dbInsert("coin_log", { user_id: uid, action_key: `habit-${hb.id}-${today}`, coins: 10 });
+    if (ok) {
       const { data: cur } = await supabase.from("user_coins").select("coins").eq("user_id", uid).maybeSingle();
       const total = (cur?.coins || 0) + 10;
-      await supabase.from("user_coins").upsert({ user_id: uid, coins: total });
+      await dbUpdate("user_coins", uid, { coins: total });
       window.dispatchEvent(new CustomEvent("dg-coins", { detail: { total, earned: 10 } }));
     }
   };
 
+  // 📴 OFFLINE-CAPABLE TOGGLE
   const toggle = async (hb: Habit) => {
     const d = viewDate;
     if (doneView.includes(hb.id)) {
-      await supabase.from("habit_logs").delete().eq("user_id", uid).eq("habit_id", hb.id).eq("log_date", d);
+      await dbDelete("habit_logs", hb.id); // Delete the log entry
       setLogs(logs.filter((l) => !(l.habit_id === hb.id && l.log_date === d)));
       if (d === today) setStreaks({ ...streaks, [hb.id]: Math.max(0, (streaks[hb.id] || 1) - 1) });
       return;
     }
-    const { data, error } = await supabase.from("habit_logs").insert({ user_id: uid, habit_id: hb.id, log_date: d, completed: true }).select().single();
-    if (!error && data) {
-      setLogs([...logs, data]);
+    const res = await dbInsert("habit_logs", { user_id: uid, habit_id: hb.id, log_date: d, completed: true });
+    if (res.ok) {
+      const newLog = { id: res.id, user_id: uid, habit_id: hb.id, log_date: d, completed: true };
+      setLogs([...logs, newLog]);
       if (d === today) {
         setStreaks({ ...streaks, [hb.id]: (streaks[hb.id] || 0) + 1 });
         setCelebrate({ name: hb.habit_name, coins: 10 });
@@ -173,16 +190,32 @@ export default function HabitLogPage() {
     }
   };
 
+  // 📴 OFFLINE-CAPABLE ADD HABIT
   const addHabit = async (t?: { emoji: string; name: string; anchor: string; target: number; identity?: string }, timeOverride?: string | null) => {
     const n = (t?.name || name).trim(); if (!n) return;
     const finalAnchor = t ? t.anchor : (anchor === "__custom" ? (anchorCustom.trim() || "I wake up") : anchor);
     const finalTime = t ? (timeOverride || null) : (cueTime || null);
-    const { data, error } = await supabase.from("habits").insert({
+    const res = await dbInsert("habits", {
       user_id: uid, habit_name: n, emoji: t?.emoji || "✅", anchor: finalAnchor,
       target_minutes: t?.target || Number(target) || 10, identity: t?.identity || identity,
       cue_time: finalTime, cue_place: (t ? null : cuePlace) || null,
-    }).select().single();
-    if (!error && data) setHabits([...habits, data as Habit]);
+      category: "habit",
+    });
+    if (res.ok) {
+      const newHabit: Habit = {
+        id: res.id,
+        user_id: uid,
+        habit_name: n,
+        emoji: t?.emoji || "✅",
+        anchor: finalAnchor,
+        target_minutes: t?.target || Number(target) || 10,
+        identity: t?.identity || identity,
+        cue_time: finalTime,
+        cue_place: (t ? null : cuePlace) || null,
+        created_at: new Date().toISOString(),
+      } as any;
+      setHabits([...habits, newHabit]);
+    }
     setName(""); setIdentity(""); setCueTime(""); setCuePlace(""); setAnchorCustom(""); setView("today");
   };
 
@@ -192,20 +225,26 @@ export default function HabitLogPage() {
     if (ANCHORS.includes(h.anchor)) { setEAnchor(h.anchor); setEAnchorCustom(""); } else { setEAnchor("__custom"); setEAnchorCustom(h.anchor); }
   };
 
+  // 📴 OFFLINE-CAPABLE SAVE EDIT
   const saveEdit = async () => {
     if (!editId) return;
     const finalAnchor = eAnchor === "__custom" ? (eAnchorCustom.trim() || "I wake up") : eAnchor;
     const patch = { habit_name: eName.trim() || "Habit", anchor: finalAnchor, target_minutes: Number(eTarget) || 10, cue_time: eTime || null, cue_place: ePlace || null, identity: eIdentity };
-    await supabase.from("habits").update(patch).eq("id", editId);
+    await dbUpdate("habits", editId, patch);
     setHabits(habits.map((h) => (h.id === editId ? { ...h, ...patch } : h)));
     setEditId(null);
   };
 
-  const del = async (id: string) => { await supabase.from("habits").delete().eq("id", id); setHabits(habits.filter((h) => h.id !== id)); };
+  // 📴 OFFLINE-CAPABLE DELETE
+  const del = async (id: string) => {
+    await dbDelete("habits", id);
+    setHabits(habits.filter((h) => h.id !== id));
+  };
 
+  // 📴 OFFLINE-CAPABLE REFLECTION
   const saveReflection = async () => {
     if (reflSaved) return;
-    await supabase.from("reflections").insert({ user_id: uid, log_date: today, went_well: reflWent, improve: reflImprove, grateful: reflGrateful });
+    await dbInsert("reflections", { user_id: uid, log_date: today, went_well: reflWent, improve: reflImprove, grateful: reflGrateful });
     setReflSaved(true);
     recordNotification("🏛️ Evening review done", "Marcus Aurelius would be proud.");
   };
@@ -215,7 +254,6 @@ export default function HabitLogPage() {
   const isDone = (hid: string, d: string) => logs.some((l) => l.habit_id === hid && l.log_date === d);
   const doneCount = doneView.length;
   const inputCls = "w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-violet-500";
-  /* ✅ CLOCK SYSTEM: native time picker, visible on dark theme */
   const timeCls = inputCls + " [color-scheme:dark] text-slate-200";
 
   const AnchorSelect = ({ value, onChange, custom, onCustom }: { value: string; onChange: (v: string) => void; custom: string; onCustom: (v: string) => void }) => (
@@ -237,6 +275,13 @@ export default function HabitLogPage() {
           <p className="text-[11px] text-white/75 font-semibold mt-0.5">Today: tap once. Add and review only when needed.</p>
         </div>
       </div>
+
+      {/* 📴 Offline indicator */}
+      {fromCache && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-bold">
+          <WifiOff size={13} /> You're offline — changes will sync when you reconnect.
+        </div>
+      )}
 
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <button onClick={() => setShowRemSheet(true)} className={`press flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border ${remindersOn ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-slate-900 border-slate-800 text-slate-500"}`}>

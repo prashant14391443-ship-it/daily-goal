@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
 import { useRouter } from "next/navigation";
-import { ListTodo, Flame, Bell, BellOff, Plus, Pencil, X, Check, AlarmClock, GripVertical } from "lucide-react";
+import { ListTodo, Flame, Bell, BellOff, Plus, Pencil, X, Check, AlarmClock, GripVertical, WifiOff } from "lucide-react";
 import { ProgressRing, GradButton, EmptyState } from "@/app/components/ui";
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { dbInsert, dbUpdate, dbDelete, dbLoad } from "@/lib/offlineWrite";
 
 type Todo = {
   id: string;
@@ -65,7 +66,6 @@ function TodoRow(props: {
       ) : (
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            {/* ⠿ HOLD + DRAG HANDLE */}
             <button
               {...attributes}
               {...listeners}
@@ -114,13 +114,13 @@ export default function TodoPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editTime, setEditTime] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fromCache, setFromCache] = useState(false);
 
   const todosRef = useRef<Todo[]>([]);
   useEffect(() => { todosRef.current = todos; }, [todos]);
 
   const router = useRouter();
 
-  // hold ~150ms before drag starts → page still scrolls normally
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { delay: 150, tolerance: 8 } })
   );
@@ -129,14 +129,22 @@ export default function TodoPage() {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
     if (!userId) { router.push("/login"); return; }
-    const [rows, allDone] = await Promise.all([
-      supabase.from("tasks").select("*").eq("user_id", userId).eq("category", "todo").eq("task_date", selectedDate)
+
+    // 📴 Offline-capable READ
+    const { rows, fromCache: cache } = await dbLoad("tasks", (q) =>
+      q.eq("user_id", userId).eq("category", "todo").eq("task_date", selectedDate)
         .order("sort_order", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: true }),
-      supabase.from("tasks").select("task_date").eq("user_id", userId).eq("category", "todo").eq("completed", true),
-    ]);
-    setTodos(rows.data || []);
-    setStreak(calcStreak(new Set((allDone.data || []).map((r) => r.task_date)), today));
+      (r) => r.task_date === selectedDate && r.category === "todo"
+    );
+    setTodos(rows as Todo[]);
+    setFromCache(cache);
+
+    // Streak is a nice-to-have, not critical for offline editing
+    if (navigator.onLine) {
+      const { data: allDone } = await supabase.from("tasks").select("task_date").eq("user_id", userId).eq("category", "todo").eq("completed", true);
+      setStreak(calcStreak(new Set((allDone || []).map((r) => r.task_date)), today));
+    }
   };
 
   useEffect(() => { load(date); }, [date]);
@@ -181,6 +189,7 @@ export default function TodoPage() {
     return () => clearInterval(id);
   }, [remindersOn]);
 
+  // 📴 OFFLINE-CAPABLE ADD
   const addTodo = async (e: React.FormEvent) => {
     e.preventDefault();
     const { data } = await supabase.auth.getSession();
@@ -188,22 +197,36 @@ export default function TodoPage() {
     if (!userId || !newTask.trim() || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      await supabase.from("tasks").insert({
+      const res = await dbInsert("tasks", {
         user_id: userId, title: newTask.trim(), task_date: date,
-        category: "todo", reminder_time: newTime || null,
-        sort_order: todos.length, // append at the end
+        category: "todo", reminder_time: newTime || null, completed: false,
+        sort_order: todos.length,
       });
+      // Instant UI update (works online AND offline)
+      const newItem: Todo = {
+        id: res.id,
+        user_id: userId,
+        title: newTask.trim(),
+        task_date: date,
+        category: "todo",
+        reminder_time: newTime || null,
+        completed: false,
+        sort_order: todos.length,
+      } as any;
+      setTodos((prev) => [...prev, newItem]);
       setNewTask(""); setNewTime("");
-      await load(date);
     } finally { setIsSubmitting(false); }
   };
 
+  // 📴 OFFLINE-CAPABLE TOGGLE
   const toggleTodo = async (id: string, completed: boolean) => {
-    await supabase.from("tasks").update({ completed: !completed }).eq("id", id);
+    await dbUpdate("tasks", id, { completed: !completed });
     setTodos(todos.map((t) => (t.id === id ? { ...t, completed: !completed } : t)));
   };
+
+  // 📴 OFFLINE-CAPABLE DELETE
   const deleteTodo = async (id: string) => {
-    await supabase.from("tasks").delete().eq("id", id);
+    await dbDelete("tasks", id);
     setTodos(todos.filter((t) => t.id !== id));
   };
 
@@ -213,17 +236,18 @@ export default function TodoPage() {
     setEditTime(t.reminder_time ? t.reminder_time.slice(0, 5) : "");
   };
 
+  // 📴 OFFLINE-CAPABLE EDIT SAVE
   const saveEdit = async () => {
     if (!editingId) return;
-    await supabase.from("tasks").update({ title: editTitle, reminder_time: editTime || null }).eq("id", editingId);
+    await dbUpdate("tasks", editingId, { title: editTitle, reminder_time: editTime || null });
+    setTodos(todos.map((t) => t.id === editingId ? { ...t, title: editTitle, reminder_time: editTime || null } : t));
     setEditingId(null);
-    await load(date);
   };
 
-  /* ----- DRAG & DROP REORDER ----- */
+  /* ----- DRAG & DROP REORDER (offline-capable) ----- */
   const persistOrder = async (changed: Todo[]) => {
     await Promise.all(
-      changed.map((t) => supabase.from("tasks").update({ sort_order: t.sort_order }).eq("id", t.id))
+      changed.map((t) => dbUpdate("tasks", t.id, { sort_order: t.sort_order }))
     );
   };
 
@@ -235,8 +259,8 @@ export default function TodoPage() {
     if (oldIndex === -1 || newIndex === -1) return;
     const next = arrayMove(todos, oldIndex, newIndex).map((t, i) => ({ ...t, sort_order: i }));
     const changed = next.filter((t, i) => todos[i]?.id !== t.id);
-    setTodos(next); // instant UI
-    void persistOrder(changed); // save to Supabase
+    setTodos(next);
+    void persistOrder(changed);
   };
 
   const doneCount = todos.filter((t) => t.completed).length;
@@ -244,7 +268,6 @@ export default function TodoPage() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
-      {/* 🌆 CALM HERO */}
       <div className="relative mb-4 overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500 via-orange-600 to-rose-600 p-5 shadow-xl shadow-orange-900/20">
         <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative flex items-center gap-4">
@@ -262,7 +285,13 @@ export default function TodoPage() {
         </div>
       </div>
 
-      {/* CONTROLS */}
+      {/* 📴 Offline indicator */}
+      {fromCache && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-bold">
+          <WifiOff size={13} /> You're offline — changes will sync when you reconnect.
+        </div>
+      )}
+
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <button
           onClick={toggleReminders}
@@ -284,7 +313,6 @@ export default function TodoPage() {
         </div>
       </div>
 
-      {/* ADD FORM */}
       <form onSubmit={addTodo} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4 grid gap-3">
         <input value={newTask} onChange={(e) => setNewTask(e.target.value)}
           placeholder="Add to your daily plan (e.g. Finish project report)" required className={inputCls} />
@@ -304,7 +332,6 @@ export default function TodoPage() {
 
       <p className="text-[10px] text-slate-500 font-semibold mb-2">Tip: hold the ⠿ handle on a task and drag it to any position — order is saved.</p>
 
-      {/* TODOS — DRAGGABLE */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={todos.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           <div className="grid gap-2">
