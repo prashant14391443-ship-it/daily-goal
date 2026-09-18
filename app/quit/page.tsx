@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
-import { Ban, Plus, Trash2, Flame, Trophy, Coins, Clock, PartyPopper, RefreshCw, X } from "lucide-react";
+import { Ban, Plus, Trash2, Flame, Trophy, Coins, Clock, PartyPopper, RefreshCw, X, WifiOff } from "lucide-react";
+import { dbInsert, dbDelete, dbLoad } from "@/lib/offlineWrite";
 
 type Bad = { id: string; name: string; emoji: string; cost_per: number; time_per: number; reason: string; replacement: string; created_at: string; reminder_time: string | null };
 type Log = { id: string; bad_habit_id: string; log_date: string; clean: boolean };
@@ -34,6 +35,7 @@ export default function QuitPage() {
   const [uid, setUid] = useState("");
   const [habits, setHabits] = useState<Bad[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
+  const [fromCache, setFromCache] = useState(false);
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState("🚫");
   const [cost, setCost] = useState("");
@@ -49,12 +51,14 @@ export default function QuitPage() {
   const load = async () => {
     const { data } = await supabase.auth.getSession();
     const id = data.session?.user.id; if (!id) return; setUid(id);
+    // 📴 Offline-capable READs
     const [h, lg] = await Promise.all([
-      supabase.from("bad_habits").select("*").eq("user_id", id).order("created_at"),
-      supabase.from("bad_habit_logs").select("*").eq("user_id", id),
+      dbLoad("bad_habits", (q) => q.eq("user_id", id).order("created_at"), (r) => r.user_id === id),
+      dbLoad("bad_habit_logs", (q) => q.eq("user_id", id), (r) => r.user_id === id),
     ]);
-    setHabits((h.data as Bad[]) || []);
-    setLogs((lg.data as Log[]) || []);
+    setHabits((h.rows as Bad[]) || []);
+    setLogs((lg.rows as Log[]) || []);
+    setFromCache(h.fromCache || lg.fromCache);
   };
 
   const statsFor = (id: string) => {
@@ -100,7 +104,9 @@ export default function QuitPage() {
     return () => clearInterval(id);
   }, [habits, logs, today]);
 
+  // 🪙 Coins stay server-side (prevents offline abuse)
   const award = async (h: Bad) => {
+    if (!navigator.onLine) return;
     const { error } = await supabase.from("coin_log").insert({ user_id: uid, action_key: `quit-clean-${h.id}-${today}`, coins: 15 });
     if (!error) {
       const { data: cur } = await supabase.from("user_coins").select("coins").eq("user_id", uid).maybeSingle();
@@ -110,43 +116,57 @@ export default function QuitPage() {
     }
   };
 
+  // 📴 OFFLINE-CAPABLE MARK CLEAN/SLIP
   const mark = async (h: Bad, clean: boolean) => {
     if (todayLog(h.id)) return;
-    const { data, error } = await supabase.from("bad_habit_logs").insert({ user_id: uid, bad_habit_id: h.id, log_date: today, clean }).select().single();
-    if (!error && data) {
-      setLogs([...logs, data]);
+    const res = await dbInsert("bad_habit_logs", { user_id: uid, bad_habit_id: h.id, log_date: today, clean });
+    if (res.ok) {
+      const newLog = { id: res.id, bad_habit_id: h.id, log_date: today, clean } as Log;
+      setLogs([...logs, newLog]);
       if (clean) {
         setCelebrate(`${h.emoji} ${h.name} — clean today!`);
         recordNotification("💪 Stayed clean!", `${h.emoji} ${h.name} → +15 🪙`);
         await award(h);
         setTimeout(() => setCelebrate(null), 1600);
       } else {
-        recordNotification("🌱 One slip ≠ failure", `${h.emoji} ${h.name} — restart now. You've got this.`);
+        recordNotification(" One slip ≠ failure", `${h.emoji} ${h.name} — restart now. You've got this.`);
       }
     }
   };
 
+  // 📴 OFFLINE-CAPABLE UNDO
   const undo = async (h: Bad) => {
-    await supabase.from("bad_habit_logs").delete().eq("user_id", uid).eq("bad_habit_id", h.id).eq("log_date", today);
-    setLogs(logs.filter((l) => !(l.bad_habit_id === h.id && l.log_date === today)));
+    const t = todayLog(h.id);
+    if (!t) return;
+    await dbDelete("bad_habit_logs", t.id);
+    setLogs(logs.filter((l) => l.id !== t.id));
   };
 
+  // 📴 OFFLINE-CAPABLE ADD HABIT
   const addHabit = async (t?: { emoji: string; name: string; cost: number; time: number; reason: string; replacement: string; remind?: string }, timeOverride?: string | null) => {
     const n = (t?.name || name).trim(); if (!n) return;
     const safeCost = Number(t?.cost ?? cost ?? 0) || 0;
     const safeTime = Number(t?.time ?? time ?? 0) || 0;
     const finalRemind = t ? (timeOverride || null) : (remTime || null);
-    const { data, error } = await supabase.from("bad_habits").insert({
+    const res = await dbInsert("bad_habits", {
       user_id: uid, name: n, emoji: (t?.emoji || emoji).trim() || "🚫",
       cost_per: safeCost, time_per: safeTime,
       reason: t?.reason || reason, replacement: t?.replacement || replacement,
       reminder_time: finalRemind,
-    }).select().single();
-    if (!error && data) setHabits([...habits, data as Bad]);
+    });
+    if (res.ok) {
+      setHabits((prev) => [...prev, {
+        id: res.id, name: n, emoji: (t?.emoji || emoji).trim() || "🚫",
+        cost_per: safeCost, time_per: safeTime,
+        reason: t?.reason || reason, replacement: t?.replacement || replacement,
+        reminder_time: finalRemind, created_at: new Date().toISOString(),
+      } as Bad]);
+    }
     setName(""); setReason(""); setReplacement(""); setCost(""); setTime(""); setEmoji("🚫"); setRemTime(""); setView("today");
   };
 
-  const del = async (id: string) => { await supabase.from("bad_habits").delete().eq("id", id); setHabits(habits.filter((h) => h.id !== id)); };
+  // 📴 OFFLINE-CAPABLE DELETE
+  const del = async (id: string) => { await dbDelete("bad_habits", id); setHabits(habits.filter((h) => h.id !== id)); };
 
   const fmtTime = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`);
   const inputCls = "w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-sm outline-none focus:border-rose-500";
@@ -173,6 +193,13 @@ export default function QuitPage() {
           </div>
         </div>
       </div>
+
+      {/* 📴 Offline indicator */}
+      {fromCache && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-bold">
+          <WifiOff size={13} /> You're offline — changes will sync when you reconnect.
+        </div>
+      )}
 
       {/* ✅ SAME 3-TAB SYSTEM AS HABIT LOG */}
       <div className="grid grid-cols-3 gap-2 mb-5">

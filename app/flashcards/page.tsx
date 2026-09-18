@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Layers, Plus, Play, X, Check, BookOpen, RotateCw, Trophy } from "lucide-react";
+import { Layers, Plus, Play, X, Check, BookOpen, RotateCw, Trophy, WifiOff } from "lucide-react";
 import { EmptyState } from "@/app/components/ui";
 import BackText from "@/app/components/BackBtn";
+import { dbInsert, dbDelete, dbLoad } from "@/lib/offlineWrite";
+
 type Card = { id: string; subject: string; front: string; back: string };
 
 export default function FlashcardsPage() {
@@ -19,30 +21,41 @@ export default function FlashcardsPage() {
   const [stats, setStats] = useState({ knew: 0, forgot: 0 });
   const [reviewDone, setReviewDone] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [fromCache, setFromCache] = useState(false);
   const router = useRouter();
 
   const load = async () => {
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id;
     if (!userId) { router.push("/login"); return; }
-    const { data } = await supabase.from("flashcards").select("*").eq("user_id", userId).order("created_at");
-    setCards(data || []);
+    // 📴 Offline-capable READ (deck stays on device → review works in airplane mode)
+    const { rows, fromCache: cache } = await dbLoad(
+      "flashcards",
+      (q) => q.eq("user_id", userId).order("created_at"),
+      (r) => r.user_id === userId
+    );
+    setCards((rows as Card[]) || []);
+    setFromCache(cache);
   };
 
   useEffect(() => { load(); }, []);
 
+  // 📴 OFFLINE-CAPABLE ADD
   const addCard = async (e: React.FormEvent) => {
     e.preventDefault();
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
-    if (!userId) return;
-    await supabase.from("flashcards").insert({ user_id: userId, subject: subject || "General", front, back });
+    if (!userId || !front.trim() || !back.trim()) return;
+    const res = await dbInsert("flashcards", { user_id: userId, subject: subject || "General", front, back });
+    if (res.ok) {
+      setCards((prev) => [...prev, { id: res.id, subject: subject || "General", front, back } as Card]);
+    }
     setFront(""); setBack(""); setSubject("");
-    await load();
   };
 
+  // 📴 OFFLINE-CAPABLE DELETE
   const deleteCard = async (id: string) => {
-    await supabase.from("flashcards").delete().eq("id", id);
+    await dbDelete("flashcards", id);
     setCards(cards.filter((c) => c.id !== id));
   };
 
@@ -88,6 +101,13 @@ export default function FlashcardsPage() {
               </div>
             </div>
           </div>
+
+          {/* 📴 Offline indicator */}
+          {fromCache && (
+            <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-bold">
+              <WifiOff size={13} /> You're offline — deck loaded from device, new cards sync later.
+            </div>
+          )}
 
           {/* 🎯 BIG START BUTTON */}
           {cards.length > 0 && (
@@ -175,7 +195,7 @@ export default function FlashcardsPage() {
         </>
       )}
 
-      {/* 🔄 REVIEW MODE */}
+      {/* 🔄 REVIEW MODE (100% on-device — always works offline) */}
       {reviewing && !reviewDone && currentCard && (
         <div className="max-w-md mx-auto">
           {/* stats chips */}
@@ -230,7 +250,7 @@ export default function FlashcardsPage() {
       {/* 🎉 REVIEW COMPLETE */}
       {reviewDone && (
         <div className="max-w-md mx-auto relative overflow-hidden rounded-3xl bg-emerald-500/10 border-2 border-emerald-500/30 p-8 text-center">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.05),_transparent_70%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.05),_transparent 70%)]" />
           <div className="relative">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/20 flex items-center justify-center">
               <Trophy size={32} className="text-emerald-400" />

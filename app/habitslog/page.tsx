@@ -154,13 +154,14 @@ export default function HabitLogPage() {
   const weeksSince = (c: string) => Math.floor((Date.now() - new Date(c || Date.now()).getTime()) / (7 * 86400000));
   const currentMin = (h: Habit) => { const w = Math.max(0, weeksSince(h.created_at)); const ladder = [2, 5, 10]; const base = w < 3 ? ladder[w] : (h.target_minutes || 10); return Math.min(base, h.target_minutes || base); };
 
-  // 📴 OFFLINE-CAPABLE AWARD (coins)
+  // 🪙 Coins stay server-side (prevents offline abuse); offline check-ins still sync, bonus applies when online
   const award = async (hb: Habit) => {
-    const { ok } = await dbInsert("coin_log", { user_id: uid, action_key: `habit-${hb.id}-${today}`, coins: 10 });
-    if (ok) {
+    if (!navigator.onLine) return;
+    const { error } = await supabase.from("coin_log").insert({ user_id: uid, action_key: `habit-${hb.id}-${today}`, coins: 10 });
+    if (!error) {
       const { data: cur } = await supabase.from("user_coins").select("coins").eq("user_id", uid).maybeSingle();
       const total = (cur?.coins || 0) + 10;
-      await dbUpdate("user_coins", uid, { coins: total });
+      await supabase.from("user_coins").upsert({ user_id: uid, coins: total });
       window.dispatchEvent(new CustomEvent("dg-coins", { detail: { total, earned: 10 } }));
     }
   };
