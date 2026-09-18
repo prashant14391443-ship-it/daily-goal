@@ -1,7 +1,7 @@
-// DAILY GOAL service worker v10 — FINAL: aggressive precrawl, silent offline
-const CACHE_NAME = "daily-goal-v10";
+// DAILY GOAL service worker v11 — FINAL: instant opens + silent full-app save
+const CACHE_NAME = "daily-goal-v11";
 const API_CACHE = "daily-goal-api-v1";
-const SENTINEL = "/__all_pages_saved_v10";
+const SENTINEL = "/__all_pages_saved_v11";
 
 const ALL_PAGES = [
   "/", "/dashboard", "/login", "/signup",
@@ -37,6 +37,7 @@ async function saveAllPages() {
   await cache.put(SENTINEL, new Response("1"));
 }
 
+// Install = 3 tiny files → fast
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -45,6 +46,7 @@ self.addEventListener("install", (event) => {
   );
 });
 
+// Activate = clean old caches, take control
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -62,6 +64,7 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
 
+  // 1) Supabase data: online = fresh (saved for offline), offline = replay saved
   if (url.hostname.endsWith(".supabase.co")) {
     const authTail = (req.headers.get("authorization") || "").slice(-24);
     const key = url.href + "|auth:" + authTail;
@@ -79,23 +82,31 @@ self.addEventListener("fetch", (event) => {
 
   if (url.origin !== self.location.origin) return;
 
+  // 2) Pages: INSTANT from device cache, refresh in background
   if (req.mode === "navigate") {
     event.respondWith(
-      fetch(req).then((res) => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then((c) => c.put(req, clone)).catch(() => {});
-        // Run precrawl every page load if sentinel missing (catches failed batches)
+      (async () => {
+        const cache = await caches.open(CACHE_NAME);
+        const hit = await cache.match(req);
+        const network = fetch(req).then((res) => {
+          if (res.ok) { const clone = res.clone(); cache.put(req, clone).catch(() => {}); }
+          return res;
+        }).catch(() => null);
         event.waitUntil((async () => {
           const done = await caches.match(SENTINEL);
           if (done) return;
           await saveAllPages();
         })());
-        return res;
-      }).catch(() => caches.match(req).then((hit) => hit || caches.match("/")))
+        if (hit) return hit; // ⚡ instant
+        const res = await network;
+        return res || (await cache.match("/dashboard")) || (await cache.match("/")) ||
+          new Response(offlineHTML(), { headers: { "Content-Type": "text/html" } });
+      })()
     );
     return;
   }
 
+  // 3) JS/CSS/images: device copy first, else download + save
   event.respondWith(
     caches.match(req).then((hit) => hit || fetch(req).then((res) => {
       if (res && res.ok) {
@@ -107,12 +118,18 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
+function offlineHTML() {
+  return `<!doctype html><html><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#020617;color:#fff;font-family:sans-serif;text-align:center"><div><img src="/icon.svg" width="96" height="96" alt="" /><p style="font-size:14px;color:#94a3b8;margin:16px 0 0">Open once with internet to enable offline mode.</p></div></body></html>`;
+}
+
+// Offline edits auto-sync when internet returns
 self.addEventListener("sync", (event) => {
   if (event.tag === "sync-offline-changes") {
     event.waitUntil(self.clients.matchAll().then((cs) => cs.forEach((c) => c.postMessage({ type: "SYNC_OFFLINE" }))));
   }
 });
 
+// Push notifications
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
   event.waitUntil(self.registration.showNotification(data.title || "Daily Goal", {
