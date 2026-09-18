@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Repeat, Clock, X, List, Lightbulb, AlarmClock } from "lucide-react";
+import { Repeat, Clock, X, List, Lightbulb, AlarmClock, WifiOff } from "lucide-react";
 import { EmptyState } from "@/app/components/ui";
+import { dbUpdate, dbLoad } from "@/lib/offlineWrite";
 
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -20,6 +21,7 @@ export default function RepeatTasksPage() {
   const [templates, setTemplates] = useState<Task[]>([]);
   const [todayTasks, setTodayTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fromCache, setFromCache] = useState(false);
   const [timeEditId, setTimeEditId] = useState<string | null>(null);
   const [timeEditValue, setTimeEditValue] = useState("");
   const router = useRouter();
@@ -29,34 +31,48 @@ export default function RepeatTasksPage() {
     const userId = sessionData.session?.user.id;
     if (!userId) { router.push("/login"); return; }
     const today = toLocalISO(new Date());
-    const { data: repeatingData } = await supabase
-      .from("tasks").select("id, title, repeat, completed, reminder_time")
-      .eq("user_id", userId).not("repeat", "is", null);
-    const { data: regularData } = await supabase
-      .from("tasks").select("id, title, repeat, completed, reminder_time")
-      .eq("user_id", userId).eq("task_date", today)
-      .is("repeat", null).is("parent_id", null).eq("category", "todo");
-    setTemplates((repeatingData as Task[]) || []);
-    setTodayTasks((regularData as Task[]) || []);
+
+    // 📴 Offline-capable READs (merged mirror + guards)
+    const [rep, reg] = await Promise.all([
+      dbLoad(
+        "tasks",
+        (q) => q.eq("user_id", userId).not("repeat", "is", null),
+        (r) => r.user_id === userId && r.repeat != null
+      ),
+      dbLoad(
+        "tasks",
+        (q) => q.eq("user_id", userId).eq("task_date", today).is("repeat", null).is("parent_id", null).eq("category", "todo"),
+        (r) => r.user_id === userId && r.task_date === today && r.repeat == null && r.parent_id == null && r.category === "todo"
+      ),
+    ]);
+
+    setTemplates((rep.rows as Task[]) || []);
+    setTodayTasks((reg.rows as Task[]) || []);
+    setFromCache(rep.fromCache || reg.fromCache);
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
 
+  // 📴 OFFLINE-CAPABLE: start repeating
   const makeRepeating = async (t: Task) => {
-    await supabase.from("tasks").update({ repeat: "daily" }).eq("id", t.id);
-    await load();
-  };
-  const stopRepeating = async (t: Task) => {
-    await supabase.from("tasks").update({ repeat: null }).eq("id", t.id);
-    await load();
+    await dbUpdate("tasks", t.id, { repeat: "daily" });
+    setTodayTasks(todayTasks.filter((x) => x.id !== t.id));
+    setTemplates([...templates, { ...t, repeat: "daily" }]);
   };
 
-  /* change the time that all future daily copies will inherit */
+  // 📴 OFFLINE-CAPABLE: stop repeating
+  const stopRepeating = async (t: Task) => {
+    await dbUpdate("tasks", t.id, { repeat: null });
+    setTemplates(templates.filter((x) => x.id !== t.id));
+    setTodayTasks([...todayTasks, { ...t, repeat: null }]);
+  };
+
+  /* 📴 OFFLINE-CAPABLE: change the time that all future daily copies will inherit */
   const saveTime = async (id: string) => {
-    await supabase.from("tasks").update({ reminder_time: timeEditValue || null }).eq("id", id);
+    await dbUpdate("tasks", id, { reminder_time: timeEditValue || null });
+    setTemplates(templates.map((x) => (x.id === id ? { ...x, reminder_time: timeEditValue || null } : x)));
     setTimeEditId(null);
-    await load();
   };
 
   return (
@@ -81,6 +97,13 @@ export default function RepeatTasksPage() {
           )}
         </div>
       </div>
+
+      {/* 📴 Offline indicator */}
+      {fromCache && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-bold">
+          <WifiOff size={13} /> You're offline — changes will sync when you reconnect.
+        </div>
+      )}
 
       {loading ? (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
@@ -181,7 +204,7 @@ export default function RepeatTasksPage() {
                 </span>
                 <p className="font-black text-sm text-white">Today&apos;s Tasks</p>
               </div>
-              <span className="text-[10px] text-slate-600 font-bold">{todayTasks.length} available</span>
+              <span className="text-[10px] font-black text-slate-600">{todayTasks.length} available</span>
             </div>
 
             <div className="grid gap-2">
@@ -220,7 +243,7 @@ export default function RepeatTasksPage() {
           {templates.length > 0 && templates.length < 5 && todayTasks.length > 0 && (
             <div className="mt-5 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-6 h-6 rounded-md bg-indigo-500/15 text-indigo-300 flex items-center justify-center">
+                <span className="w-6 h-6 rounded-md bg-indigo-500/15 flex items-center-300 flex items-center justify-center">
                   <Lightbulb size={13} strokeWidth={2.2} />
                 </span>
                 <p className="text-xs font-black text-indigo-300">Pro tip</p>

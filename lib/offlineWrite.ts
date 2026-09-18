@@ -67,7 +67,7 @@ export async function dbDelete(table: string, id: string): Promise<{ ok: boolean
   return { ok: true, offline: true };
 }
 
-// 🆕 v2: optional `match` filter applied to CACHED rows so offline views never show wrong-date data
+// v3: MERGE into mirror (so tasklog + myday + repeat can share the tasks table offline)
 export async function dbLoad(
   table: string,
   buildQuery: (q: any) => any,
@@ -77,7 +77,10 @@ export async function dbLoad(
     try {
       const { data, error } = await buildQuery(supabase.from(table).select("*"));
       if (!error && data) {
-        await cacheData(`table:${table}`, (data as any[]).slice(0, 500));
+        const prev = (await getCachedData<any[]>(`table:${table}`)) || [];
+        const map = new Map(prev.map((r: any) => [r.id, r]));
+        (data as any[]).forEach((r: any) => map.set(r.id, r));
+        await cacheData(`table:${table}`, Array.from(map.values()).slice(0, 500));
         return { rows: data, fromCache: false };
       }
     } catch {}

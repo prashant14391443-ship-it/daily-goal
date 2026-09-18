@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Star, Check, X, Trophy, List } from "lucide-react";
+import { Star, Check, X, Trophy, List, WifiOff } from "lucide-react";
 import { ProgressRing, EmptyState } from "@/app/components/ui";
+import { dbUpdate, dbLoad } from "@/lib/offlineWrite";
 
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -19,6 +20,7 @@ type Task = { id: string; title: string; completed: boolean; focus: boolean };
 export default function MyDayPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fromCache, setFromCache] = useState(false);
   const router = useRouter();
 
   const load = async () => {
@@ -26,29 +28,32 @@ export default function MyDayPage() {
     const userId = sessionData.session?.user.id;
     if (!userId) { router.push("/login"); return; }
     const today = toLocalISO(new Date());
-    const { data: tasksData } = await supabase
-      .from("tasks")
-      .select("id, title, completed, focus")
-      .eq("user_id", userId)
-      .eq("task_date", today)
-      .eq("category", "todo");
-    setTasks((tasksData as Task[]) || []);
+    // 📴 Offline-capable READ (merged mirror + date guard)
+    const { rows, fromCache: cache } = await dbLoad(
+      "tasks",
+      (q) => q.eq("user_id", userId).eq("task_date", today).eq("category", "todo"),
+      (r) => r.user_id === userId && r.task_date === today && r.category === "todo"
+    );
+    setTasks((rows as Task[]) || []);
+    setFromCache(cache);
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
 
+  // 📴 OFFLINE-CAPABLE STAR TOGGLE
   const toggleFocus = async (t: Task) => {
     if (!t.focus && tasks.filter((x) => x.focus).length >= 3) {
       alert("Max 3 star tasks! Unstar one first.");
       return;
     }
-    await supabase.from("tasks").update({ focus: !t.focus }).eq("id", t.id);
+    await dbUpdate("tasks", t.id, { focus: !t.focus });
     setTasks(tasks.map((x) => (x.id === t.id ? { ...x, focus: !t.focus } : x)));
   };
 
+  // 📴 OFFLINE-CAPABLE DONE TOGGLE
   const toggleDone = async (t: Task) => {
-    await supabase.from("tasks").update({ completed: !t.completed }).eq("id", t.id);
+    await dbUpdate("tasks", t.id, { completed: !t.completed });
     setTasks(tasks.map((x) => (x.id === t.id ? { ...x, completed: !t.completed } : x)));
   };
 
@@ -76,6 +81,13 @@ export default function MyDayPage() {
           <ProgressRing pct={starPct} size={56} stroke={6} color="#fbbf24" track="rgba(0,0,0,0.25)" />
         </div>
       </div>
+
+      {/* 📴 Offline indicator */}
+      {fromCache && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-bold">
+          <WifiOff size={13} /> You're offline — changes will sync when you reconnect.
+        </div>
+      )}
 
       {/* 🎉 WIN BANNER */}
       {allDone && (
