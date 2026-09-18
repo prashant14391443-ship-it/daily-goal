@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { WifiOff } from "lucide-react";
 import { ProgressRing, IconTile, GradButton, Chip } from "@/app/components/ui";
+import { dbInsert, dbDelete, dbLoad, dbUpsertBy } from "@/lib/offlineWrite";
 
 type Log = {
   id: string;
@@ -31,7 +33,7 @@ const QUICK_FOODS = [
   { name: "🍎 Apple", cal: 95, p: 0, c: 25, f: 0 },
   { name: "🥜 Peanuts (30g)", cal: 170, p: 7, c: 5, f: 14 },
   { name: "🍵 Chai (1 cup)", cal: 70, p: 2, c: 10, f: 2 },
-  { name: "🍿 Namkeen (30g)", cal: 160, p: 3, c: 15, f: 10 },
+  { name: "🍿 Namkeen (30g)", cal: 160, p: 3, c: 15, f: 1 },
   { name: "🍛 Paneer butter masala", cal: 280, p: 12, c: 14, f: 20 },
   { name: "🍗 Chicken curry (1 bowl)", cal: 220, p: 22, c: 8, f: 12 },
   { name: "🥗 Salad (1 plate)", cal: 60, p: 2, c: 12, f: 0 },
@@ -75,6 +77,7 @@ export default function NutritionPage() {
   const [fat, setFat] = useState("");
   const [burn, setBurn] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [fromCache, setFromCache] = useState(false);
   const router = useRouter();
   const today = toLocalISO(new Date());
 
@@ -82,26 +85,31 @@ export default function NutritionPage() {
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
     if (!uid) { router.push("/login"); return; }
+
+    // 📴 Offline-capable READs (merged mirror + guards)
     const [l, gl, gym] = await Promise.all([
-      supabase.from("nutrition_logs").select("*").eq("user_id", uid).eq("log_date", today).order("created_at"),
-      supabase.from("user_goals").select("*").eq("user_id", uid).maybeSingle(),
-      supabase.from("gym_logs").select("duration_minutes").eq("user_id", uid).eq("session_date", today),
+      dbLoad("nutrition_logs", (q) => q.eq("user_id", uid).eq("log_date", today).order("created_at"), (r) => r.user_id === uid && r.log_date === today),
+      dbLoad("user_goals", (q) => q.eq("user_id", uid), (r) => r.user_id === uid),
+      dbLoad("gym_logs", (q) => q.eq("user_id", uid).eq("session_date", today), (r) => r.user_id === uid && r.session_date === today),
     ]);
-    setLogs((l.data as Log[]) || []);
-    if (gl.data) {
+
+    setLogs((l.rows as Log[]) || []);
+    const g = (gl.rows || [])[0] as any;
+    if (g) {
       setGoals({
-        calorie_target: gl.data.calorie_target ?? 2000,
-        protein_target: gl.data.protein_target ?? 120,
-        carbs_target: gl.data.carbs_target ?? 250,
-        fat_target: gl.data.fat_target ?? 70,
+        calorie_target: g.calorie_target ?? 2000,
+        protein_target: g.protein_target ?? 120,
+        carbs_target: g.carbs_target ?? 250,
+        fat_target: g.fat_target ?? 70,
       });
-      setGCal(String(gl.data.calorie_target ?? 2000));
-      setGPro(String(gl.data.protein_target ?? 120));
-      setGCarb(String(gl.data.carbs_target ?? 250));
-      setGFat(String(gl.data.fat_target ?? 70));
+      setGCal(String(g.calorie_target ?? 2000));
+      setGPro(String(g.protein_target ?? 120));
+      setGCarb(String(g.carbs_target ?? 250));
+      setGFat(String(g.fat_target ?? 70));
     }
-    const mins = (gym.data || []).reduce((s, r) => s + r.duration_minutes, 0);
+    const mins = ((gym.rows || []) as any[]).reduce((s, r) => s + (r.duration_minutes || 0), 0);
     setBurn(Math.round(mins * 8));
+    setFromCache(l.fromCache || gl.fromCache || gym.fromCache);
     setLoading(false);
   };
 
@@ -119,29 +127,42 @@ export default function NutritionPage() {
     setFat(String(q.f));
   };
 
+  // 📴 OFFLINE-CAPABLE ADD FOOD
   const addFood = async (e: React.FormEvent, meal: string) => {
     e.preventDefault();
     const { data } = await supabase.auth.getSession();
     const uid = data.session?.user.id;
     if (!uid || !foodName.trim() || !cal) return;
-    const { data: inserted, error } = await supabase.from("nutrition_logs").insert({
+    const res = await dbInsert("nutrition_logs", {
       user_id: uid, log_date: today, meal,
       food_name: foodName.trim(),
       calories: Number(cal) || 0,
       protein: Number(pro) || 0,
       carbs: Number(carb) || 0,
       fat: Number(fat) || 0,
-    }).select().single();
-    if (!error && inserted) setLogs([...logs, inserted as Log]);
+    });
+    if (res.ok) {
+      setLogs((prev) => [...prev, {
+        id: res.id,
+        meal,
+        food_name: foodName.trim(),
+        calories: Number(cal) || 0,
+        protein: Number(pro) || 0,
+        carbs: Number(carb) || 0,
+        fat: Number(fat) || 0,
+      } as Log]);
+    }
     setAddingMeal(null);
     resetForm();
   };
 
+  // 📴 OFFLINE-CAPABLE DELETE
   const del = async (id: string) => {
-    await supabase.from("nutrition_logs").delete().eq("id", id);
+    await dbDelete("nutrition_logs", id);
     setLogs(logs.filter((l) => l.id !== id));
   };
 
+  // 📴 OFFLINE-CAPABLE SAVE GOALS (upsert by user_id)
   const saveGoals = async (e: React.FormEvent) => {
     e.preventDefault();
     const { data } = await supabase.auth.getSession();
@@ -153,7 +174,7 @@ export default function NutritionPage() {
       carbs_target: Number(gCarb) || 250,
       fat_target: Number(gFat) || 70,
     };
-    await supabase.from("user_goals").upsert({ user_id: uid, ...next });
+    await dbUpsertBy("user_goals", { user_id: uid, ...next });
     setGoals(next);
     setEditingGoals(false);
   };
@@ -203,6 +224,13 @@ export default function NutritionPage() {
           </div>
         )}
       </div>
+
+      {/* 📴 Offline indicator */}
+      {fromCache && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-bold">
+          <WifiOff size={13} /> You're offline — changes will sync when you reconnect.
+        </div>
+      )}
 
       {/* 🎯 MACRO CARDS */}
       <div className="grid grid-cols-2 gap-3 mb-5">

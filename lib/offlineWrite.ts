@@ -88,3 +88,16 @@ export async function dbLoad(
   const rows = await mirrorList(table);
   return { rows: match ? rows.filter(match) : rows, fromCache: true };
 }
+// Upsert by natural key (tables like user_goals keyed by user_id, not id)
+export async function dbUpsertBy(table: string, row: any): Promise<{ ok: boolean; offline: boolean }> {
+  if (isOnline()) {
+    const { error } = await supabase.from(table).upsert(row);
+    if (!error) {
+      await mirrorUpsert(table, row);
+      return { ok: true, offline: false };
+    }
+  }
+  await mirrorUpsert(table, { ...row, _pending: true });
+  await queueChange({ table, action: "upsert", data: row });
+  return { ok: true, offline: true };
+}

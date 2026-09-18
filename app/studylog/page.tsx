@@ -5,8 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
 import { useRouter } from "next/navigation";
-import { BookOpen, Flame, Bell, BellOff, Plus, Pencil, X, Check, AlarmClock } from "lucide-react";
+import { BookOpen, Flame, Bell, BellOff, Plus, Pencil, X, Check, AlarmClock, WifiOff } from "lucide-react";
 import { ProgressRing, GradButton, EmptyState } from "@/app/components/ui";
+import { dbInsert, dbUpdate, dbDelete, dbLoad } from "@/lib/offlineWrite";
 
 type Session = {
   id: string;
@@ -37,6 +38,7 @@ export default function StudyTracker() {
   const [editTopic, setEditTopic] = useState("");
   const [editMinutes, setEditMinutes] = useState("");
   const [editTime, setEditTime] = useState("");
+  const [fromCache, setFromCache] = useState(false);
   const notified = useRef<Set<string>>(new Set());
   const router = useRouter();
 
@@ -44,12 +46,21 @@ export default function StudyTracker() {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
     if (!userId) { router.push("/login"); return; }
-    const [rows, all] = await Promise.all([
-      supabase.from("study_sessions").select("*").eq("user_id", userId).eq("session_date", selectedDate).order("created_at"),
-      supabase.from("study_sessions").select("session_date").eq("user_id", userId).eq("completed", true),
-    ]);
-    setSessions(rows.data || []);
-    setStreak(calcStreak(new Set((all.data || []).map((r) => r.session_date)), today));
+
+    // 📴 Offline-capable READ (merged mirror + date guard)
+    const { rows, fromCache: cache } = await dbLoad(
+      "study_sessions",
+      (q) => q.eq("user_id", userId).eq("session_date", selectedDate).order("created_at"),
+      (r) => r.user_id === userId && r.session_date === selectedDate
+    );
+    setSessions(rows as Session[]);
+    setFromCache(cache);
+
+    // Streak = nice-to-have, skip when offline
+    if (navigator.onLine) {
+      const { data: all } = await supabase.from("study_sessions").select("session_date").eq("user_id", userId).eq("completed", true);
+      setStreak(calcStreak(new Set((all || []).map((r) => r.session_date)), today));
+    }
   };
 
   useEffect(() => { load(date); }, [date]);
@@ -91,26 +102,41 @@ export default function StudyTracker() {
     return () => clearInterval(id);
   }, [sessions, remindersOn]);
 
+  // 📴 OFFLINE-CAPABLE ADD
   const addSession = async (e: React.FormEvent) => {
     e.preventDefault();
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
-    if (!userId) return;
-    await supabase.from("study_sessions").insert({
-      user_id: userId, subject, topic: topic || null,
+    if (!userId || !subject.trim()) return;
+    const res = await dbInsert("study_sessions", {
+      user_id: userId, subject: subject.trim(), topic: topic || null,
       duration_minutes: Number(minutes) || 0, session_date: date,
       reminder_time: reminderTime || null, completed: false,
     });
+    if (res.ok) {
+      setSessions((prev) => [...prev, {
+        id: res.id,
+        user_id: userId,
+        subject: subject.trim(),
+        topic: topic || null,
+        duration_minutes: Number(minutes) || 0,
+        session_date: date,
+        reminder_time: reminderTime || null,
+        completed: false,
+      } as Session]);
+    }
     setSubject(""); setTopic(""); setMinutes(""); setReminderTime("");
-    await load(date);
   };
 
+  // 📴 OFFLINE-CAPABLE TOGGLE
   const toggleSession = async (id: string, completed: boolean) => {
-    await supabase.from("study_sessions").update({ completed: !completed }).eq("id", id);
+    await dbUpdate("study_sessions", id, { completed: !completed });
     setSessions(sessions.map((s) => (s.id === id ? { ...s, completed: !completed } : s)));
   };
+
+  // 📴 OFFLINE-CAPABLE DELETE
   const deleteSession = async (id: string) => {
-    await supabase.from("study_sessions").delete().eq("id", id);
+    await dbDelete("study_sessions", id);
     setSessions(sessions.filter((s) => s.id !== id));
   };
 
@@ -121,14 +147,17 @@ export default function StudyTracker() {
     setEditMinutes(String(s.duration_minutes));
     setEditTime(s.reminder_time ? s.reminder_time.slice(0, 5) : "");
   };
+
+  // 📴 OFFLINE-CAPABLE EDIT SAVE
   const saveEdit = async () => {
     if (!editingId) return;
-    await supabase.from("study_sessions").update({
+    const patch = {
       subject: editSubject, topic: editTopic || null,
       duration_minutes: Number(editMinutes) || 0, reminder_time: editTime || null,
-    }).eq("id", editingId);
+    };
+    await dbUpdate("study_sessions", editingId, patch);
+    setSessions(sessions.map((s) => (s.id === editingId ? { ...s, ...patch } : s)));
     setEditingId(null);
-    await load(date);
   };
 
   const total = sessions.reduce((s, r) => s + r.duration_minutes, 0);
@@ -157,6 +186,13 @@ export default function StudyTracker() {
           <ProgressRing pct={pct} size={56} stroke={6} color="#ffffff" track="rgba(0,0,0,0.25)" />
         </div>
       </div>
+
+      {/* 📴 Offline indicator */}
+      {fromCache && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-bold">
+          <WifiOff size={13} /> You're offline — changes will sync when you reconnect.
+        </div>
+      )}
 
       {/* CONTROLS */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">

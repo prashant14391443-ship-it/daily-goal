@@ -243,7 +243,7 @@ export default function RepeatTasksPage() {
           {templates.length > 0 && templates.length < 5 && todayTasks.length > 0 && (
             <div className="mt-5 bg-indigo-500/10 border border-indigo-500/20 rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-6 h-6 rounded-md bg-indigo-500/15 flex items-center-300 flex items-center justify-center">
+                <span className="w-6 h-6 rounded-md w-6 h-6 rounded-md bg-indigo-500/15 text-indigo-300 flex items-center justify-center">
                   <Lightbulb size={13} strokeWidth={2.2} />
                 </span>
                 <p className="text-xs font-black text-indigo-300">Pro tip</p>

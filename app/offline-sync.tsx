@@ -27,6 +27,7 @@ export default function OfflineSync() {
           if (ch.action === "insert") await supabase.from(ch.table).insert(ch.data);
           else if (ch.action === "update") await supabase.from(ch.table).update(ch.data).eq("id", ch.data.id);
           else if (ch.action === "delete") await supabase.from(ch.table).delete().eq("id", ch.data.id);
+          else if (ch.action === "upsert") await supabase.from(ch.table).upsert(ch.data);
           done.push(ch.id);
         } catch {}
       }

@@ -7,7 +7,7 @@ const DB_VERSION = 1;
 export interface OfflineChange {
   id: string;
   table: string;
-  action: "insert" | "update" | "delete";
+  action: "insert" | "update" | "delete" | "upsert";
   data: any;
   timestamp: number;
 }
