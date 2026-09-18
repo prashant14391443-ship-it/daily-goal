@@ -1,17 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { aiGate } from "@/lib/aiGate"; // 🛡 NEW
+import { aiGate } from "@/lib/aiGate";
 
-// Increase body size limit for base64 image uploads (Next.js default is 1MB)
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: "10mb",
-    },
-  },
-};
-
-// ✅ RESTORED YOUR EXACT MODELS
 const GROQ_CHAT = [
   "openai/gpt-oss-120b",
   "openai/gpt-oss-20b",
@@ -94,7 +84,7 @@ export async function POST(req: Request) {
     const gate = await aiGate(userId, "quiz", weight);
     if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
 
-    // 2. Build dynamic prompt based on mode
+    // 3. Build dynamic prompt based on mode
     let promptText = "";
     if (mode === "topic") {
       promptText = `You are an expert teacher. Create ${numQuestions} high-quality multiple-choice questions about "${topic}".
@@ -118,7 +108,7 @@ Reply ONLY with a valid JSON array (no markdown, no extra text):
 
     const errs: string[] = [];
 
-    // 3️⃣ GROQ FIRST
+    // 4️⃣ GROQ FIRST
     if (groqKey) {
       for (const model of GROQ_CHAT) {
         try {
@@ -157,7 +147,7 @@ Reply ONLY with a valid JSON array (no markdown, no extra text):
       errs.push("groq: NO KEY");
     }
 
-    // 4️⃣ GEMINI FALLBACK
+    // 5️⃣ GEMINI FALLBACK
     if (gKey) {
       for (const model of GEMINI_MODELS) {
         try {
