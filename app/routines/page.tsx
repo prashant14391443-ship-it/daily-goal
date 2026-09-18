@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sunrise, Moon, Inbox, Play, Check, SkipForward, Trophy, ArrowLeft } from "lucide-react";
+import { Sunrise, Moon, Inbox, Play, Check, SkipForward, Trophy, ArrowLeft, WifiOff } from "lucide-react";
 import { ProgressRing, EmptyState } from "@/app/components/ui";
+import { dbUpdate, dbInsert, dbLoad } from "@/lib/offlineWrite";
 
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -22,24 +23,28 @@ export default function RoutinesPage() {
   const [doneToday, setDoneToday] = useState<Set<string>>(new Set());
   const [runner, setRunner] = useState<null | { name: string; queue: Habit[]; i: number; done: number }>(null);
   const [finished, setFinished] = useState("");
+  const [fromCache, setFromCache] = useState(false);
   const router = useRouter();
 
   const load = async () => {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
     if (!userId) { router.push("/login"); return; }
+    // 📴 Offline-capable READs
     const [h, l] = await Promise.all([
-      supabase.from("habits").select("id, habit_name, routine").eq("user_id", userId),
-      supabase.from("habit_logs").select("habit_id").eq("user_id", userId).eq("log_date", today).eq("completed", true),
+      dbLoad("habits", (q) => q.select("id, habit_name, routine").eq("user_id", userId), (r) => r.user_id === userId),
+      dbLoad("habit_logs", (q) => q.select("habit_id").eq("user_id", userId).eq("log_date", today).eq("completed", true), (r) => r.user_id === userId && r.log_date === today && r.completed === true),
     ]);
-    setHabits(h.data || []);
-    setDoneToday(new Set((l.data || []).map((x) => x.habit_id)));
+    setHabits((h.rows as Habit[]) || []);
+    setDoneToday(new Set((l.rows as any[]).map((x) => x.habit_id)));
+    setFromCache(h.fromCache || l.fromCache);
   };
 
   useEffect(() => { load(); }, []);
 
+  // 📴 OFFLINE-CAPABLE ASSIGN
   const assign = async (id: string, value: string | null) => {
-    await supabase.from("habits").update({ routine: value }).eq("id", id);
+    await dbUpdate("habits", id, { routine: value });
     setHabits(habits.map((h) => (h.id === id ? { ...h, routine: value } : h)));
   };
 
@@ -50,6 +55,7 @@ export default function RoutinesPage() {
     setRunner({ name, queue, i: 0, done: 0 });
   };
 
+  // 📴 OFFLINE-CAPABLE MARK DONE (queues insert if offline)
   const markDone = async () => {
     if (!runner) return;
     const habit = runner.queue[runner.i];
@@ -57,7 +63,7 @@ export default function RoutinesPage() {
       const { data } = await supabase.auth.getSession();
       const userId = data.session?.user.id;
       if (userId) {
-        await supabase.from("habit_logs").insert({ user_id: userId, habit_id: habit.id, log_date: today, completed: true });
+        await dbInsert("habit_logs", { user_id: userId, habit_id: habit.id, log_date: today, completed: true });
       }
       setDoneToday((s) => new Set(s).add(habit.id));
     }
@@ -94,6 +100,13 @@ export default function RoutinesPage() {
           </div>
         </div>
       </div>
+
+      {/* 📴 Offline indicator */}
+      {fromCache && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-bold">
+          <WifiOff size={13} /> You're offline — changes will sync when you reconnect.
+        </div>
+      )}
 
       {!runner && (
         <>

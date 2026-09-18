@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Snowflake, Flame, AlertTriangle, Info, Shield, TrendingUp } from "lucide-react";
+import { Snowflake, Flame, AlertTriangle, Info, Shield, TrendingUp, WifiOff } from "lucide-react";
 import { EmptyState } from "@/app/components/ui";
+import { dbUpdate, dbLoad } from "@/lib/offlineWrite";
 
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -63,6 +64,7 @@ export default function FreezePage() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [logs, setLogs] = useState<{ habit_id: string; log_date: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fromCache, setFromCache] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -70,19 +72,22 @@ export default function FreezePage() {
       const { data } = await supabase.auth.getSession();
       const userId = data.session?.user.id;
       if (!userId) { router.push("/login"); return; }
+      // 📴 Offline-capable READs
       const [h, l] = await Promise.all([
-        supabase.from("habits").select("id, habit_name, freeze").eq("user_id", userId),
-        supabase.from("habit_logs").select("habit_id, log_date").eq("user_id", userId).eq("completed", true),
+        dbLoad("habits", (q) => q.select("id, habit_name, freeze").eq("user_id", userId), (r) => r.user_id === userId),
+        dbLoad("habit_logs", (q) => q.select("habit_id, log_date").eq("user_id", userId).eq("completed", true), (r) => r.user_id === userId && r.completed === true),
       ]);
-      setHabits(h.data || []);
-      setLogs(l.data || []);
+      setHabits((h.rows as Habit[]) || []);
+      setLogs((l.rows as any[]) || []);
+      setFromCache(h.fromCache || l.fromCache);
       setLoading(false);
     };
     load();
   }, []);
 
+  // 📴 OFFLINE-CAPABLE TOGGLE FREEZE
   const toggle = async (id: string, current: boolean) => {
-    await supabase.from("habits").update({ freeze: !current }).eq("id", id);
+    await dbUpdate("habits", id, { freeze: !current });
     setHabits(habits.map((h) => (h.id === id ? { ...h, freeze: !current } : h)));
   };
 
@@ -111,6 +116,13 @@ export default function FreezePage() {
           )}
         </div>
       </div>
+
+      {/* 📴 Offline indicator */}
+      {fromCache && (
+        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-bold">
+          <WifiOff size={13} /> You're offline — changes will sync when you reconnect.
+        </div>
+      )}
 
       {/* 💡 INFO CARD */}
       <div className="bg-cyan-500/10 border border-cyan-500/20 rounded-2xl p-4 mb-5">
