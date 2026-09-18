@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { aiGate } from "@/lib/aiGate";
 import { getExamById } from "@/lib/examPatterns";
 import { adminClient, userClientFromRequest, fillAttemptQuestions, type PlanSlot } from "@/lib/testEngine";
 
@@ -15,6 +16,10 @@ export async function POST(req: Request) {
     const userId = userData.user?.id;
     if (!userId) return NextResponse.json({ error: "Not logged in" }, { status: 401 });
 
+    // 🔒 AI GATE — each topup call generates more questions, so weight = 2
+    const gate = await aiGate(userId, "test", 2);
+    if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
+
     const admin = adminClient();
     const { data: attempt } = await admin
       .from("test_attempts")
@@ -27,7 +32,6 @@ export async function POST(req: Request) {
 
     const plan: PlanSlot[] = attempt.plan || [];
     if (plan.length === 0) {
-      // Real PYQ mode: everything was loaded at start, nothing to top up
       return NextResponse.json({ have: attempt.total_questions, target: attempt.total_questions, done: true, new_questions: [] });
     }
 
@@ -43,7 +47,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ have: prevHave, target: plan.length, done: true, new_questions: [] });
     }
 
-    // Background calls stay short so they never block or overlap badly
     const safeBudget = Math.min(Number(budget) || 9000, 15000);
     const res = await fillAttemptQuestions(admin, exam, attempt.id, plan, attempt.year, safeBudget, undefined);
 
@@ -51,7 +54,6 @@ export async function POST(req: Request) {
       await admin.from("test_attempts").update({ status: "in_progress", total_questions: res.target }).eq("id", attempt.id);
     }
 
-    // Return ONLY the newly added questions (safe: no correct_index / explanation)
     let newQs: any[] = [];
     if (res.have > prevHave) {
       const { data: links } = await admin

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { aiGate } from "@/lib/aiGate"; // 🛡 NEW
 
 const GEMINI_MODELS = ["gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-3-flash-preview"];
 const GROQ_CHAT = [
@@ -30,6 +32,23 @@ function extractJson(raw: string): any | null {
 
 export async function POST(req: Request) {
   try {
+    // 🔒 1. AUTHENTICATE USER
+    const jwt = (req.headers.get("authorization") || "").replace("Bearer ", "");
+    let userId = "anon-ip-" + (req.headers.get("x-forwarded-for") || "unknown").split(",")[0].trim();
+    if (jwt) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { auth: { persistSession: false } }
+      );
+      const { data } = await supabase.auth.getUser(jwt);
+      if (data.user) userId = data.user.id;
+    }
+
+    // 🔒 2. AI GATE (Weight 3: Vision tokens are expensive)
+    const gate = await aiGate(userId, "calorie", 3);
+    if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
+
     const { image, foodName, quantity } = await req.json();
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     const groqKey = process.env.GROQ_API_KEY;
@@ -122,7 +141,6 @@ Reply ONLY with valid JSON (no markdown):
             const d = await r.json();
             const parsed = extractJson(d.choices?.[0]?.message?.content || "");
             if (parsed) {
-              // Add a note that this is text-only estimation
               parsed.advice = parsed.advice + " (Estimated from text description — add clearer photos for better accuracy.)";
               return NextResponse.json(parsed);
             }

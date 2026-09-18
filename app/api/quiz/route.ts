@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { aiGate } from "@/lib/aiGate"; // 🛡 NEW
 
 // Increase body size limit for base64 image uploads (Next.js default is 1MB)
 export const config = {
@@ -42,6 +44,19 @@ function extractQuestions(raw: string): any[] | null {
 
 export async function POST(req: Request) {
   try {
+    // 🔒 1. AUTHENTICATE USER
+    const jwt = (req.headers.get("authorization") || "").replace("Bearer ", "");
+    let userId = "anon-ip-" + (req.headers.get("x-forwarded-for") || "unknown").split(",")[0].trim();
+    if (jwt) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { auth: { persistSession: false } }
+      );
+      const { data } = await supabase.auth.getUser(jwt);
+      if (data.user) userId = data.user.id;
+    }
+
     const body = await req.json();
     const { mode = "topic", topic, text, image, count = 5 } = body;
     
@@ -64,6 +79,11 @@ export async function POST(req: Request) {
     }
 
     const numQuestions = Math.min(10, Math.max(1, Number(count) || 5));
+
+    // 🔒 2. AI GATE (Vision is heavier: weight 3 per 3 questions. Text is weight 2 per 5 questions)
+    const weight = mode === "photo" ? Math.ceil(numQuestions / 3) * 3 : Math.ceil(numQuestions / 5) * 2;
+    const gate = await aiGate(userId, "quiz", weight);
+    if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
 
     // 2. Build dynamic prompt based on mode
     let promptText = "";
@@ -93,7 +113,6 @@ Reply ONLY with a valid JSON array (no markdown, no extra text):
     if (groqKey) {
       for (const model of GROQ_CHAT) {
         try {
-          // Format payload for vision if image is provided (OpenAI compatible format)
           const messageContent = (mode === "photo" && image)
             ? [
                 { type: "text", text: promptText },
@@ -133,11 +152,9 @@ Reply ONLY with a valid JSON array (no markdown, no extra text):
     if (gKey) {
       for (const model of GEMINI_MODELS) {
         try {
-          // Build Gemini parts (text + optional inline image)
           const parts: any[] = [{ text: promptText }];
           
           if (mode === "photo" && image) {
-            // Extract mime type and base64 data from "data:image/jpeg;base64,..."
             const match = image.match(/^data:(image\/[a-zA-Z0-9.+]+);base64,(.*)$/);
             if (match) {
               parts.push({

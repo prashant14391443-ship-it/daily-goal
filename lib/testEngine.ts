@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { getExamById, type ExamSection, type ExamTopic } from "@/lib/examPatterns";
 import { buildQuestionPrompt, generateOneQuestion, getKeys } from "@/lib/qGen";
+import { cachedAi } from "@/lib/aiGate"; // 🛡 NEW: Import cache helper
 
 export type LoadedQuestion = {
   id: string;
@@ -95,11 +96,20 @@ async function fetchOrGenerate(
     };
   }
 
-  // 2) DB empty for this slot → ask the AI
+  // 2) DB empty for this slot → ask the AI (CACHED TO PREVENT STORMS)
   const prompt = buildQuestionPrompt(examName, sectionName, topicName, difficulty, optionCount, year, styleGuide, yearPatterns);
-  const gen = await generateOneQuestion(prompt, getKeys());
+  
+  // 🛡 Cache key: Unique per topic/year/difficulty. 
+  // If 50 users ask for this at once, only the FIRST hits the AI. The rest get the cached result.
+  const cacheKey = `qgen:${examId}:${sectionId}:${topicId}:${year || 'any'}:${difficulty}:${optionCount}`;
+  
+  const gen = await cachedAi(cacheKey, async () => {
+    return await generateOneQuestion(prompt, getKeys());
+  }, 24); // Cache for 24 hours
 
   // 3) Save it so we never pay for the same question twice
+  // Note: If concurrent users hit this, one will succeed, others might fail on unique constraint.
+  // That's fine — the failed ones will just be skipped by the caller, saving tokens.
   const { data: saved, error } = await admin.from("questions")
     .insert({
       exam_id: examId, section_id: sectionId, topic_id: topicId,
@@ -116,7 +126,21 @@ async function fetchOrGenerate(
     .select()
     .single();
 
-  if (error || !saved) throw new Error(`DB insert failed: ${error?.message || "no row returned"}`);
+  if (error || !saved) {
+    // If it failed because of a duplicate (race condition), try fetching again
+    if (error?.code === '23505') { 
+       const { data: retry } = await admin.from("questions")
+         .select("*").eq("question_text", gen.q.question_text).maybeSingle();
+       if (retry) {
+          return {
+             id: retry.id, exam_id: retry.exam_id, section_id: retry.section_id, topic_id: retry.topic_id,
+             question_type: retry.question_type, question_text: retry.question_text, options: retry.options,
+             correct_index: retry.correct_index, correct_value: retry.correct_value, explanation: retry.explanation,
+          };
+       }
+    }
+    throw new Error(`DB insert failed: ${error?.message || "no row returned"}`);
+  }
 
   return {
     id: saved.id, exam_id: saved.exam_id, section_id: saved.section_id, topic_id: saved.topic_id,

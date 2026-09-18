@@ -15,6 +15,10 @@ const MODEL_CHAIN = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.7-fl
 const PER_MODEL_TIMEOUT = 25000; // 25s per model
 const TOTAL_TIMEOUT = 45000;     // never exceed 45s total
 
+// 🛡 SAFETY: cap the final prompt length. If an admin uploads a 50-page style guide,
+// this prevents one question from burning the whole daily quota.
+const SAFE_MAX_PROMPT_CHARS = 4000;
+
 export function buildQuestionPrompt(
   examName: string,
   sectionName: string,
@@ -24,7 +28,6 @@ export function buildQuestionPrompt(
   year?: number | null,
   styleGuide?: string,
   yearPatterns?: any
-  
 ): string {
   let prompt = `You are an expert question setter for the ${examName} examination.\n\n`;
   if (styleGuide) prompt += `OFFICIAL EXAM PATTERN & STYLE (follow strictly):\n${styleGuide}\n\n`;
@@ -69,6 +72,11 @@ Rules:
 - For Quant: clean numbers, integer answers when possible
 - For Reasoning: exactly one unambiguous answer
 - For JEE/NEET (Physics/Chemistry/Math): 30% of the time, generate a Numerical Value Type (NVT) question. If NVT, set "question_type" to "nvt", "options" to [], "correct_index" to -1, and put the exact numerical answer (e.g. "42.5") in "correct_value".`;
+
+  // 🛡 SAFETY: slice to prevent runaway tokens from a huge style guide
+  if (prompt.length > SAFE_MAX_PROMPT_CHARS) {
+    prompt = prompt.slice(0, SAFE_MAX_PROMPT_CHARS) + "\n[truncated for safety]";
+  }
 
   return prompt;
 }
@@ -127,7 +135,7 @@ export async function generateOneQuestion(
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
               temperature: 0.7,
-              maxOutputTokens: 1024,
+              maxOutputTokens: 1024, // 🛡 output cap (already in your original)
               responseMimeType: "application/json",
             },
           }),

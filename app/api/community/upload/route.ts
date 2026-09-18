@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminClient, userClientFromRequest } from "@/lib/testEngine";
+import { aiGate } from "@/lib/aiGate"; // 🛡 NEW: Import gate
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -46,11 +47,21 @@ export async function POST(req: Request) {
 
     // ACTION: Extract questions from uploaded file
     if (action === "extract") {
+      // 🔒 1. AI GATE (Vision is heavy, weight 5 per extraction)
+      const gate = await aiGate(userId, "summarize", 5); 
+      if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
+
       const { dataUrl } = body;
       if (!gKey) return NextResponse.json({ error: "GEMINI_API_KEY missing" }, { status: 500 });
+      
       const base64 = String(dataUrl || "").split(",")[1];
       const mime = String(dataUrl || "").split(";")[0].split(":")[1] || "application/pdf";
       if (!base64 || base64.length < 100) return NextResponse.json({ error: "Invalid file" }, { status: 400 });
+
+      // 🔒 2. HARD CAP: Prevent massive PDFs from burning the whole daily quota
+      if (base64.length > 15 * 1024 * 1024) { // ~11MB file
+        return NextResponse.json({ error: "File too large (max 11MB). Please split the PDF into smaller chunks." }, { status: 400 });
+      }
 
       let questions: any[] = [];
       let lastErr = "";
@@ -88,13 +99,13 @@ export async function POST(req: Request) {
     }
 
     // ACTION: Submit questions for review (community contribution)
+    // (No AI gate needed here, just DB inserts)
     if (action === "submit") {
       const { exam_id, year, questions } = body;
       if (!exam_id || !Array.isArray(questions) || questions.length === 0) {
         return NextResponse.json({ error: "Nothing to submit" }, { status: 400 });
       }
 
-      // Insert into community_questions table (pending review)
       const rows = questions.map((q: any) => ({
         user_id: userId,
         exam_id,

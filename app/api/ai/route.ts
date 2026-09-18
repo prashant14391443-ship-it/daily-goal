@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { aiGate } from "@/lib/aiGate"; // 🛡 NEW
 import { getCached, setCached, rateLimit } from "@/lib/cache";
 
 const GROQ_CHAT = [
@@ -132,13 +134,39 @@ async function genPackLines(prompt: string, prefix: string, groqKey?: string, gK
 
 export async function POST(req: Request) {
   try {
-    const { message, history = [], context = "", mode = "coach", audio, mimeType, topic, target, userId } = await req.json();
-
+    // 🔒 1. IP RATE LIMIT (Fast block before DB calls)
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
     const allowed = await rateLimit(`rl:${ip}`, 20, 60);
     if (!allowed) {
       return NextResponse.json({ error: "⏳ Whoa, slow down! Wait a few seconds." }, { status: 429 });
     }
+
+    // 🔒 2. SECURE AUTH (Replaced insecure JSON userId with JWT verification)
+    const jwt = (req.headers.get("authorization") || "").replace("Bearer ", "");
+    let userId = "anon-ip-" + ip;
+    if (jwt) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { auth: { persistSession: false } }
+      );
+      const { data } = await supabase.auth.getUser(jwt);
+      if (data.user) userId = data.user.id;
+    }
+
+    // Note: removed `userId` from req.json() to prevent spoofing!
+    const { message, history = [], context = "", mode = "coach", audio, mimeType, topic, target } = await req.json();
+
+    // 🔒 3. DYNAMIC AI GATE (Weight depends on how expensive the mode is)
+    let feature = "ai";
+    let weight = 2;
+    if (mode === "vocabpack" || mode === "sentencepack") { feature = "vocab"; weight = 3; }
+    else if (mode === "evaluate") { feature = "coach"; weight = 3; }
+    else if (mode === "drill") { weight = 1; }
+    else if (audio) { weight = 3; } // Audio transcription + LLM is heavy
+
+    const gate = await aiGate(userId, feature, weight);
+    if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
 
     const groqKey = process.env.GROQ_API_KEY;
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
@@ -155,7 +183,6 @@ export async function POST(req: Request) {
     // 📚 AI VOCAB PACK
     if (mode === "vocabpack" && topic) {
       const items = await genPackLines(
-        // 🔥 FIX: Added <antonym> to the requested output format so the AI generates the 7th item!
         `You are an English teacher for Indian students. Create 8 useful vocabulary words about "${topic}". Reply with EXACTLY 8 lines, no extra text, format:
 WORD: <word> | <type> | <simple english meaning> | <hindi meaning> | <short example sentence> | <synonym> | <antonym (leave empty if none)>`,
         "WORD:",

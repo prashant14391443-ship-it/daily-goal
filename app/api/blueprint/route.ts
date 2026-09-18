@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { aiGate, cachedAi } from "@/lib/aiGate"; // 🛡 NEW
 
 const GROQ_MODELS = ["openai/gpt-oss-20b","openai/gpt-oss-120b","meta-llama/llama-4-scout-17b-16e-instruct","meta-llama/llama-4-maverick-17b-128e-instruct"];
 const GEMINI_MODELS = ["gemini-3-flash-preview","gemini-3.7-flash"];
@@ -37,11 +39,41 @@ async function gemini(p: string, m: string) {
 }
 
 export async function POST(req: Request) {
+  // 🔒 1. AUTHENTICATE USER
+  const jwt = (req.headers.get("authorization") || "").replace("Bearer ", "");
+  let userId = "anon-ip-" + (req.headers.get("x-forwarded-for") || "unknown").split(",")[0].trim();
+  if (jwt) {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { persistSession: false } }
+    );
+    const { data } = await supabase.auth.getUser(jwt);
+    if (data.user) userId = data.user.id;
+  }
+
   const b = await req.json();
+
+  // 🔒 2. AI GATE (Weight 5: Very heavy generation)
+  const gate = await aiGate(userId, "blueprint", 5);
+  if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
+
   const prompt = `Goal:${b.goal} Days:${b.days} Split:${b.splitStyle} Level:${b.level} Equipment:${b.equipment} Exercises/session:${b.perSession} Diet:${b.diet}
 EXACT macros → calories:${b.calories} protein:${b.protein}g carbs:${b.carbs}g fat:${b.fat}g ${b.weight ? `(weight ${b.weight}kg)` : ""}`;
-  let last = "";
-  for (const m of GROQ_MODELS) { try { return NextResponse.json(parseJson(await groq(prompt, m))); } catch (e) { last = String(e); } }
-  for (const m of GEMINI_MODELS) { try { return NextResponse.json(parseJson(await gemini(prompt, m))); } catch (e) { last = String(e); } }
-  return NextResponse.json({ error: "AI failed: " + last }, { status: 500 });
+
+  // 🔒 3. SMART CACHE: Identical fitness plans cost $0 tokens!
+  const cacheKey = `bp:${b.goal}:${b.days}:${b.splitStyle}:${b.level}:${b.equipment}:${b.perSession}:${b.diet}:${b.calories}:${b.protein}:${b.weight || 'none'}`;
+  
+  try {
+    const result = await cachedAi(cacheKey, async () => {
+      let last = "";
+      for (const m of GROQ_MODELS) { try { return parseJson(await groq(prompt, m)); } catch (e) { last = String(e); } }
+      for (const m of GEMINI_MODELS) { try { return parseJson(await gemini(prompt, m)); } catch (e) { last = String(e); } }
+      throw new Error("AI failed: " + last);
+    }, 168); // Cache for 1 week (168 hours)
+
+    return NextResponse.json(result);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message || "AI generation failed" }, { status: 500 });
+  }
 }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { aiGate } from "@/lib/aiGate"; // 🛡 NEW
 import { getExamById, type ExamSection, type ExamTopic } from "@/lib/examPatterns";
 import { adminClient, userClientFromRequest } from "@/lib/testEngine";
 import { getKeys, parseJsonResponse } from "@/lib/qGen";
@@ -72,8 +73,13 @@ export async function POST(req: Request) {
     // 🔐 Auth: logged-in admin email OR admin secret
     const userClient = userClientFromRequest(req);
     const { data: userData } = await userClient.auth.getUser();
-    const okAuth = isAdmin(userData.user?.email) || (!!process.env.ADMIN_SECRET && secret === process.env.ADMIN_SECRET);
+    const adminEmail = userData.user?.email || "unknown";
+    const okAuth = isAdmin(adminEmail) || (!!process.env.ADMIN_SECRET && secret === process.env.ADMIN_SECRET);
     if (!okAuth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // 🔒 AI GATE (Admin feature, high weight because it loops and generates many notes)
+    const gate = await aiGate(adminEmail, "admin", 10);
+    if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
 
     const exam = getExamById(exam_id);
     if (!exam) return NextResponse.json({ error: "Unknown exam" }, { status: 400 });

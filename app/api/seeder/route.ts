@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { adminClient, userClientFromRequest } from "@/lib/testEngine";
+import { aiGate } from "@/lib/aiGate"; // 🛡 NEW: Import gate
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -45,16 +46,15 @@ async function discoverGeminiModels(key: string): Promise<string[]> {
   return ["gemini-2.5-flash", "gemini-2.0-flash"]; 
 }
 
-// 🔥 UPDATED: Tells AI to look for 4 OR 5 options, or numerical inputs
 const EXTRACT_PROMPT = `You are an exam paper digitizer. Extract EVERY multiple-choice or numerical question visible in this document.
 
 Return ONLY a valid JSON array. No markdown. Each item:
 {
-  "question_type": "mcq-4", // use "mcq-4", "mcq-5", or "nvt" (for numerical/text input)
+  "question_type": "mcq-4", 
   "question_text": "full question text",
-  "options": ["A", "B", "C", "D", "E"], // Extract all printed options. Empty array if NVT.
-  "correct_index": 0, // 0-based index. Use -1 if unknown or NVT.
-  "correct_value": "42.5", // Only use if NVT. Otherwise null.
+  "options": ["A", "B", "C", "D", "E"], 
+  "correct_index": 0, 
+  "correct_value": "42.5", 
   "explanation": "1-sentence reason (or empty string)",
   "topic": "best-matching topic name"
 }
@@ -108,6 +108,11 @@ export async function POST(req: Request) {
     if (action === "ping") return NextResponse.json({ admin: isAdmin(email) });
     if (!isAdmin(email)) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
+    // 🛡 AI GATE: Track admin usage against the app-wide pool.
+    // Weight 5 per action. (Ensure 'admin' limit in aiGate.ts is set to 100+)
+    const gate = await aiGate(email || "admin", "admin", 5);
+    if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
+
     const admin = adminClient();
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     if (!gKey) return NextResponse.json({ error: "GEMINI_API_KEY missing in Vercel env" }, { status: 500 });
@@ -116,7 +121,13 @@ export async function POST(req: Request) {
       const { dataUrl } = body;
       const base64 = String(dataUrl || "").split(",")[1];
       const mime = String(dataUrl || "").split(";")[0].split(":")[1] || "application/pdf";
+      
       if (!base64 || base64.length < 100) return NextResponse.json({ error: "Invalid file" }, { status: 400 });
+      
+      // 🛡 HARD CAP: Prevent 100-page PDFs from burning the whole daily quota in one go
+      if (base64.length > 15 * 1024 * 1024) { // ~11MB file
+        return NextResponse.json({ error: "File too large (max 11MB). Please split the PDF into smaller chunks." }, { status: 400 });
+      }
 
       const models = await discoverGeminiModels(gKey);
       let questions: any[] = [];
@@ -130,7 +141,6 @@ export async function POST(req: Request) {
             questions = parsed
               .filter((q: any) => q && typeof q.question_text === "string")
               .map((q: any) => ({
-                // 🔥 UPDATED: Dynamic parsing for options and polymorphic types
                 question_type: q.question_type || (Array.isArray(q.options) && q.options.length === 5 ? "mcq-5" : "mcq-4"),
                 question_text: q.question_text,
                 options: Array.isArray(q.options) ? q.options.filter(Boolean) : [],
@@ -160,7 +170,6 @@ export async function POST(req: Request) {
         topic_id: q.topic_id,
         year: year || null,
         difficulty: q.difficulty || "medium",
-        // 🔥 UPDATED: Saving the polymorphic fields safely to Supabase
         question_type: q.question_type || "mcq-4",
         question_text: q.question_text,
         options: q.options || [],
@@ -172,7 +181,7 @@ export async function POST(req: Request) {
       
       const { error } = await admin.from("questions").insert(rows);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      // 🔥 Update topic_stats (PYQ frequency) for smart syllabus badges
+      
       const recent = year && year >= new Date().getFullYear() - 5;
       const counts: Record<string, number> = {};
       for (const q of questions) { if (q.topic_id) counts[q.topic_id] = (counts[q.topic_id] || 0) + 1; }

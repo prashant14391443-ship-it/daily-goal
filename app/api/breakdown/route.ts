@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { aiGate } from "@/lib/aiGate"; // 🛡 NEW
 
 const GROQ_CHAT = [
   "openai/gpt-oss-120b",
@@ -18,7 +20,7 @@ function extractSteps(raw: string): string[] | null {
     const steps = arr
       .filter((x) => typeof x === "string" && x.trim().length > 0)
       .map((x) => String(x).trim())
-      .slice(0, 10); // cap at 10 to prevent abuse
+      .slice(0, 10);
     return steps.length > 0 ? steps : null;
   } catch {
     return null;
@@ -27,7 +29,25 @@ function extractSteps(raw: string): string[] | null {
 
 export async function POST(req: Request) {
   try {
+    // 🔒 1. AUTHENTICATE USER
+    const jwt = (req.headers.get("authorization") || "").replace("Bearer ", "");
+    let userId = "anon-ip-" + (req.headers.get("x-forwarded-for") || "unknown").split(",")[0].trim();
+    if (jwt) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { auth: { persistSession: false } }
+      );
+      const { data } = await supabase.auth.getUser(jwt);
+      if (data.user) userId = data.user.id;
+    }
+
     const { task } = await req.json();
+    
+    // 🔒 2. AI GATE (Weight 2: Light text generation)
+    const gate = await aiGate(userId, "breakdown", 2);
+    if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
+
     const groqKey = process.env.GROQ_API_KEY;
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
@@ -43,7 +63,6 @@ Reply ONLY with a valid JSON array of strings (no markdown): ["step 1","step 2"]
 
     const errs: string[] = [];
 
-    // 1️⃣ GROQ FIRST (fast + excellent at structured text)
     if (groqKey) {
       for (const model of GROQ_CHAT) {
         try {
@@ -72,7 +91,6 @@ Reply ONLY with a valid JSON array of strings (no markdown): ["step 1","step 2"]
       }
     } else errs.push("groq: NO KEY");
 
-    // 2️⃣ GEMINI FALLBACK
     if (gKey) {
       for (const model of GEMINI_MODELS) {
         try {

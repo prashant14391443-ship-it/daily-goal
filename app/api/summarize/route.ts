@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { aiGate, cachedAi } from "@/lib/aiGate"; // 🛡 NEW: Import gate & cache
 
 const GROQ_CHAT = [
   "openai/gpt-oss-120b",
@@ -192,11 +194,7 @@ async function callGeminiImage(prompt: string, image: string, gKey: string) {
   const mime = String(image || "").split(";")[0].split(":")[1] || "image/jpeg";
 
   if (!base64 || base64.length < 100) {
-    return {
-      parsed: null,
-      engine: "",
-      errs: ["invalid image"],
-    };
+    return { parsed: null, engine: "", errs: ["invalid image"] };
   }
 
   for (const model of GEMINI_MODELS) {
@@ -246,6 +244,23 @@ export async function POST(req: Request) {
   try {
     const { text, image } = await req.json();
 
+    // 🔒 1. AUTHENTICATE USER (Crucial: previously this route had no auth!)
+    const jwt = (req.headers.get("authorization") || "").replace("Bearer ", "");
+    let userId = "anon-ip-" + (req.headers.get("x-forwarded-for") || "unknown").split(",")[0].trim();
+    if (jwt) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { auth: { persistSession: false } }
+      );
+      const { data } = await supabase.auth.getUser(jwt);
+      if (data.user) userId = data.user.id;
+    }
+
+    // 🔒 2. AI GATE (Weight 3: Summaries are heavy operations)
+    const gate = await aiGate(userId, "summarize", 3);
+    if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
+
     const groqKey = process.env.GROQ_API_KEY;
     const gKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
@@ -257,77 +272,43 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Give a topic or a photo." }, { status: 400 });
     }
 
-    const prompt = buildPrompt(text, Boolean(image));
-    const errs: string[] = [];
+    // 🔒 3. CACHE WRAPPER (Identical requests from any user = $0 cost)
+    const cacheKey = `sum:${String(text || "").slice(0, 200)}:${image ? String(image).length : 0}`;
 
-    /**
-     * CASE 1:
-     * Image/photo summary.
-     * Gemini first because it can read images.
-     */
-    if (image && gKey) {
-      const geminiImage = await callGeminiImage(prompt, image, gKey);
-      errs.push(...geminiImage.errs);
+    const result = await cachedAi(cacheKey, async () => {
+      const prompt = buildPrompt(text, Boolean(image));
+      const errs: string[] = [];
 
-      if (geminiImage.parsed) {
-        return NextResponse.json({
-          ...geminiImage.parsed,
-          engine: geminiImage.engine,
-        });
+      if (image && gKey) {
+        const geminiImage = await callGeminiImage(prompt, image, gKey);
+        errs.push(...geminiImage.errs);
+        if (geminiImage.parsed) return { ...geminiImage.parsed, engine: geminiImage.engine };
       }
-    }
 
-    /**
-     * CASE 2:
-     * Text summary.
-     * Groq first because it is fast and avoids Gemini quota.
-     *
-     * Also useful as fallback if image failed but user typed text too.
-     */
-    if (text && groqKey) {
-      const groq = await callGroq(buildPrompt(text, false), groqKey);
-      errs.push(...groq.errs);
-
-      if (groq.parsed) {
-        return NextResponse.json({
-          ...groq.parsed,
-          engine: groq.engine,
-        });
+      if (text && groqKey) {
+        const groq = await callGroq(buildPrompt(text, false), groqKey);
+        errs.push(...groq.errs);
+        if (groq.parsed) return { ...groq.parsed, engine: groq.engine };
       }
-    }
 
-    /**
-     * CASE 3:
-     * Gemini text fallback.
-     */
-    if (text && gKey) {
-      const geminiText = await callGeminiText(buildPrompt(text, false), gKey);
-      errs.push(...geminiText.errs);
-
-      if (geminiText.parsed) {
-        return NextResponse.json({
-          ...geminiText.parsed,
-          engine: geminiText.engine,
-        });
+      if (text && gKey) {
+        const geminiText = await callGeminiText(buildPrompt(text, false), gKey);
+        errs.push(...geminiText.errs);
+        if (geminiText.parsed) return { ...geminiText.parsed, engine: geminiText.engine };
       }
-    }
 
-    return NextResponse.json(
-      {
-        error: image && !text
+      // Throwing an error prevents cachedAi from saving the failure to the database
+      throw new Error(
+        image && !text
           ? "Could not read this photo. Try a clearer image or type the topic too."
-          : "All AI engines are resting. Try again in a minute!",
-        debug: errs,
-      },
-      { status: 503 }
-    );
+          : "All AI engines are resting. Try again in a minute!"
+      );
+    }, 24); // Cache successful summaries for 24 hours
+
+    return NextResponse.json(result);
   } catch (e: unknown) {
-    return NextResponse.json(
-      {
-        error: "Server error. Try again.",
-        debug: e instanceof Error ? e.message : "unknown",
-      },
-      { status: 500 }
-    );
+    const msg = e instanceof Error ? e.message : "Server error. Try again.";
+    const status = msg.includes("engines are resting") || msg.includes("Could not read") ? 503 : 500;
+    return NextResponse.json({ error: msg }, { status });
   }
 }

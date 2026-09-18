@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { aiGate } from "@/lib/aiGate";
 import { getExamById } from "@/lib/examPatterns";
 import { buildQuestionPlan, adminClient, userClientFromRequest, distributeByWeight, quickFill, type PlanSlot, type LoadedQuestion } from "@/lib/testEngine";
 
@@ -6,7 +7,6 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// 🔥 How many questions must exist before the test is allowed to open
 const QUICK_TARGET = 8;
 
 export async function POST(req: Request) {
@@ -20,13 +20,24 @@ export async function POST(req: Request) {
     const userId = userData.user?.id;
     if (!userId) return NextResponse.json({ error: "Please login to start a test" }, { status: 401 });
 
+    // 🔒 AI GATE — weight based on expected question count
+    // Topic practice (10 Qs) = 1 unit, section/full mock (up to 100 Qs) = up to 10 units
+    let expectedQs = QUICK_TARGET; // quick start generates 8 upfront
+    if (topic_id) expectedQs = 10;
+    else if (section_id) {
+      const section = exam.sections.find((s) => s.id === section_id);
+      expectedQs = section?.questionCount || QUICK_TARGET;
+    } else {
+      expectedQs = 100; // full mock
+    }
+    const weight = Math.max(1, Math.ceil(expectedQs / 10));
+    const gate = await aiGate(userId, "test", weight);
+    if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
+
     const admin = adminClient();
     const isReal = source === "real";
     const mode = isReal ? "pyq-real" : year ? "pyq" : "mock";
 
-    // ==========================================
-    // REAL PYQ MODE: load straight from DB (instant)
-    // ==========================================
     if (isReal) {
       const { data: realQs } = await admin
         .from("questions")
@@ -50,7 +61,6 @@ export async function POST(req: Request) {
       }).select().single();
       if (error || !attempt) return NextResponse.json({ error: "Could not create attempt", debug: error?.message }, { status: 500 });
 
-      // Ensure no duplicates exist in official PYQ papers either
       const uniqueIds = Array.from(new Set(ids));
       const { error: linkErr } = await admin.from("test_attempt_questions").insert(
         uniqueIds.map((id: string, i: number) => ({ attempt_id: attempt.id, question_id: id, question_order: i }))
@@ -60,12 +70,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ attempt_id: attempt.id, have: uniqueIds.length, target: uniqueIds.length, done: true });
     }
 
-    // ==========================================
-    // AI MODE: build the full plan (100 Qs / sectional / topic)
-    // ==========================================
     let planObjs: { section: any; topic: any }[] = [];
     if (topic_id) {
-      // 🔥 Topic-only practice: 10 questions from this exact topic
       for (const s of exam.sections) {
         const t = s.topics.find((tp) => tp.id === topic_id);
         if (t) {
@@ -85,7 +91,6 @@ export async function POST(req: Request) {
     }
     const planSlots: PlanSlot[] = planObjs.map((p) => ({ section_id: p.section.id, topic_id: p.topic.id }));
 
-    // Seen-exclusion: avoid repeating last attempt's questions
     let seenIds: string[] = [];
     let lastQ = admin.from("test_attempts").select("id").eq("user_id", userId).eq("exam_id", exam_id);
     lastQ = year ? lastQ.eq("year", year) : lastQ.is("year", null);
@@ -95,11 +100,9 @@ export async function POST(req: Request) {
       seenIds = [...new Set((links || []).map((l: any) => l.question_id))];
     }
 
-    // Auto-cleanup: cap 50 completed attempts per user
     const { data: oldRows } = await admin.from("test_attempts").select("id").eq("user_id", userId).eq("status", "completed").order("created_at", { ascending: false }).range(50, 200);
     if (oldRows && oldRows.length > 0) await admin.from("test_attempts").delete().in("id", oldRows.map((r: any) => r.id));
 
-    // Create attempt shell
     const { data: attempt, error } = await admin.from("test_attempts").insert({
       user_id: userId, exam_id, mode, year,
       status: "preparing",
@@ -108,27 +111,20 @@ export async function POST(req: Request) {
     }).select().single();
     if (error || !attempt) return NextResponse.json({ error: "Could not create attempt", debug: error?.message }, { status: 500 });
 
-    // ==========================================
-    // 🔥 QUICK START: only the first 8 questions are blocking (max ~8s).
-    // The rest is built in the background by /api/test/topup while the user answers.
-    // ==========================================
     const quickSlots = planSlots.slice(0, Math.min(QUICK_TARGET, planSlots.length));
     const restSlots = planSlots.slice(quickSlots.length);
 
     const { results, firstError } = await quickFill(admin, exam, quickSlots, new Set(seenIds), year, 8000, 4);
 
-    // Initial extraction of successful and failed slots
     const rawOkPairs = results.filter((r) => r.q !== null) as { slot: PlanSlot; q: LoadedQuestion }[];
     const failedSlots = results.filter((r) => r.q === null).map((r) => r.slot);
 
-    // 🔥 FIX: Deduplicate okPairs to absolutely prevent 'test_attempt_questions_pkey' violations
-    // If a duplicate question is returned due to parallel DB generation, convert the extra to a failed slot.
     const usedQIds = new Set<string>();
     const okPairs: { slot: PlanSlot; q: LoadedQuestion }[] = [];
     
     for (const pair of rawOkPairs) {
       if (usedQIds.has(pair.q.id)) {
-        failedSlots.push(pair.slot); // Move the duplicate back to the failed queue
+        failedSlots.push(pair.slot);
       } else {
         usedQIds.add(pair.q.id);
         okPairs.push(pair);
@@ -140,10 +136,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Could not prepare the first questions: ${firstError || "unknown error"}` }, { status: 503 });
     }
 
-    // Keep slot↔question alignment: filled slots first, then the rest, failed quick slots last
     const newPlan: PlanSlot[] = [...okPairs.map((p) => p.slot), ...restSlots, ...failedSlots];
 
-    // Safely insert, knowing uniqueness is guaranteed
     const { error: linkErr } = await admin.from("test_attempt_questions").insert(
       okPairs.map((p, i) => ({ attempt_id: attempt.id, question_id: p.q.id, question_order: i }))
     );

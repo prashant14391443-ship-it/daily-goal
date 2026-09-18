@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { aiGate } from "@/lib/aiGate"; // 🛡 NEW
 import { cheapGenerate, getCached, setCache } from "@/lib/aiBudget";
 import { getTrackById } from "@/lib/learningTracks";
 
@@ -12,6 +14,19 @@ function parseGithub(url: string): { owner: string; repo: string } | null {
 
 export async function POST(req: Request) {
   try {
+    // 🔒 1. AUTHENTICATE USER
+    const jwt = (req.headers.get("authorization") || "").replace("Bearer ", "");
+    let userId = "anon-ip-" + (req.headers.get("x-forwarded-for") || "unknown").split(",")[0].trim();
+    if (jwt) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { auth: { persistSession: false } }
+      );
+      const { data } = await supabase.auth.getUser(jwt);
+      if (data.user) userId = data.user.id;
+    }
+
     const { track_id, milestone_id, project_url } = await req.json();
     const track = getTrackById(track_id);
     const milestone = track?.milestones.find((m) => m.id === milestone_id);
@@ -39,12 +54,16 @@ export async function POST(req: Request) {
       { check: "Repo has 3+ files", ok: signals.files >= 3 },
     ];
 
-    // LAYER 2 — CACHE: same repo URL reviewed before? free repeat
+    // LAYER 2 — CACHE: same repo URL reviewed before? free repeat (Does NOT trigger AI Gate)
     const cacheKey = `review:${project_url.toLowerCase()}`;
     const cached = await getCached(cacheKey);
     if (cached) {
       return NextResponse.json({ review: JSON.parse(cached), signals, rule_checks: ruleChecks, source: "cache" });
     }
+
+    // 🔒 3. AI GATE (Only triggers if we actually need to call AI. Code review is heavy, weight 3)
+    const gate = await aiGate(userId, "coach", 3);
+    if (!gate.ok) return NextResponse.json({ error: gate.reason }, { status: 429 });
 
     // LAYER 3 — CHEAP AI (700 token cap), only once per repo URL
     const prompt = `You are a senior developer reviewing a student project.
