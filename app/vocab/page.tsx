@@ -8,12 +8,11 @@ import { PACKS_C } from "./dataC";
 import { PACKS_D } from "./dataD";
 import { BookOpen, RotateCw, Archive, Sparkles, Volume2, ArrowLeft, Check, Lightbulb, Flag, BookMarked, Repeat, Search, Award, TrendingUp } from "lucide-react";
 
-// 🔥 Added antonym to VWord and Row types
 type VWord = { word: string; type: string; meaning: string; hindi: string; example: string; synonym: string; antonym: string };
 type Pack = { id: string; emoji: string; title: string; desc: string; words: VWord[] };
 type Row = { word: string; meaning: string; hindi: string; level: number; next_review: string | null; synonym: string; antonym: string };
 
-// ✅ ALL 20 TOPICS (600 words total) — manual, offline, instant
+// ✅ ALL 20 TOPICS (600 words total)
 const PACKS: Pack[] = [...PACKS_A, ...PACKS_B, ...PACKS_C, ...PACKS_D];
 
 const MASTERY = ["🌱", "🌿", "🌳", "🌲", "👑"];
@@ -47,12 +46,16 @@ export default function VocabPage() {
   const [picked, setPicked] = useState(-1);
   const [score, setScore] = useState(0);
   const [uid, setUid] = useState("");
-  const [revQueue, setRevQueue] = useState<Row[]>([]);
+  const [revQueue, setRowQueue] = useState<Row[]>([]);
   const [revIdx, setRevIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [bankQ, setBankQ] = useState("");
   const [aiTopic, setAiTopic] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+
+  // Helper to lookup offline data for older database rows
+  const allOfflineWords = PACKS.flatMap(p => p.words);
+  const getOfflineFallback = (wordText: string) => allOfflineWords.find(w => w.word === wordText);
 
   const load = async () => {
     const { data } = await supabase.auth.getSession();
@@ -79,7 +82,6 @@ export default function VocabPage() {
   const learned = rows.map((r) => r.word);
   const due = rows.filter((r) => r.level < 4 && r.next_review && r.next_review <= todayISO());
 
-  // ✅ 5 AT A TIME — next 5 unlearned words
   const startPack = (p: Pack) => {
     const un = p.words.filter((w) => !learned.includes(w.word));
     const batch = (un.length ? un : p.words).slice(0, 5);
@@ -102,7 +104,7 @@ export default function VocabPage() {
           hindi: w.hindi, 
           level: 0, 
           next_review: addDaysISO(1),
-          synonym: w.synonym, // 🔥 Make sure these are saved!
+          synonym: w.synonym,
           antonym: w.antonym
         },
         { onConflict: "user_id,word" }
@@ -148,7 +150,6 @@ export default function VocabPage() {
     }
   };
   
-  // ✨ ANY TOPIC — AI pack on demand
   const genAI = async () => {
     const t = aiTopic.trim();
     if (!t || aiLoading) return;
@@ -168,7 +169,7 @@ export default function VocabPage() {
           hindi: a[3] || "", 
           example: a[4] || "", 
           synonym: a[5] || "",
-          antonym: a[6] || "" // 🔥 Mapped the 7th item (antonym) here
+          antonym: a[6] || "" 
         }))
         .filter((w: VWord) => w.word && w.meaning);
       if (words.length >= 3) startPack({ id: "ai-" + t, emoji: "✨", title: t, desc: "AI pack", words });
@@ -180,7 +181,7 @@ export default function VocabPage() {
   };
 
   const startReview = () => {
-    setRevQueue(shuffle(due));
+    setRowQueue(shuffle(due));
     setRevIdx(0);
     setFlipped(false);
     setView("review");
@@ -387,14 +388,15 @@ export default function VocabPage() {
             </button>
           </div>
 
-          {/* 🔥 Synonyms and Antonyms Block */}
           <div className="text-center space-y-1 mt-2">
-            <div>
-              <span className="text-xs text-slate-400 flex items-center justify-center gap-2">
-                <Repeat size={12} />
-                Synonym: <span className="font-semibold text-violet-400">{w.synonym}</span>
-              </span>
-            </div>
+            {w.synonym && (
+              <div>
+                <span className="text-xs text-slate-400 flex items-center justify-center gap-2">
+                  <Repeat size={12} />
+                  Synonym: <span className="font-semibold text-violet-400">{w.synonym}</span>
+                </span>
+              </div>
+            )}
             {w.antonym && (
               <div>
                 <span className="text-xs text-slate-400 flex items-center justify-center gap-2">
@@ -430,7 +432,13 @@ export default function VocabPage() {
 
   // 🔄 REVIEW
   if (view === "review" && revQueue.length > 0) {
-    const w = revQueue[revIdx];
+    const r = revQueue[revIdx];
+    const fallback = getOfflineFallback(r.word);
+    
+    // Check database first, if null/empty, fallback to our offline packs!
+    const displaySyn = r.synonym || fallback?.synonym;
+    const displayAnt = r.antonym || fallback?.antonym;
+
     return (
       <main className="min-h-screen bg-slate-950 text-white p-4 pb-24 flex flex-col">
         <div className="flex justify-between items-center mb-4">
@@ -450,9 +458,9 @@ export default function VocabPage() {
           onClick={() => setFlipped(true)} 
           className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md mx-auto w-full grid gap-4 text-center min-h-[300px] content-center hover:border-slate-600 transition-colors relative"
         >
-          <p className="text-4xl font-bold uppercase mb-4">{w.word}</p>
+          <p className="text-4xl font-bold uppercase mb-4">{r.word}</p>
           <button 
-            onClick={(e) => { e.stopPropagation(); speak(w.word); }} 
+            onClick={(e) => { e.stopPropagation(); speak(r.word); }} 
             className="justify-self-center flex items-center gap-2 py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold transition-colors"
           >
             <Volume2 size={16} />
@@ -462,18 +470,28 @@ export default function VocabPage() {
             <p className="text-xs text-slate-500 animate-pulse mt-4">👆 Tap card to reveal meaning</p>
           ) : (
             <>
-              <p className="text-sm text-slate-200 mt-4">{w.meaning}</p>
-              <p className="text-sm text-amber-200 mt-2">{w.hindi}</p>
+              <p className="text-sm text-slate-200 mt-4">{r.meaning}</p>
+              <p className="text-sm text-amber-200 mt-2">{r.hindi}</p>
               
               {/* 🔥 Synonym and Antonym added to review flip card */}
-              <div className="flex justify-center gap-4 mt-3">
-                {w.synonym && <p className="text-[11px]"><span className="text-slate-500">🔁 Syn:</span> <span className="text-violet-300 font-semibold">{w.synonym}</span></p>}
-                {w.antonym && <p className="text-[11px]"><span className="text-slate-500">🆚 Ant:</span> <span className="text-rose-300 font-semibold">{w.antonym}</span></p>}
+              <div className="flex justify-center items-center gap-4 mt-4">
+                {displaySyn && (
+                  <p className="text-xs flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50">
+                    <Repeat size={12} className="text-violet-400" />
+                    <span className="text-violet-300 font-semibold">{displaySyn}</span>
+                  </p>
+                )}
+                {displayAnt && (
+                  <p className="text-xs flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50">
+                    <span className="text-[10px]">🆚</span>
+                    <span className="text-rose-300 font-semibold">{displayAnt}</span>
+                  </p>
+                )}
               </div>
 
               <div className="absolute bottom-4 inset-x-0 flex justify-center items-center gap-1.5 mt-4">
-                <span className="text-[14px]">{masteryOf(w.level)}</span>
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Level {w.level}</span>
+                <span className="text-[14px]">{masteryOf(r.level)}</span>
+                <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Level {r.level}</span>
               </div>
             </>
           )}
@@ -541,30 +559,44 @@ export default function VocabPage() {
               No words yet — learn a pack first! 📚
             </p>
           )}
-          {list.map((r) => (
-            <div key={r.word} className="bg-slate-900 border border-slate-700 rounded-xl p-4 flex items-center gap-3">
-              <span className="text-xl flex-shrink-0">{masteryOf(r.level)}</span>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm uppercase mb-1">{r.word}</p>
-                <p className="text-xs text-slate-400">
-                  {r.meaning} • <span className="text-amber-200">{r.hindi}</span>
-                </p>
-                {/* 🔥 Added Antonyms and Synonyms to the Bank view */}
-                {(r.synonym || r.antonym) && (
-                  <p className="text-[10px] mt-1.5 font-medium">
-                    {r.synonym && <span className="text-violet-400 mr-3">🔁 {r.synonym}</span>}
-                    {r.antonym && <span className="text-rose-400">🆚 {r.antonym}</span>}
+          {list.map((r) => {
+            const fallback = getOfflineFallback(r.word);
+            const displaySyn = r.synonym || fallback?.synonym;
+            const displayAnt = r.antonym || fallback?.antonym;
+
+            return (
+              <div key={r.word} className="bg-slate-900 border border-slate-700 rounded-xl p-4 flex items-center gap-3">
+                <span className="text-xl flex-shrink-0">{masteryOf(r.level)}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm uppercase mb-1">{r.word}</p>
+                  <p className="text-xs text-slate-400">
+                    {r.meaning} • <span className="text-amber-200">{r.hindi}</span>
                   </p>
-                )}
+                  {/* 🔥 Added Antonyms and Synonyms to the Bank view with fallback */}
+                  {(displaySyn || displayAnt) && (
+                    <div className="flex gap-3 mt-2">
+                      {displaySyn && (
+                        <span className="text-[10px] flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded text-violet-300 border border-slate-700/50">
+                          <Repeat size={10} className="text-violet-500" /> {displaySyn}
+                        </span>
+                      )}
+                      {displayAnt && (
+                        <span className="text-[10px] flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded text-rose-300 border border-slate-700/50">
+                          <span className="text-[8px]">🆚</span> {displayAnt}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <button 
+                  onClick={() => speak(r.word)} 
+                  className="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition-colors"
+                >
+                  <Volume2 size={16} className="text-slate-300" />
+                </button>
               </div>
-              <button 
-                onClick={() => speak(r.word)} 
-                className="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition-colors"
-              >
-                <Volume2 size={16} className="text-slate-300" />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="flex items-center justify-center gap-2 mt-6 text-xs text-slate-500">

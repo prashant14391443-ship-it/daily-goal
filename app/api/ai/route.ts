@@ -155,8 +155,9 @@ export async function POST(req: Request) {
     // 📚 AI VOCAB PACK
     if (mode === "vocabpack" && topic) {
       const items = await genPackLines(
+        // 🔥 FIX: Added <antonym> to the requested output format so the AI generates the 7th item!
         `You are an English teacher for Indian students. Create 8 useful vocabulary words about "${topic}". Reply with EXACTLY 8 lines, no extra text, format:
-WORD: <word> | <type> | <simple english meaning> | <hindi meaning> | <short example sentence> | <synonym>`,
+WORD: <word> | <type> | <simple english meaning> | <hindi meaning> | <short example sentence> | <synonym> | <antonym (leave empty if none)>`,
         "WORD:",
         groqKey,
         gKey
@@ -376,14 +377,14 @@ Rules:
        let system = "";
     if (mode === "call") {
       system = Swati_PROMPT(topic || "daily life");
-    } else if (mode === "english") { // 👈 ADDED THE { HERE
+    } else if (mode === "english") { 
       system = `You are an expert English language tutor. Rules:
 1. Find ALL mistakes (grammar, spelling, word order, missing words).
 2. List EVERY mistake numbered: 1) ❌ [wrong] -> ✅ [right]
 3. If no mistakes: "✅ Perfect sentence!"
 4. Add ONE short friendly reply + ONE simple question.
 5. Keep whole answer under 150 words.`;
-    } else if (mode === "action") { // 👈 REMOVED THE EXTRA }
+    } else if (mode === "action") { 
       system = `You are the user's friendly voice companion inside their daily goal app, talking on a live voice call exactly like ChatGPT voice mode.
 You know their live day data:
 ${context}
@@ -396,14 +397,14 @@ TALK LIKE A REAL HUMAN:
 5. Small natural fillers are fine: "okay", "hmm", "nice", "got it".
 6. If they ask to log something, confirm warmly in one short line ("done! logged your workout.") and ask a quick follow-up.
 7. Never repeat yourself. Keep every reply fresh and spontaneous.`;
-    } else if (mode === "topic") { // 👇 NEW: FOR "TALK AI TOPIC"
+    } else if (mode === "topic") { 
       system = `You are a friendly, curious friend chatting with the user about the topic: "${topic || 'general interests'}".
 TALK LIKE A REAL HUMAN:
 1. Max 2-3 short sentences. Plain text only. No markdown, no emojis.
 2. Share a brief, interesting thought or ask about their experience with the topic.
 3. Always end with ONE engaging question to keep the conversation flowing.
 4. Sound like a friend chatting at a coffee shop, not a Wikipedia article.`;
-    } else if (mode === "anything") { // 👇 NEW: FOR "TALK AI ANYTHING"
+    } else if (mode === "anything") { 
       system = `You are the user's friendly voice companion, ready to chat about absolutely anything on their mind.
 TALK LIKE A REAL HUMAN:
 1. Max 2-3 short sentences. Plain text only. No markdown, no emojis.
