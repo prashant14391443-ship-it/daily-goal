@@ -8,7 +8,7 @@ const ONLINE_ONLY = [
   "/english", "/talk", "/speaking", "/evaluate", "/random-talk", "/call",
   "/feed", "/friends", "/inbox", "/chat", "/newpost",
   "/calorie", "/blueprint", "/coach", "/quiz", "/summarize", "/ai-summary",
-  "/exam", "/test", "/learn", "/learns", "/vocab", "/move",
+  "/exam", "/test", "/learn", "/learns", "/vocab", "/move", "/ai",
 ];
 
 // AI API routes that need internet
@@ -91,7 +91,8 @@ export default function AiGuard() {
       }
     };
     document.addEventListener("click", onClick, true);
-
+    const onToast = (e: any) => show(e.detail || offlineMsg);
+    window.addEventListener("dg-toast", onToast);
     // 3️⃣ Block programmatic navigation (router.push) to internet-only pages while offline
     const origPush = history.pushState.bind(history);
     const origReplace = history.replaceState.bind(history);
@@ -107,6 +108,7 @@ export default function AiGuard() {
     return () => {
       window.fetch = orig;
       document.removeEventListener("click", onClick, true);
+            window.removeEventListener("dg-toast", onToast);
       history.pushState = origPush;
       history.replaceState = origReplace;
       sub.subscription.unsubscribe();

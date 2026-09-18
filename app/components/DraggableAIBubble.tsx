@@ -2,13 +2,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Sparkles } from "lucide-react";
+
 export default function DraggableAIBubble() {
   const router = useRouter();
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const ref = useRef<HTMLButtonElement>(null);
   const drag = useRef({ startX: 0, startY: 0, baseX: 0, baseY: 0, moved: false, active: false });
 
-  // Load saved position
   useEffect(() => {
     try {
       const p = JSON.parse(localStorage.getItem("dg-ai-btn-pos") || "null");
@@ -47,10 +47,13 @@ export default function DraggableAIBubble() {
     if (!drag.current.active) return;
     drag.current.active = false;
     if (drag.current.moved) {
-      // Save new position forever
       if (pos) localStorage.setItem("dg-ai-btn-pos", JSON.stringify(pos));
     } else {
-      // Simple tap = open AI
+      // Simple tap = open AI. Offline → friendly toast, NO navigation (no flicker)
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        window.dispatchEvent(new CustomEvent("dg-toast", { detail: "📡 You're offline — AI chat needs internet." }));
+        return;
+      }
       router.push("/ai");
     }
   };
@@ -65,12 +68,12 @@ export default function DraggableAIBubble() {
         touchAction: "none",
         ...(pos ? { left: pos.x, top: pos.y } : {}),
       }}
-      className={`fixed z-[75] w-16 h-16 rounded-full    bg-slate-900/90 backdrop-blur border border-violet-500/40 shadow-xl shadow-violet-900/40 flex items-center justify-center text-3xl select-none hover:scale-105 transition-transform ${
+      className={`fixed z-[75] w-16 h-16 rounded-full bg-slate-900/90 backdrop-blur border border-violet-500/40 shadow-xl shadow-violet-900/40 flex items-center justify-center text-3xl select-none hover:scale-105 transition-transform ${
         pos ? "" : "right-4 bottom-24"
       }`}
       title="Hold & drag to move • Tap to open AI"
     >
-         <Sparkles size={20} className="text-violet-300" />
+      <Sparkles size={20} className="text-violet-300" />
     </button>
   );
 }

@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { queueChange, cacheData, getCachedData } from "@/lib/offlineDB";
-import { ListTodo, Star, Repeat, Sparkles, Wifi, WifiOff } from "lucide-react";
+import { cacheData, getCachedData } from "@/lib/offlineDB";
+import { ListTodo, Star, Repeat, Sparkles } from "lucide-react";
 
 function toLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -14,19 +14,7 @@ function toLocalISO(d: Date) {
 }
 
 export default function TodoHub() {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [taskCount, setTaskCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    const on = () => setIsOnline(true);
-    const off = () => setIsOnline(false);
-    window.addEventListener("online", on);
-    window.addEventListener("offline", off);
-    return () => {
-      window.removeEventListener("online", on);
-      window.removeEventListener("offline", off);
-    };
-  }, []);
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -35,14 +23,10 @@ export default function TodoHub() {
       if (!userId) return;
 
       const today = toLocalISO(new Date());
-      
-      // Try to load from cache first (works offline)
-      const cached = await getCachedData<{ count: number }>(`tasks-${userId}-${today}`);
-      if (cached) {
-        setTaskCount(cached.count);
-      }
 
-      // If online, fetch fresh data
+      const cached = await getCachedData<{ count: number }>(`tasks-${userId}-${today}`);
+      if (cached) setTaskCount(cached.count);
+
       if (navigator.onLine) {
         try {
           const { count } = await supabase
@@ -51,7 +35,6 @@ export default function TodoHub() {
             .eq("user_id", userId)
             .eq("task_date", today)
             .eq("completed", false);
-          
           const newCount = count || 0;
           setTaskCount(newCount);
           await cacheData(`tasks-${userId}-${today}`, { count: newCount });
@@ -80,22 +63,9 @@ export default function TodoHub() {
           </span>
           <div>
             <h1 className="text-2xl font-black text-white" style={{ whiteSpace: "nowrap" }}>ToDo</h1>
-            <div className="flex items-center gap-2 mt-1">
-              {isOnline ? (
-                <span className="flex items-center gap-1 text-[10px] text-green-400 font-bold">
-                  <Wifi size={10} /> Online
-                </span>
-              ) : (
-                <span className="flex items-center gap-1 text-[10px] text-amber-400 font-bold">
-                  <WifiOff size={10} /> Offline Mode
-                </span>
-              )}
-              {taskCount !== null && taskCount > 0 && (
-                <span className="text-[10px] text-slate-400 font-bold">
-                  • {taskCount} pending
-                </span>
-              )}
-            </div>
+            {taskCount !== null && taskCount > 0 && (
+              <p className="text-[10px] text-slate-400 font-bold mt-1">• {taskCount} pending today</p>
+            )}
           </div>
         </div>
         <p className="text-[11px] text-slate-500 font-semibold mt-2">Clear mind • clear list • clear wins</p>
