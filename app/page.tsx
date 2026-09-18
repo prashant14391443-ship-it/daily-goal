@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-// 📴 Synchronous cached-session check — works with ZERO network, zero waiting
+// 📴 Synchronous cached-session check — works with zero network
 function hasCachedSession(): boolean {
   try {
     for (let i = 0; i < localStorage.length; i++) {
@@ -25,41 +25,43 @@ function hasCachedSession(): boolean {
 
 export default function Home() {
   const router = useRouter();
-  // Decided SYNCHRONOUSLY during first render → SSR HTML is already the final UI
-  const [cached] = useState(() =>
-    typeof window !== "undefined" ? hasCachedSession() : false
-  );
+  const [ready, setReady] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
 
   useEffect(() => {
-    if (!cached) return;
-    let alive = true;
-    if (navigator.onLine) {
-      // Online: verify session is still valid, then go
-      supabase.auth
-        .getSession()
-        .then(({ data }) => {
-          if (alive && data.session) router.replace("/dashboard");
-        })
-        .catch(() => {});
-    } else {
-      // 📴 Offline: trust the cached session — dashboard will show cached data
-      router.replace("/dashboard");
-    }
-    return () => {
-      alive = false;
-    };
-  }, [cached, router]);
+    const cached = hasCachedSession();
+    setHasSession(cached);
+    setReady(true);
 
-  // Logged-in: brief redirect notice (never an infinite gate)
-  if (cached) {
+    if (cached) {
+      // Logged in → go straight to dashboard (no intermediate screens)
+      if (navigator.onLine) {
+        supabase.auth
+          .getSession()
+          .then(({ data }) => {
+            if (data.session) router.replace("/dashboard");
+            else setHasSession(false); // session expired → show landing
+          })
+          .catch(() => router.replace("/dashboard"));
+      } else {
+        router.replace("/dashboard");
+      }
+    }
+  }, [router]);
+
+  // 🎯 FIRST PAINT (server HTML + pre-decision): neutral dark screen with your icon.
+  // No Login/Sign Up flash, no "Opening your dashboard..." text — feels like the splash continuing.
+  if (!ready || hasSession) {
     return (
-      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-        <p className="text-slate-400 text-sm animate-pulse">🎯 Opening your dashboard...</p>
+      <main className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <span className="w-20 h-20 rounded-3xl bg-slate-800/70 flex items-center justify-center text-4xl select-none">
+          ✅
+        </span>
       </main>
     );
   }
 
-  // Logged-out: landing page renders INSTANTLY (this exact HTML is what SSR sends)
+  // Logged-out users only, after decision: the landing page
   return (
     <main className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center gap-8 p-8">
       <div className="text-center">
