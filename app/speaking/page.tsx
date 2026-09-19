@@ -55,7 +55,7 @@ export default function SpeakingPage() {
   const [uid, setUid] = useState("guest");
   const [drillIdx, setDrillIdx] = useState(0);
   const [view, setView] = useState<"home" | "topics">("home");
-  const [continuousMode, setContinuousMode] = useState(true);
+  
   const [toast, setToast] = useState("");
   const toastTimer = useRef<any>(null);
 
@@ -76,7 +76,7 @@ export default function SpeakingPage() {
     speak,
     setOnTranscript,
     clearTranscript,
-  } = useJarvisVoice(continuousMode);
+  } = useJarvisVoice(true);
 
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -598,24 +598,7 @@ export default function SpeakingPage() {
                 </button>
               </form>
 
-              <div className="flex justify-center mt-1.5">
-                <button
-                  onClick={() => {
-                    const next = !continuousMode;
-                    setContinuousMode(next);
-                    if (next) startListening();
-                    else stopListening();
-                  }}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black border transition-all ${
-                    continuousMode
-                      ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
-                      : "bg-slate-800/60 border-slate-700 text-slate-500"
-                  }`}
-                >
-                  {continuousMode ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
-                  {continuousMode ? "CONTINUOUS ON" : "CONTINUOUS OFF"}
-                </button>
-              </div>
+
             </div>
           ) : (
             <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
