@@ -52,7 +52,11 @@ export default function Home() {
   // 🎯 FIRST PAINT (server HTML + pre-decision): neutral dark screen with your icon.
   // No Login/Sign Up flash, no "Opening your dashboard..." text — feels like the splash continuing.
   if (!ready || hasSession) {
-    return <main className="min-h-screen bg-slate-950" />;
+    return (
+      <main className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <img src="/icon.svg" alt="" draggable={false} className="w-28 h-28 select-none" />
+      </main>
+    );
   }
 
   // Logged-out users only, after decision: the landing page

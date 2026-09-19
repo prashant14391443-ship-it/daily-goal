@@ -425,8 +425,9 @@ export default function Dashboard() {
         <div className="absolute right-28 bottom-10 w-1.5 h-1.5 rounded-full bg-violet-500/40 pointer-events-none" />
         <div className="absolute left-1/2 top-4 w-1 h-1 rounded-full bg-indigo-400/50 pointer-events-none" />
         <Sparkle size={18} className="absolute bottom-4 right-5 text-slate-700 pointer-events-none" />
+
         <div className="relative">
-                  {quota && (
+          {quota && (
             <div className="mb-3 rounded-xl bg-slate-800/70 border border-slate-700/60 px-3 py-2 flex items-center gap-2">
               <Sparkle size={12} className="text-violet-300 shrink-0" />
               <div className="h-1.5 flex-1 bg-slate-700/80 rounded-full overflow-hidden">
@@ -438,21 +439,28 @@ export default function Dashboard() {
               <span className="text-[10px] font-black text-slate-300 shrink-0">{quota.left}/{quota.max} AI</span>
             </div>
           )}
+
+          {quota && (
+            <div className="flex items-center gap-2 mb-2 rounded-lg bg-slate-800/60 border border-slate-700/50 px-3 py-1.5 w-fit">
+              <Sparkle size={11} className="text-violet-300 shrink-0" />
+              <span className="text-[11px] font-bold text-slate-300">{quota.left}/{quota.max} AI left today</span>
+            </div>
+          )}
+
           <div className="flex items-start justify-between gap-3 mb-4">
             <p className="text-[11px] font-bold text-slate-500 pt-1.5">🦇 {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</p>
-            <span className="shrink-0 drop-shadow-[0_0_14px_rgba(139,92,246,0.45)]"><CoinPill /></span>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="min-w-0 flex-1">
-              <h1 className="font-black text-white leading-tight" style={{ fontSize: greetSize, whiteSpace: "nowrap" }}>{greetText}</h1>
-              <p className="text-xs font-semibold text-slate-400 mt-1.5">{motivation}</p>
-            </div>
-            <div className="relative shrink-0">
-              <ProgressRing pct={overallPct} size={78} stroke={7} color="#fbbf24" track="rgba(255,255,255,0.08)" showText={false} />
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-[8px] font-bold text-slate-500 leading-none">Progress</span>
-                <span className="text-base font-black text-white leading-tight">{overallPct}%</span>
-                <span className="text-[8px] font-bold text-slate-500 leading-none">Daily Goal</span>
+            <div className="flex items-center gap-4">
+              <div className="min-w-0 flex-1">
+                <h1 className="font-black text-white leading-tight" style={{ fontSize: greetSize, whiteSpace: "nowrap" }}>{greetText}</h1>
+                <p className="text-xs font-semibold text-slate-400 mt-1.5">{motivation}</p>
+              </div>
+              <div className="relative shrink-0">
+                <ProgressRing pct={overallPct} size={78} stroke={7} color="#fbbf24" track="rgba(255,255,255,0.08)" showText={false} />
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-[8px] font-bold text-slate-500 leading-none">Progress</span>
+                  <span className="text-base font-black text-white leading-tight">{overallPct}%</span>
+                  <span className="text-[8px] font-bold text-slate-500 leading-none">Daily Goal</span>
+                </div>
               </div>
             </div>
           </div>
