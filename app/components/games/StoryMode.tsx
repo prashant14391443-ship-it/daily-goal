@@ -171,8 +171,8 @@ export default function StoryMode({ onExit }: { onExit?: () => void }) {
       </div>
       <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 mb-4">
         <p className="text-[10px] font-black text-indigo-400 mb-2">
-          {question.type === "mcq" && "🎯 MULTIPLE CHOICE"}{question.type === "word" && "📝 ONE WORD"}
-          {question.type === "sentence" && "✍️ FULL SENTENCE"}{question.type === "speak" && "🎤 SPEAK IT"}
+          {question.type === "mcq" && "🧠 WORD POWER"}{question.type === "word" && "✍️ GRAMMAR PICK"}
+          {question.type === "sentence" && "🛠 FIX THE MISTAKE"}{question.type === "speak" && "🎤 SPEAK IT"}
         </p>
         <p className="text-base font-bold text-white leading-snug">{question.question}</p>
       </div>
@@ -197,7 +197,10 @@ export default function StoryMode({ onExit }: { onExit?: () => void }) {
             <p className="text-xs text-slate-400 mb-1">Correct answer:</p><p className="text-sm text-emerald-300 font-semibold mb-3">{question.answer}</p>
             <p className="text-xs text-slate-500">{question.explanation}</p>
           </div>
-          <button onClick={nextQuestion} className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-black">{currentQ + 1 >= story.questions.length ? "See Results" : "Next Question"}</button>
+          {question.shadow && (
+  <button onClick={() => { if (typeof window !== "undefined" && window.speechSynthesis) { window.speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(question.shadow || question.answer); u.lang = "en-US"; u.rate = 0.9; window.speechSynthesis.speak(u); } }} className="w-full py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold mb-2 flex items-center justify-center gap-1.5"><Volume2 size={13} /> Hear correct sentence</button>
+)}
+<button onClick={nextQuestion} className="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-black">{currentQ + 1 >= story.questions.length ? "See Results" : "Next Question"}</button>
         </>
       )}
     </div>

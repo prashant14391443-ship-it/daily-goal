@@ -1,6 +1,5 @@
 import type { Story, Question } from "./stories";
 
-// Your real-life character pools by era
 const CLASS5 = ["Sujeet", "Surbhi", "Sneha", "Nisha", "Alishan", "Sohail", "Prince", "Simpi", "Sahil", "Swati"];
 const CLASS5_TEACHERS = ["Rita Mam", "Abjal Sir", "Principal Sir", "Rinku Mam", "Pratima Mam"];
 const CLASS7 = ["Swati", "Sujeet", "Prince", "Sohail", "Sneha", "Alishan"];
@@ -29,100 +28,147 @@ function opts(correct: string, pool: string[]): string[] {
   return [correct, ...others].sort(() => Math.random() - 0.5);
 }
 
-// ── Lost & Found (Class 5 cast) ──
+// ── SKILL-FOCUSED QUESTION BUILDERS ──
+// Each one teaches something real: vocab, tense, error correction, or pronunciation.
+
+function vocabMCQ(sentences: string[]): Question {
+  // Pick a useful vocab word from a random sentence and ask its meaning
+  const vocabBank: { word: string; correct: string; wrong: string[]; explain: string }[] = [
+    { word: "nervous", correct: "worried and uneasy", wrong: ["angry and loud", "sleepy and tired", "excited and happy"], explain: "'Nervous' = worried about something new. First day = nervous!" },
+    { word: "exhausted", correct: "extremely tired", wrong: ["very excited", "very angry", "very bored"], explain: "'Exhausted' = stronger than 'tired'. After marathon = exhausted!" },
+    { word: "tiny", correct: "very small", wrong: ["very loud", "very fast", "very slow"], explain: "'Tiny' = very small. Tiny ant, tiny baby." },
+    { word: "shelter", correct: "protection from weather", wrong: ["food to eat", "friends nearby", "money to spend"], explain: "'Shelter' = place that protects from rain/wind." },
+    { word: "victory", correct: "winning / success", wrong: ["losing / failure", "starting a game", "practicing"], explain: "'Victory' = winning. 'Defeat' = losing." },
+    { word: "calm", correct: "peaceful and steady", wrong: ["angry and loud", "sleepy and slow", "confused"], explain: "'Calm' = peaceful. Calm sea = no waves. Calm mind = clear thinking." },
+    { word: "delicious", correct: "tasting very good", wrong: ["looking scary", "smelling bad", "feeling cold"], explain: "'Delicious' = tasty. Delicious food, delicious cake." },
+    { word: "celebrated", correct: "enjoyed a special event", wrong: ["slept late", "cried loudly", "fought angrily"], explain: "'Celebrate' = enjoy something special with joy." },
+  ];
+  // Pick vocab whose word actually appears in the story
+  const usable = vocabBank.filter((v) => sentences.some((s) => s.toLowerCase().includes(v.word)));
+  const v = usable.length ? pick(usable) : vocabBank[0];
+  return {
+    type: "mcq",
+    question: `In the story, '${v.word}' means:`,
+    options: opts(v.correct, [v.correct, ...v.wrong]),
+    answer: v.correct,
+    explanation: v.explain,
+  };
+}
+
+function grammarWord(sentences: string[]): Question {
+  // Pick a verb-in-past from a sentence and make a fill-in-the-blank
+  const verbBank: { base: string; past: string; explain: string }[] = [
+    { base: "take", past: "took", explain: "'Take' is irregular: take → took → taken." },
+    { base: "give", past: "gave", explain: "'Give' is irregular: give → gave → given." },
+    { base: "run", past: "ran", explain: "'Run' is irregular: run → ran → run." },
+    { base: "see", past: "saw", explain: "'See' is irregular: see → saw → seen." },
+    { base: "hear", past: "heard", explain: "'Hear' is irregular: hear → heard → heard." },
+    { base: "meet", past: "met", explain: "'Meet' is irregular: meet → met → met." },
+    { base: "find", past: "found", explain: "'Find' is irregular: find → found → found." },
+    { base: "write", past: "wrote", explain: "'Write' is irregular: write → wrote → written." },
+    { base: "sing", past: "sang", explain: "'Sing' is irregular: sing → sang → sung." },
+    { base: "eat", past: "ate", explain: "'Eat' is irregular: eat → ate → eaten." },
+    { base: "swim", past: "swam", explain: "'Swim' is irregular: swim → swam → swum." },
+    { base: "go", past: "went", explain: "'Go' is irregular: go → went → gone." },
+  ];
+  // Find a verb actually used in the story
+  const usable = verbBank.filter((v) => sentences.some((s) => new RegExp(`\\b${v.past}\\b`, "i").test(s)));
+  const v = usable.length ? pick(usable) : verbBank[0];
+  const wrongOptions = [v.base, v.base + "s", v.base + "ing"];
+  return {
+    type: "word",
+    question: `Pick the correct past form of '${v.base}': "He ___ it yesterday."`,
+    answer: v.past,
+    explanation: v.explain,
+  };
+}
+
+function errorSentence(sentences: string[]): Question {
+  // Pick a past-tense sentence and make a wrong version, ask user to fix
+  const patterns: { wrong: string; right: string; explain: string }[] = [
+    { wrong: "He go to school yesterday.", right: "He went to school yesterday.", explain: "'Go' → 'went' (irregular past). 'Yesterday' = past time." },
+    { wrong: "She eat rice last night.", right: "She ate rice last night.", explain: "'Eat' → 'ate' (irregular past)." },
+    { wrong: "They play cricket on Sunday.", right: "They played cricket on Sunday.", explain: "If talking about past Sunday: 'play' → 'played'." },
+    { wrong: "He don't like coffee.", right: "He doesn't like coffee.", explain: "Third person singular (he/she/it): 'don't' → 'doesn't'." },
+    { wrong: "She run fast every day.", right: "She runs fast every day.", explain: "Third person singular present: add -s. 'run' → 'runs'." },
+    { wrong: "I seen that movie.", right: "I saw that movie.", explain: "'See' = saw (past simple). 'Seen' needs 'have/has': 'I have seen'." },
+    { wrong: "He write a letter yesterday.", right: "He wrote a letter yesterday.", explain: "'Write' → 'wrote' (irregular past)." },
+    { wrong: "They was happy.", right: "They were happy.", explain: "'They' is plural → 'were'. 'He/She/It' → 'was'." },
+  ];
+  const p = pick(patterns);
+  return {
+    type: "sentence",
+    question: `Fix the mistake: "${p.wrong}"`,
+    answer: p.right,
+    explanation: p.explain,
+  };
+}
+
+function speakSentence(sentences: string[]): Question {
+  // Pick a short, expressive sentence from the story for shadowing
+  const short = sentences.filter((s) => s.length >= 20 && s.length <= 80);
+  const choice = short.length ? pick(short) : sentences[sentences.length - 1];
+  return {
+    type: "speak",
+    question: "Say it naturally, like a friend would:",
+    answer: choice,
+    shadow: choice,
+    explanation: "Focus on flow, not perfection. Link the words together naturally!"
+  };
+}
+
+function buildSkillQuestions(sentences: string[]): Question[] {
+  return [vocabMCQ(sentences), grammarWord(sentences), errorSentence(sentences), speakSentence(sentences)];
+}
+
+// ── STORY TEMPLATES (same stories, skill-focused questions) ──
+
 function lostFound(): Story {
   const n = pick(CLASS5), t = pick(CLASS5_TEACHERS), an = pick(ANIMALS), aj = pick(ADJ), pe = pick(PETS), f = pick(FOOD);
   const s = [`One morning, ${n} was walking to school.`, `${n} saw a ${aj} ${an} sitting alone near the school gate.`, `The ${an} looked ${pick(EMO)} and weak.`, `${n} gave it some ${f} and water.`, `${t} saw this and smiled proudly.`, `${n} took the ${an} home and named it ${pe}.`, `Now ${n} and ${pe} are best friends.`];
-  return { id: gid(), title: `${n} and the ${cap(an)}`, emoji: "🐾", difficulty: "Easy", sentences: s, questions: [
-    { type: "mcq", question: `Who found the ${an}?`, options: opts(n, CLASS5), answer: n, explanation: `${n} found it.` },
-    { type: "word", question: `What name did ${n} give it?`, answer: pe, explanation: `Named it ${pe}.` },
-    { type: "sentence", question: `What did ${t} do?`, answer: `${t} saw this and smiled proudly.`, explanation: `Smiled proudly.` },
-    { type: "speak", question: "What happened at the end?", answer: s[6], explanation: `Best friends.` },
-  ]};
+  return { id: gid(), title: `${n} and the ${cap(an)}`, emoji: "🐾", difficulty: "Easy", sentences: s, questions: buildSkillQuestions(s) };
 }
 
-// ── Festival (Class 5 cast) ──
 function festival(): Story {
   const n = pick(CLASS5), fe = pick(FESTIVALS), d = pick(DISHES), fr = pick(CLASS5.filter(x => x !== n));
   const s = [`${fe} is ${n}'s favorite festival.`, `This year, ${n} cleaned the house with the family.`, `${n}'s mother made delicious ${d}.`, `In the evening, ${n} and ${fr} decorated the house.`, `They shared ${d} with all the neighbors.`, `It was a day full of joy and light.`];
-  return { id: gid(), title: `${fe} Celebrations`, emoji: "🪔", difficulty: "Easy", sentences: s, questions: [
-    { type: "mcq", question: `Whose favorite festival?`, options: opts(n, CLASS5), answer: n, explanation: `${n}'s favorite.` },
-    { type: "word", question: `What dish was made?`, answer: d, explanation: `Delicious ${d}.` },
-    { type: "sentence", question: `What did ${n} and ${fr} do?`, answer: s[3], explanation: `Decorated the house.` },
-    { type: "speak", question: "What did they share?", answer: s[4], explanation: `Shared ${d}.` },
-  ]};
+  return { id: gid(), title: `${fe} Celebrations`, emoji: "🪔", difficulty: "Easy", sentences: s, questions: buildSkillQuestions(s) };
 }
 
-// ── Cricket match (BTech cast) ──
 function cricket(): Story {
-  const cap = pick(BTECH_BOYS), bowl = pick(BTECH_BOYS.filter(x => x !== cap)), bat = pick(BTECH_BOYS.filter(x => x !== cap && x !== bowl)), sir = pick(BTEACH_TEACHERS), opp = pick(OPPONENTS);
+  const captain = pick(BTECH_BOYS), bowl = pick(BTECH_BOYS.filter(x => x !== captain)), bat = pick(BTECH_BOYS.filter(x => x !== captain && x !== bowl)), sir = pick(BTEACH_TEACHERS), opp = pick(OPPONENTS);
   const s = [`The inter-college cricket final was here.`, `${cap} was captain of the team.`, `${bowl} bowled the first over and took two wickets.`, `They needed 12 runs from the last over against ${opp}.`, `${bat} hit a six and a four to win the match.`, `${sir} cheered from the pavilion.`, `They lifted the trophy and celebrated.`];
-  return { id: gid(), title: `The Cricket Final`, emoji: "🏏", difficulty: "Medium", sentences: s, questions: [
-    { type: "mcq", question: `Who was captain?`, options: opts(cap, BTECH_BOYS), answer: cap, explanation: `${cap} was captain.` },
-    { type: "word", question: `Who bowled the first over?`, answer: bowl, explanation: `${bowl} bowled.` },
-    { type: "sentence", question: `What did ${bat} hit?`, answer: `A six and a four.`, explanation: `Six and four.` },
-    { type: "speak", question: "What did they do after winning?", answer: s[6], explanation: `Lifted trophy.` },
-  ]};
+  return { id: gid(), title: `The Cricket Final`, emoji: "🏏", difficulty: "Medium", sentences: s, questions: buildSkillQuestions(s) };
 }
 
-// ── Kabaddi (BTech cast) ──
 function kabaddi(): Story {
   const raid = pick(BTECH_BOYS), catchr = pick(BTECH_BOYS.filter(x => x !== raid)), opp = pick(OPPONENTS);
   const s = [`The district kabaddi final was on.`, `${raid} was the star raider.`, `The score was tied at 30 each.`, `${raid} touched three defenders in one raid.`, `${catchr} caught an opponent near the line.`, `They won against ${opp} by two points.`, `The whole village celebrated.`];
-  return { id: gid(), title: `Kabaddi Championship`, emoji: "🤼", difficulty: "Medium", sentences: s, questions: [
-    { type: "mcq", question: `Who was the star raider?`, options: opts(raid, BTECH_BOYS), answer: raid, explanation: `${raid} was raider.` },
-    { type: "word", question: `How many defenders touched?`, answer: "3", explanation: `Three defenders.` },
-    { type: "sentence", question: `How many points did they win by?`, answer: `Two points.`, explanation: `Won by two.` },
-    { type: "speak", question: "How did the village react?", answer: s[6], explanation: `Village celebrated.` },
-  ]};
+  return { id: gid(), title: `Kabaddi Championship`, emoji: "🤼", difficulty: "Medium", sentences: s, questions: buildSkillQuestions(s) };
 }
 
-// ── Adventure trek (BTech cast) ──
 function adventure(): Story {
   const n1 = pick(BTECH_BOYS), n2 = pick(BTECH_BOYS.filter(x => x !== n1));
   const s = [`${n1} and five friends planned a mountain trek.`, `On day two they lost the trail.`, `Rain began to fall heavily.`, `${n2} spotted a cave and they ran inside.`, `They shared their last biscuits and waited.`, `By morning the rain stopped and the sun rose.`, `They reached the peak with the most beautiful view.`];
-  return { id: gid(), title: `The Mountain Trek`, emoji: "🏔️", difficulty: "Hard", sentences: s, questions: [
-    { type: "mcq", question: `Who planned the trek?`, options: opts(n1, BTECH_BOYS), answer: n1, explanation: `${n1} planned it.` },
-    { type: "word", question: `Who spotted the cave?`, answer: n2, explanation: `${n2} spotted it.` },
-    { type: "sentence", question: `What did they share?`, answer: `They shared their last biscuits.`, explanation: `Last biscuits.` },
-    { type: "speak", question: "What happened by morning?", answer: `The rain stopped and the sun rose.`, explanation: `Rain stopped.` },
-  ]};
+  return { id: gid(), title: `The Mountain Trek`, emoji: "🏔️", difficulty: "Hard", sentences: s, questions: buildSkillQuestions(s) };
 }
 
-// ── Horror night (BTech cast) ──
 function horror(): Story {
   const n = pick(BTECH_BOYS), fr = pick(BTECH_BOYS.filter(x => x !== n));
   const s = [`It was past midnight in the hostel.`, `${n} heard footsteps in the empty corridor.`, `He called ${fr} from the next room.`, `They walked together with a torch.`, `An old door creaked open by itself.`, `Inside was just a dusty mirror.`, `They laughed nervously and ran back.`];
-  return { id: gid(), title: `The Old Hostel`, emoji: "👻", difficulty: "Hard", sentences: s, questions: [
-    { type: "mcq", question: `Who heard footsteps?`, options: opts(n, BTECH_BOYS), answer: n, explanation: `${n} heard them.` },
-    { type: "word", question: `Who did he call?`, answer: fr, explanation: `Called ${fr}.` },
-    { type: "sentence", question: `What was inside the room?`, answer: `Inside was just a dusty mirror.`, explanation: `Dusty mirror.` },
-    { type: "speak", question: "What did they do at the end?", answer: s[6], explanation: `Laughed and ran back.` },
-  ]};
+  return { id: gid(), title: `The Old Hostel`, emoji: "👻", difficulty: "Hard", sentences: s, questions: buildSkillQuestions(s) };
 }
 
-// ── College trip (BTech cast) ──
 function collegeTrip(): Story {
   const n = pick(BTECH_BOYS), g = pick(BTECH_GIRLS), dest = pick(DESTS);
   const s = [`The college organized a trip to ${dest}.`, `${n} sat next to ${g} on the bus.`, `They sang songs the whole way.`, `At the destination, a guide told them stories.`, `${g} took the best group photo.`, `On the way back everyone was tired but happy.`, `It was a trip no one would forget.`];
-  return { id: gid(), title: `Trip to ${cap(dest)}`, emoji: "🚌", difficulty: "Medium", sentences: s, questions: [
-    { type: "mcq", question: `Where did they go?`, options: opts(dest, DESTS), answer: dest, explanation: `Trip to ${dest}.` },
-    { type: "word", question: `Who took the photo?`, answer: g, explanation: `${g} took the photo.` },
-    { type: "sentence", question: `What did they do on the bus?`, answer: `They sang songs the whole way.`, explanation: `Sang songs.` },
-    { type: "speak", question: "How did everyone feel?", answer: `Tired but happy.`, explanation: `Tired but happy.` },
-  ]};
+  return { id: gid(), title: `Trip to ${cap(dest)}`, emoji: "🚌", difficulty: "Medium", sentences: s, questions: buildSkillQuestions(s) };
 }
 
-// ── Movie-style love letter (BTech cast) ──
 function movieStyle(): Story {
   const n = pick(BTECH_BOYS), g = pick(BTECH_GIRLS), fr = pick(BTECH_GIRLS.filter(x => x !== g));
   const s = [`${n} wrote a love letter to ${g}.`, `He slipped it inside her book.`, `But ${fr} picked up the wrong book.`, `She read it thinking it was for her.`, `${n} ran to explain the mix-up.`, `${g} found out and laughed loudly.`, `They all became better friends.`];
-  return { id: gid(), title: `The Love Letter`, emoji: "💌", difficulty: "Medium", sentences: s, questions: [
-    { type: "mcq", question: `Who wrote the letter?`, options: opts(n, BTECH_BOYS), answer: n, explanation: `${n} wrote it.` },
-    { type: "word", question: `Who read it by mistake?`, answer: fr, explanation: `${fr} read it.` },
-    { type: "sentence", question: `How did ${g} react?`, answer: `${g} found out and laughed loudly.`, explanation: `Laughed loudly.` },
-    { type: "speak", question: "What happened at the end?", answer: s[6], explanation: `Better friends.` },
-  ]};
+  return { id: gid(), title: `The Love Letter`, emoji: "💌", difficulty: "Medium", sentences: s, questions: buildSkillQuestions(s) };
 }
 
 const TEMPLATES = [lostFound, festival, cricket, kabaddi, adventure, horror, collegeTrip, movieStyle];
