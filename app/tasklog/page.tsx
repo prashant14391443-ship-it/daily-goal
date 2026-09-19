@@ -295,7 +295,7 @@ export default function TodoPage() {
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         <button
-          onClick={toggleReminders}
+          onClick={toggleRemindChip}
           className={`press px-3 py-2 rounded-xl text-xs font-black whitespace-nowrap border flex items-center gap-1.5 ${
             remindersOn ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-slate-900 border-slate-800 text-slate-500"
           }`}

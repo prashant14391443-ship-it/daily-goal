@@ -463,7 +463,7 @@ export default function HabitLogPage() {
               <p className="text-sm font-black text-white">🔔 Daily reminder</p>
               <button onClick={() => setShowRemSheet(false)} className="text-slate-500 press"><X size={16} /></button>
             </div>
-            <button onClick={toggleReminders} className={`press w-full py-3 rounded-xl text-sm font-black border ${remindersOn ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-slate-800 border-slate-700 text-slate-400"}`}>
+            <button onClick={toggleRemindChip} className={`press w-full py-3 rounded-xl text-sm font-black border ${remindersOn ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-slate-800 border-slate-700 text-slate-400"}`}>
               {remindersOn ? "ON — remind me daily" : "OFF — no reminders"}
             </button>
             {remindersOn && (
