@@ -15,7 +15,7 @@ const TOPICS = [
   { emoji: "👔", title: "Job Interview", grad: "from-blue-500 to-indigo-600", border: "border-blue-500/30" },
   { emoji: "🏠", title: "Your Hometown", grad: "from-amber-500 to-orange-600", border: "border-amber-500/30" },
   { emoji: "🎉", title: "Festivals & Culture", grad: "from-rose-500 to-rose-600", border: "border-rose-500/30" },
-  { emoji: "🧑‍🤝‍", title: "Describing a Friend", grad: "from-violet-500 to-indigo-600", border: "border-violet-500/30" },
+  { emoji: "🧑‍🤝‍🧑", title: "Describing a Friend", grad: "from-violet-500 to-indigo-600", border: "border-violet-500/30" },
   { emoji: "🗺️", title: "Famous Places", grad: "from-cyan-500 to-teal-600", border: "border-cyan-500/30" },
   { emoji: "🍕", title: "Food & Restaurants", grad: "from-red-500 to-orange-600", border: "border-red-500/30" },
   { emoji: "📚", title: "Studies & Exams", grad: "from-indigo-500 to-blue-600", border: "border-indigo-500/30" },
@@ -55,8 +55,8 @@ export default function SpeakingPage() {
   const [uid, setUid] = useState("guest");
   const [drillIdx, setDrillIdx] = useState(0);
   const [view, setView] = useState<"home" | "topics">("home");
-  
   const [toast, setToast] = useState("");
+  const [micOn, setMicOn] = useState(false);
   const toastTimer = useRef<any>(null);
 
   const show = (m: string) => {
@@ -65,7 +65,7 @@ export default function SpeakingPage() {
     toastTimer.current = setTimeout(() => setToast(""), 2600);
   };
 
-  // 🎙️ Jarvis Voice Engine
+  // 🎙️ Jarvis Voice Engine — continuous state driven by micOn
   const {
     state: voiceState,
     isSupported,
@@ -76,7 +76,7 @@ export default function SpeakingPage() {
     speak,
     setOnTranscript,
     clearTranscript,
-  } = useJarvisVoice(true);
+  } = useJarvisVoice(micOn);
 
   const mediaRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -84,8 +84,7 @@ export default function SpeakingPage() {
   const recSecRef = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
-  
-  // Refs to prevent stale closures in async functions
+
   const msgsRef = useRef<Msg[]>([]);
   const loadingRef = useRef(false);
   useEffect(() => { msgsRef.current = msgs; }, [msgs]);
@@ -119,8 +118,11 @@ export default function SpeakingPage() {
     }
   }, [msgs, loading, voiceState]);
 
+  // FULL STOP: kills mic, stops voice, stops recording
   const stopAll = () => {
-    interrupt(); // Stops Jarvis voice
+    setMicOn(false);
+    interrupt();
+    stopListening();
     mediaRef.current?.stop();
     setRecording(false);
     if (recTimerRef.current) clearInterval(recTimerRef.current);
@@ -146,6 +148,7 @@ export default function SpeakingPage() {
     setPicker(false);
     setMode("call");
     setMsgs([]);
+    setMicOn(false); // fresh start — user taps mic when ready
     setLoading(true);
     try {
       const res = await fetch("/api/ai", {
@@ -241,7 +244,6 @@ export default function SpeakingPage() {
     setLoading(false);
   };
 
-  // 🎙️ Voice transcript handler for continuous conversation
   const handleTranscript = async (text: string) => {
     if (!text) return;
     let waited = 0;
@@ -268,7 +270,10 @@ export default function SpeakingPage() {
       return;
     }
     if (!useLimit()) return;
-    interrupt(); // Stop Jarvis if active
+    // pause continuous mic while manual recording happens
+    setMicOn(false);
+    stopListening();
+    interrupt();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream);
@@ -555,7 +560,7 @@ export default function SpeakingPage() {
               </button>
             </div>
           ) : mode === "call" ? (
-            // 🎙️ JARVIS VOICE BAR FOR CALL MODE
+            // 🎙️ JARVIS VOICE BAR FOR CALL MODE — tap once = ON, tap again = OFF
             <div className="shrink-0 z-10 pt-1 pb-1">
               <div className="h-4 flex items-center justify-center mb-1">
                 {voiceState === "listening" && transcript && (
@@ -566,6 +571,9 @@ export default function SpeakingPage() {
                 {voiceState === "listening" && !transcript && <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">Listening...</p>}
                 {voiceState === "thinking" && <p className="text-[9px] font-bold uppercase tracking-wider text-violet-400">Thinking...</p>}
                 {voiceState === "speaking" && <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">Speaking — talk to interrupt</p>}
+                {!micOn && voiceState === "idle" && (
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Tap mic to start</p>
+                )}
               </div>
 
               <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-center gap-1.5">
@@ -573,8 +581,16 @@ export default function SpeakingPage() {
                   <JarvisOrb 
                     state={voiceState} 
                     onClick={() => {
-                      if (voiceState === "speaking" || voiceState === "listening") interrupt();
-                      else startListening();
+                      if (micOn) {
+                        // 2nd tap = FULL STOP (stays stopped until tapped again)
+                        setMicOn(false);
+                        interrupt();
+                        stopListening();
+                      } else {
+                        // 1st tap = continuous ON (listens → Swati replies → listens again)
+                        setMicOn(true);
+                        startListening();
+                      }
                     }} 
                   />
                 ) : (
@@ -597,8 +613,6 @@ export default function SpeakingPage() {
                   <Send className="w-4 h-4" />
                 </button>
               </form>
-
-
             </div>
           ) : (
             <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
