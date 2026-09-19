@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-
+import { ensurePushSubscription } from "@/lib/pushClient";
 import Link from "next/link";
 import { BookOpen, Dumbbell, ListChecks, ListTodo, Mic, Flame, Target, BarChart3, ClipboardList, Hourglass, Sparkle, Lightbulb, Volume2, Check, RefreshCw, Footprints, GraduationCap, ArrowRight, Code2, WifiOff } from "lucide-react";
 import { TIPS, categoryIcons, categoryColors, localISO, dayNum } from "@/app/components/tipsData";
@@ -217,7 +217,7 @@ export default function Dashboard() {
   const load = async () => {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
-    if (!userId) { router.push("/login"); return; }
+    if (!userId) { window.location.replace("/login"); return; }
 
     const meta = (data.session?.user.user_metadata || {}) as { display_name?: string };
     const name = (meta.display_name || (data.session?.user.email || "friend").split("@")[0]);
@@ -321,7 +321,10 @@ export default function Dashboard() {
       }));
     } catch {}
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+  load();
+  ensurePushSubscription();
+}, []);
     useEffect(() => {
     const loadQuota = async () => {
       try {

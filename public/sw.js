@@ -174,10 +174,19 @@ self.addEventListener("sync", (event) => {
 
 // Push notifications
 self.addEventListener("push", (event) => {
-  const data = event.data ? event.data.json() : {};
-  event.waitUntil(self.registration.showNotification(data.title || "Daily Goal", {
-    body: data.body || "New notification", icon: "/icon.svg", badge: "/icon.svg", data: data.url || "/",
-  }));
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {}
+  const title = data.title || "DAILY GOAL 💜";
+  const options = {
+    body: data.body || "New notification",
+    icon: "/icon.svg",
+    badge: "/icon.svg",
+    tag: data.tag || "dg-push",
+    data: { url: data.url || "/dashboard" },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener("notificationclick", (event) => {

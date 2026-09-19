@@ -1,8 +1,7 @@
 {
   "crons": [
-    {
-      "path": "/api/cleanup",
-      "schedule": "0 3 * * *"
-    }
+    { "path": "/api/cleanup", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/digest?slot=morning", "schedule": "30 2 * * *" },
+    { "path": "/api/cron/digest?slot=evening", "schedule": "30 14 * * *" }
   ]
 }
