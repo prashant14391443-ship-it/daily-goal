@@ -3,7 +3,6 @@
 import { usePathname } from "next/navigation";
 import NotificationCenter from "./NotificationCenter";
 import ProfileMenu from "./ProfileMenu";
-import AiQuotaBadge from "@/app/components/AiQuotaBadge";
 
 // 👤 show ONLY on the 5 main tab screens
 const SHOW = ["/dashboard", "/study", "/gym-log", "/routine-habits", "/todo"];
@@ -14,7 +13,6 @@ export default function TopBar() {
   return (
     <>
       <NotificationCenter />
-      <AiQuotaBadge />
       <ProfileMenu />
     </>
   );

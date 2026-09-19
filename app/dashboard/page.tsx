@@ -37,7 +37,7 @@ function writeDashScroll() {
 }
 function readCache(): any {
   if (typeof window === "undefined") return null;
-  try { return JSON.parse(sessionStorage.getItem("dg-dash-cache") || "null"); } catch { return null; }
+  try { return JSON.parse(localStorage.getItem("dg-dash-cache-v1") || "null"); } catch { return null; }
 }
 
 function ProgressRing({ pct, size = 56, stroke = 5, color, track = "rgba(255,255,255,0.08)", showText = true }: { pct: number; size?: number; stroke?: number; color: string; track?: string; showText?: boolean }) {
@@ -121,6 +121,7 @@ export default function Dashboard() {
   const [cdDate, setCdDate] = useState("");
   const [cdEmoji, setCdEmoji] = useState("📚");
   const [fromCache, setFromCache] = useState(false);
+    const [quota, setQuota] = useState<{ left: number; max: number } | null>(null);
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
@@ -311,7 +312,7 @@ export default function Dashboard() {
     setLoading(false);
 
     try {
-      sessionStorage.setItem("dg-dash-cache", JSON.stringify({
+      localStorage.setItem("dg-dash-cache-v1", JSON.stringify({
         userName: nameCap, studyMinutes: studyMin, workouts: wk, habitsDone: hd, todoDone: td, todoTotal: tt,
         studyStreak: sStreak, gymStreak: gStreak, todoStreak: tStreak, studyBroken: sBroken, gymBroken: gBroken, todoBroken: tBroken,
         habitBroken: hBroken, goals: gObj, habitStreaks: hStreaks, studyWeekData: sw, gymWeekData: gw, habitsWeekData: hw,
@@ -321,6 +322,22 @@ export default function Dashboard() {
     } catch {}
   };
   useEffect(() => { load(); }, []);
+    useEffect(() => {
+    const loadQuota = () =>
+      fetch("/api/ai/quota", { credentials: "same-origin" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => {
+          if (!j) return;
+          const left = Number(j.left ?? j.remaining ?? j.units ?? 0);
+          const max = Number(j.max ?? j.limit ?? j.total ?? 40);
+          setQuota({ left, max });
+        })
+        .catch(() => {});
+    loadQuota();
+    const onVis = () => { if (document.visibilityState === "visible") loadQuota(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
   useEffect(() => { cleanupOldGuest(3); }, []);
 
   // 📴 OFFLINE-CAPABLE SAVE GOALS
@@ -409,6 +426,18 @@ export default function Dashboard() {
         <div className="absolute left-1/2 top-4 w-1 h-1 rounded-full bg-indigo-400/50 pointer-events-none" />
         <Sparkle size={18} className="absolute bottom-4 right-5 text-slate-700 pointer-events-none" />
         <div className="relative">
+                  {quota && (
+            <div className="mb-3 rounded-xl bg-slate-800/70 border border-slate-700/60 px-3 py-2 flex items-center gap-2">
+              <Sparkle size={12} className="text-violet-300 shrink-0" />
+              <div className="h-1.5 flex-1 bg-slate-700/80 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-violet-500 to-fuchsia-400 rounded-full transition-all"
+                  style={{ width: `${Math.round((quota.left / Math.max(quota.max, 1)) * 100)}%` }}
+                />
+              </div>
+              <span className="text-[10px] font-black text-slate-300 shrink-0">{quota.left}/{quota.max} AI</span>
+            </div>
+          )}
           <div className="flex items-start justify-between gap-3 mb-4">
             <p className="text-[11px] font-bold text-slate-500 pt-1.5">🦇 {new Date().toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}</p>
             <span className="shrink-0 drop-shadow-[0_0_14px_rgba(139,92,246,0.45)]"><CoinPill /></span>
