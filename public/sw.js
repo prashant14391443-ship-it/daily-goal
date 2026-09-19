@@ -1,8 +1,13 @@
-// DAILY GOAL service worker v12 — FINAL: instant opens + silent full-app save
-// v12: added /vocab, /sentences, /games to ALL_PAGES for instant offline precache
-const CACHE_NAME = "daily-goal-v12";
+// DAILY GOAL service worker v13 — critical-first offline + no more home-bounce
+const CACHE_NAME = "daily-goal-v13";
 const API_CACHE = "daily-goal-api-v1";
-const SENTINEL = "/__all_pages_saved_v12";
+const SENTINEL = "/__all_pages_saved_v13";
+
+// ⚡ Saved FIRST (seconds after first online open) — the offline core
+const CRITICAL_PAGES = [
+  "/dashboard", "/english", "/speaking", "/vocab", "/games",
+  "/english-tips", "/sentences", "/tips",
+];
 
 const ALL_PAGES = [
   "/", "/dashboard", "/login", "/signup",
@@ -16,24 +21,34 @@ const ALL_PAGES = [
   "/ai", "/quiz", "/summarize", "/calorie", "/blueprint", "/exam", "/test",
 ];
 
+async function precrawlRoute(route, cache) {
+  try {
+    const existing = await cache.match(route);
+    if (existing) return;
+    const res = await fetch(route, { credentials: "same-origin" });
+    if (!res.ok) return;
+    const html = await res.clone().text();
+    await cache.put(route, res);
+    const chunks = [...html.matchAll(/(?:src|href)="(\/_next\/static\/[^"]+)"/g)].map((m) => m[1]);
+    await Promise.all(chunks.map((u) =>
+      cache.match(u).then((h) => (h ? null : fetch(u).then((r) => (r.ok ? cache.put(u, r) : null)))).catch(() => {})
+    ));
+  } catch {}
+}
+
+async function precrawlCritical() {
+  const cache = await caches.open(CACHE_NAME);
+  await Promise.all(CRITICAL_PAGES.map((r) => precrawlRoute(r, cache)));
+}
+
 async function saveAllPages() {
   const cache = await caches.open(CACHE_NAME);
+  // 1️⃣ critical pages FIRST — offline core ready in seconds
+  await Promise.all(CRITICAL_PAGES.map((r) => precrawlRoute(r, cache)));
+  // 2️⃣ then everything else in batches
   for (let i = 0; i < ALL_PAGES.length; i += 8) {
     const batch = ALL_PAGES.slice(i, i + 8);
-    await Promise.all(batch.map(async (route) => {
-      try {
-        const existing = await cache.match(route);
-        if (existing) return;
-        const res = await fetch(route, { credentials: "same-origin" });
-        if (!res.ok) return;
-        const html = await res.clone().text();
-        await cache.put(route, res);
-        const chunks = [...html.matchAll(/(?:src|href)="(\/_next\/static\/[^"]+)"/g)].map((m) => m[1]);
-        await Promise.all(chunks.map((u) =>
-          cache.match(u).then((h) => (h ? null : fetch(u).then((r) => (r.ok ? cache.put(u, r) : null)))).catch(() => {})
-        ));
-      } catch {}
-    }));
+    await Promise.all(batch.map((r) => precrawlRoute(r, cache)));
   }
   await cache.put(SENTINEL, new Response("1"));
 }
@@ -47,12 +62,13 @@ self.addEventListener("install", (event) => {
   );
 });
 
-// Activate = clean old caches, take control
+// Activate = clean old caches, take control, START CRITICAL PRECRAWL IMMEDIATELY
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => k !== CACHE_NAME && k !== API_CACHE).map((k) => caches.delete(k)))
     ).then(() => self.clients.claim())
+      .then(() => precrawlCritical().catch(() => {}))
   );
 });
 
@@ -110,8 +126,9 @@ self.addEventListener("fetch", (event) => {
         })());
         if (hit) return hit; // ⚡ instant
         const res = await network;
-        return res || (await cache.match("/dashboard")) || (await cache.match("/")) ||
-          new Response(offlineHTML(), { headers: { "Content-Type": "text/html" } });
+        if (res) return res;
+        // ❌ Nothing saved for this page yet → clear message (NO silent home-bounce)
+        return new Response(offlineHTML(), { headers: { "Content-Type": "text/html" } });
       })()
     );
     return;
@@ -130,7 +147,7 @@ self.addEventListener("fetch", (event) => {
 });
 
 function offlineHTML() {
-  return `<!doctype html><html><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#020617;color:#fff;font-family:sans-serif;text-align:center"><div><img src="/icon.svg" width="96" height="96" alt="" /><p style="font-size:14px;color:#94a3b8;margin:16px 0 0">Open once with internet to enable offline mode.</p></div></body></html>`;
+  return `<!doctype html><html><body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#020617;color:#fff;font-family:sans-serif;text-align:center;padding:24px"><div><img src="/icon.svg" width="96" height="96" alt="" /><p style="font-size:14px;color:#94a3b8;margin:16px auto 0;max-width:280px">This page isn't saved on this phone yet.<br/>Open it once with internet — after that it works offline.</p><a href="/dashboard" style="display:inline-block;margin-top:16px;padding:10px 18px;border-radius:12px;background:#10b981;color:#022c22;font-weight:700;font-size:13px;text-decoration:none">Go to Home</a></div></body></html>`;
 }
 
 // Offline edits auto-sync when internet returns

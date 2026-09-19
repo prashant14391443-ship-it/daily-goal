@@ -8,12 +8,14 @@ import { JarvisOrb } from "@/app/components/JarvisOrb";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
+const OFFLINE_MSG = "📡 You're offline — this feature needs internet. Everything else works!";
+
 const TOPICS = [
   { emoji: "🛒", title: "Buying Groceries", grad: "from-green-500 to-emerald-600", border: "border-green-500/30" },
   { emoji: "👔", title: "Job Interview", grad: "from-blue-500 to-indigo-600", border: "border-blue-500/30" },
   { emoji: "🏠", title: "Your Hometown", grad: "from-amber-500 to-orange-600", border: "border-amber-500/30" },
   { emoji: "🎉", title: "Festivals & Culture", grad: "from-rose-500 to-rose-600", border: "border-rose-500/30" },
-  { emoji: "🧑‍🤝‍🧑", title: "Describing a Friend", grad: "from-violet-500 to-indigo-600", border: "border-violet-500/30" },
+  { emoji: "🧑‍🤝‍", title: "Describing a Friend", grad: "from-violet-500 to-indigo-600", border: "border-violet-500/30" },
   { emoji: "🗺️", title: "Famous Places", grad: "from-cyan-500 to-teal-600", border: "border-cyan-500/30" },
   { emoji: "🍕", title: "Food & Restaurants", grad: "from-red-500 to-orange-600", border: "border-red-500/30" },
   { emoji: "📚", title: "Studies & Exams", grad: "from-indigo-500 to-blue-600", border: "border-indigo-500/30" },
@@ -22,9 +24,9 @@ const TOPICS = [
 ];
 
 const MODES = [
-  { id: "topic", emoji: "🗣️", title: "Talk AI — Topic", desc: "Pick a topic & call", grad: "from-emerald-500 to-green-600", border: "border-emerald-500/30", href: null, online: true },
-  { id: "anything", emoji: "💬", title: "Talk AI — Anything", desc: "Free conversation call", grad: "from-blue-500 to-indigo-600", border: "border-blue-500/30", href: null, online: true },
-  { id: "evaluate", emoji: "📊", title: "Record & Analyse", desc: "Score + full report", grad: "from-violet-500 to-indigo-600", border: "border-violet-500/30", href: "/evaluate", online: true },
+  { id: "topic", emoji: "🗣️", title: "Talk AI — Topic", desc: "Pick a topic & call", grad: "from-emerald-500 to-green-600", border: "border-emerald-500/30", href: null },
+  { id: "anything", emoji: "💬", title: "Talk AI — Anything", desc: "Free conversation call", grad: "from-blue-500 to-indigo-600", border: "border-blue-500/30", href: null },
+  { id: "evaluate", emoji: "📊", title: "Record & Analyse", desc: "Score + full report", grad: "from-violet-500 to-indigo-600", border: "border-violet-500/30", href: "/evaluate" },
   { id: "sentences", emoji: "🎯", title: "Sentence Practice", desc: "Fix mistakes + say & score", grad: "from-amber-500 to-orange-600", border: "border-amber-500/30", href: "/sentences" },
   { id: "vocab", emoji: "📚", title: "Vocabulary", desc: "5 words/day + Hindi meanings", grad: "from-emerald-500 to-teal-600", border: "border-emerald-500/30", href: "/vocab" },
   { id: "tips", emoji: "🎓", title: "English Tips", desc: "Speaking • Reading • Writing • Listening", grad: "from-teal-500 to-cyan-600", border: "border-teal-500/30", href: "/english-tips" },
@@ -54,6 +56,14 @@ export default function SpeakingPage() {
   const [drillIdx, setDrillIdx] = useState(0);
   const [view, setView] = useState<"home" | "topics">("home");
   const [continuousMode, setContinuousMode] = useState(true);
+  const [toast, setToast] = useState("");
+  const toastTimer = useRef<any>(null);
+
+  const show = (m: string) => {
+    setToast(m);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 2600);
+  };
 
   // 🎙️ Jarvis Voice Engine
   const {
@@ -320,31 +330,34 @@ export default function SpeakingPage() {
 
         {view === "home" ? (
           <>
-            {/* MODE GRID */}
+            {/* MODE GRID — clean original layout, no badges */}
             <div className="grid grid-cols-2 gap-3">
               {MODES.map((m) => {
-                const handleClick = () => {
+                const needsInternet = m.id === "topic" || m.id === "anything" || m.id === "evaluate";
+
+                const handleClick = (e: React.MouseEvent) => {
+                  if (needsInternet && !navigator.onLine) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    show(OFFLINE_MSG);
+                    return;
+                  }
                   if (m.id === "topic") setView("topics");
                   else if (m.id === "anything") startCall("anything — free friendly conversation");
                 };
 
                 const content = (
-                  <div className={`bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-2xl p-4 text-left transition-colors relative`}>
-                    {m.online && (
-                      <span className="absolute top-3 right-3 inline-flex items-center rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-300">
-                        📡 Online
-                      </span>
-                    )}
+                  <div className={`bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-2xl p-4 text-left transition-colors`}>
                     <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${m.grad} flex items-center justify-center text-xl mb-3`}>
                       {m.emoji}
                     </div>
-                    <p className="font-semibold text-sm text-white leading-tight pr-14">{m.title}</p>
-                    <p className="text-xs text-slate-400 mt-0.5 pr-14">{m.desc}</p>
+                    <p className="font-semibold text-sm text-white leading-tight">{m.title}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{m.desc}</p>
                   </div>
                 );
 
                 return m.href ? (
-                  <Link key={m.id} href={m.href}>{content}</Link>
+                  <Link key={m.id} href={m.href} onClick={handleClick}>{content}</Link>
                 ) : (
                   <button key={m.id} onClick={handleClick} className="text-left">{content}</button>
                 );
@@ -400,6 +413,13 @@ export default function SpeakingPage() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* toast */}
+        {toast && (
+          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[300] max-w-[90vw] px-4 py-3 rounded-2xl bg-slate-900/95 border border-slate-700 text-slate-100 text-xs font-bold shadow-2xl backdrop-blur-sm text-center">
+            {toast}
           </div>
         )}
       </main>
