@@ -4,13 +4,25 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 // ONLY pages that are 100% internet-dependent (AI calls / realtime / social)
-// English hub, /speaking, /vocab, games, tips are NOT here → they open offline
 const ONLINE_ONLY = [
   "/random-talk", "/community", "/feed", "/friends", "/inbox", "/chat", "/newpost",
   "/call", "/evaluate", "/talk",
   "/calorie", "/blueprint", "/coach", "/summarize", "/ai-summary", "/breakdown",
   "/exam", "/test", "/learn", "/learns", "/ai",
   "/move",
+];
+
+// ✅ English offline zone — NEVER block these, even offline
+// These open cleanly without internet; only their AI actions will toast.
+const ALWAYS_OPEN = [
+  "/english",
+  "/speaking",
+  "/vocab",
+  "/games",
+  "/tips",
+  "/english-tips",
+  "/sentences",
+  "/dashboard",
 ];
 
 // AI API routes → blocked offline with a friendly toast (wherever they're called)
@@ -43,8 +55,22 @@ export default function AiGuard() {
       token = session?.access_token || "";
     });
 
-    const isOnlineOnlyPath = (p: string) =>
-      ONLINE_ONLY.some((x) => p === x || p.startsWith(x + "/") || p.startsWith(x + "?"));
+    // ✅ Single source of truth: is this path blocked while offline?
+    const isOfflineBlocked = (rawPath: string): boolean => {
+      // Normalize: strip query + hash, decode, trim
+      const clean = (rawPath || "").split("?")[0].split("#")[0].trim();
+      if (!clean || clean.startsWith("http") || clean.startsWith("//")) return false;
+
+      // Whitelist FIRST — these are always openable
+      if (ALWAYS_OPEN.some((p) => clean === p || clean.startsWith(p + "/"))) {
+        return false;
+      }
+
+      // Then check the blocked list
+      return ONLINE_ONLY.some(
+        (p) => clean === p || clean.startsWith(p + "/")
+      );
+    };
 
     // 1️⃣ Fetch patch: auth header + block AI APIs offline + limit alerts
     const orig = window.fetch;
@@ -86,7 +112,7 @@ export default function AiGuard() {
       const a = (e.target as HTMLElement).closest?.("a[href]") as HTMLAnchorElement | null;
       if (!a) return;
       const href = a.getAttribute("href") || "";
-      if (isOnlineOnlyPath(href)) {
+      if (isOfflineBlocked(href)) {
         e.preventDefault();
         e.stopPropagation();
         show(offlineMsg);
@@ -98,11 +124,17 @@ export default function AiGuard() {
     const origPush = history.pushState.bind(history);
     const origReplace = history.replaceState.bind(history);
     history.pushState = (state: any, unused: any, url?: string | URL | null) => {
-      if (!navigator.onLine && url && isOnlineOnlyPath(String(url))) { show(offlineMsg); return; }
+      if (!navigator.onLine && url && isOfflineBlocked(String(url))) {
+        show(offlineMsg);
+        return;
+      }
       return origPush(state, unused, url);
     };
     history.replaceState = (state: any, unused: any, url?: string | URL | null) => {
-      if (!navigator.onLine && url && isOnlineOnlyPath(String(url))) { show(offlineMsg); return; }
+      if (!navigator.onLine && url && isOfflineBlocked(String(url))) {
+        show(offlineMsg);
+        return;
+      }
       return origReplace(state, unused, url);
     };
 

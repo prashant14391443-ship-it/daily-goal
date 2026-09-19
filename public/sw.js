@@ -1,4 +1,5 @@
-// DAILY GOAL service worker v11 — FINAL: instant opens + silent full-app save
+// DAILY GOAL service worker v12 — FINAL: instant opens + silent full-app save
+// v12: added /vocab, /sentences, /games to ALL_PAGES for instant offline precache
 const CACHE_NAME = "daily-goal-v12";
 const API_CACHE = "daily-goal-api-v1";
 const SENTINEL = "/__all_pages_saved_v12";
@@ -10,7 +11,7 @@ const ALL_PAGES = [
   "/gym-log", "/workout", "/nutrition", "/calculator", "/running", "/progress", "/move",
   "/routine-habits", "/habitslog", "/routines", "/freeze", "/quit", "/habit-stats", "/streaks", "/weekly",
   "/flashcards",
-  "/talk", "/english", "/english-tips", "/speaking",
+  "/talk", "/english", "/english-tips", "/speaking", "/vocab", "/sentences", "/games",
   "/leaderboard", "/feed", "/friends", "/profile", "/pricing", "/install", "/search",
   "/ai", "/quiz", "/summarize", "/calorie", "/blueprint", "/exam", "/test",
 ];
@@ -81,7 +82,8 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (url.origin !== self.location.origin) return;
-    // 🚫 NEVER cache our own API routes — always ask the server (fixes stale quota)
+
+  // 🚫 NEVER cache our own API routes — always ask the server (fixes stale quota)
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(
       fetch(req).catch(() => new Response(JSON.stringify({ error: "offline" }), {

@@ -1,802 +1,655 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
-import { PACKS_A } from "./dataA";
-import { PACKS_B } from "./dataB";
-import { PACKS_C } from "./dataC";
-import { PACKS_D } from "./dataD";
-import { BookOpen, RotateCw, Archive, Sparkles, Volume2, ArrowLeft, Check, Lightbulb, Flag, BookMarked, Repeat, Search, Award, TrendingUp } from "lucide-react";
+import { Mic, Send, PhoneOff, Volume2, MessageCircle, ArrowLeft, Bot, User, Shuffle, Loader2, VolumeX } from "lucide-react";
+import { useJarvisVoice } from "@/app/hooks/jarvisVoice";
+import { JarvisOrb } from "@/app/components/JarvisOrb";
 
-type VWord = { word: string; type: string; meaning: string; hindi: string; example: string; synonym: string; antonym: string };
-type Pack = { id: string; emoji: string; title: string; desc: string; words: VWord[] };
-type Row = { word: string; meaning: string; hindi: string; level: number; next_review: string | null; synonym: string; antonym: string };
+type Msg = { role: "user" | "assistant"; content: string };
 
-// ✅ ALL 20 TOPICS (600 words total)
-const PACKS: Pack[] = [...PACKS_A, ...PACKS_B, ...PACKS_C, ...PACKS_D];
+const TOPICS = [
+  { emoji: "🛒", title: "Buying Groceries", grad: "from-green-500 to-emerald-600", border: "border-green-500/30" },
+  { emoji: "👔", title: "Job Interview", grad: "from-blue-500 to-indigo-600", border: "border-blue-500/30" },
+  { emoji: "🏠", title: "Your Hometown", grad: "from-amber-500 to-orange-600", border: "border-amber-500/30" },
+  { emoji: "🎉", title: "Festivals & Culture", grad: "from-rose-500 to-rose-600", border: "border-rose-500/30" },
+  { emoji: "🧑‍🤝‍", title: "Describing a Friend", grad: "from-violet-500 to-indigo-600", border: "border-violet-500/30" },
+  { emoji: "🗺️", title: "Famous Places", grad: "from-cyan-500 to-teal-600", border: "border-cyan-500/30" },
+  { emoji: "🍕", title: "Food & Restaurants", grad: "from-red-500 to-orange-600", border: "border-red-500/30" },
+  { emoji: "📚", title: "Studies & Exams", grad: "from-indigo-500 to-blue-600", border: "border-indigo-500/30" },
+  { emoji: "🏏", title: "Sports & Fitness", grad: "from-emerald-500 to-green-600", border: "border-emerald-500/30" },
+  { emoji: "🎬", title: "Movies & Music", grad: "from-violet-500 to-rose-600", border: "border-violet-500/30" },
+];
 
-const MASTERY = ["🌱", "🌿", "🌳", "🌲", "👑"];
-const masteryOf = (lvl: number) => MASTERY[Math.max(0, Math.min(4, lvl))];
-const INTERVALS: Record<number, number> = { 1: 1, 2: 3, 3: 7 };
+// ✅ No "online" badges anymore — offline taps are handled with a toast instead
+const MODES = [
+  { id: "topic", emoji: "🗣️", title: "Talk AI — Topic", desc: "Pick a topic & call", grad: "from-emerald-500 to-green-600", border: "border-emerald-500/30", href: null },
+  { id: "anything", emoji: "💬", title: "Talk AI — Anything", desc: "Free conversation call", grad: "from-blue-500 to-indigo-600", border: "border-blue-500/30", href: null },
+  { id: "evaluate", emoji: "📊", title: "Record & Analyse", desc: "Score + full report", grad: "from-violet-500 to-indigo-600", border: "border-violet-500/30", href: "/evaluate" },
+  { id: "sentences", emoji: "🎯", title: "Sentence Practice", desc: "Fix mistakes + say & score", grad: "from-amber-500 to-orange-600", border: "border-amber-500/30", href: "/sentences" },
+  { id: "vocab", emoji: "📚", title: "Vocabulary", desc: "5 words/day + Hindi meanings", grad: "from-emerald-500 to-teal-600", border: "border-emerald-500/30", href: "/vocab" },
+  { id: "tips", emoji: "🎓", title: "English Tips", desc: "Speaking • Reading • Writing • Listening", grad: "from-teal-500 to-cyan-600", border: "border-teal-500/30", href: "/english-tips" },
+  { id: "games", emoji: "🎮", title: "Game Zone", desc: "4 games • beat your best", grad: "from-rose-500 to-rose-600", border: "border-rose-500/30", href: "/games" },
+];
 
-function addDaysISO(n: number) {
-  const d = new Date(Date.now() + n * 86400000);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-const todayISO = () => addDaysISO(0);
+const DRILLS = [
+  "I would like a cup of tea, please.",
+  "The weather is really pleasant today.",
+  "Can you schedule a meeting for Thursday?",
+  "I practice my pronunciation every day.",
+  "She sells seashells by the seashore.",
+  "I thought I saw a thoughtful frog.",
+];
 
-function shuffle<T>(a: T[]): T[] {
-  const arr = [...a];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
+export default function SpeakingPage() {
+  const [topic, setTopic] = useState<string | null>(null);
+  const [picker, setPicker] = useState(false);
+  const [mode, setMode] = useState<"" | "call" | "chat" | "drill">("");
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recSec, setRecSec] = useState(0);
+  const [left, setLeft] = useState(16);
+  const [uid, setUid] = useState("guest");
+  const [drillIdx, setDrillIdx] = useState(0);
+  const [view, setView] = useState<"home" | "topics">("home");
+  const [continuousMode, setContinuousMode] = useState(true);
 
-// ==========================================
-// ✅ OFFLINE VOCAB STORAGE HELPERS
-// ==========================================
-const VOCAB_STORAGE_KEY = "dg-vocab-progress-v1";
+  // 📡 Offline toast (local, silent-UX friendly)
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<number | null>(null);
 
-function loadLocalRows(): Row[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(VOCAB_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalRows(rows: Row[]) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(VOCAB_STORAGE_KEY, JSON.stringify(rows));
-}
-
-function mergeRows(local: Row[], remote: Row[]): Row[] {
-  const map = new Map<string, Row>();
-  for (const r of local) map.set(r.word, r);
-  for (const r of remote) {
-    const existing = map.get(r.word);
-    if (!existing) {
-      map.set(r.word, r);
-    } else {
-      // Keep the one with higher level, or if same level, later next_review
-      if (r.level > existing.level) {
-        map.set(r.word, r);
-      } else if (r.level === existing.level && r.next_review && existing.next_review && r.next_review > existing.next_review) {
-        map.set(r.word, r);
-      }
-    }
-  }
-  return Array.from(map.values());
-}
-// ==========================================
-
-export default function VocabPage() {
-  const [view, setView] = useState<"home" | "learn" | "quiz" | "result" | "review" | "bank">("home");
-  const [pack, setPack] = useState<Pack | null>(null);
-  const [queue, setQueue] = useState<VWord[]>([]);
-  const [session, setSession] = useState<VWord[]>([]);
-  const [idx, setIdx] = useState(0);
-  
-  // ✅ Initialize directly from localStorage so it's never empty offline
-  const [rows, setRows] = useState<Row[]>(() => loadLocalRows()); 
-  
-  const [quizQs, setQuizQs] = useState<{ q: string; options: string[]; answer: number }[]>([]);
-  const [qi, setQi] = useState(0);
-  const [picked, setPicked] = useState(-1);
-  const [score, setScore] = useState(0);
-  const [uid, setUid] = useState("");
-  const [revQueue, setRowQueue] = useState<Row[]>([]);
-  const [revIdx, setRevIdx] = useState(0);
-  const [flipped, setFlipped] = useState(false);
-  const [bankQ, setBankQ] = useState("");
-  const [aiTopic, setAiTopic] = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
-
-  // Helper to lookup offline data for older database rows
-  const allOfflineWords = PACKS.flatMap(p => p.words);
-  const getOfflineFallback = (wordText: string) => allOfflineWords.find(w => w.word === wordText);
-
-  const load = async () => {
-    const localRows = loadLocalRows();
-    setRows(localRows); // ✅ Show local data immediately offline
-
-    try {
-      const { data } = await supabase.auth.getSession();
-      const id = data.session?.user.id;
-      if (!id) return;
-      setUid(id);
-      
-      const { data: r, error } = await supabase.from("user_vocab").select("*").eq("user_id", id);
-      if (r && !error) {
-        const remoteRows = r as Row[];
-        const merged = mergeRows(localRows, remoteRows);
-        setRows(merged);
-        saveLocalRows(merged); // ✅ Persist merged state
-      }
-    } catch (e) {
-      // Offline or error, keep localRows
-      console.log("Vocab load offline or failed, using local cache");
-    }
+  const showOfflineToast = () => {
+    setToast("📡 You're offline — this needs internet.");
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 2600);
   };
 
+  const requireOnline = (fn: () => void) => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      showOfflineToast();
+      return;
+    }
+    fn();
+  };
+
+  useEffect(() => () => { if (toastTimer.current) window.clearTimeout(toastTimer.current); }, []);
+
+  // 🎙️ Jarvis Voice Engine
+  const {
+    state: voiceState,
+    isSupported,
+    transcript,
+    startListening,
+    stopListening,
+    interrupt,
+    speak,
+    setOnTranscript,
+    clearTranscript,
+  } = useJarvisVoice(continuousMode);
+
+  const mediaRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const recTimerRef = useRef<number | null>(null);
+  const recSecRef = useRef(0);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
+  
+  // Refs to prevent stale closures in async functions
+  const msgsRef = useRef<Msg[]>([]);
+  const loadingRef = useRef(false);
+  useEffect(() => { msgsRef.current = msgs; }, [msgs]);
+  useEffect(() => { loadingRef.current = loading; }, [loading]);
+
   useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.auth.getSession();
+      const id = data.session?.user.id || "guest";
+      setUid(id);
+      const c = JSON.parse(localStorage.getItem("dg-eng-count-" + id) || "null");
+      if (c && c.date === new Date().toDateString()) setLeft(Math.max(0, 16 - c.n));
+    };
     load();
   }, []);
 
-  const speak = (text: string) => {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "en-US";
-    u.rate = 0.9;
-    window.speechSynthesis.speak(u);
-  };
-
-  const learned = rows.map((r) => r.word);
-  const due = rows.filter((r) => r.level < 4 && r.next_review && r.next_review <= todayISO());
-
-  const startPack = (p: Pack) => {
-    const un = p.words.filter((w) => !learned.includes(w.word));
-    const batch = (un.length ? un : p.words).slice(0, 5);
-    setPack(p);
-    setSession(batch);
-    setQueue(batch);
-    setIdx(0);
-    setView("learn");
-  };
-
-  const saveWord = async (w: VWord) => {
-    const newRow: Row = {
-      word: w.word,
-      meaning: w.meaning,
-      hindi: w.hindi,
-      level: 0,
-      next_review: addDaysISO(1),
-      synonym: w.synonym,
-      antonym: w.antonym
+  useEffect(() => {
+    const initMic = async () => {
+      if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
+      try {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+        s.getTracks().forEach((t) => t.stop());
+      } catch {}
     };
+    initMic();
+  }, []);
 
-    // ✅ Update local state and storage immediately
-    setRows((prev) => {
-      const exists = prev.some(r => r.word === newRow.word);
-      const next = exists ? prev.map(r => r.word === newRow.word ? newRow : r) : [...prev, newRow];
-      saveLocalRows(next);
-      return next;
-    });
-
-    if (!uid) return;
-
-    // Try to save to Supabase in background
-    try {
-      await supabase
-        .from("user_vocab")
-        .upsert(
-          { 
-            user_id: uid, 
-            word: w.word, 
-            meaning: w.meaning, 
-            hindi: w.hindi, 
-            level: 0, 
-            next_review: addDaysISO(1),
-            synonym: w.synonym,
-            antonym: w.antonym
-          },
-          { onConflict: "user_id,word" }
-        );
-    } catch (e) {
-      // Silently fail offline, will sync later
+  useEffect(() => {
+    if (messagesRef.current) {
+      messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
     }
+  }, [msgs, loading, voiceState]);
+
+  const stopAll = () => {
+    interrupt(); // Stops Jarvis voice
+    mediaRef.current?.stop();
+    setRecording(false);
+    if (recTimerRef.current) clearInterval(recTimerRef.current);
   };
 
-  const advance = (extra?: VWord) => {
-    const newQueue = extra ? [...queue, extra] : queue;
-    if (extra) setQueue(newQueue);
-    const n = idx + 1;
-    if (n >= newQueue.length) {
-      buildQuiz();
-      setView("quiz");
-    } else {
-      setIdx(n);
+  const bumpLimit = () => {
+    const count = 16 - left + 1;
+    setLeft(16 - count);
+    localStorage.setItem("dg-eng-count-" + uid, JSON.stringify({ date: new Date().toDateString(), n: count }));
+  };
+
+  const useLimit = () => {
+    if (left <= 0) {
+      alert("🗣️ 16 free practice sessions per day! Come back tomorrow.");
+      return false;
     }
+    return true;
   };
 
-  const buildQuiz = () => {
-    const qs = session.map((w) => {
-      const others = shuffle(session.filter((x) => x.word !== w.word).map((x) => x.meaning)).slice(0, 3);
-      const options = shuffle([w.meaning, ...others]);
-      return { q: w.word, options, answer: options.indexOf(w.meaning) };
-    });
-    setQuizQs(qs);
-    setQi(0);
-    setPicked(-1);
-    setScore(0);
-  };
-
-  const pick = (oi: number) => {
-    if (picked !== -1) return;
-    setPicked(oi);
-    if (oi === quizQs[qi].answer) setScore((s) => s + 1);
-  };
-
-  const nextQ = () => {
-    if (qi + 1 >= quizQs.length) setView("result");
-    else {
-      setQi(qi + 1);
-      setPicked(-1);
-    }
-  };
-  
-  const genAI = async () => {
-    const t = aiTopic.trim();
-    if (!t || aiLoading) return;
-    setAiLoading(true);
+  const startCall = async (t?: string) => {
+    const useTopic = t || topic;
+    if (!useTopic) return;
+    setPicker(false);
+    setMode("call");
+    setMsgs([]);
+    setLoading(true);
     try {
       const res = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: "vocabpack", topic: t }),
+        body: JSON.stringify({ mode: "call", topic: useTopic, message: `Start the conversation about "${useTopic}". Greet me warmly and ask the first question.`, history: [] }),
       });
       const d = await res.json();
-      const words: VWord[] = (d.items || [])
-        .map((a: string[]) => ({ 
-          word: a[0], 
-          type: a[1] || "word", 
-          meaning: a[2] || "", 
-          hindi: a[3] || "", 
-          example: a[4] || "", 
-          synonym: a[5] || "",
-          antonym: a[6] || "" 
-        }))
-        .filter((w: VWord) => w.word && w.meaning);
-      if (words.length >= 3) startPack({ id: "ai-" + t, emoji: "✨", title: t, desc: "AI pack", words });
-      else alert("😴 Could not generate — try another topic!");
-    } catch {
-      alert("📡 Network issue!");
-    }
-    setAiLoading(false);
+      if (d.reply) {
+        setMsgs([{ role: "assistant", content: d.reply }]);
+        speak(d.reply);
+      }
+    } catch {}
+    setLoading(false);
   };
 
-  const startReview = () => {
-    setRowQueue(shuffle(due));
-    setRevIdx(0);
-    setFlipped(false);
-    setView("review");
+  const startChat = () => {
+    setPicker(false);
+    setMode("chat");
+    setMsgs([{ role: "assistant", content: `Hi! I'm Swati 😊 Let's talk about ${topic}. Write your first sentence!` }]);
   };
 
-  const grade = async (g: "forgot" | "hard" | "easy") => {
-    const w = revQueue[revIdx];
-    let level = w.level;
-    let next: string | null = addDaysISO(1);
-    if (g === "forgot") {
-      level = 0;
-      next = addDaysISO(1);
-    } else if (g === "hard") {
-      next = addDaysISO(1);
-    } else {
-      level = Math.min(4, level + 1);
-      next = level >= 4 ? null : addDaysISO(INTERVALS[level] || 1);
-    }
+  const startDrill = () => {
+    setPicker(false);
+    setMode("drill");
+    setMsgs([]);
+    setDrillIdx(0);
+  };
 
-    // ✅ Update local state and storage immediately
-    setRows((prev) => {
-      const updatedRows = prev.map((r) =>
-        r.word === w.word ? { ...r, level, next_review: next } : r,
-      );
-      saveLocalRows(updatedRows);
-      return updatedRows;
-    });
-
-    if (revIdx + 1 >= revQueue.length) setView("home");
-    else {
-      setRevIdx(revIdx + 1);
-      setFlipped(false);
-    }
-
-    if (!uid) return;
-
-    // Try to update Supabase in background
+  const sendAudio = async (b64: string, mime: string) => {
+    setMsgs((m) => [...m, { role: "user", content: "🎙️ (voice)" }]);
+    setLoading(true);
     try {
-      await supabase.from("user_vocab").update({ level, next_review: next }).eq("user_id", uid).eq("word", w.word);
-    } catch (e) {
-      // Silently fail offline
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: mode === "drill" ? "drill" : "call",
+          topic,
+          target: DRILLS[drillIdx],
+          audio: b64,
+          mimeType: mime,
+          history: msgs.slice(-6),
+        }),
+      });
+      const d = await res.json();
+      const heard = d.heard ? `🎤 "${d.heard}"\n\n` : "";
+      const reply = d.reply || "😴 " + (d.error || "Could not hear you.");
+      setMsgs((m) => [...m, { role: "assistant", content: heard + reply }]);
+      if (d.reply && !d.debug?.length) {
+        bumpLimit();
+        speak(d.reply);
+      }
+    } catch {
+      setMsgs((m) => [...m, { role: "assistant", content: "📡 Network issue!" }]);
+    }
+    setLoading(false);
+  };
+
+  const send = async (text?: string) => {
+    const msg = (text || input).trim();
+    if (!msg || loadingRef.current) return;
+    if (!useLimit()) return;
+    setInput("");
+    clearTranscript();
+    
+    const base = msgsRef.current;
+    const next = [...base, { role: "user" as const, content: msg }];
+    setMsgs(next);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          mode: mode === "call" ? "call" : "english", 
+          topic: topic || "", 
+          message: msg, 
+          history: base.slice(-6) 
+        }),
+      });
+      const d = await res.json();
+      const reply = d.reply || "😴 " + (d.error || "AI sleeping.");
+      setMsgs([...next, { role: "assistant" as const, content: reply }]);
+      if (d.reply) {
+        bumpLimit();
+        if (mode === "call") speak(reply);
+      }
+    } catch {
+      setMsgs([...next, { role: "assistant" as const, content: "📡 Network issue!" }]);
+      if (mode === "call") interrupt();
+    }
+    setLoading(false);
+  };
+
+  // 🎙️ Voice transcript handler for continuous conversation
+  const handleTranscript = async (text: string) => {
+    if (!text) return;
+    let waited = 0;
+    while (loadingRef.current && waited < 6000) {
+      await new Promise((r) => setTimeout(r, 200));
+      waited += 200;
+    }
+    await send(text);
+  };
+
+  useEffect(() => {
+    setOnTranscript(handleTranscript);
+  });
+
+  const toggleRecord = async () => {
+    if (recording) {
+      mediaRef.current?.stop();
+      setRecording(false);
+      if (recTimerRef.current) clearInterval(recTimerRef.current);
+      if (recSecRef.current < 2) {
+        setMsgs((m) => [...m, { role: "assistant", content: "⏱️ Speak for 2+ seconds!" }]);
+        chunksRef.current = [];
+      }
+      return;
+    }
+    if (!useLimit()) return;
+    interrupt(); // Stop Jarvis if active
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => chunksRef.current.push(e.data);
+      mr.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (recSecRef.current < 2) return;
+        const mime = mr.mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type: mime });
+        if (blob.size < 5000 || blob.size > 3500000) return;
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          await sendAudio(String(reader.result).split(",")[1], mime);
+        };
+        reader.readAsDataURL(blob);
+      };
+      mr.start();
+      mediaRef.current = mr;
+      setRecording(true);
+      recSecRef.current = 0;
+      setRecSec(0);
+      recTimerRef.current = window.setInterval(() => {
+        recSecRef.current += 1;
+        setRecSec(recSecRef.current);
+      }, 1000);
+    } catch {
+      alert("🎤 Mic permission denied!");
     }
   };
 
-  // 🏠 HOME
-  if (view === "home") {
+  // 🏠 HOME VIEW
+  if (!mode) {
     return (
-      <main className="min-h-screen bg-slate-950 text-white p-4 pb-24">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-              <BookOpen size={20} className="text-emerald-400" />
+      <main className="min-h-screen bg-slate-950 text-white px-4 pt-6 pb-24 max-w-4xl mx-auto">
+        {/* HERO */}
+        <div className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-600 p-5 shadow-xl shadow-teal-900/20">
+          <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+          <div className="relative flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
+                <Mic size={22} className="text-white" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-lg font-bold text-white leading-tight">Practice Speaking</h1>
+                <p className="text-xs text-white/75 font-semibold">Speak English with Swati (AI coach)</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold">Vocabulary</h1>
-              <p className="text-xs text-slate-400">Master 600 essential words</p>
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <span className="bg-white/15 backdrop-blur px-3 py-1.5 rounded-full text-[10px] font-bold text-white border border-white/20">
+                {left}/16 free
+              </span>
+              <Link href="/english" className="text-[10px] text-white/70 font-bold hover:text-white flex items-center gap-1">
+                <ArrowLeft size={10} /> English Club
+              </Link>
             </div>
           </div>
-          <Link href="/speaking" className="text-slate-400 hover:text-slate-300">
-            <ArrowLeft size={18} />
-          </Link>
         </div>
 
-        <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-5">
-          <p className="text-xs text-slate-400 mb-2">Your word bank</p>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-emerald-400">{learned.length}</span>
-            <span className="text-sm text-slate-400 font-semibold">/ 600 words learned</span>
-          </div>
-        </div>
+        {view === "home" ? (
+          <>
+            {/* MODE GRID */}
+            <div className="grid grid-cols-2 gap-3">
+              {MODES.map((m) => {
+                const handleClick = () => {
+                  // ✅ AI cards: offline → toast only, nothing opens
+                  if (m.id === "topic") requireOnline(() => setView("topics"));
+                  else if (m.id === "anything") requireOnline(() => startCall("anything — free friendly conversation"));
+                };
 
-        <div className="grid grid-cols-2 gap-3 mb-5">
-          <button
-            onClick={startReview}
-            disabled={due.length === 0}
-            className={`rounded-2xl p-4 text-left border transition-colors ${
-              due.length > 0 
-                ? "bg-amber-500/5 border-amber-500/30 hover:border-amber-500/50" 
-                : "opacity-50 bg-slate-900 border-slate-700"
-            }`}
-          >
-            <RotateCw size={24} className="text-amber-400 mb-2" />
-            <p className="font-semibold text-sm mb-1">Review Due</p>
-            <p className="text-xs text-slate-400">{due.length > 0 ? `${due.length} words waiting!` : "No reviews — great job! ✅"}</p>
-          </button>
-          <button onClick={() => setView("bank")} className="bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-2xl p-4 text-left transition-colors">
-            <Archive size={24} className="text-violet-400 mb-2" />
-            <p className="font-semibold text-sm mb-1">My Words</p>
-            <p className="text-xs text-slate-400">{rows.length} saved</p>
-          </button>
-        </div>
+                const content = (
+                  <div className={`bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-2xl p-4 text-left transition-colors`}>
+                    <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${m.grad} flex items-center justify-center text-xl mb-3`}>
+                      {m.emoji}
+                    </div>
+                    <p className="font-semibold text-sm text-white leading-tight">{m.title}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{m.desc}</p>
+                  </div>
+                );
 
-        <div className="bg-slate-900 border border-slate-700 rounded-2xl p-5 mb-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Sparkles size={16} className="text-violet-400" />
-            <p className="font-semibold text-sm text-violet-300">Any Topic — AI Pack</p>
-          </div>
-          <div className="flex gap-2">
-            <input
-              value={aiTopic}
-              onChange={(e) => setAiTopic(e.target.value)}
-              placeholder="e.g. Cricket, Space, Bollywood..."
-              className="flex-1 px-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-sm focus:border-violet-500 focus:outline-none"
-            />
-            <button 
-              onClick={genAI} 
-              disabled={aiLoading} 
-              className="px-5 rounded-xl bg-violet-600 hover:bg-violet-500 text-sm font-semibold disabled:opacity-50 transition-colors"
-            >
-              {aiLoading ? "..." : "Go"}
+                return m.href ? (
+                  <Link
+                    key={m.id}
+                    href={m.href}
+                    onClick={(e) => {
+                      // ✅ Record & Analyse: offline → toast + block navigation
+                      if (m.id === "evaluate" && typeof navigator !== "undefined" && !navigator.onLine) {
+                        e.preventDefault();
+                        showOfflineToast();
+                      }
+                    }}
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <button key={m.id} onClick={handleClick} className="text-left">{content}</button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* TOPIC PICKER */}
+            <button onClick={() => setView("home")} className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 mb-4 font-semibold transition-colors">
+              <ArrowLeft size={14} />
+              All modes
             </button>
-          </div>
-        </div>
+            <p className="text-xs font-bold text-slate-400 mb-4">🎯 PICK A TOPIC → call or chat with Swati:</p>
+            <div className="grid grid-cols-2 gap-3">
+              {TOPICS.map((t) => (
+                <button
+                  key={t.title}
+                  onClick={() => { setTopic(t.title); setPicker(true); }}
+                  className="bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-2xl p-4 text-center transition-colors"
+                >
+                  <div className={`w-11 h-11 mx-auto rounded-xl bg-gradient-to-br ${t.grad} flex items-center justify-center text-xl mb-2`}>
+                    {t.emoji}
+                  </div>
+                  <p className="text-xs font-semibold text-white leading-tight">{t.title}</p>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
-        <div className="flex items-center gap-2 mb-4">
-          <BookMarked size={16} className="text-emerald-400" />
-          <p className="text-xs font-semibold text-slate-400">20 TOPICS • 30 WORDS EACH • 5 AT A TIME</p>
-        </div>
-
-        <div className="grid gap-3">
-          {PACKS.map((p) => {
-            const done = p.words.filter((w) => learned.includes(w.word)).length;
-            const progress = (done / p.words.length) * 100;
-            return (
-              <button key={p.id} onClick={() => startPack(p)} className="bg-slate-900 border border-slate-700 hover:border-slate-600 rounded-2xl p-5 text-left transition-colors">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center text-2xl">
-                    {p.emoji}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold mb-0.5">{p.title}</p>
-                    <p className="text-xs text-slate-400">{p.desc}</p>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-sm font-semibold text-emerald-400">{done}/{p.words.length}</span>
-                  </div>
+        {/* METHOD PICKER MODAL */}
+        {picker && (
+          <div className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-end justify-center">
+            <div className="bg-slate-900 border-t border-slate-700 rounded-t-3xl p-6 w-full max-w-md">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <p className="font-bold text-base text-white">Select method</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Topic: {topic}</p>
                 </div>
-                <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden mb-3">
-                  <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
-                </div>
-                <p className="text-xs font-medium text-emerald-300">
-                  {done === p.words.length ? "🔁 Practice again" : done > 0 ? `▶ Continue (${p.words.length - done} left)` : "▶ Start learning"}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      </main>
-    );
-  }
-
-  // 🎴 LEARN CARD
-  if (view === "learn" && pack) {
-    const w = queue[idx];
-    const progress = (idx / queue.length) * 100;
-    return (
-      <main className="min-h-screen bg-slate-950 text-white p-4 pb-24 flex flex-col">
-        <div className="flex justify-between items-center mb-4">
-          <button onClick={() => setView("home")} className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300">
-            <ArrowLeft size={16} />
-            Packs
-          </button>
-          <div className="text-right">
-            <p className="text-xs font-semibold text-slate-400">
-              {idx + 1} / {queue.length}
-            </p>
-            <p className="text-xs text-slate-500">
-              {learned.filter((l) => pack.words.some((x) => x.word === l)).length}/{pack.words.length} mastered
-            </p>
-          </div>
-        </div>
-
-        <div className="h-1.5 bg-slate-800 rounded-full mb-6 overflow-hidden">
-          <div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
-        </div>
-
-        <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 grid gap-4 max-w-md mx-auto w-full">
-          <div className="text-center">
-            <p className="text-4xl font-bold uppercase tracking-wide mb-2">{w.word}</p>
-            <span className="inline-block text-[10px] bg-slate-800 border border-slate-700 px-2 py-1 rounded-lg text-slate-400 font-semibold">
-              {w.type}
-            </span>
-          </div>
-
-          <button 
-            onClick={() => speak(w.word)} 
-            className="flex items-center justify-center gap-2 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold transition-colors"
-          >
-            <Volume2 size={16} />
-            Hear the word
-          </button>
-
-          <div className="bg-slate-800 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Lightbulb size={14} className="text-amber-400" />
-              <p className="text-xs font-semibold text-slate-400">MEANING</p>
+                <button onClick={() => setPicker(false)} className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors">
+                  ✕
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={() => requireOnline(() => startCall())} className="py-5 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-base flex items-center justify-center gap-2 transition-colors">
+                  <PhoneOff size={18} className="rotate-[135deg]" />
+                  Call
+                </button>
+                <button onClick={() => requireOnline(() => startChat())} className="py-5 rounded-xl bg-blue-600 hover:bg-blue-500 font-bold text-base flex items-center justify-center gap-2 transition-colors">
+                  <MessageCircle size={18} />
+                  Chat
+                </button>
+              </div>
             </div>
-            <p className="text-sm text-slate-200">{w.meaning}</p>
           </div>
+        )}
 
-          <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Flag size={14} className="text-amber-400" />
-              <p className="text-xs font-semibold text-amber-400">HINDI</p>
-            </div>
-            <p className="text-sm text-amber-100">{w.hindi}</p>
-          </div>
-
-          <div className="bg-slate-800 rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <BookOpen size={14} className="text-blue-400" />
-              <p className="text-xs font-semibold text-slate-400">EXAMPLE</p>
-            </div>
-            <p className="text-sm text-slate-300 italic mb-3">"{w.example}"</p>
-            <button 
-              onClick={() => speak(w.example)} 
-              className="flex items-center gap-1.5 text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg transition-colors"
-            >
-              <Volume2 size={12} />
-              Hear sentence
-            </button>
-          </div>
-
-          <div className="text-center space-y-1 mt-2">
-            {w.synonym && (
-              <div>
-                <span className="text-xs text-slate-400 flex items-center justify-center gap-2">
-                  <Repeat size={12} />
-                  Synonym: <span className="font-semibold text-violet-400">{w.synonym}</span>
-                </span>
-              </div>
-            )}
-            {w.antonym && (
-              <div>
-                <span className="text-xs text-slate-400 flex items-center justify-center gap-2">
-                  <span className="text-[10px]">🆚</span>
-                  Antonym: <span className="font-semibold text-rose-400">{w.antonym}</span>
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex gap-3 max-w-md mx-auto w-full mt-6">
-          <button 
-            onClick={() => advance(w)} 
-            className="flex-1 py-4 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold transition-colors"
-          >
-            🔁 Again
-          </button>
-          <button 
-            onClick={() => { saveWord(w); advance(); }} 
-            className="flex-1 py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-semibold transition-colors"
-          >
-            ✅ Got it
-          </button>
-        </div>
-
-        <p className="text-xs text-slate-500 text-center mt-4">
-          Learned all 5? Come back later for the next 5! 🚀
-        </p>
-      </main>
-    );
-  }
-
-  // 🔄 REVIEW
-  if (view === "review" && revQueue.length > 0) {
-    const r = revQueue[revIdx];
-    const fallback = getOfflineFallback(r.word);
-    
-    // Check database first, if null/empty, fallback to our offline packs!
-    const displaySyn = r.synonym || fallback?.synonym;
-    const displayAnt = r.antonym || fallback?.antonym;
-
-    return (
-      <main className="min-h-screen bg-slate-950 text-white p-4 pb-24 flex flex-col">
-        <div className="flex justify-between items-center mb-4">
-          <button onClick={() => setView("home")} className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-300">
-            <ArrowLeft size={16} />
-            Home
-          </button>
-          <div className="flex items-center gap-2">
-            <RotateCw size={14} className="text-amber-400" />
-            <p className="text-xs font-semibold text-amber-400">
-              Review {revIdx + 1} / {revQueue.length}
-            </p>
-          </div>
-        </div>
-
-        <button 
-          onClick={() => setFlipped(true)} 
-          className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md mx-auto w-full grid gap-4 text-center min-h-[300px] content-center hover:border-slate-600 transition-colors relative"
-        >
-          <p className="text-4xl font-bold uppercase mb-4">{r.word}</p>
-          <button 
-            onClick={(e) => { e.stopPropagation(); speak(r.word); }} 
-            className="justify-self-center flex items-center gap-2 py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold transition-colors"
-          >
-            <Volume2 size={16} />
-            Listen
-          </button>
-          {!flipped ? (
-            <p className="text-xs text-slate-500 animate-pulse mt-4">👆 Tap card to reveal meaning</p>
-          ) : (
-            <>
-              <p className="text-sm text-slate-200 mt-4">{r.meaning}</p>
-              <p className="text-sm text-amber-200 mt-2">{r.hindi}</p>
-              
-              {/* 🔥 Synonym and Antonym added to review flip card */}
-              <div className="flex justify-center items-center gap-4 mt-4">
-                {displaySyn && (
-                  <p className="text-xs flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50">
-                    <Repeat size={12} className="text-violet-400" />
-                    <span className="text-violet-300 font-semibold">{displaySyn}</span>
-                  </p>
-                )}
-                {displayAnt && (
-                  <p className="text-xs flex items-center gap-1.5 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/50">
-                    <span className="text-[10px]">🆚</span>
-                    <span className="text-rose-300 font-semibold">{displayAnt}</span>
-                  </p>
-                )}
-              </div>
-
-              <div className="absolute bottom-4 inset-x-0 flex justify-center items-center gap-1.5 mt-4">
-                <span className="text-[14px]">{masteryOf(r.level)}</span>
-                <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Level {r.level}</span>
-              </div>
-            </>
-          )}
-        </button>
-
-        {flipped && (
-          <div className="flex gap-2 max-w-md mx-auto w-full mt-6">
-            <button 
-              onClick={() => grade("forgot")} 
-              className="flex-1 py-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 font-semibold hover:bg-red-500/20 transition-colors"
-            >
-              😵 Forgot
-            </button>
-            <button 
-              onClick={() => grade("hard")} 
-              className="flex-1 py-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-semibold hover:bg-amber-500/20 transition-colors"
-            >
-              🤔 Hard
-            </button>
-            <button 
-              onClick={() => grade("easy")} 
-              className="flex-1 py-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-semibold hover:bg-emerald-500/20 transition-colors"
-            >
-              😎 Easy
-            </button>
+        {/* 📡 Offline toast */}
+        {toast && (
+          <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-[100] max-w-[90vw] bg-slate-800/95 backdrop-blur border border-slate-600 text-white text-xs font-bold px-4 py-3 rounded-xl shadow-2xl text-center">
+            {toast}
           </div>
         )}
       </main>
     );
   }
 
-  // 🏦 BANK
-  if (view === "bank") {
-    const list = rows.filter((r) => r.word.toLowerCase().includes(bankQ.toLowerCase()));
-    return (
-      <main className="min-h-screen bg-slate-950 text-white p-4 pb-24">
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
-              <Archive size={20} className="text-violet-400" />
+  // 🎙️ CONVERSATION / DRILL SCREEN — LOCKED LAYOUT
+  return (
+    <main className="fixed inset-0 bg-slate-950 text-white flex flex-col">
+      {/* HEADER — always visible */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-4 shrink-0">
+        <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
+        <div className="relative flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div className={`shrink-0 w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center ${voiceState === "speaking" ? "animate-pulse ring-2 ring-white/30" : ""}`}>
+              <Bot size={22} className="text-white" />
             </div>
-            <div>
-              <h1 className="text-xl font-bold">My Words</h1>
-              <p className="text-xs text-slate-400">{rows.length} saved</p>
+            <div className="min-w-0">
+              <p className="font-bold text-sm text-white leading-tight truncate">
+                Swati • {mode === "drill" ? "Sentence Practice" : topic}
+              </p>
+              <p className="text-xs text-white/75 font-semibold">
+                {voiceState === "speaking" ? "🔊 Swati is speaking..." : mode === "chat" ? "💬 chat mode" : "🎤 Your turn — tap mic & speak"}
+              </p>
             </div>
           </div>
-          <button onClick={() => setView("home")} className="text-slate-400 hover:text-slate-300">
-            <ArrowLeft size={18} />
+          <button
+            onClick={() => { stopAll(); setMode(""); setMsgs([]); }}
+            className="shrink-0 px-3 py-2 rounded-xl bg-red-500/20 border border-red-500/40 text-red-300 text-xs font-bold flex items-center gap-1.5 hover:bg-red-500/30 transition-colors"
+          >
+            <PhoneOff size={14} />
+            End
           </button>
         </div>
+      </div>
 
-        <div className="relative mb-5">
-          <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input 
-            value={bankQ} 
-            onChange={(e) => setBankQ(e.target.value)} 
-            placeholder="Search your words..." 
-            className="w-full pl-11 pr-4 py-3 rounded-xl bg-slate-900 border border-slate-700 text-sm focus:border-slate-600 focus:outline-none" 
-          />
-        </div>
-
-        <div className="grid gap-2">
-          {list.length === 0 && (
-            <p className="text-sm text-slate-500 text-center py-12">
-              No words yet — learn a pack first! 📚
+      {/* DRILL TARGET */}
+      {mode === "drill" && (
+        <div className="bg-amber-500/10 border-b border-amber-500/20 p-4 shrink-0">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-bold text-amber-300">
+              REPEAT AFTER Swati ({drillIdx + 1}/{DRILLS.length})
             </p>
-          )}
-          {list.map((r) => {
-            const fallback = getOfflineFallback(r.word);
-            const displaySyn = r.synonym || fallback?.synonym;
-            const displayAnt = r.antonym || fallback?.antonym;
+            <button
+              onClick={() => speak(DRILLS[drillIdx])}
+              className="flex items-center gap-1.5 text-xs font-bold bg-slate-800 border border-slate-700 px-2.5 py-1.5 rounded-lg text-slate-300 hover:text-white transition-colors"
+            >
+              <Volume2 size={12} />
+              Hear it
+            </button>
+          </div>
+          <p className="font-bold text-base text-amber-200 leading-snug">{DRILLS[drillIdx]}</p>
+        </div>
+      )}
 
-            return (
-              <div key={r.word} className="bg-slate-900 border border-slate-700 rounded-xl p-4 flex items-center gap-3">
-                <span className="text-xl flex-shrink-0">{masteryOf(r.level)}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm uppercase mb-1">{r.word}</p>
-                  <p className="text-xs text-slate-400">
-                    {r.meaning} • <span className="text-amber-200">{r.hindi}</span>
-                  </p>
-                  {/* 🔥 Added Antonyms and Synonyms to the Bank view with fallback */}
-                  {(displaySyn || displayAnt) && (
-                    <div className="flex gap-3 mt-2">
-                      {displaySyn && (
-                        <span className="text-[10px] flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded text-violet-300 border border-slate-700/50">
-                          <Repeat size={10} className="text-violet-500" /> {displaySyn}
-                        </span>
-                      )}
-                      {displayAnt && (
-                        <span className="text-[10px] flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded text-rose-300 border border-slate-700/50">
-                          <span className="text-[8px]">🆚</span> {displayAnt}
-                        </span>
-                      )}
-                    </div>
-                  )}
+      {/* MESSAGE STREAM — scrolls ONLY inside this box */}
+      <div ref={messagesRef} className="flex-1 overflow-y-auto px-4 py-4 min-h-0">
+        <div className="max-w-4xl mx-auto grid gap-3 content-start">
+          {msgs.map((m, i) => (
+            <div key={i} className={`flex gap-2 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              {m.role === "assistant" && (
+                <div className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xs self-end">
+                  <Bot size={14} className="text-white" />
                 </div>
-                <button 
-                  onClick={() => speak(r.word)} 
-                  className="flex-shrink-0 w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition-colors"
+              )}
+              <div
+                className={`max-w-[80%] p-3 rounded-2xl text-sm whitespace-pre-wrap ${
+                  m.role === "user"
+                    ? "bg-gradient-to-br from-emerald-600 to-teal-600 text-white rounded-br-sm"
+                    : "bg-slate-800 text-slate-100 rounded-bl-sm border border-slate-700"
+                }`}
+              >
+                {m.content}
+                {m.role === "assistant" && mode === "chat" && (
+                  <button
+                    onClick={() => speak(m.content)}
+                    className="flex items-center gap-1.5 mt-2 text-xs font-bold bg-slate-700 border border-slate-600 px-2 py-1 rounded-lg hover:bg-slate-600 transition-colors"
+                  >
+                    <Volume2 size={12} />
+                    Listen
+                  </button>
+                )}
+              </div>
+              {m.role === "user" && (
+                <div className="shrink-0 w-7 h-7 rounded-lg bg-slate-800 flex items-center justify-center text-xs border border-slate-700 self-end">
+                  <User size={14} className="text-slate-400" />
+                </div>
+              )}
+            </div>
+          ))}
+          {loading && voiceState !== "speaking" && (
+            <div className="flex gap-2 justify-start">
+              <div className="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xs">
+                <Bot size={14} className="text-white" />
+              </div>
+              <div className="bg-slate-800 border border-slate-700 p-3 rounded-2xl rounded-bl-sm flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+      </div>
+
+      {/* CONTROLS — docked at bottom, always visible */}
+      <div className="shrink-0 px-4 pt-4 pb-24 bg-slate-950 border-t border-slate-800">
+        <div className="max-w-4xl mx-auto">
+          {mode === "drill" ? (
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={toggleRecord}
+                disabled={loading || voiceState === "speaking"}
+                className={`w-16 h-16 rounded-full flex items-center justify-center disabled:opacity-40 transition-all ${
+                  recording
+                    ? "bg-red-600 animate-pulse"
+                    : "bg-gradient-to-br from-amber-500 to-orange-600"
+                }`}
+              >
+                {recording ? (
+                  <span className="text-sm font-bold text-white">⏹️ {recSec}s</span>
+                ) : (
+                  <Mic size={24} className="text-white" />
+                )}
+              </button>
+              <button
+                onClick={() => setDrillIdx((drillIdx + 1) % DRILLS.length)}
+                className="px-5 py-3 rounded-xl bg-slate-800 border border-slate-700 text-sm font-bold hover:bg-slate-700 flex items-center gap-2 transition-colors"
+              >
+                <Shuffle size={14} />
+                Next
+              </button>
+            </div>
+          ) : mode === "call" ? (
+            // 🎙️ JARVIS VOICE BAR FOR CALL MODE
+            <div className="shrink-0 z-10 pt-1 pb-1">
+              <div className="h-4 flex items-center justify-center mb-1">
+                {voiceState === "listening" && transcript && (
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400 truncate max-w-full px-2">
+                    &quot;{transcript}&quot;
+                  </p>
+                )}
+                {voiceState === "listening" && !transcript && <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">Listening...</p>}
+                {voiceState === "thinking" && <p className="text-[9px] font-bold uppercase tracking-wider text-violet-400">Thinking...</p>}
+                {voiceState === "speaking" && <p className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">Speaking — talk to interrupt</p>}
+              </div>
+
+              <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex items-center gap-1.5">
+                {isSupported ? (
+                  <JarvisOrb 
+                    state={voiceState} 
+                    onClick={() => {
+                      if (voiceState === "speaking" || voiceState === "listening") interrupt();
+                      else startListening();
+                    }} 
+                  />
+                ) : (
+                  <div className="w-11 h-11 shrink-0 rounded-full bg-slate-800 flex items-center justify-center">
+                    <Mic className="w-4 h-4 text-slate-500" />
+                  </div>
+                )}
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder={voiceState === "listening" && transcript ? transcript : "Type or speak..."}
+                  disabled={loading}
+                  className="flex-1 min-w-0 h-11 px-4 rounded-full bg-slate-900/80 backdrop-blur border border-slate-800 text-sm outline-none focus:border-emerald-500 disabled:opacity-50 transition-all placeholder:text-slate-600"
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !input.trim()}
+                  className="shrink-0 w-11 h-11 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white disabled:opacity-40 shadow-lg shadow-emerald-900/30 transition-all active:scale-95 flex items-center justify-center"
                 >
-                  <Volume2 size={16} className="text-slate-300" />
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
+
+              <div className="flex justify-center mt-1.5">
+                <button
+                  onClick={() => {
+                    const next = !continuousMode;
+                    setContinuousMode(next);
+                    if (next) startListening();
+                    else stopListening();
+                  }}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black border transition-all ${
+                    continuousMode
+                      ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
+                      : "bg-slate-800/60 border-slate-700 text-slate-500"
+                  }`}
+                >
+                  {continuousMode ? <Volume2 className="w-3 h-3" /> : <VolumeX className="w-3 h-3" />}
+                  {continuousMode ? "CONTINUOUS ON" : "CONTINUOUS OFF"}
                 </button>
               </div>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center justify-center gap-2 mt-6 text-xs text-slate-500">
-          <span>🌱</span>
-          <span>new</span>
-          <span className="text-slate-600">→</span>
-          <span>🌿</span>
-          <span className="text-slate-600">→</span>
-          <span>🌳</span>
-          <span className="text-slate-600">→</span>
-          <span>🌲</span>
-          <span className="text-slate-600">→</span>
-          <span>👑</span>
-          <span>mastered</span>
-        </div>
-      </main>
-    );
-  }
-
-  // ❓ QUIZ
-  if (view === "quiz" && quizQs.length > 0) {
-    const q = quizQs[qi];
-    return (
-      <main className="min-h-screen bg-slate-950 text-white p-4 pb-24">
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <BookOpen size={16} className="text-violet-400" />
-          <p className="text-xs font-semibold text-slate-400">
-            Quiz — {qi + 1}/{quizQs.length}
-          </p>
-        </div>
-
-        <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 max-w-md mx-auto">
-          <p className="text-xl font-bold text-center mb-6 uppercase">
-            "{q.q}" means...?
-          </p>
-          <div className="grid gap-2">
-            {q.options.map((opt, oi) => {
-              let cls = "bg-slate-800 hover:bg-slate-700 border-slate-700";
-              if (picked !== -1) {
-                if (oi === q.answer) cls = "bg-emerald-500/20 border-emerald-500/50";
-                else if (oi === picked) cls = "bg-red-500/20 border-red-500/50";
-              }
-              return (
-                <button 
-                  key={oi} 
-                  onClick={() => pick(oi)} 
-                  className={`text-left p-4 rounded-xl text-sm font-medium border transition-colors ${cls}`}
-                >
-                  {opt}
-                </button>
-              );
-            })}
-          </div>
-
-          {picked !== -1 && (
-            <button 
-              onClick={nextQ} 
-              className="w-full mt-4 py-3 rounded-xl bg-violet-600 hover:bg-violet-500 font-semibold transition-colors"
-            >
-              {qi + 1 >= quizQs.length ? "🏁 See Result" : "Next →"}
-            </button>
-          )}
-        </div>
-      </main>
-    );
-  }
-
-  // 🏁 RESULT
-  return (
-    <main className="min-h-screen bg-slate-950 text-white p-4 flex items-center justify-center">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 text-center max-w-sm w-full">
-        <div className="mb-4">
-          {score === quizQs.length ? (
-            <Award size={48} className="mx-auto text-emerald-400" />
-          ) : score >= 3 ? (
-            <TrendingUp size={48} className="mx-auto text-amber-400" />
+            </div>
           ) : (
-            <span className="text-5xl">🌱</span>
+            <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type in English..."
+                className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-800 text-sm focus:outline-none focus:border-blue-500"
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                className="shrink-0 px-5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white disabled:opacity-40 flex items-center justify-center transition-colors"
+              >
+                <Send size={18} />
+              </button>
+            </form>
           )}
-        </div>
-
-        <p className="text-4xl font-bold text-emerald-400 mb-2">{score} / {quizQs.length}</p>
-        <p className="text-sm text-slate-400 mb-6">
-          {score === quizQs.length 
-            ? "Vocab Hero! Come back for the next 5!" 
-            : score >= 3 
-            ? "Strong! Review the red ones." 
-            : "Good start — try again!"}
-        </p>
-
-        <div className="grid gap-2">
-          <button 
-            onClick={() => pack && startPack(pack)} 
-            className="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 font-semibold transition-colors"
-          >
-            ➡️ Next 5 Words
-          </button>
-          <button 
-            onClick={() => setView("home")} 
-            className="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-semibold transition-colors"
-          >
-            🏠 All Packs
-          </button>
         </div>
       </div>
     </main>
