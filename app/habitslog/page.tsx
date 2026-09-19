@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { recordNotification } from "@/lib/notify";
 import { Plus, Trash2, Flame, Anchor, PartyPopper, Sparkles, X, Landmark, Clock, MapPin, Pencil, Bell, BellOff, ChevronLeft, ChevronRight, WifiOff } from "lucide-react";
 import { dbInsert, dbUpdate, dbDelete, dbLoad } from "@/lib/offlineWrite";
+import { useRemindChip, remindOn } from "@/lib/reminders";
 
 type Habit = {
   id: string;
@@ -54,9 +55,10 @@ export default function HabitLogPage() {
   const yesterday = toLocalISO(new Date(Date.now() - 86400000));
   const [view, setView] = useState<"today" | "add" | "review">("today");
   const [viewDate, setViewDate] = useState(today);
-  const [remindersOn, setRemindersOn] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("dg-habit-rem") === "1" : false));
-  const [remindTime, setRemindTime] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("dg-habit-rem-time") || "20:00" : "20:00"));
-  const [showRemSheet, setShowRemSheet] = useState(false);
+  
+  // 🌐 GLOBAL REMINDERS CHIP (ON = global, OFF = only Habits)
+  const { on: remindersOn, toggle: toggleRemindChip } = useRemindChip("habits");
+  
   const [uid, setUid] = useState("");
   const [habits, setHabits] = useState<Habit[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
@@ -126,26 +128,30 @@ export default function HabitLogPage() {
     setStreaks(st);
   };
 
+  // 📴 OFFLINE-CAPABLE DAILY REMINDER (fires at 8 PM if habits left undone)
   useEffect(() => {
     if (!remindersOn) return;
     const check = () => {
+      if (!remindOn("habits")) return;
       const now = new Date();
       const hm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-      if (hm !== remindTime) return;
+      // Fire at 20:00 (8 PM) daily
+      if (hm !== "20:00") return;
       let fired: any = {}; try { fired = JSON.parse(localStorage.getItem("dg-habit-rem-fired") || "{}"); } catch {}
       if (fired.date !== today) fired = { date: today, keys: [] };
       const key = "daily-" + today;
       if (fired.keys.includes(key)) return;
       const left = habits.length - logs.filter((l) => l.log_date === today).length;
-      if (left > 0) { fired.keys.push(key); localStorage.setItem("dg-habit-rem-fired", JSON.stringify(fired)); recordNotification("🔔 Habit reminder", `${left} habit(s) left today — don't miss twice!`); }
+      if (left > 0) { 
+        fired.keys.push(key); 
+        localStorage.setItem("dg-habit-rem-fired", JSON.stringify(fired)); 
+        recordNotification("🔔 Habit reminder", `${left} habit(s) left today — don't miss twice!`); 
+      }
     };
     check();
     const id = setInterval(check, 30000);
     return () => clearInterval(id);
-  }, [remindersOn, remindTime, habits, logs, today]);
-
-  const toggleReminders = () => { const v = !remindersOn; setRemindersOn(v); localStorage.setItem("dg-habit-rem", v ? "1" : "0"); };
-  const setRemindTimeLocal = (v: string) => { setRemindTime(v); localStorage.setItem("dg-habit-rem-time", v); };
+  }, [remindersOn, habits, logs, today]);
 
   const doneToday = logs.filter((l) => l.log_date === today).map((l) => l.habit_id);
   const doneYesterday = logs.filter((l) => l.log_date === yesterday).map((l) => l.habit_id);
@@ -170,7 +176,7 @@ export default function HabitLogPage() {
   const toggle = async (hb: Habit) => {
     const d = viewDate;
     if (doneView.includes(hb.id)) {
-      await dbDelete("habit_logs", hb.id); // Delete the log entry
+      await dbDelete("habit_logs", hb.id);
       setLogs(logs.filter((l) => !(l.habit_id === hb.id && l.log_date === d)));
       if (d === today) setStreaks({ ...streaks, [hb.id]: Math.max(0, (streaks[hb.id] || 1) - 1) });
       return;
@@ -285,8 +291,14 @@ export default function HabitLogPage() {
       )}
 
       <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <button onClick={() => setShowRemSheet(true)} className={`press flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border ${remindersOn ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-slate-900 border-slate-800 text-slate-500"}`}>
-          {remindersOn ? <Bell size={13} /> : <BellOff size={13} />} {remindersOn ? `ON • ${remindTime}` : "OFF"}
+        <button
+          onClick={toggleRemindChip}
+          className={`press px-3 py-2 rounded-xl text-xs font-black whitespace-nowrap border flex items-center gap-1.5 ${
+            remindersOn ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-slate-900 border-slate-800 text-slate-500"
+          }`}
+        >
+          {remindersOn ? <Bell size={13} /> : <BellOff size={13} />}
+          {remindersOn ? "Reminders ON" : "Reminders OFF"}
         </button>
         <div className="flex-1" />
         <button onClick={() => setViewDate(shiftDate(viewDate, -1))} className="press w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 flex items-center justify-center"><ChevronLeft size={15} /></button>
@@ -306,13 +318,6 @@ export default function HabitLogPage() {
 
       {view === "today" && (
         <>
-          {habits.length > 0 && (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
-              <div className="flex justify-between text-xs font-black mb-2"><span className="text-slate-400">{viewDate === today ? "TODAY" : viewDate}</span><span className="text-emerald-400">{doneCount}/{habits.length} done</span></div>
-              <div className="h-2 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${habits.length ? (doneCount / habits.length) * 100 : 0}%` }} /></div>
-            </div>
-          )}
-
           {viewDate === today && atRisk.length > 0 && (
             <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-3 mb-4">
               <p className="text-xs font-black text-amber-300">⚠️ Missed yesterday: {atRisk.map((h) => h.emoji + " " + h.habit_name).join(", ")} — do the 2-min version now!</p>
@@ -453,32 +458,6 @@ export default function HabitLogPage() {
             )}
           </div>
         </>
-      )}
-
-      {/* 🔔 REMINDER SHEET: toggle + quick picks + clock */}
-      {showRemSheet && (
-        <div className="fixed inset-0 z-[90] bg-black/70 backdrop-blur-sm flex items-end justify-center" onClick={() => setShowRemSheet(false)}>
-          <div className="w-full max-w-4xl bg-slate-900 border border-slate-700 rounded-t-3xl p-5 pb-8" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-black text-white">🔔 Daily reminder</p>
-              <button onClick={() => setShowRemSheet(false)} className="text-slate-500 press"><X size={16} /></button>
-            </div>
-            <button onClick={toggleRemindChip} className={`press w-full py-3 rounded-xl text-sm font-black border ${remindersOn ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-slate-800 border-slate-700 text-slate-400"}`}>
-              {remindersOn ? "ON — remind me daily" : "OFF — no reminders"}
-            </button>
-            {remindersOn && (
-              <>
-                <p className="text-[10px] font-black text-slate-500 mt-4 mb-2">QUICK PICK</p>
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  {REMIND_TIMES.map((t) => (
-                    <button key={t} onClick={() => setRemindTimeLocal(t)} className={`press py-2.5 rounded-xl text-xs font-black border ${remindTime === t ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-slate-800 border-slate-700 text-slate-300"}`}>{t}</button>
-                  ))}
-                </div>
-                <div className="grid gap-1"><Label t="OR PICK ANY TIME (CLOCK)" /><input type="time" value={remindTime} onChange={(e) => setRemindTimeLocal(e.target.value)} className={timeCls} /></div>
-              </>
-            )}
-          </div>
-        </div>
       )}
 
       {/* ⏰ TEMPLATE TIME SHEET: quick picks + clock */}
