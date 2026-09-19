@@ -1,14 +1,16 @@
-// DAILY GOAL service worker v13 — critical-first offline + no more home-bounce
-const CACHE_NAME = "daily-goal-v13";
+// DAILY GOAL service worker v16 — whole app saved during signup, offline forever
+const CACHE_NAME = "daily-goal-v16";
 const API_CACHE = "daily-goal-api-v1";
-const SENTINEL = "/__all_pages_saved_v13";
+const SENTINEL = "/__all_pages_saved_v16";
 
-// ⚡ Saved FIRST (seconds after first online open) — the offline core
+// ⚡ Saved FIRST (parallel, within seconds)
 const CRITICAL_PAGES = [
   "/dashboard", "/english", "/speaking", "/vocab", "/games",
   "/english-tips", "/sentences", "/tips",
+  "/study", "/study-tracker", "/gym-log", "/routine-habits", "/todo",
 ];
 
+//  The full app (saved in background while user signs up)
 const ALL_PAGES = [
   "/", "/dashboard", "/login", "/signup",
   "/todo", "/tasklog", "/myday", "/repeat", "/breakdown",
@@ -36,39 +38,45 @@ async function precrawlRoute(route, cache) {
   } catch {}
 }
 
-async function precrawlCritical() {
-  const cache = await caches.open(CACHE_NAME);
-  await Promise.all(CRITICAL_PAGES.map((r) => precrawlRoute(r, cache)));
-}
-
+// Critical first (parallel), then ALL pages in big fast batches, then mark done
 async function saveAllPages() {
   const cache = await caches.open(CACHE_NAME);
-  // 1️⃣ critical pages FIRST — offline core ready in seconds
   await Promise.all(CRITICAL_PAGES.map((r) => precrawlRoute(r, cache)));
-  // 2️⃣ then everything else in batches
-  for (let i = 0; i < ALL_PAGES.length; i += 8) {
-    const batch = ALL_PAGES.slice(i, i + 8);
+  for (let i = 0; i < ALL_PAGES.length; i += 12) {
+    const batch = ALL_PAGES.slice(i, i + 12);
     await Promise.all(batch.map((r) => precrawlRoute(r, cache)));
   }
   await cache.put(SENTINEL, new Response("1"));
 }
 
-// Install = 3 tiny files → fast
+// INSTALL (0 seconds): app shell + dashboard saved instantly
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((c) => c.addAll(["/", "/icon.svg", "/manifest.webmanifest"]).catch(() => {}))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then((c) =>
+      Promise.allSettled(
+        ["/", "/dashboard", "/icon.svg", "/manifest.webmanifest"].map((u) =>
+          fetch(u, { credentials: "same-origin" }).then((r) => (r.ok ? c.put(u, r) : null))
+        )
+      )
+    ).then(() => self.skipWaiting())
   );
 });
 
-// Activate = clean old caches, take control, START CRITICAL PRECRAWL IMMEDIATELY
+// ACTIVATE: start the FULL 48-page save IMMEDIATELY (this runs while user signs up).
+// Old caches are deleted ONLY when the new cache is 100% complete → never a wipe-fail.
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME && k !== API_CACHE).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
-      .then(() => precrawlCritical().catch(() => {}))
+    self.clients.claim()
+      .then(() => saveAllPages().catch(() => {}))
+      .then(async () => {
+        if (!navigator.onLine) return;
+        const done = await caches.match(SENTINEL);
+        if (!done) return;
+        const keys = await caches.keys();
+        await Promise.all(keys
+          .filter((k) => k !== CACHE_NAME && k !== API_CACHE)
+          .map((k) => caches.delete(k)));
+      })
   );
 });
 
@@ -99,7 +107,7 @@ self.addEventListener("fetch", (event) => {
 
   if (url.origin !== self.location.origin) return;
 
-  // 🚫 NEVER cache our own API routes — always ask the server (fixes stale quota)
+  // 🚫 NEVER cache our own API routes — always ask the server
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(
       fetch(req).catch(() => new Response(JSON.stringify({ error: "offline" }), {
@@ -109,12 +117,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 2) Pages: INSTANT from device cache, refresh in background
+  // 2) Pages: INSTANT from any cache generation, refresh in background,
+  //    and keep retrying the full save until sentinel exists
   if (req.mode === "navigate") {
     event.respondWith(
       (async () => {
         const cache = await caches.open(CACHE_NAME);
-        const hit = await cache.match(req);
+        let hit = await caches.match(req);
+        if (!hit) hit = await caches.match(req, { ignoreSearch: true });
+        if (!hit) hit = await caches.match(url.pathname);
         const network = fetch(req).then((res) => {
           if (res.ok) { const clone = res.clone(); cache.put(req, clone).catch(() => {}); }
           return res;
@@ -122,19 +133,23 @@ self.addEventListener("fetch", (event) => {
         event.waitUntil((async () => {
           const done = await caches.match(SENTINEL);
           if (done) return;
-          await saveAllPages();
+          await saveAllPages().catch(() => {});
         })());
-        if (hit) return hit; // ⚡ instant
+        if (hit) return hit; // ⚡ instant, forever
         const res = await network;
         if (res) return res;
-        // ❌ Nothing saved for this page yet → clear message (NO silent home-bounce)
+        const isCore = CRITICAL_PAGES.some((p) => url.pathname === p || url.pathname.startsWith(p + "/"));
+        if (!isCore) {
+          const fallback = await caches.match("/dashboard") || await caches.match("/");
+          if (fallback) return fallback;
+        }
         return new Response(offlineHTML(), { headers: { "Content-Type": "text/html" } });
       })()
     );
     return;
   }
 
-  // 3) JS/CSS/images: device copy first, else download + save
+  // 3) JS/CSS/images: device copy first, else download + save (exact match only)
   event.respondWith(
     caches.match(req).then((hit) => hit || fetch(req).then((res) => {
       if (res && res.ok) {

@@ -39,12 +39,12 @@ export default function Home() {
         supabase.auth
           .getSession()
           .then(({ data }) => {
-            if (data.session) router.replace("/dashboard");
+            if (data.session) window.location.replace("/dashboard");
             else setHasSession(false); // session expired → show landing
           })
-          .catch(() => router.replace("/dashboard"));
+          .catch(() => window.location.replace("/dashboard"));
       } else {
-        router.replace("/dashboard");
+        window.location.replace("/dashboard");
       }
     }
   }, [router]);
