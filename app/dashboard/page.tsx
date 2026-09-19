@@ -323,16 +323,19 @@ export default function Dashboard() {
   };
   useEffect(() => { load(); }, []);
     useEffect(() => {
-    const loadQuota = () =>
-      fetch("/api/ai/quota-status", { credentials: "same-origin" })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((j) => {
-          if (!j) return;
-          const left = Number(j.left ?? j.remaining ?? j.units ?? 0);
-          const max = Number(j.max ?? j.limit ?? j.total ?? 40);
-          setQuota({ left, max });
-        })
-        .catch(() => {});
+    const loadQuota = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const tk = data.session?.access_token || "";
+        const r = await fetch("/api/ai/quota-status", {
+          credentials: "same-origin",
+          headers: tk ? { Authorization: `Bearer ${tk}` } : {},
+        });
+        if (!r.ok) return;
+        const j = await r.json();
+        setQuota({ left: Number(j.left ?? 0), max: Number(j.max ?? 40) });
+      } catch {}
+    };
     loadQuota();
     const onVis = () => { if (document.visibilityState === "visible") loadQuota(); };
     document.addEventListener("visibilitychange", onVis);
