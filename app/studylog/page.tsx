@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { BookOpen, Flame, Bell, BellOff, Plus, Pencil, X, Check, AlarmClock, WifiOff } from "lucide-react";
 import { ProgressRing, GradButton, EmptyState } from "@/app/components/ui";
 import { dbInsert, dbUpdate, dbDelete, dbLoad } from "@/lib/offlineWrite";
+import { useRemindChip, remindOn } from "@/lib/reminders";
 
 type Session = {
   id: string;
@@ -28,7 +29,6 @@ export default function StudyTracker() {
   const [date, setDate] = useState(today);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [streak, setStreak] = useState(0);
-  const [remindersOn, setRemindersOn] = useState(false);
   const [subject, setSubject] = useState("");
   const [topic, setTopic] = useState("");
   const [minutes, setMinutes] = useState("");
@@ -42,12 +42,23 @@ export default function StudyTracker() {
   const notified = useRef<Set<string>>(new Set());
   const router = useRouter();
 
+  // 🌐 GLOBAL REMINDERS CHIP (ON = global, OFF = only Study)
+  const { on: remindersOn, toggle: toggleRemindChip } = useRemindChip("study");
+
+  const toggleReminders = () => {
+    const currentlyOff = !remindOn("study");
+    toggleRemindChip();
+    // If we just turned ON (anywhere = global) and browser never asked → ask now
+    if (currentlyOff && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  };
+
   const load = async (selectedDate: string) => {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
     if (!userId) { router.push("/login"); return; }
 
-    // 📴 Offline-capable READ (merged mirror + date guard)
     const { rows, fromCache: cache } = await dbLoad(
       "study_sessions",
       (q) => q.eq("user_id", userId).eq("session_date", selectedDate).order("created_at"),
@@ -56,7 +67,6 @@ export default function StudyTracker() {
     setSessions(rows as Session[]);
     setFromCache(cache);
 
-    // Streak = nice-to-have, skip when offline
     if (navigator.onLine) {
       const { data: all } = await supabase.from("study_sessions").select("session_date").eq("user_id", userId).eq("completed", true);
       setStreak(calcStreak(new Set((all || []).map((r) => r.session_date)), today));
@@ -64,18 +74,12 @@ export default function StudyTracker() {
   };
 
   useEffect(() => { load(date); }, [date]);
-  useEffect(() => { setRemindersOn(localStorage.getItem("dg-reminders") === "1"); }, []);
-
-  const toggleReminders = () => {
-    if (remindersOn) { localStorage.removeItem("dg-reminders"); setRemindersOn(false); return; }
-    localStorage.setItem("dg-reminders", "1");
-    setRemindersOn(true);
-    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
-  };
 
   useEffect(() => {
     if (!remindersOn) return;
     const check = () => {
+      // Respect the global switch — if Study was turned off since last render, stop
+      if (!remindOn("study")) return;
       if (/Android/i.test(navigator.userAgent)) return;
       const now = new Date();
       const hh = String(now.getHours()).padStart(2, "0");

@@ -10,6 +10,7 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, type D
 import { SortableContext, verticalListSortingStrategy, arrayMove, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { dbInsert, dbUpdate, dbDelete, dbLoad } from "@/lib/offlineWrite";
+import { useRemindChip, remindOn } from "@/lib/reminders";
 
 type Todo = {
   id: string;
@@ -107,7 +108,6 @@ export default function TodoPage() {
   const [date, setDate] = useState(today);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [streak, setStreak] = useState(0);
-  const [remindersOn, setRemindersOn] = useState(false);
   const [newTask, setNewTask] = useState("");
   const [newTime, setNewTime] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -115,6 +115,17 @@ export default function TodoPage() {
   const [editTime, setEditTime] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fromCache, setFromCache] = useState(false);
+
+  // 🌐 GLOBAL REMINDERS CHIP (ON = global, OFF = only ToDo)
+  const { on: remindersOn, toggle: toggleRemindChip } = useRemindChip("todo");
+
+  const toggleReminders = () => {
+    const currentlyOff = !remindOn("todo");
+    toggleRemindChip();
+    if (currentlyOff && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  };
 
   const todosRef = useRef<Todo[]>([]);
   useEffect(() => { todosRef.current = todos; }, [todos]);
@@ -130,7 +141,6 @@ export default function TodoPage() {
     const userId = data.session?.user.id;
     if (!userId) { router.push("/login"); return; }
 
-    // 📴 Offline-capable READ
     const { rows, fromCache: cache } = await dbLoad("tasks", (q) =>
       q.eq("user_id", userId).eq("category", "todo").eq("task_date", selectedDate)
         .order("sort_order", { ascending: true, nullsFirst: false })
@@ -140,7 +150,6 @@ export default function TodoPage() {
     setTodos(rows as Todo[]);
     setFromCache(cache);
 
-    // Streak is a nice-to-have, not critical for offline editing
     if (navigator.onLine) {
       const { data: allDone } = await supabase.from("tasks").select("task_date").eq("user_id", userId).eq("category", "todo").eq("completed", true);
       setStreak(calcStreak(new Set((allDone || []).map((r) => r.task_date)), today));
@@ -148,18 +157,11 @@ export default function TodoPage() {
   };
 
   useEffect(() => { load(date); }, [date]);
-  useEffect(() => { setRemindersOn(localStorage.getItem("dg-reminders") === "1"); }, []);
-
-  const toggleReminders = () => {
-    if (remindersOn) { localStorage.removeItem("dg-reminders"); setRemindersOn(false); return; }
-    localStorage.setItem("dg-reminders", "1");
-    setRemindersOn(true);
-    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
-  };
 
   useEffect(() => {
     if (!remindersOn) return;
     const check = () => {
+      if (!remindOn("todo")) return;
       if (/Android/i.test(navigator.userAgent)) return;
       const now = new Date();
       const hh = String(now.getHours()).padStart(2, "0");
@@ -202,7 +204,6 @@ export default function TodoPage() {
         category: "todo", reminder_time: newTime || null, completed: false,
         sort_order: todos.length,
       });
-      // Instant UI update (works online AND offline)
       const newItem: Todo = {
         id: res.id,
         user_id: userId,

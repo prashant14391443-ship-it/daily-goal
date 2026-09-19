@@ -10,6 +10,7 @@ import Link from "next/link";
 import { Dumbbell, Flame, Bell, BellOff, Plus, Pencil, X, Check, AlarmClock, WifiOff } from "lucide-react";
 import { ProgressRing, GradButton, EmptyState } from "@/app/components/ui";
 import { dbInsert, dbUpdate, dbDelete, dbLoad } from "@/lib/offlineWrite";
+import { useRemindChip, remindOn } from "@/lib/reminders";
 
 type Workout = {
   id: string;
@@ -29,7 +30,6 @@ export default function WorkoutPage() {
   const [date, setDate] = useState(today);
   const [logs, setLogs] = useState<Workout[]>([]);
   const [streak, setStreak] = useState(0);
-  const [remindersOn, setRemindersOn] = useState(false);
   const [workout, setWorkout] = useState("");
   const [minutes, setMinutes] = useState("");
   const [reminderTime, setReminderTime] = useState("");
@@ -41,12 +41,22 @@ export default function WorkoutPage() {
   const notified = useRef<Set<string>>(new Set());
   const router = useRouter();
 
+  // 🌐 GLOBAL REMINDERS CHIP (ON = global, OFF = only Gym)
+  const { on: remindersOn, toggle: toggleRemindChip } = useRemindChip("gym");
+
+  const toggleReminders = () => {
+    const currentlyOff = !remindOn("gym");
+    toggleRemindChip();
+    if (currentlyOff && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  };
+
   const load = async (selectedDate: string) => {
     const { data } = await supabase.auth.getSession();
     const userId = data.session?.user.id;
     if (!userId) { router.push("/login"); return; }
 
-    // 📴 Offline-capable READ (with date guard for cached rows)
     const { rows, fromCache: cache } = await dbLoad(
       "gym_logs",
       (q) => q.eq("user_id", userId).eq("session_date", selectedDate).order("created_at"),
@@ -55,7 +65,6 @@ export default function WorkoutPage() {
     setLogs(rows as Workout[]);
     setFromCache(cache);
 
-    // Streak is nice-to-have; skip when offline
     if (navigator.onLine) {
       const { data: all } = await supabase.from("gym_logs").select("session_date").eq("user_id", userId).eq("completed", true);
       setStreak(calcStreak(new Set((all || []).map((r) => r.session_date)), today));
@@ -63,18 +72,11 @@ export default function WorkoutPage() {
   };
 
   useEffect(() => { load(date); }, [date]);
-  useEffect(() => { setRemindersOn(localStorage.getItem("dg-reminders") === "1"); }, []);
-
-  const toggleReminders = () => {
-    if (remindersOn) { localStorage.removeItem("dg-reminders"); setRemindersOn(false); return; }
-    localStorage.setItem("dg-reminders", "1");
-    setRemindersOn(true);
-    if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
-  };
 
   useEffect(() => {
     if (!remindersOn) return;
     const check = () => {
+      if (!remindOn("gym")) return;
       if (/Android/i.test(navigator.userAgent)) return;
       const now = new Date();
       const hh = String(now.getHours()).padStart(2, "0");
@@ -210,17 +212,6 @@ export default function WorkoutPage() {
           {date !== today && (
             <button onClick={() => setDate(today)} className="press px-3 py-2 rounded-xl bg-emerald-600 text-xs font-black">Today</button>
           )}
-        </div>
-      </div>
-
-      {/* COMPLETION BAR */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 mb-4">
-        <div className="flex justify-between items-center mb-2">
-          <p className="text-xs font-black text-slate-400">DAY COMPLETION</p>
-          <p className="text-xs font-black text-slate-300">{doneCount}/{logs.length} • {pct}%</p>
-        </div>
-        <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-          <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
         </div>
       </div>
 

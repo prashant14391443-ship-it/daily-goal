@@ -8,6 +8,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import FeedbackModal from "@/app/components/FeedbackModal";
 import AvatarCropper from "@/app/components/AvatarCropper";
+import { anyRemindOn } from "@/lib/reminders";
 
 function playBeep() {
   try {
@@ -367,6 +368,9 @@ export default function ProfileMenu() {
             reg.showNotification("DAILY GOAL ⏰", { body: `Time to: ${it.label}` });
           }
         });
+
+        // 🌐 GLOBAL REMINDERS GUARD — rescue + weekly stop if ALL 4 chips are OFF
+        if (!anyRemindOn()) return;
 
         // STREAK RESCUE
         const doneAnything =

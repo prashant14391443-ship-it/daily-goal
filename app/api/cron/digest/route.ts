@@ -13,10 +13,20 @@ export async function GET(req: Request) {
   const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
   const { data: subs } = await admin.from("push_subscriptions").select("user_id");
   
-  // ✅ FIX: spread Set into array, then cast
   const ids = [...new Set((subs || []).map((s: any) => s.user_id))] as string[];
 
+  // 🌐 GLOBAL REMINDERS GUARD — skip users who turned ALL 4 chips OFF
+  const { data: settings } = await admin.from("user_settings").select("*").in("user_id", ids);
+  const silent = new Set(
+    ((settings || []) as any[])
+      .filter((s) => !(s.remind_study || s.remind_gym || s.remind_todo || s.remind_habits))
+      .map((s) => s.user_id)
+  );
+
+  let sent = 0;
   for (const id of ids) {
+    if (silent.has(id)) continue; // user turned ALL reminders OFF somewhere in the app
+
     if (slot === "morning") {
       const day = new Date().getDay(); // 0=Sun ... 1=Mon
       if (day === 1) {
@@ -29,6 +39,7 @@ export async function GET(req: Request) {
     } else {
       await sendPushToUser(id, "🔔 TEST PUSH", "Notifications work even with the app closed!", "/dashboard");
     }
+    sent++;
   }
-  return NextResponse.json({ ok: true, users: ids.length });
+  return NextResponse.json({ ok: true, users: ids.length, sent, skipped: silent.size });
 }
