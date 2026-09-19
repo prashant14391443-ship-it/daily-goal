@@ -1,7 +1,7 @@
 // DAILY GOAL service worker v11 — FINAL: instant opens + silent full-app save
-const CACHE_NAME = "daily-goal-v11";
+const CACHE_NAME = "daily-goal-v12";
 const API_CACHE = "daily-goal-api-v1";
-const SENTINEL = "/__all_pages_saved_v11";
+const SENTINEL = "/__all_pages_saved_v12";
 
 const ALL_PAGES = [
   "/", "/dashboard", "/login", "/signup",
@@ -81,6 +81,15 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (url.origin !== self.location.origin) return;
+    // 🚫 NEVER cache our own API routes — always ask the server (fixes stale quota)
+  if (url.pathname.startsWith("/api/")) {
+    event.respondWith(
+      fetch(req).catch(() => new Response(JSON.stringify({ error: "offline" }), {
+        status: 503, headers: { "Content-Type": "application/json" },
+      }))
+    );
+    return;
+  }
 
   // 2) Pages: INSTANT from device cache, refresh in background
   if (req.mode === "navigate") {

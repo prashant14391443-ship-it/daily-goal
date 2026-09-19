@@ -329,6 +329,7 @@ export default function Dashboard() {
         const tk = data.session?.access_token || "";
         const r = await fetch("/api/ai/quota-status", {
           credentials: "same-origin",
+          cache: "no-store",
           headers: tk ? { Authorization: `Bearer ${tk}` } : {},
         });
         if (!r.ok) return;
