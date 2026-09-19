@@ -3,15 +3,17 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-// Pages that physically need internet (AI / realtime / calls / GPS-upload)
+// ONLY pages that are 100% internet-dependent (AI calls / realtime / social)
+// English hub, /speaking, /vocab, games, tips are NOT here → they open offline
 const ONLINE_ONLY = [
-  "/english", "/talk", "/speaking", "/evaluate", "/random-talk", "/call",
-  "/feed", "/friends", "/inbox", "/chat", "/newpost",
-  "/calorie", "/blueprint", "/coach", "/quiz", "/summarize", "/ai-summary",
-  "/exam", "/test", "/learn", "/learns", "/vocab", "/move", "/ai",
+  "/random-talk", "/community", "/feed", "/friends", "/inbox", "/chat", "/newpost",
+  "/call", "/evaluate", "/talk",
+  "/calorie", "/blueprint", "/coach", "/summarize", "/ai-summary", "/breakdown",
+  "/exam", "/test", "/learn", "/learns", "/ai",
+  "/move",
 ];
 
-// AI API routes that need internet
+// AI API routes → blocked offline with a friendly toast (wherever they're called)
 const AI_API = [
   "/api/ai", "/api/quiz", "/api/calorie", "/api/blueprint", "/api/coach",
   "/api/summarize", "/api/ai-summary", "/api/learn", "/api/breakdown", "/api/vocab",
@@ -30,7 +32,7 @@ export default function AiGuard() {
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => setToast(""), 2600);
     };
-    const offlineMsg = "📡 You're offline — this feature needs internet.";
+    const offlineMsg = "📡 You're offline — this feature needs internet. Everything else works!";
 
     const load = async () => {
       const { data } = await supabase.auth.getSession();
@@ -49,8 +51,8 @@ export default function AiGuard() {
     window.fetch = async (input: RequestInfo | URL, init: RequestInit = {}) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 
-      // Offline + AI API → friendly toast, don't even try network
-      if (!navigator.onLine && AI_API.some((p) => url.includes(p))) {
+      // Offline + AI API (but NOT quota check) → toast, don't try network
+      if (!navigator.onLine && AI_API.some((p) => url.includes(p)) && !url.includes("/api/ai/quota")) {
         show(offlineMsg);
         return new Response(JSON.stringify({ error: "offline" }), {
           status: 503,
@@ -91,9 +93,8 @@ export default function AiGuard() {
       }
     };
     document.addEventListener("click", onClick, true);
-    const onToast = (e: any) => show(e.detail || offlineMsg);
-    window.addEventListener("dg-toast", onToast);
-    // 3️⃣ Block programmatic navigation (router.push) to internet-only pages while offline
+
+    // 3️⃣ Block programmatic navigation (router.push) to internet-only pages
     const origPush = history.pushState.bind(history);
     const origReplace = history.replaceState.bind(history);
     history.pushState = (state: any, unused: any, url?: string | URL | null) => {
@@ -105,12 +106,16 @@ export default function AiGuard() {
       return origReplace(state, unused, url);
     };
 
+    // 4️⃣ Listen for manual toasts (AI bubble etc.)
+    const onToast = (e: any) => show(e.detail || offlineMsg);
+    window.addEventListener("dg-toast", onToast);
+
     return () => {
       window.fetch = orig;
       document.removeEventListener("click", onClick, true);
-            window.removeEventListener("dg-toast", onToast);
       history.pushState = origPush;
       history.replaceState = origReplace;
+      window.removeEventListener("dg-toast", onToast);
       sub.subscription.unsubscribe();
       clearTimeout(toastTimer);
     };

@@ -34,13 +34,56 @@ function shuffle<T>(a: T[]): T[] {
   return arr;
 }
 
+// ==========================================
+// ✅ OFFLINE VOCAB STORAGE HELPERS
+// ==========================================
+const VOCAB_STORAGE_KEY = "dg-vocab-progress-v1";
+
+function loadLocalRows(): Row[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(VOCAB_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalRows(rows: Row[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(VOCAB_STORAGE_KEY, JSON.stringify(rows));
+}
+
+function mergeRows(local: Row[], remote: Row[]): Row[] {
+  const map = new Map<string, Row>();
+  for (const r of local) map.set(r.word, r);
+  for (const r of remote) {
+    const existing = map.get(r.word);
+    if (!existing) {
+      map.set(r.word, r);
+    } else {
+      // Keep the one with higher level, or if same level, later next_review
+      if (r.level > existing.level) {
+        map.set(r.word, r);
+      } else if (r.level === existing.level && r.next_review && existing.next_review && r.next_review > existing.next_review) {
+        map.set(r.word, r);
+      }
+    }
+  }
+  return Array.from(map.values());
+}
+// ==========================================
+
 export default function VocabPage() {
   const [view, setView] = useState<"home" | "learn" | "quiz" | "result" | "review" | "bank">("home");
   const [pack, setPack] = useState<Pack | null>(null);
   const [queue, setQueue] = useState<VWord[]>([]);
   const [session, setSession] = useState<VWord[]>([]);
   const [idx, setIdx] = useState(0);
-  const [rows, setRows] = useState<Row[]>([]);
+  
+  // ✅ Initialize directly from localStorage so it's never empty offline
+  const [rows, setRows] = useState<Row[]>(() => loadLocalRows()); 
+  
   const [quizQs, setQuizQs] = useState<{ q: string; options: string[]; answer: number }[]>([]);
   const [qi, setQi] = useState(0);
   const [picked, setPicked] = useState(-1);
@@ -58,12 +101,26 @@ export default function VocabPage() {
   const getOfflineFallback = (wordText: string) => allOfflineWords.find(w => w.word === wordText);
 
   const load = async () => {
-    const { data } = await supabase.auth.getSession();
-    const id = data.session?.user.id;
-    if (!id) return;
-    setUid(id);
-    const { data: r } = await supabase.from("user_vocab").select("*").eq("user_id", id);
-    setRows((r as Row[]) || []);
+    const localRows = loadLocalRows();
+    setRows(localRows); // ✅ Show local data immediately offline
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const id = data.session?.user.id;
+      if (!id) return;
+      setUid(id);
+      
+      const { data: r, error } = await supabase.from("user_vocab").select("*").eq("user_id", id);
+      if (r && !error) {
+        const remoteRows = r as Row[];
+        const merged = mergeRows(localRows, remoteRows);
+        setRows(merged);
+        saveLocalRows(merged); // ✅ Persist merged state
+      }
+    } catch (e) {
+      // Offline or error, keep localRows
+      console.log("Vocab load offline or failed, using local cache");
+    }
   };
 
   useEffect(() => {
@@ -93,23 +150,46 @@ export default function VocabPage() {
   };
 
   const saveWord = async (w: VWord) => {
+    const newRow: Row = {
+      word: w.word,
+      meaning: w.meaning,
+      hindi: w.hindi,
+      level: 0,
+      next_review: addDaysISO(1),
+      synonym: w.synonym,
+      antonym: w.antonym
+    };
+
+    // ✅ Update local state and storage immediately
+    setRows((prev) => {
+      const exists = prev.some(r => r.word === newRow.word);
+      const next = exists ? prev.map(r => r.word === newRow.word ? newRow : r) : [...prev, newRow];
+      saveLocalRows(next);
+      return next;
+    });
+
     if (!uid) return;
-    await supabase
-      .from("user_vocab")
-      .upsert(
-        { 
-          user_id: uid, 
-          word: w.word, 
-          meaning: w.meaning, 
-          hindi: w.hindi, 
-          level: 0, 
-          next_review: addDaysISO(1),
-          synonym: w.synonym,
-          antonym: w.antonym
-        },
-        { onConflict: "user_id,word" }
-      );
-    load();
+
+    // Try to save to Supabase in background
+    try {
+      await supabase
+        .from("user_vocab")
+        .upsert(
+          { 
+            user_id: uid, 
+            word: w.word, 
+            meaning: w.meaning, 
+            hindi: w.hindi, 
+            level: 0, 
+            next_review: addDaysISO(1),
+            synonym: w.synonym,
+            antonym: w.antonym
+          },
+          { onConflict: "user_id,word" }
+        );
+    } catch (e) {
+      // Silently fail offline, will sync later
+    }
   };
 
   const advance = (extra?: VWord) => {
@@ -200,12 +280,29 @@ export default function VocabPage() {
       level = Math.min(4, level + 1);
       next = level >= 4 ? null : addDaysISO(INTERVALS[level] || 1);
     }
-    await supabase.from("user_vocab").update({ level, next_review: next }).eq("user_id", uid).eq("word", w.word);
-    setRows((prev) => prev.map((r) => (r.word === w.word ? { ...r, level, next_review: next } : r)));
+
+    // ✅ Update local state and storage immediately
+    setRows((prev) => {
+      const updatedRows = prev.map((r) =>
+        r.word === w.word ? { ...r, level, next_review: next } : r,
+      );
+      saveLocalRows(updatedRows);
+      return updatedRows;
+    });
+
     if (revIdx + 1 >= revQueue.length) setView("home");
     else {
       setRevIdx(revIdx + 1);
       setFlipped(false);
+    }
+
+    if (!uid) return;
+
+    // Try to update Supabase in background
+    try {
+      await supabase.from("user_vocab").update({ level, next_review: next }).eq("user_id", uid).eq("word", w.word);
+    } catch (e) {
+      // Silently fail offline
     }
   };
 
